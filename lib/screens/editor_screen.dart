@@ -1,13 +1,13 @@
 ﻿// lib/screens/editor_screen.dart
 // Editor tipo Excel. Android / iOS / Windows / Web.
-// - Encabezados editables, auto-fit, resize con drag
+// - Encabezados editables (vacíos por defecto), auto-fit, resize con drag
 // - Filas alternas, foco visible, edición al tocar
 // - Adjuntos por fila y exportación XLSX real con fotos
 // - Barra de adjuntos bajo encabezados, por fila enfocada
 // - GPS y Dictado a celda (con mic naranja animado por fila enfocada)
 // - Backup/Import JSON, Undo/Redo, Agregar/Borrar fila/columna
 // - Enviar por correo vía backend (Resend) con adjunto XLSX
-//   usando microservicio Node (CloudMailer / send-xlsx)
+//   usando microservicio Node (CloudMailer / send-xlsx) [desactivado en la beta]
 // - Scroll con física tipo iOS en iOS/macOS y clamping en el resto
 // - Atajos: Tab/Shift+Tab, Ctrl/Cmd+S, Ctrl/Cmd+Z/Y, Ctrl/Cmd+N, Ctrl/Cmd+E
 // - Atajos extra: Ctrl+D (duplicar fila), Ctrl+L (limpiar fila),
@@ -26,7 +26,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:geolocator/geolocator.dart' show LocationAccuracy;
+import 'package:geolocator/geolocator.dart'
+    show LocationAccuracy, Geolocator, LocationPermission;
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image/image.dart' as img;
@@ -53,7 +54,7 @@ import '../widgets/speech_mic_button.dart';
 /// - Permitir generar XLSX con fotos (para descarga/local).
 /// - Generar un XLSX liviano sin fotos para enviar por mail
 ///   usando el microservicio Node + Resend (CloudMailer)
-///   a través de MailReportService.
+///   a través de MailReportService (no expuesto en la barra en la beta).
 /// - Mostrar un overlay (_BusyOverlay) cuando hay operaciones largas.
 class EditorScreen extends StatefulWidget {
   const EditorScreen({
@@ -81,8 +82,14 @@ class _EditorScreenState extends State<EditorScreen>
   static const double _hdrH = 46.0;
   static const double _attBarH = 88.0;
 
-  static const int _initialCols = 8;
-  static const int _initialRows = 6;
+  // Tamaño mínimo de la planilla (nueva o restaurada).
+  // Bajado a 40 filas para que nazca más liviana.
+  static const int _initialCols = 20;
+  static const int _initialRows = 40;
+
+  // Encabezados por defecto para planillas nuevas: todos vacíos.
+  // Los nombres visibles vienen del hint "Col X" en el TextField.
+  static const List<String> _defaultHeaders = [];
 
   static const String _fcBaseUrl =
   String.fromEnvironment('FOTOCLEAN_URL', defaultValue: '');
@@ -140,6 +147,7 @@ class _EditorScreenState extends State<EditorScreen>
   Debouncer(const Duration(milliseconds: 200));
   final Debouncer _attUiDebounce =
   Debouncer(const Duration(milliseconds: 120));
+  bool _attachmentsEverUsed = false;
 
   List<_AttItem> _attOfFocused = const [];
   bool _attLoading = false;
@@ -212,31 +220,78 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _hydrate() async {
     final raw = await _loadRawCompat(widget.sheetId);
     if (!mounted) return;
+
+    // Caso 1: no hay nada guardado → hoja nueva con template grande.
     if (raw == null) {
-      final headers = List<String>.generate(_initialCols, (i) => '');
-      final rows =
-      List.generate(_initialRows, (_) => List.filled(_initialCols, ''));
+      final headers = _buildInitialHeaders();
+      final rows = List.generate(
+        _initialRows,
+            (_) => List.filled(headers.length, ''),
+      );
       final now = DateTime.now();
+      final normalized = _normalizeState(
+        TableState(headers: headers, rows: rows, savedAt: now),
+      );
       setState(() {
-        _state = TableState(headers: headers, rows: rows, savedAt: now);
+        _state = normalized;
         _lastSavedAt = now;
-        _colW = List<double>.filled(headers.length, 180.0);
+        _colW = List<double>.filled(normalized.headers.length, 180.0);
         _rebuildPrefix();
         _loading = false;
       });
       await _loadFocusedRowAttachments();
       return;
     }
+
+    // Caso 2: había planilla guardada → se normaliza a mínimo filas/columnas.
     final parsed = TableState.fromJsonString(raw) ?? TableState.empty();
+    final normalized = _normalizeState(parsed);
+
     if (!mounted) return;
     setState(() {
-      _state = parsed;
-      _lastSavedAt = parsed.savedAt;
+      _state = normalized;
+      _lastSavedAt = normalized.savedAt;
       _colW = List<double>.filled(_state.headers.length, 180.0);
       _rebuildPrefix();
       _loading = false;
     });
     await _loadFocusedRowAttachments();
+  }
+
+  // Encabezados iniciales: todos vacíos, se ven sólo los hints "Col X".
+  List<String> _buildInitialHeaders() {
+    return List<String>.filled(_initialCols, '');
+  }
+
+  // Normaliza cualquier TableState (local/nube/import) a un mínimo de
+  // columnas y filas, para que la planilla vieja también "crezca".
+  TableState _normalizeState(TableState s) {
+    var headers = List<String>.from(s.headers);
+
+    if (headers.isEmpty) {
+      headers = _buildInitialHeaders();
+    } else if (headers.length < _initialCols) {
+      headers.addAll(List.filled(_initialCols - headers.length, ''));
+    }
+
+    final rows = <List<String>>[];
+    for (final r in s.rows) {
+      final row = List<String>.from(r);
+      if (row.length < headers.length) {
+        row.addAll(List.filled(headers.length - row.length, ''));
+      }
+      rows.add(row);
+    }
+
+    while (rows.length < _initialRows) {
+      rows.add(List<String>.filled(headers.length, ''));
+    }
+
+    return TableState(
+      headers: headers,
+      rows: rows,
+      savedAt: s.savedAt ?? DateTime.now(),
+    );
   }
 
   // Compat con SheetStore IO/Web (loadRaw es síncrono, pero mantenemos Future)
@@ -553,12 +608,27 @@ class _EditorScreenState extends State<EditorScreen>
     _setFocus(r, _clampi(_focus.$2, 0, math.max(0, _colCount - 1)));
   }
 
-  void _clearAll() {
+  /// Limpia toda la planilla previa confirmación del usuario.
+  /// Mantiene encabezados y deja _initialRows filas vacías.
+  Future<void> _clearAll() async {
+    if (_rowCount == 0) return;
+    final ok = await _confirmDestructive(
+      title: 'Vaciar planilla',
+      message:
+      'Se limpiarán todas las filas de la planilla actual.\n\n'
+          'Los encabezados se mantienen, pero el contenido de las celdas se perderá (podés deshacer con Ctrl+Z).',
+      confirmLabel: 'Vaciar planilla',
+    );
+    if (!ok) return;
+
     final cols = _state.headers.length;
     _updateState(
       TableState(
         headers: _state.headers.toList(),
-        rows: List.generate(3, (_) => List<String>.filled(cols, '')),
+        rows: List.generate(
+          _initialRows,
+              (_) => List<String>.filled(cols, ''),
+        ),
         savedAt: DateTime.now(),
       ),
     );
@@ -749,6 +819,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _refreshAttachForVisible() async {
     if (_rowCount == 0) return;
+    // Optimización: si nunca hubo adjuntos, no escaneamos filas.
+    if (!_attachmentsEverUsed) return;
+
     final start = _firstVisibleRow();
     final end = (_rowCount - 1) < (start + _visibleRowCount() + 4)
         ? (_rowCount - 1)
@@ -814,6 +887,59 @@ class _EditorScreenState extends State<EditorScreen>
       _busyMessage = 'Obteniendo ubicación…';
     });
     try {
+      // Permisos de ubicación para Android / iOS / Web.
+      bool serviceEnabled;
+      try {
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      } catch (_) {
+        // En caso de duda, no bloqueamos en web/escritorio.
+        serviceEnabled = true;
+      }
+
+      if (!serviceEnabled) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Servicio de ubicación desactivado. Activá el GPS y volvé a intentar.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      LocationPermission permission;
+      try {
+        permission = await Geolocator.checkPermission();
+      } catch (_) {
+        // Si falla el chequeo, dejamos seguir y que LocationService maneje.
+        permission = LocationPermission.always;
+      }
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          messenger?.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Permiso de ubicación denegado. No se pudo obtener la posición.',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Permiso de ubicación denegado permanentemente. Revisá los ajustes del dispositivo.',
+            ),
+          ),
+        );
+        return;
+      }
+
       final fix = await LocationService.I.getCurrentFix(
         desiredAccuracy: LocationAccuracy.high,
         timeout: const Duration(seconds: 12),
@@ -1105,6 +1231,16 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _restoreFromCloud() async {
     if (_busy) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
+
+    final ok = await _confirmDestructive(
+      title: 'Restaurar desde la nube',
+      message:
+      'Se va a reemplazar la planilla actual con el backup almacenado en la nube (Firestore) para este ID.\n\n'
+          'Los datos actuales se perderán y sólo quedarán los del backup (podés intentar deshacer si algo no salió bien).',
+      confirmLabel: 'Restaurar',
+    );
+    if (!ok) return;
+
     setState(() {
       _busy = true;
       _busyMessage = 'Restaurando desde la nube…';
@@ -1141,11 +1277,6 @@ class _EditorScreenState extends State<EditorScreen>
           rows.add(row.map((e) => e.toString()).toList());
         }
       }
-      if (rows.isEmpty) {
-        rows.addAll(
-          List.generate(3, (_) => List<String>.filled(headers.length, '')),
-        );
-      }
 
       DateTime? savedAt;
       final rawSaved = json['savedAt'];
@@ -1153,10 +1284,12 @@ class _EditorScreenState extends State<EditorScreen>
         savedAt = DateTime.tryParse(rawSaved);
       }
 
-      final restored = TableState(
-        headers: headers,
-        rows: rows,
-        savedAt: savedAt ?? DateTime.now(),
+      final restored = _normalizeState(
+        TableState(
+          headers: headers,
+          rows: rows,
+          savedAt: savedAt ?? DateTime.now(),
+        ),
       );
 
       _updateState(restored);
@@ -1233,70 +1366,14 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Exporta el XLSX y lo descarga. Luego pregunta si quiere enviar
-  /// por correo y, en ese caso, genera un XLSX sin fotos para enviar.
+  /// Exporta el XLSX y lo descarga localmente.
+  /// Alias de [_downloadXlsxOnly] para compatibilidad.
   Future<void> _exportXlsx() async {
-    if (_busy) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    setState(() {
-      _busy = true;
-      _busyMessage = 'Generando XLSX…';
-    });
-    try {
-      // 1) Exportar con fotos para descarga/local
-      final bytesWithPhotos = await _buildXlsxBytes(withPhotos: true);
-      if (!mounted) return;
-
-      setState(() {
-        _busyMessage =
-        kIsWeb ? 'Descargando archivo…' : 'Guardando archivo…';
-      });
-      final ts = _timestamp();
-      final baseName = 'Gridnote_$ts';
-      final savedPath = await saveXlsx(baseName, bytesWithPhotos);
-      _lastSavedName = '$baseName.xlsx';
-
-      if (!mounted) return;
-      final msg = kIsWeb
-          ? 'Descargado: $_lastSavedName'
-          : (savedPath != null ? 'Guardado: $savedPath' : 'Guardado');
-      messenger?.showSnackBar(SnackBar(content: Text(msg)));
-
-      // 2) Preguntar si se desea enviar por mail (XLSX sin fotos)
-      setState(() {
-        _busyMessage = 'Listo. Preparando correo (opcional)…';
-      });
-      final dest = await _promptEmail();
-      if (!mounted) return;
-      if (dest != null && dest.isNotEmpty) {
-        setState(() {
-          _busyMessage = 'Enviando correo…';
-        });
-        final emailBytes = await _buildXlsxBytes(withPhotos: false);
-        await _sendEmailWithBytes(
-          emailBytes,
-          fileName: _lastSavedName,
-          to: dest,
-        );
-      }
-      _saveCloudSilently();
-    } catch (e) {
-      if (mounted) {
-        messenger?.showSnackBar(
-          SnackBar(content: Text('Error exportando: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _busyMessage = null;
-        });
-      }
-    }
+    await _downloadXlsxOnly();
   }
 
   /// Envía un correo con el XLSX sin fotos (versión liviana).
+  /// No se expone en la beta (no hay botón "Enviar").
   Future<void> _sendEmail() async {
     if (_busy) return;
     setState(() {
@@ -1649,6 +1726,35 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {
       // Silencioso
     }
+  }
+
+  /// Diálogo genérico para confirmar operaciones destructivas grandes.
+  Future<bool> _confirmDestructive({
+    required String title,
+    required String message,
+    String confirmLabel = 'Continuar',
+  }) async {
+    if (!mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
   }
 
   @override
@@ -2027,7 +2133,7 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         _toolbarDividerWidget(theme),
 
-        // Grupo: limpieza / exportar / enviar
+        // Grupo: limpieza / exportar (beta: solo descarga local)
         _toolbarButton(
           cs,
           icon: Icons.cleaning_services,
@@ -2037,20 +2143,8 @@ class _EditorScreenState extends State<EditorScreen>
         _toolbarButton(
           cs,
           icon: Icons.file_download_outlined,
-          label: 'Descargar',
+          label: 'Descargar XLSX',
           onTap: _busy ? null : _downloadXlsxOnly,
-        ),
-        _toolbarButton(
-          cs,
-          icon: Icons.table_view,
-          label: 'XLSX',
-          onTap: _busy ? null : _exportXlsx,
-        ),
-        _toolbarButton(
-          cs,
-          icon: Icons.send,
-          label: 'Enviar',
-          onTap: _busy ? null : _sendEmail,
         ),
         _toolbarDividerWidget(theme),
 
@@ -2251,8 +2345,8 @@ class _EditorScreenState extends State<EditorScreen>
                     _shortcutGroup(
                       'Exportar y guardar',
                       const [
-                        'Ctrl+E: exportar a XLSX.',
-                        'Ctrl+S: guardar/exportar a XLSX (atajo extra).',
+                        'Ctrl+E: exportar a XLSX (descarga local).',
+                        'Ctrl+S: exportar a XLSX (atajo extra, descarga local).',
                       ],
                     ),
                     _shortcutGroup(
@@ -3164,13 +3258,13 @@ class _EditorScreenState extends State<EditorScreen>
       return KeyEventResult.handled;
     }
 
-    // Exportar / Guardar
+    // Exportar / Guardar (beta: sólo descarga XLSX local)
     if (hasCtrl && e.logicalKey == LogicalKeyboardKey.keyE) {
-      _exportXlsx();
+      _downloadXlsxOnly();
       return KeyEventResult.handled;
     }
     if (hasCtrl && e.logicalKey == LogicalKeyboardKey.keyS) {
-      _exportXlsx();
+      _downloadXlsxOnly();
       return KeyEventResult.handled;
     }
 
@@ -3199,6 +3293,9 @@ class _EditorScreenState extends State<EditorScreen>
       final files =
       await openFiles(acceptedTypeGroups: [groupExt, groupMime]);
       if (files.isEmpty) return;
+
+      // Desde el primer uso real de adjuntos, habilitamos el refresco de contadores.
+      _attachmentsEverUsed = true;
 
       for (final f in files) {
         try {
@@ -3283,19 +3380,25 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _importBackup() async {
+    final ok = await _confirmDestructive(
+      title: 'Importar backup JSON',
+      message:
+      'Se va a importar un backup JSON (archivo .json) y se reemplazará la planilla actual con los datos del backup.\n\n'
+          'Los datos actuales se perderán y sólo quedarán los del archivo importado (podés deshacer si algo no salió bien).',
+      confirmLabel: 'Importar backup',
+    );
+    if (!ok) return;
+
     final ts = await LocalStore.importBackup();
     if (!mounted || ts == null) return;
-    final rows = ts.rows.isEmpty
-        ? List.generate(
-        3, (_) => List<String>.filled(ts.headers.length, ''))
-        : ts.rows.map((r) => r.toList()).toList();
-    _updateState(
+    final restored = _normalizeState(
       TableState(
         headers: ts.headers.toList(),
-        rows: rows,
+        rows: ts.rows.map((r) => r.toList()).toList(),
         savedAt: DateTime.now(),
       ),
     );
+    _updateState(restored);
     _resetHdrCtl();
     _rebuildPrefix();
     _autoFitOnce = false;
@@ -3324,6 +3427,9 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       setState(() {
         _attOfFocused = list;
+        if (list.isNotEmpty) {
+          _attachmentsEverUsed = true;
+        }
       });
     } catch (_) {
       if (!mounted) return;

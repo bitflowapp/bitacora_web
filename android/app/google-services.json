@@ -1,0 +1,214 @@
+{
+  "project_info": {
+    "project_number": "291382142551",
+    "project_id": "bitacora-28be4",
+    "storage_bucket": "bitacora-28be4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291382142551:android:183ac604fcb9d35e99a512",
+        "android_client_info": {
+          "package_name": "com.bitacora.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "291382142551-5buv2su0rtdf2e6t0oadcabjjb06q8gp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bitacora.app",
+            "certificate_hash": "57d58a89792fbf238dfc699449139dfbb1ccb981"
+          }
+        },
+        {
+          "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_eNIXKSKoCZAaBGxBskrGpNvI7BcvNTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "291382142551-6aurf6gmv28inpd2ge447umuptdua4qq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gridnote.bitacora"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291382142551:android:ccabeff2fbdfe79399a512",
+        "android_client_info": {
+          "package_name": "com.example.bitacora_web"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_eNIXKSKoCZAaBGxBskrGpNvI7BcvNTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "291382142551-6aurf6gmv28inpd2ge447umuptdua4qq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gridnote.bitacora"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291382142551:android:2a9acaeeb73b581199a512",
+        "android_client_info": {
+          "package_name": "com.example.gridnote"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_eNIXKSKoCZAaBGxBskrGpNvI7BcvNTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "291382142551-6aurf6gmv28inpd2ge447umuptdua4qq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gridnote.bitacora"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291382142551:android:954a2f0930a5e30399a512",
+        "android_client_info": {
+          "package_name": "com.gridnote.app.gridnote"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "291382142551-op99i81ulf0c5rk3mbvscpl0vn2ohtpk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gridnote.app.gridnote",
+            "certificate_hash": "7ab44f9eb2f8f1edd3148c937524e2620b6a7f9a"
+          }
+        },
+        {
+          "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_eNIXKSKoCZAaBGxBskrGpNvI7BcvNTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "291382142551-6aurf6gmv28inpd2ge447umuptdua4qq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gridnote.bitacora"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291382142551:android:e17ebeda01a2050299a512",
+        "android_client_info": {
+          "package_name": "com.gridnote.bitacora"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "291382142551-gdbafgq4k2723augk1j1emljehn0r4cd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gridnote.bitacora",
+            "certificate_hash": "d50d4b7a99b68460cf59bcca13e414df192b70fd"
+          }
+        },
+        {
+          "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_eNIXKSKoCZAaBGxBskrGpNvI7BcvNTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "291382142551-ec2qrn0e1trjhrql687547mvseriipmi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "291382142551-6aurf6gmv28inpd2ge447umuptdua4qq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gridnote.bitacora"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

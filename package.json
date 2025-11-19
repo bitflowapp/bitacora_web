@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "resend": "^6.4.2"
+  },
+  "name": "bitacora_web_restored",
+  "version": "1.0.0",
+  "description": "A new Flutter project.",
+  "main": "auth.js",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcoluna-nqn/bitacora_web.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/marcoluna-nqn/bitacora_web/issues"
+  },
+  "homepage": "https://github.com/marcoluna-nqn/bitacora_web#readme"
+}

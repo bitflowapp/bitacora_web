@@ -7,6 +7,8 @@ class RowGeo {
   final double lat;
   final double lng;
   final double? accuracyM;
+
+  /// Momento de captura (idealmente en UTC).
   final DateTime ts;
 
   const RowGeo({
@@ -24,19 +26,22 @@ class RowGeo {
     'lat': lat,
     'lng': lng,
     'acc': accuracyM,
-    'ts': ts.toIso8601String(),
+    'ts': ts.toUtc().toIso8601String(),
   };
 
   static RowGeo? from(Object? raw) {
     if (raw is! Map) return null;
     try {
+      final tsRaw = raw['ts'] as String?;
+      final parsedTs = tsRaw != null ? DateTime.tryParse(tsRaw) : null;
+
       return RowGeo(
         sheetId: raw['sheetId'] as String,
         row: (raw['row'] as num).toInt(),
         lat: (raw['lat'] as num).toDouble(),
         lng: (raw['lng'] as num).toDouble(),
         accuracyM: (raw['acc'] as num?)?.toDouble(),
-        ts: DateTime.tryParse(raw['ts'] as String? ?? '') ?? DateTime.now(),
+        ts: (parsedTs ?? DateTime.now()).toUtc(),
       );
     } catch (_) {
       return null;
@@ -47,42 +52,65 @@ class RowGeo {
 class RowGeoStore {
   RowGeoStore._();
   static final RowGeoStore I = RowGeoStore._();
+
   static const _boxName = 'geo_box';
   Box<dynamic>? _box;
 
-  Future<void> init() async {
-    if (!Hive.isBoxOpen(_boxName)) {
-      await Hive.initFlutter();
-      _box = await Hive.openBox<dynamic>(_boxName);
-    } else {
-      _box = Hive.box<dynamic>(_boxName);
+  /// Asegura que la box esté abierta y lista.
+  Future<Box<dynamic>> _ensureBox() async {
+    final existing = _box;
+    if (existing != null && existing.isOpen) {
+      return existing;
     }
+
+    if (Hive.isBoxOpen(_boxName)) {
+      _box = Hive.box<dynamic>(_boxName);
+    } else {
+      // Importante: Hive.initFlutter() debe llamarse una sola vez en main()
+      _box = await Hive.openBox<dynamic>(_boxName);
+    }
+    return _box!;
   }
 
   String _key(String sheetId, int row) => '$sheetId::$row';
 
   Future<void> save(RowGeo g) async {
-    await init();
-    await _box!.put(_key(g.sheetId, g.row), g.toMap());
+    final box = await _ensureBox();
+    await box.put(_key(g.sheetId, g.row), g.toMap());
   }
 
   Future<RowGeo?> get(String sheetId, int row) async {
-    await init();
-    return RowGeo.from(_box!.get(_key(sheetId, row)));
+    final box = await _ensureBox();
+    final raw = box.get(_key(sheetId, row));
+    return RowGeo.from(raw);
   }
 
   Future<void> clear(String sheetId, int row) async {
-    await init();
-    await _box!.delete(_key(sheetId, row));
+    final box = await _ensureBox();
+    await box.delete(_key(sheetId, row));
   }
 
+  /// Devuelve todas las geos existentes para filas [0, rows).
   Future<List<RowGeo>> listForSheet(String sheetId, int rows) async {
-    await init();
+    final box = await _ensureBox();
     final out = <RowGeo>[];
+
     for (var r = 0; r < rows; r++) {
-      final g = await get(sheetId, r);
+      final raw = box.get(_key(sheetId, r));
+      final g = RowGeo.from(raw);
       if (g != null) out.add(g);
     }
+
     return out;
+  }
+
+  /// Opcional: limpiar todas las geos de una hoja.
+  Future<void> clearSheet(String sheetId, int rows) async {
+    final box = await _ensureBox();
+    final keys = <String>[];
+    for (var r = 0; r < rows; r++) {
+      keys.add(_key(sheetId, r));
+    }
+    await box.deleteAll(keys);
   }
 }

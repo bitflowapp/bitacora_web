@@ -2,13 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <title>Bit Flow — Planilla tipo Excel para campo</title>
-  <meta name="description" content="Registra mediciones, adjuntos, GPS y exporta a Excel/PDF con experiencia tipo Apple.">
+  <meta name="description" content="Bit Flow es una planilla tipo Excel pensada para campo: mediciones, fotos, GPS y exportación real a Excel/PDF con experiencia tipo Apple.">
   <meta name="robots" content="index,follow">
-  <link rel="canonical" href="https://marcoluna-nqn.github.io/bitacora_web/">
+
+  <!-- Canonical genérico (se resuelve relativo al dominio actual) -->
+  <link rel="canonical" href="/" />
 
   <!-- PWA / iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,24 +24,26 @@
   <!-- Manifest -->
   <link rel="manifest" href="manifest.json">
 
-  <!-- Base correcta para GitHub Pages (repo bitacora_web) -->
-  <base href="/bitacora_web/">
+  <!-- Base para Flutter Web.
+       Flutter reemplaza $FLUTTER_BASE_HREF si usás --base-href en el build. -->
+  <base href="$FLUTTER_BASE_HREF">
 
-  <!-- Schema.org -->
-  <script type="application/ld+json">
-    {
-      "@context":"https://schema.org",
-      "@type":"SoftwareApplication",
-      "name":"Bit Flow",
-      "applicationCategory":"BusinessApplication",
-      "operatingSystem":"Web",
-      "url":"https://marcoluna-nqn.github.io/bitacora_web/",
-      "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}
-    }
-  </script>
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Bit Flow — Planilla tipo Excel para campo">
+  <meta property="og:description" content="Registra mediciones con GPS, adjunta fotos y exporta a Excel/PDF desde el navegador. Ideal para relevamientos industriales.">
+  <meta property="og:url" content="/" />
+  <meta property="og:image" content="icons/Icon-512.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Bit Flow — Planilla tipo Excel para campo">
+  <meta name="twitter:description" content="Planillas estilo Excel con GPS, fotos y exportación XLSX real para campo.">
+  <meta name="twitter:image" content="icons/Icon-512.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="shortcut icon" type="image/png" href="favicon.png">
 </head>
 <body>
 <script src="flutter_bootstrap.js" async></script>

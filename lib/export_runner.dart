@@ -1,28 +1,63 @@
-﻿import 'dart:io';
+﻿// lib/export_runner.dart
+// Runner para probar la exportación XLSX desde terminal/escritorio.
+//
+// Ejemplos de uso:
+//   flutter run -d windows -t lib/export_runner.dart
+//   flutter run -d macos   -t lib/export_runner.dart
+//   flutter run -d linux   -t lib/export_runner.dart
+//
+// En Android/iOS también funciona, pero no cierra la app; solo genera el archivo.
+
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'services/xlsx_exporter.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final headers = ['Fecha','Progresiva','1m Ω','3m Ω','Obs'];
   final now = DateTime.now();
-  final rows = [
-    [now, 'PK-001', 12.34, 15.9, 'OK'],
-    [now, 'PK-002', 10, 11.2, '—'],
+
+  final headers = <String>[
+    'Fecha',
+    'Progresiva',
+    '1m Ω',
+    '3m Ω',
+    'Obs',
   ];
 
-  final res = await XlsxExporter.export(headers: headers, rows: rows, sheetName: 'Test');
-  // Imprime a la terminal la ruta/URI
-  // En Web se imprime el nombre y se descarga.
-  // En móviles/escritorio, FileSaver devuelve path/URI según plataforma.
-  // Cierra el proceso si es escritorio.
-  // ignore: avoid_print
-  print('XLSX -> ' + (res.savedPathOrUri ?? res.fileName));
-  if (!Platform.isAndroid && !Platform.isIOS) {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    exit(0);
+  final rows = <List<dynamic>>[
+    [now, 'PK-001', 12.34, 15.9, 'OK'],
+    [now, 'PK-002', 10.0, 11.2, '—'],
+  ];
+
+  try {
+    final result = await XlsxExporter.export(
+      headers: headers,
+      rows: rows,
+      sheetName: 'Test',
+    );
+
+    final pathOrUri = result.savedPathOrUri ?? result.fileName;
+
+    // Log limpio para leer rápido en la terminal.
+    // ignore: avoid_print
+    print('XLSX generado -> $pathOrUri');
+
+    // En escritorio salimos después de un pequeño delay.
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      exit(0);
+    }
+  } catch (e, st) {
+    // ignore: avoid_print
+    print('Error al exportar XLSX: $e\n$st');
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      exit(1);
+    }
   }
 
-  runApp(const SizedBox.shrink()); // No muestra UI en móviles.
+  // En móviles dejamos una app vacía para que el runner no crashee.
+  runApp(const SizedBox.shrink());
 }

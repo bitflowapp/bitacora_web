@@ -17,6 +17,7 @@ dependencies:
   # Utilidades
   intl: 0.20.2
   collection: ^1.18.0
+  image: ^4.2.0       # <- NUEVO (para convertir HEIC/WEBP a JPEG en exportación)
 
   # Navegación
   go_router: ^16.3.0
@@ -37,7 +38,7 @@ dependencies:
   file_selector: ^1.0.4
   file_saver: ^0.3.1
   csv: ^6.0.0
-  path: ^1.9.1        # <- actualizado para alinear con flutter_test del SDK
+  path: ^1.9.1
   path_provider: ^2.1.4
 
   # UX
@@ -45,6 +46,7 @@ dependencies:
   animations: ^2.0.11
   lottie: ^3.1.2
   url_launcher: ^6.3.2
+  video_player: ^2.9.2
 
   # Compartir / correo
   share_plus: ^12.0.1
@@ -73,3 +75,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sfx/
+    - assets/video/gridnote_cells_loop.mp4

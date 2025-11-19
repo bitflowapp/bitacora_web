@@ -14,8 +14,11 @@ class AttachmentsButton extends StatefulWidget {
     this.onChanged,
   });
 
+  /// Debe devolver (sheetId, rowIndex) de la fila actual, o null si no hay selección.
   final RowKeyProvider getCurrentRow;
-  final VoidCallback? onChanged; // notifica cambios al padre
+
+  /// Notifica al padre cuando cambian los adjuntos.
+  final VoidCallback? onChanged;
 
   @override
   State<AttachmentsButton> createState() => _AttachmentsButtonState();
@@ -26,22 +29,31 @@ class _AttachmentsButtonState extends State<AttachmentsButton> {
   (String sheetId, int rowIndex)? _row;
 
   Future<void> _reload() async {
-    _row = widget.getCurrentRow();
-    if (_row == null) return;
+    final loc = widget.getCurrentRow();
+    _row = loc;
+    if (loc == null) {
+      if (mounted) {
+        setState(() => _items = const []);
+      }
+      return;
+    }
+
     final xs = await AttachmentsServiceWeb.I.listFor(
-      sheetId: _row!.$1,
-      row: _row!.$2,
+      sheetId: loc.$1,
+      row: loc.$2,
     );
-    if (!mounted) return; // no usa context luego
+    if (!mounted) return;
     setState(() => _items = xs);
   }
 
   Future<void> _add() async {
-    _row = widget.getCurrentRow();
-    if (_row == null) return;
+    final loc = widget.getCurrentRow();
+    _row = loc;
+    if (loc == null) return;
+
     await AttachmentsServiceWeb.I.pickAndAdd(
-      sheetId: _row!.$1,
-      row: _row!.$2,
+      sheetId: loc.$1,
+      row: loc.$2,
     );
     await _reload();
     widget.onChanged?.call();
@@ -60,13 +72,15 @@ class _AttachmentsButtonState extends State<AttachmentsButton> {
           onPressed: disabled
               ? null
               : () async {
-            final ctx = context;
             await _add();
-            if (!ctx.mounted) return;
+            if (!mounted) return;
             final n = _items.length;
             if (n > 0) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                SnackBar(content: Text('Adjuntos: $n')),
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Adjuntos en esta fila: $n'),
+                  duration: const Duration(milliseconds: 1500),
+                ),
               );
             }
           },
@@ -77,21 +91,21 @@ class _AttachmentsButtonState extends State<AttachmentsButton> {
           onPressed: disabled
               ? null
               : () async {
-            final ctx = context;
             await _reload();
-            if (!ctx.mounted || _row == null) return;
+            if (!mounted || _row == null) return;
+
             await showModalBottomSheet<void>(
-              context: ctx,
+              context: context,
               useSafeArea: true,
               isScrollControlled: true,
               showDragHandle: true,
               builder: (_) => _AttachmentsSheet(
                 sheetId: _row!.$1,
                 row: _row!.$2,
-                onChanged: () => widget.onChanged?.call(),
+                onChanged: widget.onChanged ?? () {},
               ),
             );
-            if (!ctx.mounted) return;
+            if (!mounted) return;
             await _reload();
             widget.onChanged?.call();
           },
@@ -133,7 +147,7 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
       sheetId: widget.sheetId,
       row: widget.row,
     );
-    if (!mounted) return; // no usa context luego
+    if (!mounted) return;
     setState(() {
       _items = xs;
       _loading = false;
@@ -145,7 +159,7 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
       sheetId: widget.sheetId,
       row: widget.row,
     );
-    if (!mounted) return; // no usa context luego
+    if (!mounted) return;
     await _load();
     widget.onChanged();
   }
@@ -160,7 +174,7 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
 
   Future<void> _delete(AttachmentRecord m) async {
     await AttachmentsServiceWeb.I.delete(m.id);
-    if (!mounted) return; // no usa context luego
+    if (!mounted) return;
     await _load();
     widget.onChanged();
   }
@@ -197,6 +211,8 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final title = 'Adjuntos · Fila ${widget.row + 1}';
 
     return Scaffold(
@@ -211,18 +227,33 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2.4))
+          ? const Center(
+        child: CircularProgressIndicator(strokeWidth: 2.4),
+      )
           : _items.isEmpty
-          ? const Center(child: Text('No hay archivos adjuntos en esta fila.'))
+          ? const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'No hay archivos adjuntos en esta fila.\nAgregá fotos, PDFs o archivos de respaldo.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      )
           : ListView.separated(
         padding: const EdgeInsets.only(bottom: 12),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) =>
+            Divider(height: 1, color: cs.outlineVariant),
         itemBuilder: (_, i) {
           final m = _items[i];
           return ListTile(
             leading: _thumb(m),
-            title: Text(m.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(
+              m.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             subtitle: Text('${m.mime} • ${_fmtSize(m.size)}'),
             onTap: () => _open(m),
             trailing: Row(

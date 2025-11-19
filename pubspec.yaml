@@ -1,5 +1,5 @@
 name: bitacora_web
-description: "BitFlow: hoja tipo Excel con experiencia tipo Apple."
+description: "Bitácora web: hoja tipo Excel con experiencia tipo Apple."
 publish_to: "none"
 version: 1.0.1+2
 
@@ -17,6 +17,7 @@ dependencies:
   # Utilidades
   intl: 0.20.2
   collection: ^1.18.0
+  image: ^4.2.0       # Para convertir HEIC/WEBP a JPEG en exportación
 
   # Navegación
   go_router: ^16.3.0
@@ -28,25 +29,24 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
-  # Syncfusion (alineadas)
-  syncfusion_flutter_core: ^31.2.5
-  syncfusion_flutter_datagrid: ^31.2.5
-  syncfusion_flutter_xlsio: ^31.2.5
+  # Syncfusion
+  syncfusion_flutter_core: ^31.2.4
+  syncfusion_flutter_datagrid: ^31.2.4
+  syncfusion_flutter_xlsio: ^31.2.4
 
   # Archivos / exportación
   file_selector: ^1.0.4
+  file_saver: ^0.3.1
   csv: ^6.0.0
   path: ^1.9.1
   path_provider: ^2.1.4
 
-  # HTTP para backend CloudStore
-  http: ^1.2.0
-
-  # UX / animaciones
+  # UX
   flutter_animate: ^4.5.2
   animations: ^2.0.11
   lottie: ^3.1.2
   url_launcher: ^6.3.2
+  video_player: ^2.9.2
 
   # Compartir / correo
   share_plus: ^12.0.1
@@ -58,13 +58,21 @@ dependencies:
 
   # GPS / ubicación
   geolocator: ^12.0.0
+  flutter_map: ^7.0.0
+  latlong2: ^0.9.0
 
   # Diagnóstico (opcional)
   sentry_flutter: ^9.7.0
   package_info_plus: ^9.0.0
 
-  # Autenticación Google
-  google_sign_in: ^6.2.1
+  # HTTP / APIs
+  http: ^1.5.0
+  dio: ^5.9.0
+  dio_web_adapter: ^2.1.1
+
+  # Firebase (dejados solo si usás Firestore en otra parte)
+  firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -77,4 +85,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sfx/
-    - assets/bitflow_logo.png
+    - assets/video/gridnote_cells_loop.mp4
