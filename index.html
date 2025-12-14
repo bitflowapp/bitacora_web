@@ -1,51 +1,59 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Base para Flutter Web (debe ir ARRIBA para que los paths relativos no se rompan). -->
+  <base href="$FLUTTER_BASE_HREF" />
 
   <title>Bit Flow — Planilla tipo Excel para campo</title>
-  <meta name="description" content="Bit Flow es una planilla tipo Excel pensada para campo: mediciones, fotos, GPS y exportación real a Excel/PDF con experiencia tipo Apple.">
-  <meta name="robots" content="index,follow">
+  <meta name="description" content="Bit Flow es una planilla tipo Excel pensada para campo: mediciones, fotos, GPS y exportación real a Excel/PDF con experiencia tipo Apple." />
+  <meta name="robots" content="index,follow" />
 
-  <!-- Canonical genérico (se resuelve relativo al dominio actual) -->
   <link rel="canonical" href="/" />
 
   <!-- PWA / iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Bit Flow">
-  <meta name="application-name" content="Bit Flow">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#0A84FF">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bit Flow" />
+  <meta name="application-name" content="Bit Flow" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0A84FF" />
+  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
   <!-- Manifest -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json" />
 
-  <!-- Base para Flutter Web.
-       Flutter reemplaza $FLUTTER_BASE_HREF si usás --base-href en el build. -->
-  <base href="$FLUTTER_BASE_HREF">
-
-  <!-- Open Graph / Facebook -->
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="Bit Flow — Planilla tipo Excel para campo">
-  <meta property="og:description" content="Registra mediciones con GPS, adjunta fotos y exporta a Excel/PDF desde el navegador. Ideal para relevamientos industriales.">
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Bit Flow — Planilla tipo Excel para campo" />
+  <meta property="og:description" content="Registra mediciones con GPS, adjunta fotos y exporta a Excel/PDF desde el navegador. Ideal para relevamientos industriales." />
   <meta property="og:url" content="/" />
-  <meta property="og:image" content="icons/Icon-512.png">
+  <meta property="og:image" content="icons/Icon-512.png" />
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Bit Flow — Planilla tipo Excel para campo">
-  <meta name="twitter:description" content="Planillas estilo Excel con GPS, fotos y exportación XLSX real para campo.">
-  <meta name="twitter:image" content="icons/Icon-512.png">
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Bit Flow — Planilla tipo Excel para campo" />
+  <meta name="twitter:description" content="Planillas estilo Excel con GPS, fotos y exportación XLSX real para campo." />
+  <meta name="twitter:image" content="icons/Icon-512.png" />
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="shortcut icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="shortcut icon" type="image/png" href="favicon.png" />
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #0B0B10; }
+  </style>
 </head>
+
 <body>
-<script src="flutter_bootstrap.js" async></script>
+<!-- 1) loader oficial -->
+<script src="flutter.js" defer></script>
+
+<!-- 2) bootstrap propio (no lo pisa Flutter) -->
+<script src="boot.js" defer></script>
 </body>
 </html>
