@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show PointerDeviceKind;
+import 'dart:ui' show PointerDeviceKind, PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -94,7 +94,7 @@ class _AppState extends State<App> {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
-      );
+      ).timeout(const Duration(seconds: 10));
       firebaseOk = true;
     } catch (e) {
       firebaseOk = false;
@@ -103,7 +103,7 @@ class _AppState extends State<App> {
 
     // 2) Store local (si falla, seguimos igual)
     try {
-      await SheetStore.init();
+      await SheetStore.init().timeout(const Duration(seconds: 6));
       storeOk = true;
     } catch (e) {
       storeOk = false;

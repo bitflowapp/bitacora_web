@@ -1,101 +1,125 @@
 // lib/widgets/animated_video_background.dart
 //
-// Fondo animado con video 3D renderizado en Blender.
-// Envuelve tu Scaffold principal y mantiene todo el diseño actual.
+// AnimatedVideoBackground — fondo seguro para Web (NO bloquea el UI).
+//
+// Problema típico: backgrounds con video/asset (o blur pesado) que quedan “cargando” infinito
+// en Chrome (sobre todo con service worker / cache / codecs). Solución: fondo 100% Flutter
+// con gradientes animados que SIEMPRE renderiza el child.
+//
+// Sin dependencias externas. Funciona en Web/Windows/Android/iOS.
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 
 class AnimatedVideoBackground extends StatefulWidget {
-  final Widget child;
-
   const AnimatedVideoBackground({
     super.key,
     required this.child,
   });
 
+  final Widget child;
+
   @override
-  State<AnimatedVideoBackground> createState() =>
-      _AnimatedVideoBackgroundState();
+  State<AnimatedVideoBackground> createState() => _AnimatedVideoBackgroundState();
 }
 
-class _AnimatedVideoBackgroundState extends State<AnimatedVideoBackground> {
-  late final VideoPlayerController _controller;
-  late final Future<void> _initFuture;
+class _AnimatedVideoBackgroundState extends State<AnimatedVideoBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.asset(
-      'assets/video/gridnote_cells_loop.mp4',
-    );
-    _initFuture = _init();
-  }
-
-  Future<void> _init() async {
-    await _controller.initialize();
-    if (!mounted) return;
-    await _controller.setLooping(true);
-    await _controller.setVolume(0); // mudo => autoplay en Web sin problemas
-    await _controller.play();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Video de fondo
-        Positioned.fill(
-          child: FutureBuilder<void>(
-            future: _initFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const SizedBox.shrink();
-              }
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-              final value = _controller.value;
-              if (!value.isInitialized) {
-                return const SizedBox.shrink();
-              }
+    // Paleta “premium” y discreta. Evita negro plano para no “aplastar” el UI.
+    final Color base0 =
+    isDark ? const Color(0xFF040611) : const Color(0xFFF5F5FA);
+    final Color base1 =
+    isDark ? const Color(0xFF070A1F) : const Color(0xFFFFFFFF);
 
-              final videoSize = value.size;
-              // Fallback si el size viene en 0 (típico en Web)
-              final screenSize = MediaQuery.of(context).size;
-              final width =
-              videoSize.width == 0 ? screenSize.width : videoSize.width;
-              final height =
-              videoSize.height == 0 ? screenSize.height : videoSize.height;
+    // El acento se “respeta” pero en opacidades bajas para no ensuciar.
+    final Color accent = theme.colorScheme.primary;
 
-              return FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: width,
-                  height: height,
-                  child: VideoPlayer(_controller),
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value; // 0..1
+
+        // Movimiento suave de “luces”.
+        final dx = math.sin(t * math.pi * 2) * 0.35;
+        final dy = math.cos(t * math.pi * 2) * 0.25;
+        final centerA = Alignment(dx, dy);
+        final centerB = Alignment(-dx * 0.85, -dy * 0.9);
+
+        final glowA =
+        accent.withOpacity(isDark ? 0.18 : 0.10); // luz principal
+        final glowB = Color.lerp(accent, Colors.white, 0.35)!
+            .withOpacity(isDark ? 0.10 : 0.06); // luz secundaria
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Fondo base
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [base0, base1],
                 ),
-              );
-            },
-          ),
-        ),
+              ),
+            ),
 
-        // Capa oscura para que la UI se lea bien encima del video
-        Positioned.fill(
-          child: Container(
-            color: Colors.black.withOpacity(0.75),
-          ),
-        ),
+            // Luz radial 1
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: centerA,
+                    radius: 1.25,
+                    colors: [glowA, Colors.transparent],
+                    stops: const [0.0, 1.0],
+                  ),
+                ),
+              ),
+            ),
 
-        // Contenido actual de la app
-        Positioned.fill(
-          child: widget.child,
-        ),
-      ],
+            // Luz radial 2
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: centerB,
+                    radius: 1.35,
+                    colors: [glowB, Colors.transparent],
+                    stops: const [0.0, 1.0],
+                  ),
+                ),
+              ),
+            ),
+
+            // Contenido
+            widget.child,
+          ],
+        );
+      },
     );
   }
 }

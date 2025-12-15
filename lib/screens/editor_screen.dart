@@ -32,7 +32,7 @@
 // Si alguno difiere en tu proyecto, avisame el archivo/firmas y lo adapto.
 
 import 'dart:async';
-import 'dart:convert' show base64Encode;
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data' show Uint8List;
 
@@ -97,14 +97,18 @@ class _EditorScreenState extends State<EditorScreen>
   ];
 
   // Fotos: máximo de miniaturas visibles en la celda (como la imagen).
-  static const int _maxThumbsInCell = 3;
+  static const int _maxThumbsInCell = 10;
 
   // XLSX: máximo de fotos por fila al exportar.
-  static const int _maxPhotosPerRowExport = 3;
+  static const int _maxPhotosPerRowExport = 10;
+  static const int _maxPhotosPerCell = 10;
 
   // Debounces
   final _persistDebounce = _Debouncer(const Duration(milliseconds: 250));
   final _thumbDebounce = _Debouncer(const Duration(milliseconds: 150));
+
+  // Guardado serializado (evita carreras entre autosave/manual/export)
+  Future<void> _saveQueue = Future.value();
 
   // ------------------------------ Estado ----------------------------------
 
@@ -122,6 +126,9 @@ class _EditorScreenState extends State<EditorScreen>
   // Foco / edición
   (int r, int c) _focus = (0, 0);
   bool _isEditing = false;
+
+  // Hover (desktop) — para affordances sutiles (sin “ripple” Material).
+  (int r, int c)? _hoverCell;
 
   // Editor (celda) — usamos el MISMO controller para mobile y desktop.
   final TextEditingController _cellEC = TextEditingController();
@@ -165,6 +172,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   // Cache de miniaturas por fila para pintar rápido Photos column.
   final Map<int, List<_AttItem>> _rowThumbs = <int, List<_AttItem>>{};
+  final Map<int, List<String>> _rowPhotoIds = <int, List<String>>{};
   final Map<int, int> _rowThumbsVer = <int, int>{}; // simple versioning
   final Map<int, int> _attachCounts = <int, int>{};
 
@@ -220,16 +228,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _hydrate() async {
     try {
-      // Intento opcional de cargar nombre (si tu SheetStore lo implementa):
-      // Si no existe, no pasa nada.
-      try {
-        final dynamic t = SheetStore;
-        final dynamic name = t.loadName?.call(widget.sheetId);
-        if (name is String && name.trim().isNotEmpty) {
-          _sheetName = name.trim();
-        }
-      } catch (_) {}
-
+      // Nota: lo de loadName por reflexión de static no es confiable en Dart.
+      // Mantenemos el nombre en memoria y lo guardamos en el backup/cloud.
       final raw = await _loadRawCompat(widget.sheetId);
       if (!mounted) return;
 
@@ -255,8 +255,10 @@ class _EditorScreenState extends State<EditorScreen>
           _loading = false;
         });
 
-        _history.push(_state);
-        _thumbDebounce(_refreshVisibleThumbs);
+        _history.push(_cloneState(_state));
+        _thumbDebounce(() {
+          _refreshVisibleThumbs();
+        });
         return;
       }
 
@@ -272,8 +274,10 @@ class _EditorScreenState extends State<EditorScreen>
         _loading = false;
       });
 
-      _history.push(_state);
-      _thumbDebounce(_refreshVisibleThumbs);
+      _history.push(_cloneState(_state));
+      _thumbDebounce(() {
+        _refreshVisibleThumbs();
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -291,15 +295,55 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  Future<void> _saveLocalCompat(TableState s) async {
+    // Compat: LocalStore.save puede ser sync o async, o incluso devolver void/Future<void>.
+    // Usamos Function.apply para evitar errores de tipo 'void' en diferentes targets.
+    try {
+      final dynamic fn = LocalStore.save;
+      final dynamic r = Function.apply(fn, [s]);
+      if (r is Future) await r;
+    } catch (_) {
+      // No-op
+    }
+  }
+
   Future<void> _saveCompat(TableState s) async {
     // Guardado local + store principal.
-    await LocalStore.save(s);
-    SheetStore.saveState(widget.sheetId, s);
+    await _saveLocalCompat(s);
+
+    // SheetStore.saveState puede ser void o Future<void>, según target/implementación.
+    try {
+      final dynamic fn = SheetStore.saveState;
+      final dynamic r = Function.apply(fn, [widget.sheetId, s]);
+      if (r is Future) await r;
+    } catch (_) {
+      // fallback: algunas implementaciones podrían tener otra firma
+      try {
+        final dynamic fn = SheetStore.saveState;
+        final dynamic r = Function.apply(fn, [s]);
+        if (r is Future) await r;
+      } catch (_) {
+        // No-op
+      }
+    }
+  }
+
+  Future<void> _enqueueSave(TableState s) {
+    _saveQueue = _saveQueue
+        .then((_) async {
+      await _saveCompat(s);
+      if (!mounted) return;
+      setState(() => _lastSavedAt = DateTime.now());
+    })
+        .catchError((_) {
+      // evitamos que el queue se "rompa" por un error
+    });
+    return _saveQueue;
   }
 
   void _updateState(TableState s, {bool snapshot = true}) {
     setState(() => _state = s);
-    if (snapshot) _history.push(s);
+    if (snapshot) _history.push(_cloneState(s));
 
     _recomputeSpecialCols();
     _ensureColWAligned();
@@ -307,19 +351,10 @@ class _EditorScreenState extends State<EditorScreen>
     _persistDebounce(() {
       if (!mounted) return;
       setState(() => _saving = true);
-      () async {
-        try {
-          await _saveCompat(s);
-          if (!mounted) return;
-          setState(() {
-            _saving = false;
-            _lastSavedAt = DateTime.now();
-          });
-        } catch (_) {
-          if (!mounted) return;
-          setState(() => _saving = false);
-        }
-      }();
+      _enqueueSave(s).whenComplete(() {
+        if (!mounted) return;
+        setState(() => _saving = false);
+      });
     });
   }
 
@@ -330,11 +365,8 @@ class _EditorScreenState extends State<EditorScreen>
       _busyMessage = 'Saving…';
     });
     try {
-      await _saveCompat(_state);
+      await _enqueueSave(_state);
       if (!mounted) return;
-      setState(() {
-        _lastSavedAt = DateTime.now();
-      });
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(content: Text('Saved')),
       );
@@ -394,6 +426,14 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  TableState _cloneState(TableState s) {
+    return TableState(
+      headers: List<String>.from(s.headers),
+      rows: s.rows.map((r) => List<String>.from(r)).toList(),
+      savedAt: s.savedAt,
+    );
+  }
+
   void _recomputeSpecialCols() {
     int photos = -1;
     int status = -1;
@@ -444,7 +484,9 @@ class _EditorScreenState extends State<EditorScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recomputeVisibleCols();
-      _thumbDebounce(_refreshVisibleThumbs);
+      _thumbDebounce(() {
+        _refreshVisibleThumbs();
+      });
     });
   }
 
@@ -532,8 +574,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _recomputeVisibleCols([double? viewportW]) {
     if (!mounted) return;
     final hasBody = _hBody.hasClients;
-    final vw = viewportW ??
-        (hasBody ? _hBody.position.viewportDimension : _lastViewportW);
+    final vw =
+        viewportW ?? (hasBody ? _hBody.position.viewportDimension : _lastViewportW);
     if (vw <= 0) return;
 
     final scrollX = hasBody ? _hBody.offset : 0.0;
@@ -543,7 +585,11 @@ class _EditorScreenState extends State<EditorScreen>
     int end = _lowerBound(endLimit);
     if (end > _colW.length) end = _colW.length;
 
-    start = _clampi(start - _bufCols, 0, _colW.isNotEmpty ? _colW.length - 1 : 0);
+    start = _clampi(
+      start - _bufCols,
+      0,
+      _colW.isNotEmpty ? _colW.length - 1 : 0,
+    );
     end = _clampi(end + _bufCols, 0, _colW.length);
 
     if (start > end) {
@@ -551,9 +597,8 @@ class _EditorScreenState extends State<EditorScreen>
       end = _colW.isEmpty ? 0 : 1;
     }
 
-    final need = start != _firstCol ||
-        end - 1 != _lastCol ||
-        vw != _lastViewportW;
+    final need =
+        start != _firstCol || end - 1 != _lastCol || vw != _lastViewportW;
 
     if (!need) return;
 
@@ -599,7 +644,9 @@ class _EditorScreenState extends State<EditorScreen>
     _vIdx.jumpTo(want);
     _syncingV = false;
 
-    _thumbDebounce(_refreshVisibleThumbs);
+    _thumbDebounce(() {
+      _refreshVisibleThumbs();
+    });
   }
 
   void _syncFromHdr() {
@@ -626,16 +673,10 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool _isDesktopUi(BuildContext context) {
     final p = Theme.of(context).platform;
-    final isDesktopPlatform = p == TargetPlatform.macOS ||
-        p == TargetPlatform.windows ||
-        p == TargetPlatform.linux;
+    final isDesktopPlatform =
+        p == TargetPlatform.macOS || p == TargetPlatform.windows || p == TargetPlatform.linux;
     if (kIsWeb && MediaQuery.of(context).size.width >= 900) return true;
     return isDesktopPlatform;
-  }
-
-  bool _isTouchLike(BuildContext context) {
-    final p = Theme.of(context).platform;
-    return p == TargetPlatform.iOS || p == TargetPlatform.android;
   }
 
   // ------------------------------ Focus / Edit -----------------------------
@@ -667,7 +708,9 @@ class _EditorScreenState extends State<EditorScreen>
       _ensureVisible(r, c);
     }
 
-    _thumbDebounce(_refreshVisibleThumbs);
+    _thumbDebounce(() {
+      _refreshVisibleThumbs();
+    });
   }
 
   void _startEditing(int r, int c) {
@@ -675,11 +718,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     _setFocus(r, c, ensureVisible: true);
 
-    // Si es la columna de fotos, no edita texto: abre adjuntos.
-    if (c == _photosCol) {
-      _pickAttachmentsForRow(r);
-      return;
-    }
+    // Photos no edita texto nunca (UX consistente).
+    if (c == _photosCol) return;
 
     if (_isEditing) return;
 
@@ -714,6 +754,35 @@ class _EditorScreenState extends State<EditorScreen>
     _gridFN.requestFocus();
   }
 
+  void _commitEditing() {
+    if (!_isEditing) return;
+    final (r, c) = _focus;
+    _commitCell(r, c, _cellEC.text);
+  }
+
+  // ----------------------- Hover (desktop/web) -----------------------
+  // En mobile no existe hover; en web/desktop se usa para feedback sutil.
+  void _setHovered(int r, int c) {
+    final next = (r, c);
+    if (_hoverCell == next) return;
+    if (!mounted) return;
+    setState(() => _hoverCell = next);
+  }
+
+  void _clearHovered() {
+    if (_hoverCell == null) return;
+    if (!mounted) return;
+    setState(() => _hoverCell = null);
+  }
+
+  // ----------------------- Alias compat -----------------------
+  // Algunas partes del UI llaman a `_beginCellEdit` (doble-tap / teclas).
+  // La operación real vive en `_startEditing`.
+  void _beginCellEdit(int r, int c) {
+    _startEditing(r, c);
+  }
+
+
   void _commitAndMoveDown(int r, int c) {
     _commitCell(r, c, _cellEC.text);
     final nextR = r + 1;
@@ -729,6 +798,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _beginCharEdit(String ch) {
     final (r, c) = _focus;
+    if (c == _photosCol) return; // no texto en Photos
     _startEditing(r, c);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -807,7 +877,11 @@ class _EditorScreenState extends State<EditorScreen>
     )..add(List<String>.filled(_colCount, ''));
 
     _updateState(
-      TableState(headers: _state.headers.toList(), rows: newRows, savedAt: DateTime.now()),
+      TableState(
+        headers: _state.headers.toList(),
+        rows: newRows,
+        savedAt: DateTime.now(),
+      ),
     );
   }
 
@@ -847,7 +921,9 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     setState(() {
-      final w = (_colW.isNotEmpty ? _colW[_clampi(insertAt, 0, _colW.length - 1)] : 160.0);
+      final w = (_colW.isNotEmpty
+          ? _colW[_clampi(insertAt, 0, _colW.length - 1)]
+          : 160.0);
       _colW.insert(insertAt, w);
       _rebuildPrefix();
       _autoFitOnce = false;
@@ -860,9 +936,47 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
-  void _deleteFocusedRow() {
+  Future<void> _deleteAttachmentsForRow(int row) async {
+    try {
+      final svc = AttachmentsServiceWeb.I;
+      await (svc as dynamic).deleteRow(sheetId: widget.sheetId, row: row);
+    } catch (_) {
+      // si no existe, no rompemos
+    }
+  }
+
+  Future<void> _shiftAttachmentsAfterDelete(int deletedRow) async {
+    try {
+      final svc = AttachmentsServiceWeb.I;
+      await (svc as dynamic).shiftRows(
+        sheetId: widget.sheetId,
+        startRow: deletedRow + 1,
+        delta: -1,
+      );
+    } catch (_) {
+      // si no existe, no rompemos
+    }
+  }
+
+  Future<void> _deleteFocusedRow() async {
     if (_rowCount <= 1) return;
     final r = _clampi(_focus.$1, 0, _rowCount - 1);
+
+    final had = (_attachCounts[r] ?? 0) > 0;
+
+    if (had) {
+      final ok = await _confirmDestructive(
+        title: 'Delete row with photos',
+        message:
+        'This row has photos.\n\nIf your attachments storage is indexed by row number, deleting may shift/misalign photos below.\n\nContinue?',
+        confirmLabel: 'Delete',
+      );
+      if (!ok) return;
+    }
+
+    // Intento best-effort: borrar adjuntos de la fila y reindexar si el servicio lo soporta.
+    await _deleteAttachmentsForRow(r);
+    await _shiftAttachmentsAfterDelete(r);
 
     final nextRows = <List<String>>[
       for (int i = 0; i < _rowCount; i++)
@@ -870,15 +984,39 @@ class _EditorScreenState extends State<EditorScreen>
     ];
 
     _updateState(
-      TableState(headers: _state.headers.toList(), rows: nextRows, savedAt: DateTime.now()),
+      TableState(
+        headers: _state.headers.toList(),
+        rows: nextRows,
+        savedAt: DateTime.now(),
+      ),
     );
+
+    // Limpieza de caches (evita mostrar thumbs “corridos”)
+    _rowThumbs.clear();
+    _rowThumbsVer.clear();
+    _attachCounts.clear();
+    _thumbDebounce(() {
+      _refreshVisibleThumbs();
+    });
 
     _setFocus(_clampi(r - 1, 0, math.max(0, _rowCount - 2)), _focus.$2);
   }
 
-  void _clearRow(int r) {
+  Future<void> _clearRow(int r) async {
     if (_rowCount == 0) return;
     r = _clampi(r, 0, _rowCount - 1);
+
+    final had = (_attachCounts[r] ?? 0) > 0;
+    if (had) {
+      final ok = await _confirmDestructive(
+        title: 'Clear row',
+        message:
+        'This row has photos. Clearing the row will not necessarily remove photos unless your attachment service supports it.\n\nContinue?',
+        confirmLabel: 'Clear',
+      );
+      if (!ok) return;
+      await _deleteAttachmentsForRow(r);
+    }
 
     final nextRows = <List<String>>[];
     for (int i = 0; i < _rowCount; i++) {
@@ -890,8 +1028,16 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     _updateState(
-      TableState(headers: _state.headers.toList(), rows: nextRows, savedAt: DateTime.now()),
+      TableState(
+        headers: _state.headers.toList(),
+        rows: nextRows,
+        savedAt: DateTime.now(),
+      ),
     );
+
+    _rowThumbs.remove(r);
+    _rowThumbsVer.remove(r);
+    _attachCounts.remove(r);
 
     _setFocus(r, _clampi(_focus.$2, 0, math.max(0, _colCount - 1)));
   }
@@ -916,6 +1062,11 @@ class _EditorScreenState extends State<EditorScreen>
       ),
     );
     _resetHdrCtl();
+
+    // Caches
+    _rowThumbs.clear();
+    _rowThumbsVer.clear();
+    _attachCounts.clear();
   }
 
   void _undo() {
@@ -923,7 +1074,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (s != null) {
       _updateState(s, snapshot: false);
       _resetHdrCtl();
-      _thumbDebounce(_refreshVisibleThumbs);
+      _thumbDebounce(() {
+        _refreshVisibleThumbs();
+      });
     }
   }
 
@@ -932,7 +1085,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (s != null) {
       _updateState(s, snapshot: false);
       _resetHdrCtl();
-      _thumbDebounce(_refreshVisibleThumbs);
+      _thumbDebounce(() {
+        _refreshVisibleThumbs();
+      });
     }
   }
 
@@ -1080,7 +1235,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _refreshVisibleThumbs() async {
     if (_rowCount == 0) return;
-    if (!_attachmentsEverUsed) return;
+
+    // Si existe columna Photos, intentamos refrescar aunque nunca se haya usado en esta sesión.
+    if (_photosCol < 0) return;
 
     final start = _firstVisibleRow();
     final end = math.min(_rowCount - 1, start + _visibleRowCount() + 6);
@@ -1088,6 +1245,37 @@ class _EditorScreenState extends State<EditorScreen>
     for (int r = start; r <= end; r++) {
       await _refreshRowThumbs(r);
     }
+
+    // Evict cache fuera de la ventana (RAM estable).
+    _evictThumbCacheOutside(start, end);
+  }
+
+  void _evictThumbCacheOutside(int start, int end) {
+    final keys = _rowThumbs.keys.toList(growable: false);
+    for (final k in keys) {
+      if (k < start - 30 || k > end + 30) {
+        _rowThumbs.remove(k);
+        _rowThumbsVer.remove(k);
+        _attachCounts.remove(k);
+      }
+    }
+  }
+
+  Uint8List? _asBytes(Object? any) {
+    if (any == null) return null;
+    if (any is Uint8List) return any;
+    if (any is List<int>) return Uint8List.fromList(any);
+    if (any is String) {
+      // base64 (data URL o puro)
+      final idx = any.indexOf(',');
+      final b64 = idx >= 0 ? any.substring(idx + 1) : any;
+      try {
+        return Uint8List.fromList(base64.decode(b64));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   Future<void> _refreshRowThumbs(int r) async {
@@ -1104,12 +1292,11 @@ class _EditorScreenState extends State<EditorScreen>
         final dyn = a as dynamic;
         final name = (dyn.name as String?) ?? 'photo';
         final mime = (dyn.mime as String?) ?? '';
-        final bytesAny = dyn.bytes;
+        final bytesAny = dyn.bytes;        if (!mime.toLowerCase().startsWith('image/')) continue;
+        final b = _asBytes(bytesAny);
+        if (b == null || b.isEmpty) continue;
 
-        if (bytesAny is! Uint8List) continue;
-        if (!mime.toLowerCase().startsWith('image/')) continue;
-
-        list.add(_AttItem(name: name, mime: mime, bytes: bytesAny));
+        list.add(_AttItem(name: name, mime: mime, bytes: b));
         if (list.length >= _maxThumbsInCell) break;
       }
 
@@ -1118,6 +1305,7 @@ class _EditorScreenState extends State<EditorScreen>
         setState(() {
           _attachCounts[r] = cnt;
           _rowThumbs[r] = list;
+          _rowPhotoIds[r] = list.map((e) => e.name).toList(growable: false);
           _rowThumbsVer[r] = (_rowThumbsVer[r] ?? 0) + 1;
         });
       }
@@ -1160,16 +1348,39 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final groupExt = XTypeGroup(
         label: 'Images',
-        extensions: const ['png', 'jpg', 'jpeg', 'webp', 'heic'],
+        extensions: const ['png', 'jpg', 'jpeg', 'webp'],
       );
       final groupMime = XTypeGroup(
         label: 'Images',
         mimeTypes: const ['image/*'],
       );
+      final existing = await AttachmentsServiceWeb.I.listFor(
+        sheetId: widget.sheetId,
+        row: r,
+      );
+      final remainingCap = (_maxPhotosPerCell - existing.length)
+          .clamp(0, _maxPhotosPerCell).toInt();
+      if (remainingCap <= 0) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Máximo de $_maxPhotosPerCell fotos por celda. '
+                  'Eliminá alguna para agregar más.',
+            ),
+          ),
+        );
+        return;
+      }
+
 
       // En mobile, muchos pickers muestran “Cámara” dentro del selector.
       final files = await openFiles(acceptedTypeGroups: [groupExt, groupMime]);
       if (files.isEmpty) return;
+
+      final effectiveFiles = files.length > remainingCap
+          ? files.take(remainingCap).toList(growable: false)
+          : files;
+      final skipped = files.length - effectiveFiles.length;
 
       _attachmentsEverUsed = true;
 
@@ -1178,7 +1389,7 @@ class _EditorScreenState extends State<EditorScreen>
         _busyMessage = 'Adding photos…';
       });
 
-      for (final f in files) {
+      for (final f in effectiveFiles) {
         try {
           await _attachmentsAddBytes(r: r, file: f);
         } catch (_) {}
@@ -1187,11 +1398,23 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
 
       await _refreshRowThumbs(r);
-      _thumbDebounce(_refreshVisibleThumbs);
+      _thumbDebounce(() {
+        _refreshVisibleThumbs();
+      });
 
       messenger?.showSnackBar(
-        SnackBar(content: Text('Added ${files.length} photo(s)')),
+        SnackBar(content: Text('Added ${effectiveFiles.length} photo(s)')),
       );
+      if (skipped > 0) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Se ignoraron $skipped foto(s): máximo $_maxPhotosPerCell por celda.',
+            ),
+          ),
+        );
+      }
+
     } catch (e) {
       if (!mounted) return;
       messenger?.showSnackBar(
@@ -1245,7 +1468,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (n.endsWith('.png')) return 'image/png';
     if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
     if (n.endsWith('.webp')) return 'image/webp';
-    if (n.endsWith('.heic')) return 'image/heic';
     return 'application/octet-stream';
   }
 
@@ -1269,9 +1491,10 @@ class _EditorScreenState extends State<EditorScreen>
         final name = (dyn.name as String?) ?? 'photo';
         final mime = (dyn.mime as String?) ?? '';
         final bytesAny = dyn.bytes;
-        if (bytesAny is! Uint8List) continue;
         if (!mime.toLowerCase().startsWith('image/')) continue;
-        items.add(_AttItem(name: name, mime: mime, bytes: bytesAny));
+        final b = _asBytes(bytesAny);
+        if (b == null || b.isEmpty) continue;
+        items.add(_AttItem(name: name, mime: mime, bytes: b));
       }
       list = items;
     } catch (_) {
@@ -1323,12 +1546,11 @@ class _EditorScreenState extends State<EditorScreen>
                 const Divider(height: 1),
                 Expanded(
                   child: list.isEmpty
-                      ? const Center(
-                    child: Text('No photos'),
-                  )
+                      ? const Center(child: Text('No photos'))
                       : GridView.builder(
                     padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
                       mainAxisSpacing: 10,
                       crossAxisSpacing: 10,
@@ -1341,7 +1563,8 @@ class _EditorScreenState extends State<EditorScreen>
                         child: Material(
                           color: Theme.of(context).colorScheme.surface,
                           child: InkWell(
-                            onTap: () => _showImageDialog(a.bytes, a.name),
+                            onTap: () =>
+                                _showImageDialog(a.bytes, a.name),
                             child: Image.memory(
                               a.bytes,
                               fit: BoxFit.cover,
@@ -1450,12 +1673,12 @@ class _EditorScreenState extends State<EditorScreen>
       final ts = _timestamp();
       final outName = '${baseName}_$ts';
 
-      final savedPath = await saveXlsx(outName, bytes);
+      final savedPath = await _saveXlsxCompat(outName, bytes);
 
       if (!mounted) return;
       final msg = kIsWeb
           ? 'Downloaded: $outName.xlsx'
-          : (savedPath != null ? 'Saved: $savedPath' : 'Saved');
+          : 'Saved: ${((savedPath == null || savedPath.isEmpty) ? '$outName.xlsx' : savedPath)}';
       messenger?.showSnackBar(SnackBar(content: Text(msg)));
 
       // Opcional: backup nube silencioso si lo usás.
@@ -1479,6 +1702,24 @@ class _EditorScreenState extends State<EditorScreen>
     final cleaned = s.trim().replaceAll(RegExp(r'[^\w\s-]'), '');
     final dashed = cleaned.replaceAll(RegExp(r'\s+'), '_');
     return dashed.isEmpty ? 'Sheet' : dashed;
+  }
+
+  Future<String?> _saveXlsxCompat(String baseName, Uint8List bytes) async {
+    // Compat: xlsx_saver_io.dart puede devolver void/Future<void> o un path String.
+    // Evitamos “await” en expresiones que podrían resolverse a 'void'.
+    try {
+      final dynamic fn = saveXlsx;
+      final Object? r = Function.apply(fn, [baseName, bytes]);
+
+      if (r is Future) {
+        final Object? v = await r;
+        return v is String ? v : null;
+      }
+
+      return r is String ? r : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Uint8List> _buildXlsxBytes({required bool withPhotos}) async {
@@ -1517,7 +1758,7 @@ class _EditorScreenState extends State<EditorScreen>
       for (var r = 0; r < rowCount; r++) {
         final row = rows[r];
         for (var c = 0; c < colCount && c < row.length; c++) {
-          if (c == _photosCol) continue; // Photos se exportan aparte (como imágenes)
+          if (c == _photosCol) continue; // Photos se exportan aparte (imágenes)
 
           final v = row[c];
           if (v.isEmpty) continue;
@@ -1551,7 +1792,7 @@ class _EditorScreenState extends State<EditorScreen>
         sh.getRangeByIndex(2, 1).freezePanes();
       } catch (_) {}
 
-      // Estética minimal (como mock): header blanco, bordes finos, zebra sutil.
+      // Estética minimal: header blanco, bordes finos, zebra sutil.
       final lastColBase = math.max(1, colCount);
       final lastRow = math.max(1, rowCount + 1);
 
@@ -1576,7 +1817,8 @@ class _EditorScreenState extends State<EditorScreen>
       for (var r = 0; r < rowCount; r++) {
         if (r.isOdd) {
           final excelRow = r + 2;
-          final rowRange = sh.getRangeByIndex(excelRow, 1, excelRow, lastColBase);
+          final rowRange =
+          sh.getRangeByIndex(excelRow, 1, excelRow, lastColBase);
           rowRange.cellStyle.backColor = '#FAFAFB';
         }
       }
@@ -1600,24 +1842,26 @@ class _EditorScreenState extends State<EditorScreen>
         }
       }
 
-      // Fotos embebidas (a la derecha) — igual que tu enfoque previo, pero minimal.
+      // Fotos embebidas (a la derecha)
       if (withPhotos && rowCount > 0) {
         final Map<int, List<Uint8List>> byRow = {};
         for (var r = 0; r < rowCount; r++) {
-          final xs = await AttachmentsServiceWeb.I.listFor(sheetId: widget.sheetId, row: r);
+          final xs = await AttachmentsServiceWeb.I
+              .listFor(sheetId: widget.sheetId, row: r);
           final imgs = <Uint8List>[];
           for (final a in xs) {
             final dyn = a as dynamic;
             final mimeAny = dyn.mime;
             final bytesAny = dyn.bytes;
-            if (bytesAny is! Uint8List) continue;
             final mime = (mimeAny is String) ? mimeAny.toLowerCase() : '';
             if (!mime.startsWith('image/')) continue;
+            final b = _asBytes(bytesAny);
+            if (b == null || b.isEmpty) continue;
 
             if (mime.contains('jpeg') || mime.contains('jpg')) {
-              if (bytesAny.isNotEmpty) imgs.add(bytesAny);
+              imgs.add(b);
             } else {
-              final safe = _toExcelSafeImage(bytesAny);
+              final safe = _toExcelSafeImage(b);
               if (safe.isNotEmpty) imgs.add(safe);
             }
 
@@ -1674,7 +1918,8 @@ class _EditorScreenState extends State<EditorScreen>
 
           // Bordes también en zona fotos
           try {
-            final used = sh.getRangeByIndex(1, 1, lastRow, colCount + maxPhotos);
+            final used =
+            sh.getRangeByIndex(1, 1, lastRow, colCount + maxPhotos);
             used.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
             used.cellStyle.borders.all.color = '#E5E7EB';
           } catch (_) {}
@@ -1741,6 +1986,44 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  Future<TableState?> _importBackupCompat() async {
+    // Importa un backup JSON desde archivo (Web/Desktop/Mobile).
+    // Usa TableState.fromJsonString(...) para compat con backups previos.
+    try {
+      final XFile? f = await openFile(
+        acceptedTypeGroups: const <XTypeGroup>[
+          XTypeGroup(label: 'JSON', extensions: <String>['json']),
+          XTypeGroup(label: 'Text', extensions: <String>['txt']),
+        ],
+      );
+      if (f == null) return null;
+
+      final Uint8List bytes = await f.readAsBytes();
+      final String raw = utf8.decode(bytes);
+
+      // Ruta principal: tu modelo.
+      try {
+        return TableState.fromJsonString(raw);
+      } catch (_) {
+        // Fallback: algunos backups pueden tener wrapper {state: "..."} o {headers,rows}.
+        final dynamic j = jsonDecode(raw);
+        if (j is Map<String, dynamic>) {
+          if (j['raw'] is String) {
+            return TableState.fromJsonString(j['raw'] as String);
+          }
+          if (j['state'] is String) {
+            return TableState.fromJsonString(j['state'] as String);
+          }
+          // Si ya viene con forma de TableState.
+          return TableState.fromJsonString(jsonEncode(j));
+        }
+        return null;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _importBackupJson() async {
     final ok = await _confirmDestructive(
       title: 'Import JSON backup',
@@ -1751,7 +2034,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!ok) return;
 
     try {
-      final ts = await LocalStore.importBackup();
+      final ts = await _importBackupCompat();
       if (!mounted || ts == null) return;
 
       final restored = _normalizeState(
@@ -1770,7 +2053,9 @@ class _EditorScreenState extends State<EditorScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _recomputeVisibleCols();
-        _thumbDebounce(_refreshVisibleThumbs);
+        _thumbDebounce(() {
+          _refreshVisibleThumbs();
+        });
       });
 
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -1928,7 +2213,9 @@ class _EditorScreenState extends State<EditorScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _recomputeVisibleCols();
-        _thumbDebounce(_refreshVisibleThumbs);
+        _thumbDebounce(() {
+          _refreshVisibleThumbs();
+        });
       });
 
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -1959,10 +2246,14 @@ class _EditorScreenState extends State<EditorScreen>
     final isDesktop = _isDesktopUi(context);
 
     // Paleta Apple-like: blanco limpio, divisores suaves.
-    final bg = theme.brightness == Brightness.light ? const Color(0xFFFFFFFF) : cs.surface;
+    // Paleta “Apple cálida”: fondo levemente tibio en modo claro y líneas suaves.
+    // (La grilla en sí mantiene blanco puro para que se sienta “Numbers”.)
+    final bg = theme.brightness == Brightness.light
+        ? const Color(0xFFF5F5F7)
+        : cs.surface;
     final divider = theme.brightness == Brightness.light
-        ? const Color(0xFFE5E7EB)
-        : cs.outline.withOpacity(0.35);
+        ? const Color(0xFFE1E5EA)
+        : cs.outline.withOpacity(0.26);
 
     final titleTextStyle = theme.textTheme.displaySmall?.copyWith(
       fontWeight: FontWeight.w700,
@@ -1971,7 +2262,12 @@ class _EditorScreenState extends State<EditorScreen>
     ) ??
         const TextStyle(fontSize: 36, fontWeight: FontWeight.w700);
 
+    final statusText = _saving
+        ? 'Saving…'
+        : (_lastSavedAt != null ? 'Saved ${_fmtTime(_lastSavedAt!)}' : '');
+
     return Scaffold(
+      resizeToAvoidBottomInset: false, // clave: evita rebote del teclado
       backgroundColor: bg,
       body: ScrollConfiguration(
         behavior: const _NoGlowClampingScrollBehavior(),
@@ -1984,15 +2280,18 @@ class _EditorScreenState extends State<EditorScreen>
                   // Top header (como la imagen): título grande + pill buttons
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      isDesktop ? 24 : 18,
-                      isDesktop ? 18 : 14,
-                      isDesktop ? 24 : 18,
-                      10,
+                      isDesktop ? 22 : 16,
+                      isDesktop ? 16 : 12,
+                      isDesktop ? 22 : 16,
+                      8,
                     ),
                     child: _TopHeader(
                       title: _sheetName,
                       titleStyle: titleTextStyle,
-                      onRename: _renameSheet,
+                      subtitle: statusText,
+                      onRename: () {
+                        _renameSheet();
+                      },
                       actions: [
                         _PillButton(
                           label: 'Save',
@@ -2024,12 +2323,13 @@ class _EditorScreenState extends State<EditorScreen>
                 ],
               ),
 
-              // Mobile editor bar (tipo “Apple notes” pero minimal y sin circo).
+              // Mobile editor bar (minimal).
               if (!_isDesktopUi(context) && _isEditing)
                 _MobileEditorBar(
                   controller: _cellEC,
                   focusNode: _cellFN,
-                  onDone: () => _commitCell(_focus.$1, _focus.$2, _cellEC.text),
+                  onDone: () =>
+                      _commitCell(_focus.$1, _focus.$2, _cellEC.text),
                   onNext: () => _commitAndMoveDown(_focus.$1, _focus.$2),
                   label: _cellLabel(_focus.$1, _focus.$2),
                 ),
@@ -2044,7 +2344,8 @@ class _EditorScreenState extends State<EditorScreen>
                   child: IconButton(
                     tooltip: widget.isLight ? 'Dark mode' : 'Light mode',
                     onPressed: widget.onToggleTheme,
-                    icon: Icon(widget.isLight ? Icons.dark_mode : Icons.light_mode),
+                    icon: Icon(
+                        widget.isLight ? Icons.dark_mode : Icons.light_mode),
                   ),
                 ),
             ],
@@ -2052,6 +2353,11 @@ class _EditorScreenState extends State<EditorScreen>
         ),
       ),
     );
+  }
+
+  String _fmtTime(DateTime d) {
+    String t(int n) => n.toString().padLeft(2, '0');
+    return '${t(d.hour)}:${t(d.minute)}';
   }
 
   String _cellLabel(int r, int c) {
@@ -2094,14 +2400,11 @@ class _EditorScreenState extends State<EditorScreen>
     if (name == null || name.trim().isEmpty) return;
 
     setState(() => _sheetName = name.trim());
-
-    // Guardado opcional si tu SheetStore lo implementa (no rompe si no existe).
-    try {
-      final dynamic t = SheetStore;
-      t.saveName?.call(widget.sheetId, _sheetName);
-    } catch (_) {}
-
     _saveCloudSilently();
+    _persistDebounce(() {
+      if (!mounted) return;
+      _enqueueSave(_state);
+    });
   }
 
   Future<void> _openMoreMenu() async {
@@ -2110,133 +2413,142 @@ class _EditorScreenState extends State<EditorScreen>
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) {
         final divider = Theme.of(ctx).dividerColor.withOpacity(0.35);
 
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _MoreSectionTitle('Sheet'),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Rename'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _renameSheet();
-                },
-              ),
-              ListTile(
-                leading: Icon(widget.isLight ? Icons.dark_mode : Icons.light_mode),
-                title: Text(widget.isLight ? 'Switch to Dark' : 'Switch to Light'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  widget.onToggleTheme();
-                },
-              ),
-              Divider(height: 1, color: divider),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              children: [
+                _MoreSectionTitle('Sheet'),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Rename'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _renameSheet();
+                  },
+                ),
+                ListTile(
+                  leading:
+                  Icon(widget.isLight ? Icons.dark_mode : Icons.light_mode),
+                  title: Text(
+                      widget.isLight ? 'Switch to Dark' : 'Switch to Light'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    widget.onToggleTheme();
+                  },
+                ),
+                Divider(height: 1, color: divider),
 
-              _MoreSectionTitle('Rows & Columns'),
-              ListTile(
-                leading: const Icon(Icons.add),
-                title: const Text('Add row'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _addRowAndEdit();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.view_week_outlined),
-                title: const Text('Add column (right)'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _addColumnRightOfFocus();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Delete current row'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _deleteFocusedRow();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.cleaning_services_outlined),
-                title: const Text('Clear current row'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _clearRow(_focus.$1);
-                },
-              ),
-              Divider(height: 1, color: divider),
+                _MoreSectionTitle('Rows & Columns'),
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: const Text('Add row'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _addRowAndEdit();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.view_week_outlined),
+                  title: const Text('Add column (right)'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _addColumnRightOfFocus();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('Delete current row'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _deleteFocusedRow();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cleaning_services_outlined),
+                  title: const Text('Clear current row'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _clearRow(_focus.$1);
+                  },
+                ),
+                Divider(height: 1, color: divider),
 
-              _MoreSectionTitle('Location & Photos'),
-              ListTile(
-                leading: const Icon(Icons.my_location),
-                title: const Text('Insert GPS in this cell'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _insertGpsHere();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Add photos to current row'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _pickAttachmentsForFocusedRow();
-                },
-              ),
-              Divider(height: 1, color: divider),
+                _MoreSectionTitle('Location & Photos'),
+                ListTile(
+                  leading: const Icon(Icons.my_location),
+                  title: const Text('Insert GPS in this cell'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _insertGpsHere();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Add photos to current row'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _pickAttachmentsForFocusedRow();
+                  },
+                ),
+                Divider(height: 1, color: divider),
 
-              _MoreSectionTitle('Backup'),
-              ListTile(
-                leading: const Icon(Icons.download_outlined),
-                title: const Text('Download JSON backup'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _downloadBackupJson();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.upload_file_outlined),
-                title: const Text('Import JSON backup'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _importBackupJson();
-                },
-              ),
-              if (!isDesktop) const SizedBox(height: 4),
-              ListTile(
-                leading: const Icon(Icons.cloud_upload_outlined),
-                title: const Text('Cloud backup (Firestore)'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _backupToCloud();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.cloud_download_outlined),
-                title: const Text('Restore from cloud (Firestore)'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _restoreFromCloud();
-                },
-              ),
-              Divider(height: 1, color: divider),
+                _MoreSectionTitle('Backup'),
+                ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: const Text('Download JSON backup'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _downloadBackupJson();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.upload_file_outlined),
+                  title: const Text('Import JSON backup'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _importBackupJson();
+                  },
+                ),
+                if (!isDesktop) const SizedBox(height: 4),
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Cloud backup (Firestore)'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _backupToCloud();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cloud_download_outlined),
+                  title: const Text('Restore from cloud (Firestore)'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _restoreFromCloud();
+                  },
+                ),
+                Divider(height: 1, color: divider),
 
-              _MoreSectionTitle('Danger zone'),
-              ListTile(
-                leading: const Icon(Icons.delete_forever_outlined),
-                title: const Text('Clear entire sheet'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _clearAll();
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
+                _MoreSectionTitle('Danger zone'),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever_outlined),
+                  title: const Text('Clear entire sheet'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _clearAll();
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
           ),
         );
       },
@@ -2329,9 +2641,9 @@ class _EditorScreenState extends State<EditorScreen>
                     return InkWell(
                       onTap: () => _setFocus(r, _focus.$2),
                       child: Container(
-                        color: bg,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
+                          color: bg,
                           border: Border(
                             right: BorderSide(color: divider, width: 1),
                             bottom: BorderSide(color: divider, width: 1),
@@ -2367,7 +2679,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 bottom: 6,
                                 child: _TinyBadge(
                                   text: '$cnt',
-                                  bg: cs.primary,
+                                  bg: theme.brightness == Brightness.dark
+                                      ? const Color(0xFF2A2A32)
+                                      : const Color(0xFF1C1C1E),
                                   fg: Colors.white,
                                   icon: Icons.photo,
                                 ),
@@ -2420,7 +2734,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       bg: bg,
                                       isDesktop: isDesktop,
                                     ),
-                                  SizedBox(width: _sumRange(_lastCol + 1, _colCount)),
+                                  SizedBox(
+                                      width: _sumRange(_lastCol + 1, _colCount)),
                                 ],
                               );
                             },
@@ -2486,12 +2801,12 @@ class _EditorScreenState extends State<EditorScreen>
           Positioned.fill(
             right: isDesktop ? 10 : 0,
             child: Container(
-              color: bg,
               alignment: Alignment.center,
               decoration: BoxDecoration(
+                color: bg,
                 border: Border(
-                  right: BorderSide(color: divider, width: 1),
                   bottom: BorderSide(color: divider, width: 1),
+                  right: BorderSide(color: divider.withOpacity(0.55), width: 0.6),
                 ),
               ),
               child: Center(
@@ -2508,7 +2823,8 @@ class _EditorScreenState extends State<EditorScreen>
                       hintStyle: textStyle.copyWith(
                         color: theme.hintColor.withOpacity(0.65),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 14),
                     ),
                     style: textStyle,
                     textInputAction: TextInputAction.next,
@@ -2562,11 +2878,14 @@ class _EditorScreenState extends State<EditorScreen>
   void _autoFitCol(int c) {
     final theme = Theme.of(context);
     final cellStyle = theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14);
-    final hdrStyle = theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700) ??
-        const TextStyle(fontWeight: FontWeight.w700);
+    final hdrStyle =
+        theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700) ??
+            const TextStyle(fontWeight: FontWeight.w700);
 
     double maxW = 0;
-    final hdr = _state.headers[c].trim().isEmpty ? _fallbackHeaderHint(c) : _state.headers[c];
+    final hdr = _state.headers[c].trim().isEmpty
+        ? _fallbackHeaderHint(c)
+        : _state.headers[c];
     maxW = math.max(maxW, _measureText(hdr, hdrStyle));
 
     for (final r in _state.rows) {
@@ -2604,258 +2923,317 @@ class _EditorScreenState extends State<EditorScreen>
       }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
 
-    final isFocused = _focus.$1 == r && _focus.$2 == c;
-    final value = _safeCell(r, c);
+    final isFocused = (_focus.$1 == r && _focus.$2 == c);
+    final isEditingThis = isFocused && _isEditing;
 
-    final isLocation = _mapsLinkOrNull(value) != null;
-    final isPhotos = (c == _photosCol);
-    final isStatus = (c == _statusCol);
-
-    final borderColor = divider;
-    final focusColor = cs.primary;
-
-    // Touch behavior:
-    // - Mobile: tap => editar directo (teclado).
-    // - Desktop: click => foco; double click o Enter => edición.
-    void onTapCell() {
-      _setFocus(r, c);
-      if (!isDesktop) {
-        _startEditing(r, c);
-      }
-    }
-
-    void onDoubleTapCell() {
-      _setFocus(r, c);
-      if (isDesktop) {
-        _startEditing(r, c);
-      }
-    }
-
-    final content = isPhotos
-        ? _photosCellContent(r, bg, borderColor)
-        : isStatus
-        ? _statusCellContent(value, theme)
-        : _textCellContent(value, isLocation, theme, cs);
-
-    return SizedBox(
-      width: _colW[c],
-      height: _rowH,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Material(
-              color: bg,
-              child: InkWell(
-                onTap: onTapCell,
-                onDoubleTap: onDoubleTapCell,
-                onLongPress: () => _showCellMenu(r, c),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(color: borderColor, width: 1),
-                      bottom: BorderSide(color: borderColor, width: 1),
-                    ),
-                  ),
-                  child: content,
-                ),
-              ),
-            ),
-          ),
-
-          if (isFocused && !_isEditing)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: focusColor, width: 2),
-                  ),
-                ),
-              ),
-            ),
-
-          // Inline editor (desktop) — en mobile usamos barra inferior, no dentro de la celda.
-          if (isFocused && _isEditing && isDesktop && !isPhotos)
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: focusColor, width: 2),
-                  color: theme.colorScheme.surface,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Center(
-                  child: TextField(
-                    controller: _cellEC,
-                    focusNode: _cellFN,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                    ),
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) => _commitAndMoveDown(r, c),
-                  ),
-                ),
-              ),
-            ),
-        ],
+    // Base: grilla tipo hoja (líneas finas).
+    final baseDeco = BoxDecoration(
+      color: bg,
+      border: Border(
+        right: BorderSide(color: divider, width: 1),
+        bottom: BorderSide(color: divider, width: 1),
       ),
     );
-  }
 
-  Widget _textCellContent(String value, bool isLocation, ThemeData theme, ColorScheme cs) {
-    final style = theme.textTheme.bodyLarge?.copyWith(
-      fontSize: 18,
-      height: 1.05,
-      letterSpacing: -0.1,
-      color: isLocation ? cs.primary : theme.textTheme.bodyLarge?.color,
-      decoration: isLocation ? TextDecoration.underline : TextDecoration.none,
-    ) ??
-        TextStyle(
-          fontSize: 18,
-          color: isLocation ? cs.primary : theme.textTheme.bodyMedium?.color,
-          decoration: isLocation ? TextDecoration.underline : TextDecoration.none,
-        );
+    // Focus ring tipo iOS (suave, sin “azul Material”).
+    final ringColor = isLight
+        ? const Color(0xFF2D7BFF).withOpacity(0.22)
+        : const Color(0xFF7AA7FF).withOpacity(0.18);
+    final ringShadow = isLight
+        ? const Color(0xFF2D7BFF).withOpacity(0.10)
+        : const Color(0xFF7AA7FF).withOpacity(0.08);
 
-    return Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: style,
-    );
-  }
+    final focusDeco = isFocused
+        ? BoxDecoration(
+      color: bg,
+      border: Border.all(
+        color: (isLight ? const Color(0xFF2D7BFF) : const Color(0xFF7AA7FF))
+            .withOpacity(0.35),
+        width: 1.2,
+      ),
+      boxShadow: <BoxShadow>[
+        BoxShadow(
+          color: ringShadow,
+          blurRadius: 10,
+          spreadRadius: 0.5,
+        ),
+      ],
+    )
+        : baseDeco;
 
-  Widget _statusCellContent(String value, ThemeData theme) {
-    final v = value.trim();
-    if (v.isEmpty) {
-      return Text(
-        '',
-        style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18),
+    final cellW = _colW[c];
+    final cellH = _rowH;
+
+    // Photos col: UI especial (miniaturas + + solo en activo/hover).
+    if (c == _photosCol) {
+      final maxWidth = cellW - 12;
+      final showAdd = isFocused || (isDesktop && _hoverCell == (r, c));
+      return MouseRegion(
+        onEnter: (_) => _setHovered(r, c),
+        onExit: (_) => _clearHovered(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _setFocus(r, c, ensureVisible: true),
+          onDoubleTap: () => _showRowPhotosDialog(r),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            alignment: Alignment.centerLeft,
+            width: cellW,
+            height: cellH,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: focusDeco,
+            child: _photosCellContent(
+              r,
+              bg,
+              divider,
+              maxWidth: maxWidth,
+              showAdd: showAdd,
+            ),
+          ),
+        ),
       );
     }
 
-    // Apple-like pill.
-    final lower = v.toLowerCase();
-    final bool good = lower.contains('stock') ||
-        lower.contains('ok') ||
-        lower.contains('dispon') ||
-        lower.contains('activo') ||
-        lower.contains('ready');
+    // Normal cells.
+    final val = _state.rows[r][c];
 
-    final bg = good ? const Color(0xFFDFF3E2) : const Color(0xFFF2F2F2);
-    final fg = good ? const Color(0xFF1F7A2E) : const Color(0xFF333333);
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0x33000000), width: 0.7),
+    Widget content;
+    if (isEditingThis) {
+      content = TextField(
+        controller: _cellEC,
+        focusNode: _cellFN,
+        autofocus: true,
+        textInputAction: TextInputAction.next,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: isLight ? const Color(0xFF111111) : const Color(0xFFEDEDF2),
+          height: 1.2,
         ),
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          border: InputBorder.none,
+        ),
+        onChanged: (s) {
+          // Mantener edición fluida; commit en salir / enter / tap afuera.
+        },
+        onSubmitted: (_) => _commitEditing(),
+      );
+    } else {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Text(
-          v,
+          val,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: fg,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            letterSpacing: -0.1,
-          ) ??
-              TextStyle(
-                color: fg,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-        ),
-      ),
-    );
-  }
-
-  Widget _photosCellContent(int row, Color bg, Color divider) {
-    final theme = Theme.of(context);
-    final thumbs = _rowThumbs[row] ?? const <_AttItem>[];
-    final cnt = _attachCounts[row] ?? thumbs.length;
-
-    if (thumbs.isEmpty) {
-      // Se ve como la imagen: botón + dentro de la celda.
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () => _pickAttachmentsForRow(row),
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 46,
-            height: 40,
-            decoration: BoxDecoration(
-              color: theme.brightness == Brightness.light
-                  ? const Color(0xFFF6F6F7)
-                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: divider, width: 1),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.add, size: 20),
+            color: isLight ? const Color(0xFF1C1C1E) : const Color(0xFFEDEDF2),
+            height: 1.15,
           ),
         ),
       );
     }
 
-    // Miniaturas redondeadas como mock.
-    return Row(
-      children: [
-        for (int i = 0; i < thumbs.length; i++)
-          Padding(
-            padding: EdgeInsets.only(right: i == thumbs.length - 1 ? 6 : 8),
-            child: InkWell(
-              onTap: () => _showRowPhotosDialog(row),
-              borderRadius: BorderRadius.circular(14),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.memory(
-                  thumbs[i].bytes,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  filterQuality: FilterQuality.low,
-                ),
-              ),
-            ),
-          ),
-        InkWell(
-          onTap: () => _showRowPhotosDialog(row),
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: theme.brightness == Brightness.light
-                  ? const Color(0xFFF6F6F7)
-                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: divider, width: 1),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              cnt > thumbs.length ? '+${cnt - thumbs.length}' : '⋯',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: theme.textTheme.bodyMedium?.color,
-              ),
-            ),
-          ),
+    return MouseRegion(
+      onEnter: (_) => _setHovered(r, c),
+      onExit: (_) => _clearHovered(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _setFocus(r, c, ensureVisible: true),
+        onDoubleTap: () => _beginCellEdit(r, c),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: cellW,
+          height: cellH,
+          decoration: focusDeco,
+          child: content,
         ),
-      ],
+      ),
     );
   }
 
-  // ------------------------------ Keyboard (desktop) ------------------------
+  Widget _photosCellContent(
+      int row,
+      Color bg,
+      Color divider, {
+        required double maxWidth,
+        required bool showAdd,
+      }) {
+    final theme = Theme.of(context);
+    final isLight = theme.brightness == Brightness.light;
+
+    final muted = theme.colorScheme.onSurface.withOpacity(isLight ? 0.42 : 0.55);
+
+    final ids = _rowPhotoIds[row] ?? const <String>[];
+    final count = ids.length;
+    final thumbs = _rowThumbs[row] ?? const <_AttItem>[];
+
+    final canAdd = count < _maxPhotosPerCell;
+    final showAddTile = showAdd && canAdd;
+
+    const thumbSize = 34.0;
+    const gap = 6.0;
+
+    // Max “slots” visibles en la celda según ancho real.
+    final available = math.max(0.0, maxWidth - 14.0);
+    var maxSlots = (available / (thumbSize + gap)).floor();
+    maxSlots = maxSlots.clamp(1, 10);
+
+    // Reservamos un slot para el “+” (si aplica), así no “ensucia” toda la grilla.
+    final reservedForAdd = showAddTile ? 1 : 0;
+    var maxThumbs = (maxSlots - reservedForAdd);
+    if (maxThumbs < 1) maxThumbs = 1;
+    if (maxThumbs > 10) maxThumbs = 10;
+
+    Widget addTile(double size) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: isLight
+              ? const Color(0xFFF2F4F7)
+              : theme.colorScheme.onSurface.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: divider.withOpacity(isLight ? 0.90 : 0.70),
+            width: 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.add,
+          size: size * 0.55,
+          color: muted,
+        ),
+      );
+    }
+
+    if (count == 0) {
+      // Vacío: placeholder tranquilo. El “+” aparece solo en foco/hover.
+      if (!showAddTile) {
+        return Center(
+          child: Icon(
+            Icons.photo_outlined,
+            size: 20,
+            color: muted,
+          ),
+        );
+      }
+      return Center(child: addTile(28));
+    }
+
+    // Si todavía no cargaron miniaturas, mostramos icono + contador.
+    if (thumbs.isEmpty) {
+      final pillBg = isLight
+          ? const Color(0xFFF2F4F7)
+          : theme.colorScheme.onSurface.withOpacity(0.06);
+
+      final pieces = <Widget>[
+        Icon(Icons.photo_outlined, size: 18, color: muted),
+        const SizedBox(width: 6),
+        Text(
+          '$count',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: muted,
+          ),
+        ),
+      ];
+
+      if (showAddTile) {
+        pieces.add(const SizedBox(width: 10));
+        pieces.add(addTile(thumbSize));
+      }
+
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: pillBg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: divider.withOpacity(isLight ? 0.85 : 0.65),
+              width: 1,
+            ),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: pieces),
+        ),
+      );
+    }
+
+    final shown = thumbs.take(maxThumbs).toList(growable: false);
+    final remaining = count - shown.length;
+
+    final tiles = <Widget>[];
+    for (int i = 0; i < shown.length; i++) {
+      final bytes = shown[i].bytes;
+
+      Widget tile = ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.memory(
+          bytes,
+          width: thumbSize,
+          height: thumbSize,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+        ),
+      );
+
+      // Si sobran fotos, mostramos “+N” sobre el último thumb visible.
+      if (i == shown.length - 1 && remaining > 0) {
+        tile = Stack(
+          children: <Widget>[
+            tile,
+            Positioned.fill(
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B0B0F).withOpacity(isLight ? 0.35 : 0.45),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '+$remaining',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFFFFFFF),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
+      tiles.add(tile);
+    }
+
+    if (showAddTile) {
+      tiles.add(addTile(thumbSize));
+    }
+
+    // Centramos: se siente más “control” y menos “ruido”.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (int i = 0; i < tiles.length; i++) ...<Widget>[
+              tiles[i],
+              if (i != tiles.length - 1) const SizedBox(width: gap),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
 
   bool _isCtrlPressed() {
     final pressed = HardwareKeyboard.instance.logicalKeysPressed;
@@ -2906,7 +3284,8 @@ class _EditorScreenState extends State<EditorScreen>
       return KeyEventResult.handled;
     }
 
-    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
       _startEditing(r, c);
       return KeyEventResult.handled;
     }
@@ -2935,7 +3314,7 @@ class _EditorScreenState extends State<EditorScreen>
     // Delete
     if (key == LogicalKeyboardKey.delete) {
       if (c == _photosCol) {
-        // No borramos fotos desde delete (para evitar “oops”).
+        // No borramos fotos desde delete (evita “oops”).
         return KeyEventResult.handled;
       }
       _updateState(_state.withCell(r, c, ''));
@@ -3117,19 +3496,21 @@ class _TopHeader extends StatelessWidget {
   const _TopHeader({
     required this.title,
     required this.titleStyle,
+    required this.subtitle,
     required this.onRename,
     required this.actions,
   });
 
   final String title;
   final TextStyle titleStyle;
+  final String subtitle;
   final VoidCallback onRename;
   final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtitle = theme.textTheme.bodySmall?.copyWith(
+    final subtitleStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.hintColor,
     ) ??
         TextStyle(color: theme.hintColor);
@@ -3147,10 +3528,11 @@ class _TopHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          'Long press title to rename',
-          style: subtitle,
-        ),
+        if (subtitle.isNotEmpty)
+          Text(
+            subtitle,
+            style: subtitleStyle,
+          ),
         const SizedBox(height: 14),
         Row(
           children: actions,
@@ -3485,7 +3867,8 @@ class _NoGlowClampingScrollBehavior extends ScrollBehavior {
   }
 
   @override
-  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
     return child;
   }
 }

@@ -35,25 +35,6 @@ class ExportXlsxService {
   }
 
   /// Genera y guarda/descarga un XLSX local.
-  ///
-  /// [fileName] tiene prioridad; si es nulo o vacío se usa [name].
-  ///
-  /// [headers]  → encabezados de la grilla.
-  /// [rows]     → filas de la grilla (cada fila = lista de celdas).
-  ///
-  /// [photoRows] → filas para la hoja FOTOS. Ejemplo:
-  ///   [
-  ///     ["Fila", "Archivo", "Descripción", "Latitud", "Longitud", "Fecha/hora"],
-  ///     ...
-  ///   ]
-  ///
-  /// [photosByRow] → mapa de fotos por fila (para embeber en PLANILLA):
-  ///   key = índice de fila (0-based respecto a [rows])
-  ///   value = lista de bytes de imagen (JPG/PNG) de esa fila.
-  ///
-  /// [sheetLatitude] / [sheetLongitude] → ubicación general de la planilla.
-  ///
-  /// [sheetCreatedAt] → fecha/hora de generación del XLSX.
   static Future<void> download({
     String? fileName,
     String name = 'BitFlow',
@@ -82,8 +63,6 @@ class ExportXlsxService {
   }
 
   /// Genera el XLSX en memoria y lo envía por mail usando [MailReportService].
-  ///
-  /// No descarga nada localmente; solo arma el archivo y lo envía.
   static Future<void> exportAndSendReport({
     required MailReportService mailService,
     required String to,
@@ -125,15 +104,27 @@ class ExportXlsxService {
   static String _resolveBaseName(String? fileName, String name) {
     final candidate =
     (fileName != null && fileName.trim().isNotEmpty) ? fileName : name;
-    final trimmed = candidate.trim();
-    return trimmed.isEmpty ? 'BitFlow' : trimmed;
+
+    // Quita extensión si ya viene con .xlsx
+    var base = candidate.trim();
+    if (base.toLowerCase().endsWith('.xlsx')) {
+      base = base.substring(0, base.length - 5);
+    }
+
+    // Excel/OS: evitar separadores y caracteres raros en nombre de archivo.
+    base = base
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return base.isEmpty ? 'BitFlow' : base;
   }
 
   /// Construye el XLSX en memoria.
   ///
-  /// Caso 1: SIN fotos → usa workbook con 4 hojas (PLANILLA/FOTOS/UBICACION/INSTRUCCIONES).
-  /// Caso 2: CON fotos → delega en [buildXlsxWithPhotos] y devuelve un XLSX
-  ///         con las fotos embebidas en la hoja PLANILLA.
+  /// Caso 1: SIN fotos → workbook con 4 hojas (PLANILLA/FOTOS/UBICACION/INSTRUCCIONES).
+  /// Caso 2: CON fotos → intenta embeber en PLANILLA con [buildXlsxWithPhotos].
+  ///          Si esa ruta falla, cae al modo clásico sin romper la exportación.
   static Future<List<int>> _buildXlsxBytes({
     required String sheetName,
     required List<String> headers,
@@ -144,47 +135,69 @@ class ExportXlsxService {
     double? sheetLongitude,
     DateTime? sheetCreatedAt,
   }) async {
-    // Si hay fotos, delegamos directamente a buildXlsxWithPhotos.
+    final safeSheetName = _sanitizeWorksheetName(sheetName);
+
+    // Si hay fotos, intentamos embebidas primero.
     if (photosByRow != null && photosByRow.isNotEmpty) {
-      final bytesWithPhotos = await buildXlsxWithPhotos(
-        columns: headers,
-        rows: rows,
-        photosByRow: photosByRow,
-      );
-      return bytesWithPhotos;
+      try {
+        // OJO: buildXlsxWithPhotos NO acepta sheetName como parámetro.
+        // La hoja se llama "PLANILLA" adentro (como tu implementacion actual).
+        final bytesWithPhotos = await buildXlsxWithPhotos(
+          columns: headers,
+          rows: rows,
+          photosByRow: photosByRow,
+        );
+        return bytesWithPhotos;
+      } catch (_) {
+        // Fallback automático a modo clásico.
+      }
     }
 
-    // Sin fotos: 4 hojas clásicas.
+    // Modo clásico (4 hojas).
     final workbook = xlsio.Workbook(4);
+    try {
+      final sheetPlanilla = workbook.worksheets[0]..name = safeSheetName;
+      final sheetFotos = workbook.worksheets[1]..name = 'FOTOS';
+      final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACION';
+      final sheetInstrucciones = workbook.worksheets[3]..name = 'INSTRUCCIONES';
 
-    final sheetPlanilla = workbook.worksheets[0]..name = sheetName;
-    final sheetFotos = workbook.worksheets[1]..name = 'FOTOS';
-    final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACION';
-    final sheetInstrucciones = workbook.worksheets[3]..name = 'INSTRUCCIONES';
+      _buildPlanillaSheet(
+        sheetPlanilla,
+        headers: headers,
+        rows: rows,
+      );
 
-    _buildPlanillaSheet(
-      sheetPlanilla,
-      headers: headers,
-      rows: rows,
-    );
+      _buildFotosSheet(
+        sheetFotos,
+        photoRows: photoRows,
+        photosByRow: photosByRow,
+      );
 
-    _buildFotosSheet(
-      sheetFotos,
-      photoRows: photoRows,
-    );
+      _buildUbicacionSheet(
+        sheetUbicacion,
+        latitude: sheetLatitude,
+        longitude: sheetLongitude,
+        createdAt: sheetCreatedAt,
+      );
 
-    _buildUbicacionSheet(
-      sheetUbicacion,
-      latitude: sheetLatitude,
-      longitude: sheetLongitude,
-      createdAt: sheetCreatedAt,
-    );
+      _buildInstruccionesSheet(sheetInstrucciones);
 
-    _buildInstruccionesSheet(sheetInstrucciones);
+      final bytes = workbook.saveAsStream();
+      return bytes;
+    } finally {
+      workbook.dispose();
+    }
+  }
 
-    final bytes = workbook.saveAsStream();
-    workbook.dispose();
-    return bytes;
+  static String _sanitizeWorksheetName(String name) {
+    var n = name.trim();
+    if (n.isEmpty) return 'PLANILLA';
+    // Excel: max 31 y sin : \ / ? * [ ]
+    n = n.replaceAll(RegExp(r'[:\\/?*\[\]]'), ' ');
+    n = n.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (n.isEmpty) n = 'PLANILLA';
+    if (n.length > 31) n = n.substring(0, 31).trim();
+    return n.isEmpty ? 'PLANILLA' : n;
   }
 
   // ============================================================
@@ -198,13 +211,9 @@ class ExportXlsxService {
       }) {
     int colCount = headers.length;
     for (final r in rows) {
-      if (r.length > colCount) {
-        colCount = r.length;
-      }
+      if (r.length > colCount) colCount = r.length;
     }
-    if (colCount == 0) {
-      colCount = 1;
-    }
+    if (colCount == 0) colCount = 1;
 
     final saneHeaders = _normalizeHeaders(headers, colCount);
     final saneRows = _normalizeRows(rows, colCount);
@@ -235,15 +244,16 @@ class ExportXlsxService {
     final tableRange = sheet.getRangeByIndex(1, 1, lastRow, colCount);
     tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
 
-    // Auto-fit de columnas.
+    // Auto-fit con fallback (por si Syncfusion se rompe).
     for (int c = 1; c <= colCount; c++) {
-      sheet.autoFitColumn(c);
+      _safeAutoFitColumn(sheet, c, fallbackPx: 140);
     }
   }
 
   static void _buildFotosSheet(
       xlsio.Worksheet sheet, {
         required List<List<String>>? photoRows,
+        required Map<int, List<Uint8List>>? photosByRow,
       }) {
     const fotoHeaders = <String>[
       'Fila',
@@ -267,6 +277,7 @@ class ExportXlsxService {
       cell.cellStyle = headerStyle;
     }
 
+    // Prioridad: photoRows explícito.
     if (photoRows != null && photoRows.isNotEmpty) {
       final saneRows = _normalizeRows(photoRows, fotoHeaders.length);
 
@@ -285,6 +296,41 @@ class ExportXlsxService {
         fotoHeaders.length,
       );
       tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    } else if (photosByRow != null && photosByRow.isNotEmpty) {
+      // Fallback: construir un resumen mínimo de fotos a partir del mapa.
+      final entries = photosByRow.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+
+      int outRow = 2;
+      for (final e in entries) {
+        final rowIndex0 = e.key;
+        final list = e.value;
+
+        for (int i = 0; i < list.length; i++) {
+          final filaHumana = (rowIndex0 + 1).toString();
+          final archivo = 'embedded_${rowIndex0 + 1}_${i + 1}.jpg';
+          final desc = 'Foto embebida en PLANILLA (Export)';
+
+          sheet.getRangeByIndex(outRow, 1).setText(filaHumana);
+          sheet.getRangeByIndex(outRow, 2).setText(archivo);
+          sheet.getRangeByIndex(outRow, 3).setText(desc);
+          sheet.getRangeByIndex(outRow, 4).setText('');
+          sheet.getRangeByIndex(outRow, 5).setText('');
+          sheet.getRangeByIndex(outRow, 6).setText('');
+          outRow++;
+        }
+      }
+
+      final lastRow = outRow - 1;
+      if (lastRow >= 1) {
+        final tableRange = sheet.getRangeByIndex(
+          1,
+          1,
+          lastRow,
+          fotoHeaders.length,
+        );
+        tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+      }
     } else {
       sheet.getRangeByIndex(3, 1).setText(
         'No hay fotos asociadas en este reporte.',
@@ -292,7 +338,7 @@ class ExportXlsxService {
     }
 
     for (int c = 1; c <= fotoHeaders.length; c++) {
-      sheet.autoFitColumn(c);
+      _safeAutoFitColumn(sheet, c, fallbackPx: 180);
     }
   }
 
@@ -321,15 +367,14 @@ class ExportXlsxService {
 
       final mapsUrl = 'https://www.google.com/maps?q=$latStr,$lngStr';
 
-      // Link como texto (copiar/pegar) sin usar hyperlinks.add.
       final linkCell = sheet.getRangeByIndex(7, 1);
       linkCell.setText(mapsUrl);
       linkCell.cellStyle.fontColor = '#FF0000FF';
       linkCell.cellStyle.bold = true;
     } else {
-      sheet
-          .getRangeByIndex(4, 1)
-          .setText('Ubicación no disponible en este reporte.');
+      sheet.getRangeByIndex(4, 1).setText(
+        'Ubicación no disponible en este reporte.',
+      );
     }
 
     if (createdAt != null) {
@@ -339,8 +384,8 @@ class ExportXlsxService {
       dateCell.numberFormat = 'dd/mm/yyyy hh:mm';
     }
 
-    sheet.autoFitColumn(1);
-    sheet.autoFitColumn(2);
+    _safeAutoFitColumn(sheet, 1, fallbackPx: 320);
+    _safeAutoFitColumn(sheet, 2, fallbackPx: 220);
   }
 
   static void _buildInstruccionesSheet(xlsio.Worksheet sheet) {
@@ -381,19 +426,27 @@ class ExportXlsxService {
 
     textCell.cellStyle.wrapText = true;
 
-    // Ancho cómodo para leer texto de instrucciones.
     sheet.setColumnWidthInPixels(1, 600);
     sheet.setRowHeightInPixels(3, 420.0);
   }
 
   // ============================================================
-  // Helpers de normalización
+  // Helpers
   // ============================================================
 
-  static List<String> _normalizeHeaders(
-      List<String> headers,
-      int colCount,
-      ) {
+  static void _safeAutoFitColumn(
+      xlsio.Worksheet sheet,
+      int col, {
+        required int fallbackPx,
+      }) {
+    try {
+      sheet.autoFitColumn(col);
+    } catch (_) {
+      sheet.setColumnWidthInPixels(col, fallbackPx);
+    }
+  }
+
+  static List<String> _normalizeHeaders(List<String> headers, int colCount) {
     final result = List<String>.from(headers);
     while (result.length < colCount) {
       result.add('');
@@ -401,10 +454,7 @@ class ExportXlsxService {
     return result;
   }
 
-  static List<List<String>> _normalizeRows(
-      List<List<String>> rows,
-      int colCount,
-      ) {
+  static List<List<String>> _normalizeRows(List<List<String>> rows, int colCount) {
     return rows.map((original) {
       final row = List<String>.from(original);
       while (row.length < colCount) {
@@ -416,7 +466,6 @@ class ExportXlsxService {
 }
 
 /// Función global legacy para compatibilidad con código antiguo.
-/// Permite seguir llamando `saveXlsx('archivo.xlsx', bytes);` directamente.
 Future<void> saveXlsx(String fileName, List<int> bytes) {
   return ExportXlsxService.saveXlsx(fileName, bytes);
 }
