@@ -73,6 +73,7 @@ dependencies:
   # Firebase (dejados solo si usás Firestore en otra parte)
   firebase_core: ^4.2.1
   cloud_firestore: ^6.1.0
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:

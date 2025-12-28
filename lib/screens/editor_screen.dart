@@ -2,22 +2,19 @@
 //
 // BitFlow / Gridnote — EditorScreen
 // Grilla editable “tipo Notes”: 1 toque => parpadeo => editar.
-// Mobile (incluye Web iOS/Android): editor inferior FIJO arriba del teclado (sin overlays).
+// Mobile (incluye Web iOS/Android): editor inferior FIJO arriba del teclado.
 // Desktop: edición in-cell con overlay anclado a la celda (no modal centrado).
 //
 // Requiere (pubspec):
 //   shared_preferences
 //   file_selector
-//   image_picker
 //   image
 //   geolocator
 //   url_launcher
 //   http
 //   syncfusion_flutter_xlsio
 //
-// Nota: este archivo no depende de imports internos del proyecto.
-// Ajustá el constructor según tu navegación (id/nombre).
-//
+// Nota: este archivo NO usa dart:io (compila en Web).
 // © 2025
 
 import 'dart:async';
@@ -33,12 +30,17 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:url_launcher/url_launcher.dart';
 
-/// Pantalla principal de edición de planilla.
+// ============================== Constantes globales ========================
+
+const int kDefaultCols = 15; // 14 + Photos
+const String kPhotosHeader = 'Photos';
+
+// ============================== Pantalla principal =========================
+
 class EditorScreen extends StatefulWidget {
   const EditorScreen({
     super.key,
@@ -47,22 +49,21 @@ class EditorScreen extends StatefulWidget {
     this.initialHeaders,
     this.initialRows,
     this.engineBaseUrl,
+    this.isLight, // ✅ para compat con StartPage
+    this.onToggleTheme, // ✅ compat con StartPage
   });
 
-  /// Identificador único de la planilla.
   final String sheetId;
-
-  /// Nombre amigable (opcional).
   final String? initialName;
-
-  /// Permite inicializar headers si venís de un import.
   final List<String>? initialHeaders;
-
-  /// Permite inicializar rows si venís de un import.
   final List<List<String>>? initialRows;
-
-  /// Base URL para compute (opcional). Ej: http://localhost:8001
   final String? engineBaseUrl;
+
+  /// Si StartPage te lo pasa, lo respetamos; si no, usamos platform brightness.
+  final bool? isLight;
+
+  /// Si StartPage lo maneja global, lo dispara desde acá.
+  final VoidCallback? onToggleTheme;
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -71,10 +72,7 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMixin {
   // ------------------------------ Constantes -------------------------------
 
-  static const int kDefaultCols = 15; // 14 + Photos
-  static const String kPhotosHeader = 'Photos';
   static const int kMaxUndo = 50;
-
   static const Duration _blinkDuration = Duration(milliseconds: 110);
   static const Duration _saveDebounce = Duration(milliseconds: 650);
 
@@ -82,23 +80,21 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   late String _sheetName;
 
-  late List<String> _headers; // length = cols
+  late List<String> _headers;
   late List<_RowModel> _rows;
 
   bool _isLight = true;
   bool _isDirty = false;
 
-  // Selección / foco
   int _selRow = 0;
   int _selCol = 0;
 
-  // Edición (desktop overlay anclado)
+  // Overlay editor (desktop)
   final LayerLink _editorLink = LayerLink();
   OverlayEntry? _cellEditorEntry;
   final TextEditingController _cellEC = TextEditingController();
   final FocusNode _cellFocus = FocusNode(debugLabel: 'CellEditorFocus');
 
-  // Target actual del overlay (para crear el CompositedTransformTarget)
   _CellRef? _overlayTargetCell;
   int? _overlayTargetHeaderCol;
   double _overlayTargetWidth = 320;
@@ -122,9 +118,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _engineBusy = false;
   String? _engineStatus;
 
-  // Fotos
-  final ImagePicker _picker = ImagePicker();
-
   // ---------------- Mobile inline editor (FIJO arriba del teclado) --------
 
   bool _mobileEditorOpen = false;
@@ -146,7 +139,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     super.initState();
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false) ? widget.initialName!.trim() : 'Sheet';
-    _isLight = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.light;
+
+    _isLight = widget.isLight ??
+        (WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.light);
 
     final initial = _buildInitialState();
     _headers = initial.headers;
@@ -157,8 +152,20 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   @override
+  void didUpdateWidget(covariant EditorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Si el padre cambia isLight, lo reflejamos localmente.
+    final newLight = widget.isLight;
+    if (newLight != null && newLight != oldWidget.isLight && newLight != _isLight) {
+      setState(() => _isLight = newLight);
+    }
+  }
+
+  @override
   void dispose() {
     _saveT?.cancel();
+
     _vScroll.dispose();
     _hScroll.dispose();
 
@@ -170,6 +177,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     _blinkCell.dispose();
     _removeCellEditor();
+
     super.dispose();
   }
 
@@ -180,23 +188,24 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         ? _normalizeHeaders(widget.initialHeaders!)
         : _defaultHeaders();
 
-    final rows = <_RowModel>[];
+    final rowModels = <_RowModel>[];
+
     if (widget.initialRows != null && widget.initialRows!.isNotEmpty) {
       for (final r in widget.initialRows!) {
-        rows.add(_RowModel.fromCells(_normalizeRow(r, headers.length)));
+        rowModels.add(_RowModel.fromCells(_normalizeRow(r, headers.length)));
       }
     } else {
-      // 3 filas vacías por defecto (alto rendimiento en mobile)
+      // 3 filas vacías por defecto (mobile-friendly)
       for (int i = 0; i < 3; i++) {
-        rows.add(_RowModel.empty(headers.length));
+        rowModels.add(_RowModel.empty(headers.length));
       }
     }
-    return _SheetModel(headers: headers, rows: rows);
+
+    return _SheetModel(headers: headers, rows: rowModels, name: _sheetName);
   }
 
   List<String> _defaultHeaders() {
     final h = List<String>.filled(kDefaultCols, '');
-    // 14 vacíos + Photos al final
     if (h.isNotEmpty) h[h.length - 1] = kPhotosHeader;
     return h;
   }
@@ -205,18 +214,19 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final h = incoming.map((e) => e.trim()).toList();
     if (h.isEmpty) return _defaultHeaders();
 
-    // Asegura length kDefaultCols (o más si tu proyecto ya expandió columnas)
     final target = math.max(kDefaultCols, h.length);
     if (h.length < target) {
       h.addAll(List<String>.filled(target - h.length, ''));
     }
-    // Asegura Photos al final
+
+    // Photos al final sí o sí
     if (h.isNotEmpty) h[h.length - 1] = kPhotosHeader;
     return h;
   }
 
-  List<String> _normalizeRow(List<String> incoming, int cols) {
-    final r = incoming.map((e) => e).toList();
+  // ✅ FIX: aceptar List<String> y List<dynamic> (Iterable es covariante).
+  List<String> _normalizeRow(Iterable<dynamic> incoming, int cols) {
+    final r = incoming.map((e) => (e ?? '').toString()).toList();
     if (r.length < cols) r.addAll(List<String>.filled(cols - r.length, ''));
     if (r.length > cols) r.removeRange(cols, r.length);
     return r;
@@ -236,10 +246,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       final loaded = _SheetModel.fromJson(map);
 
       if (!mounted) return;
+
+      final loadedHeaders = _normalizeHeaders(loaded.headers);
+      final normalizedRows = <_RowModel>[];
+      for (final rm in loaded.rows) {
+        final cells = _normalizeRow(rm.cells, loadedHeaders.length);
+        normalizedRows.add(rm.copyWithCells(cells));
+      }
+
       setState(() {
         _sheetName = (loaded.name?.trim().isNotEmpty ?? false) ? loaded.name!.trim() : _sheetName;
-        _headers = _normalizeHeaders(loaded.headers);
-        _rows = loaded.rows.isNotEmpty ? loaded.rows : <_RowModel>[_RowModel.empty(_headers.length)];
+        _headers = loadedHeaders;
+        _rows = normalizedRows.isNotEmpty ? normalizedRows : <_RowModel>[_RowModel.empty(_headers.length)];
         _isDirty = false;
       });
 
@@ -248,7 +266,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         ..add(_snapshot());
       _redo.clear();
     } catch (_) {
-      // Si rompe, no matamos la UX.
+      // si rompe, no matamos la UX
     }
   }
 
@@ -262,11 +280,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       await prefs.setString(_prefsKey, json.encode(model.toJson()));
 
       if (!mounted) return;
-      setState(() {
-        _isDirty = false;
-      });
+      setState(() => _isDirty = false);
     } catch (_) {
-      // silencio: preferimos no frenar el flujo.
+      // silencio
     } finally {
       _saving = false;
     }
@@ -284,7 +300,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   _SheetSnapshot _snapshot() => _SheetSnapshot(
     name: _sheetName,
     headers: List<String>.from(_headers),
-    rows: _rows.map((r) => r.copy()).toList(),
+    rowModels: _rows.map((r) => r.copy()).toList(),
     selRow: _selRow,
     selCol: _selCol,
   );
@@ -296,15 +312,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   void _undoOnce() {
-    if (_undo.length <= 1) return; // deja el inicial
+    if (_undo.length <= 1) return;
     final current = _undo.removeLast();
     _redo.add(current);
+
     final prev = _undo.last;
 
     setState(() {
       _sheetName = prev.name;
       _headers = List<String>.from(prev.headers);
-      _rows = prev.rows.map((r) => r.copy()).toList();
+      _rows = prev.rowModels.map((r) => r.copy()).toList();
       _selRow = prev.selRow.clamp(0, _rows.length - 1);
       _selCol = prev.selCol.clamp(0, _headers.length - 1);
       _isDirty = true;
@@ -320,7 +337,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     setState(() {
       _sheetName = snap.name;
       _headers = List<String>.from(snap.headers);
-      _rows = snap.rows.map((r) => r.copy()).toList();
+      _rows = snap.rowModels.map((r) => r.copy()).toList();
       _selRow = snap.selRow.clamp(0, _rows.length - 1);
       _selCol = snap.selCol.clamp(0, _headers.length - 1);
       _isDirty = true;
@@ -333,14 +350,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   _SheetPalette _palette(BuildContext context) {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     final hair = math.max(0.5, 1.0 / dpr);
-
-    if (_isLight) {
-      return _SheetPalette.light(hairline: hair);
-    }
-    return _SheetPalette.dark(hairline: hair);
+    return _isLight ? _SheetPalette.light(hairline: hair) : _SheetPalette.dark(hairline: hair);
   }
 
+  // ✅ FIX: compat tema global (StartPage) + feedback local.
   void _toggleTheme() {
+    widget.onToggleTheme?.call();
     setState(() => _isLight = !_isLight);
   }
 
@@ -352,12 +367,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   bool _isDesktopUi(BuildContext context) {
-    // Regla de oro: en iOS/Android WEB, NUNCA uses overlay editor (se rompe foco/teclado).
     if (_isMobileWeb()) return false;
 
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)) {
       return false;
     }
+
     final w = MediaQuery.of(context).size.width;
 
     bool mouse = false;
@@ -374,8 +390,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final ref = _CellRef(r, c);
     _blinkCell.value = ref;
 
-    // iOS/Android nativo: click táctil sutil
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)) {
       try {
         HapticFeedback.selectionClick();
       } catch (_) {}
@@ -400,7 +416,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final isDesktop = _isDesktopUi(context);
 
     return Scaffold(
-      resizeToAvoidBottomInset: false, // ✅ clave en iOS Web
+      resizeToAvoidBottomInset: false, // ✅ clave iOS Web
       backgroundColor: pal.bg,
       appBar: AppBar(
         backgroundColor: pal.appBarBg,
@@ -424,16 +440,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             onPressed: _toggleTheme,
             icon: Icon(_isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
           ),
-          IconButton(
-            tooltip: 'Undo',
-            onPressed: _undoOnce,
-            icon: const Icon(Icons.undo_rounded),
-          ),
-          IconButton(
-            tooltip: 'Redo',
-            onPressed: _redoOnce,
-            icon: const Icon(Icons.redo_rounded),
-          ),
+          IconButton(tooltip: 'Undo', onPressed: _undoOnce, icon: const Icon(Icons.undo_rounded)),
+          IconButton(tooltip: 'Redo', onPressed: _redoOnce, icon: const Icon(Icons.redo_rounded)),
           IconButton(
             tooltip: 'Agregar fila',
             onPressed: () => _insertRow(_rows.length),
@@ -467,13 +475,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 Expanded(
                   child: isDesktop
                       ? Focus(
-                    autofocus: true, // ✅ solo desktop
+                    autofocus: true,
                     onKeyEvent: _onKeyEvent,
                     child: RepaintBoundary(
                       child: _GridView(
                         palette: pal,
                         headers: _headers,
-                        rows: _rows,
+                        rowModels: _rows,
                         vScroll: _vScroll,
                         hScroll: _hScroll,
                         selRow: _selRow,
@@ -489,8 +497,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                           });
                           _blink(r, c);
                         },
-                        onEditRequested: (r, c, cellWidth) => _beginEditCell(context, pal, r, c, cellWidth),
-                        onHeaderEditRequested: (c, headerWidth) => _beginEditHeader(context, pal, c, headerWidth),
+                        onEditRequested: (r, c, w) => _beginEditCell(context, pal, r, c, w),
+                        onHeaderEditRequested: (c, w) => _beginEditHeader(context, pal, c, w),
                         onContextMenu: (pos, r, c, isHeader) =>
                             _openContextMenu(context, pal, pos, r, c, isHeader),
                         onDeleteRow: (r) => _deleteRow(r),
@@ -502,7 +510,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     child: _GridView(
                       palette: pal,
                       headers: _headers,
-                      rows: _rows,
+                      rowModels: _rows,
                       vScroll: _vScroll,
                       hScroll: _hScroll,
                       selRow: _selRow,
@@ -518,8 +526,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                         });
                         _blink(r, c);
                       },
-                      onEditRequested: (r, c, cellWidth) => _beginEditCell(context, pal, r, c, cellWidth),
-                      onHeaderEditRequested: (c, headerWidth) => _beginEditHeader(context, pal, c, headerWidth),
+                      onEditRequested: (r, c, w) => _beginEditCell(context, pal, r, c, w),
+                      onHeaderEditRequested: (c, w) => _beginEditHeader(context, pal, c, w),
                       onContextMenu: (pos, r, c, isHeader) =>
                           _openContextMenu(context, pal, pos, r, c, isHeader),
                       onDeleteRow: (r) => _deleteRow(r),
@@ -530,8 +538,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 if (!isDesktop && !_mobileEditorOpen) _MobileHintBar(palette: pal),
               ],
             ),
-
-            // Mobile inline editor bar (solo cuando no es desktop)
             if (!isDesktop && _mobileEditorOpen)
               _MobileInlineEditorBar(
                 palette: pal,
@@ -558,7 +564,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final isShift = HardwareKeyboard.instance.isShiftPressed;
     final isMod = isCmd || isCtrl;
 
-    // Navegación flechas
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       _moveSel(dRow: 1);
       return KeyEventResult.handled;
@@ -576,15 +581,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       return KeyEventResult.handled;
     }
 
-    // Enter => editar
     if (event.logicalKey == LogicalKeyboardKey.enter) {
       final pal = _palette(context);
-      const widthGuess = 340.0;
-      _beginEditCell(context, pal, _selRow, _selCol, widthGuess);
+      _beginEditCell(context, pal, _selRow, _selCol, 340);
       return KeyEventResult.handled;
     }
 
-    // Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyZ) {
       if (isShift) {
         _redoOnce();
@@ -594,29 +596,26 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       return KeyEventResult.handled;
     }
 
-    // Ctrl/Cmd+Y
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyY) {
       _redoOnce();
       return KeyEventResult.handled;
     }
 
-    // Ctrl/Cmd+C / V
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyC) {
       unawaited(_copySelectionToClipboard());
       return KeyEventResult.handled;
     }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyV) {
       unawaited(_pasteFromClipboard());
       return KeyEventResult.handled;
     }
 
-    // Delete / Backspace => limpiar celda
     if (event.logicalKey == LogicalKeyboardKey.delete || event.logicalKey == LogicalKeyboardKey.backspace) {
       _setCell(_selRow, _selCol, '');
       return KeyEventResult.handled;
     }
 
-    // Escape => cerrar editor si está abierto (sin commit)
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _removeCellEditor();
       return KeyEventResult.handled;
@@ -639,8 +638,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   void _beginEditHeader(BuildContext context, _SheetPalette pal, int c, double headerWidth) {
     if (c < 0 || c >= _headers.length) return;
-    // No editamos Photos por diseño.
-    if (c == _headers.length - 1) return;
+    if (c == _headers.length - 1) return; // Photos no editable
 
     _removeCellEditor();
     _blink(-1, c);
@@ -680,7 +678,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     required String initial,
     required ValueChanged<String> onCommit,
   }) {
-    // target para CompositedTransformTarget (header)
     setState(() {
       _overlayTargetCell = null;
       _overlayTargetHeaderCol = col;
@@ -705,7 +702,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
 
-    // ✅ Selección primero (un solo flujo). Evita bugs de foco en iPhone Web.
     if (_selRow != r || _selCol != c) {
       setState(() {
         _selRow = r;
@@ -716,7 +712,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _removeCellEditor();
     _blink(r, c);
 
-    // Photos: abrir picker
+    // Photos => pick
     if (c == _headers.length - 1) {
       unawaited(_pickPhotoForRow(r));
       return;
@@ -800,17 +796,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   void _setCell(int r, int c, String value) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
-    if (c == _headers.length - 1) return; // Photos
+    if (c == _headers.length - 1) return;
 
-    final v = value;
-    if (_rows[r].cells[c] == v) return;
+    if (_rows[r].cells[c] == value) return;
 
-    _rows[r].cells[c] = v;
+    _rows[r].cells[c] = value;
     _markDirty(snapshot: true);
     setState(() {});
   }
 
-  // ------------------------- Mobile inline editor (FIX iPhone WEB) --------
+  // ------------------------- Mobile inline editor -------------------------
 
   void _openMobileInlineEditor({
     required bool isHeader,
@@ -820,7 +815,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     required String initial,
     required List<_MobileAction> actions,
   }) {
-    // Si estaba abierto, commitea el anterior para no perder cambios.
     if (_mobileEditorOpen) {
       _commitMobileEdit();
     }
@@ -837,7 +831,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     setState(() => _mobileEditorOpen = true);
 
-    // Foco robusto para iOS Safari / Web: postFrame + micro delay.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _mobileFocus.requestFocus();
@@ -849,7 +842,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   void _cancelMobileEdit() {
-    // Cancelar: no cambia nada.
     setState(() => _mobileEditorOpen = false);
     _mobileEditingHeader = false;
     _mobileRow = -1;
@@ -875,22 +867,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           _markDirty(snapshot: true);
         }
       }
-      setState(() => _mobileEditorOpen = false);
-      _mobileEditingHeader = false;
-      _mobileRow = -1;
-      _mobileCol = 0;
-      _mobileTitle = '';
-      _mobileOriginal = '';
-      _mobileActions = const [];
-      try {
-        _mobileFocus.unfocus();
-      } catch (_) {}
+      _closeMobileEditor();
       return;
     }
 
     final r = _mobileRow;
     final c = _mobileCol;
 
+    _closeMobileEditor();
+    _setCell(r, c, v);
+  }
+
+  void _closeMobileEditor() {
     setState(() => _mobileEditorOpen = false);
     _mobileEditingHeader = false;
     _mobileRow = -1;
@@ -901,9 +889,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     try {
       _mobileFocus.unfocus();
     } catch (_) {}
-
-    // Commit real a la celda (con undo/snapshot).
-    _setCell(r, c, v);
   }
 
   // ------------------------------ Overlay Editor (Desktop) ----------------
@@ -927,7 +912,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       builder: (ctx) {
         return Stack(
           children: [
-            // click outside => commit + close
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
@@ -937,8 +921,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 },
               ),
             ),
-
-            // editor anchored to the selected cell/header
             CompositedTransformFollower(
               link: _editorLink,
               showWhenUnlinked: false,
@@ -950,7 +932,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 child: Focus(
                   onKeyEvent: (node, event) {
                     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-                      _removeCellEditor(); // cancel
+                      _removeCellEditor();
                       return KeyEventResult.handled;
                     }
                     return KeyEventResult.ignored;
@@ -1016,7 +998,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     overlay.insert(_cellEditorEntry!);
 
-    // focus
     Timer(const Duration(milliseconds: 20), () {
       if (!mounted) return;
       _cellFocus.requestFocus();
@@ -1047,32 +1028,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       ) async {
     _removeCellEditor();
 
-    final entries = <_CtxAction>[];
+    final actions = <_CtxAction>[];
 
     if (isHeader) {
       if (c >= 0 && c < _headers.length - 1) {
-        entries.add(_CtxAction('Editar encabezado', Icons.edit_outlined, () => _beginEditHeader(context, pal, c, 220)));
-        entries.add(_CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
+        actions.add(_CtxAction('Editar encabezado', Icons.edit_outlined,
+                () => _beginEditHeader(context, pal, c, 220)));
+        actions.add(_CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
           _headers[c] = '';
           _markDirty(snapshot: true);
           setState(() {});
         }));
       }
     } else {
-      entries.add(_CtxAction('Editar', Icons.edit_outlined, () => _beginEditCell(context, pal, r, c, 320)));
-      entries.add(_CtxAction('Copiar', Icons.copy_rounded, () => unawaited(_copySelectionToClipboard())));
-      entries.add(_CtxAction('Pegar', Icons.paste_rounded, () => unawaited(_pasteFromClipboard())));
-      entries.add(_CtxAction('Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
+      actions.add(_CtxAction('Editar', Icons.edit_outlined, () => _beginEditCell(context, pal, r, c, 320)));
+      actions.add(_CtxAction('Copiar', Icons.copy_rounded, () => unawaited(_copySelectionToClipboard())));
+      actions.add(_CtxAction('Pegar', Icons.paste_rounded, () => unawaited(_pasteFromClipboard())));
+      actions.add(_CtxAction('Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
       if (c != _headers.length - 1) {
-        entries.add(_CtxAction('GPS -> celda', Icons.my_location_outlined, () => unawaited(_pasteGpsIntoCell(r, c))));
+        actions.add(_CtxAction('GPS -> celda', Icons.my_location_outlined,
+                () => unawaited(_pasteGpsIntoCell(r, c))));
+        actions.add(_CtxAction('Maps', Icons.map_outlined, () => unawaited(_openMapsForCell(r, c))));
       } else {
-        entries.add(_CtxAction('Agregar foto', Icons.add_photo_alternate_outlined, () => unawaited(_pickPhotoForRow(r))));
+        actions.add(_CtxAction('Agregar foto', Icons.add_photo_alternate_outlined,
+                () => unawaited(_pickPhotoForRow(r))));
       }
 
-      entries.add(_CtxAction('Insertar fila arriba', Icons.arrow_upward_rounded, () => _insertRow(r)));
-      entries.add(_CtxAction('Insertar fila abajo', Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
-      entries.add(_CtxAction('Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
+      actions.add(_CtxAction('Insertar fila arriba', Icons.arrow_upward_rounded, () => _insertRow(r)));
+      actions.add(_CtxAction('Insertar fila abajo', Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
+      actions.add(_CtxAction('Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
     }
 
     final overlay = Overlay.of(context);
@@ -1092,14 +1077,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         size.height - globalPos.dy,
       ),
       items: [
-        for (int i = 0; i < entries.length; i++)
+        for (int i = 0; i < actions.length; i++)
           PopupMenuItem<int>(
             value: i,
             child: Row(
               children: [
-                Icon(entries[i].icon, size: 18, color: pal.fg),
+                Icon(actions[i].icon, size: 18, color: pal.fg),
                 const SizedBox(width: 10),
-                Expanded(child: Text(entries[i].label, style: TextStyle(color: pal.fg))),
+                Expanded(child: Text(actions[i].label, style: TextStyle(color: pal.fg))),
               ],
             ),
           ),
@@ -1107,7 +1092,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     );
 
     if (res == null) return;
-    entries[res].run();
+    actions[res].run();
   }
 
   // ------------------------------ Filas -----------------------------------
@@ -1140,7 +1125,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   // ------------------------------ Clipboard -------------------------------
 
   Future<void> _copySelectionToClipboard() async {
-    // Copia la celda actual (simple, estable).
     final txt = _getCellText(_selRow, _selCol);
     try {
       await Clipboard.setData(ClipboardData(text: txt));
@@ -1150,7 +1134,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   String _getCellText(int r, int c) {
     if (r < 0 || r >= _rows.length) return '';
     if (c < 0 || c >= _headers.length) return '';
-    if (c == _headers.length - 1) return ''; // Photos
+    if (c == _headers.length - 1) return '';
     return _rows[r].cells[c];
   }
 
@@ -1162,15 +1146,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     } catch (_) {}
     if (raw.trim().isEmpty) return;
 
-    // TSV/CSV básico: pega desde la celda seleccionada y extiende filas si hace falta.
     final grid = _parseGrid(raw);
     if (grid.isEmpty) return;
 
     final startR = _selRow;
     final startC = _selCol;
-
-    // No pegamos sobre Photos.
-    final maxCols = _headers.length - 1;
+    final maxCols = _headers.length - 1; // no pegamos sobre Photos
 
     final neededRows = startR + grid.length;
     if (neededRows > _rows.length) {
@@ -1195,14 +1176,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   List<List<String>> _parseGrid(String raw) {
-    // Normaliza CRLF
     final txt = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final lines = txt.split('\n').where((e) => e.isNotEmpty).toList();
     if (lines.isEmpty) return const [];
 
     final out = <List<String>>[];
     for (final line in lines) {
-      // Preferimos tab; si no hay, probamos coma.
       final hasTab = line.contains('\t');
       final parts = hasTab ? line.split('\t') : line.split(',');
       out.add(parts.map((e) => e.trimRight()).toList());
@@ -1266,31 +1245,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     } catch (_) {}
   }
 
-  // ------------------------------ Fotos -----------------------------------
+  // ------------------------------ Fotos (sin image_picker) ----------------
 
   Future<void> _pickPhotoForRow(int r) async {
     if (r < 0 || r >= _rows.length) return;
 
     try {
-      final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
-      if (file == null) return;
+      final typeGroup = XTypeGroup(
+        label: 'Images',
+        extensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      );
 
-      final bytes = await file.readAsBytes();
+      final xf = await openFile(acceptedTypeGroups: [typeGroup]);
+      if (xf == null) return;
+
+      final bytes = await xf.readAsBytes();
       final thumb = _compressThumb(bytes, maxW: 560, maxH: 560, quality: 76);
       final b64 = base64Encode(thumb);
 
-      _rows[r].photos.add(_RowPhoto(
-        name: file.name,
-        mime: _guessMime(file.name),
-        thumbB64: b64,
-        addedAt: DateTime.now(),
-      ));
+      _rows[r].photos.add(
+        _RowPhoto(
+          name: xf.name,
+          mime: _guessMime(xf.name),
+          thumbB64: b64,
+          addedAt: DateTime.now(),
+        ),
+      );
 
       _markDirty(snapshot: true);
       setState(() {});
-    } catch (_) {
-      // silencioso
-    }
+    } catch (_) {}
   }
 
   String _guessMime(String name) {
@@ -1327,7 +1311,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       final sheet = wb.worksheets[0];
       sheet.name = _sheetName;
 
-      // Headers
       for (int c = 0; c < _headers.length; c++) {
         final text = _headerLabel(c);
         final cell = sheet.getRangeByIndex(1, c + 1);
@@ -1335,17 +1318,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         cell.cellStyle.bold = true;
       }
 
-      // Rows
       for (int r = 0; r < _rows.length; r++) {
         for (int c = 0; c < _headers.length; c++) {
-          if (c == _headers.length - 1) continue; // Photos no va como texto
+          if (c == _headers.length - 1) continue;
           final v = _rows[r].cells[c];
           if (v.trim().isEmpty) continue;
           sheet.getRangeByIndex(r + 2, c + 1).setText(v);
         }
       }
 
-      // Autofit (col)
       for (int c = 0; c < _headers.length; c++) {
         try {
           sheet.autoFitColumn(c + 1);
@@ -1412,15 +1393,17 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         final map = json.decode(resp.body) as Map<String, dynamic>;
-        final outRows = (map['rows'] as List?)?.cast<List?>() ?? const [];
-        if (outRows.isNotEmpty) {
+        final out = (map['rows'] as List?) ?? const [];
+
+        if (out.isNotEmpty) {
           final normalized = <_RowModel>[];
-          for (final rr in outRows) {
-            final cells = rr?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
-            normalized.add(_RowModel.fromCells(_normalizeRow(cells, _headers.length)));
+          for (final rr in out) {
+            if (rr is List) {
+              normalized.add(_RowModel.fromCells(_normalizeRow(rr, _headers.length)));
+            }
           }
           setState(() {
-            _rows = normalized;
+            _rows = normalized.isNotEmpty ? normalized : _rows;
             _engineStatus = 'Listo';
             _isDirty = true;
           });
@@ -1445,7 +1428,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  bool get _debugDirty => _isDirty; // útil si querés loggear
+  bool get _debugDirty => _isDirty;
 }
 
 // ============================== UI: Grid ==================================
@@ -1459,7 +1442,7 @@ class _GridView extends StatelessWidget {
   const _GridView({
     required this.palette,
     required this.headers,
-    required this.rows,
+    required this.rowModels,
     required this.vScroll,
     required this.hScroll,
     required this.selRow,
@@ -1478,7 +1461,7 @@ class _GridView extends StatelessWidget {
 
   final _SheetPalette palette;
   final List<String> headers;
-  final List<_RowModel> rows;
+  final List<_RowModel> rowModels;
 
   final ScrollController vScroll;
   final ScrollController hScroll;
@@ -1528,7 +1511,7 @@ class _GridView extends StatelessWidget {
                     height: _headerH,
                     child: Row(
                       children: [
-                        _rowIndexHeader(context, width: _indexW),
+                        _rowIndexHeader(width: _indexW),
                         for (int col = 0; col < headers.length; col++)
                           _HeaderCell(
                             palette: palette,
@@ -1550,7 +1533,7 @@ class _GridView extends StatelessWidget {
                       child: ListView.builder(
                         controller: vScroll,
                         physics: const BouncingScrollPhysics(),
-                        itemCount: rows.length,
+                        itemCount: rowModels.length,
                         itemBuilder: (ctx2, r) {
                           return SizedBox(
                             height: _rowH,
@@ -1568,8 +1551,8 @@ class _GridView extends StatelessWidget {
                                   _DataCell(
                                     palette: palette,
                                     width: col == headers.length - 1 ? photosW : colW,
-                                    text: rows[r].cells[col],
-                                    photosCount: rows[r].photos.length,
+                                    text: rowModels[r].cells[col],
+                                    photosCount: rowModels[r].photos.length,
                                     selected: r == selRow && col == selCol,
                                     isPhotos: col == headers.length - 1,
                                     blink: blink,
@@ -1618,11 +1601,11 @@ class _GridView extends StatelessWidget {
   String _labelHeader(List<String> headers, int c) {
     final t = headers[c].trim();
     if (t.isNotEmpty) return t;
-    if (c == headers.length - 1) return EditorScreenStateShim.kPhotosHeader;
+    if (c == headers.length - 1) return kPhotosHeader;
     return 'Col ${c + 1}';
   }
 
-  Widget _rowIndexHeader(BuildContext context, {required double width}) {
+  Widget _rowIndexHeader({required double width}) {
     return Container(
       width: width,
       height: _headerH,
@@ -1637,11 +1620,6 @@ class _GridView extends StatelessWidget {
       child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w600)),
     );
   }
-}
-
-// Shim: evita dependencias de _EditorScreenState en clase stateless.
-abstract class EditorScreenStateShim {
-  static const String kPhotosHeader = 'Photos';
 }
 
 class _HeaderCell extends StatelessWidget {
@@ -1669,7 +1647,7 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = text.trim().isEmpty ? (isPhotos ? 'Photos' : '') : text.trim();
+    final t = text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1703,10 +1681,7 @@ class _HeaderCell extends StatelessWidget {
 
     if (!isOverlayTarget) return cell;
 
-    return CompositedTransformTarget(
-      link: editorLink,
-      child: cell,
-    );
+    return CompositedTransformTarget(link: editorLink, child: cell);
   }
 }
 
@@ -1837,22 +1812,14 @@ class _DataCell extends StatelessWidget {
                 text.isEmpty ? ' ' : text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: palette.fg,
-                  fontSize: 14,
-                  height: 1.1,
-                ),
+                style: TextStyle(color: palette.fg, fontSize: 14, height: 1.1),
               ),
             ),
           ),
         );
 
         if (!isOverlayTarget) return cellBody;
-
-        return CompositedTransformTarget(
-          link: editorLink,
-          child: cellBody,
-        );
+        return CompositedTransformTarget(link: editorLink, child: cellBody);
       },
     );
   }
@@ -2099,13 +2066,12 @@ class _MobileInlineEditorBar extends StatelessWidget {
                     onSubmitted: (_) => onDone(),
                   ),
                 ),
-                for (final a in actions) ...[
+                for (final a in actions)
                   IconButton(
                     tooltip: a.label,
                     onPressed: a.onTap,
                     icon: Icon(a.icon, color: palette.fg),
                   ),
-                ],
                 IconButton(
                   tooltip: 'OK',
                   onPressed: onDone,
@@ -2145,17 +2111,20 @@ class _SheetModel {
   static _SheetModel fromJson(Map<String, dynamic> map) {
     final name = (map['name'] as String?)?.toString();
     final headers = (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
+
     final rowsRaw = (map['rows'] as List?) ?? const [];
-    final rows = <_RowModel>[];
+    final rowModels = <_RowModel>[];
+
     for (final it in rowsRaw) {
       if (it is Map) {
-        rows.add(_RowModel.fromJson(it.cast<String, dynamic>()));
+        rowModels.add(_RowModel.fromJson(it.cast<String, dynamic>()));
       } else if (it is List) {
         final cells = it.map((e) => (e ?? '').toString()).toList();
-        rows.add(_RowModel.fromCells(cells));
+        rowModels.add(_RowModel.fromCells(cells));
       }
     }
-    return _SheetModel(name: name, headers: headers, rows: rows);
+
+    return _SheetModel(name: name, headers: headers, rows: rowModels);
   }
 }
 
@@ -2174,6 +2143,11 @@ class _RowModel {
 
   _RowModel copy() => _RowModel(
     cells: List<String>.from(cells),
+    photos: photos.map((p) => p.copy()).toList(),
+  );
+
+  _RowModel copyWithCells(List<String> newCells) => _RowModel(
+    cells: List<String>.from(newCells),
     photos: photos.map((p) => p.copy()).toList(),
   );
 
@@ -2229,14 +2203,14 @@ class _SheetSnapshot {
   _SheetSnapshot({
     required this.name,
     required this.headers,
-    required this.rows,
+    required this.rowModels,
     required this.selRow,
     required this.selCol,
   });
 
   final String name;
   final List<String> headers;
-  final List<_RowModel> rows;
+  final List<_RowModel> rowModels;
   final int selRow;
   final int selCol;
 }
@@ -2282,10 +2256,8 @@ class _SheetPalette {
     required this.borderStrong,
     required this.menuBg,
     required this.editorBg,
-    required this.mobileSheetBg,
     required this.mobileInputBg,
     required this.accent,
-    required this.accentFg,
     required this.statusBg,
     required this.statusFg,
     required this.hintBg,
@@ -2313,11 +2285,9 @@ class _SheetPalette {
   final Color menuBg;
   final Color editorBg;
 
-  final Color mobileSheetBg;
   final Color mobileInputBg;
 
   final Color accent;
-  final Color accentFg;
 
   final Color statusBg;
   final Color statusFg;
@@ -2342,10 +2312,8 @@ class _SheetPalette {
       borderStrong: const Color(0xFF0B0B0C).withOpacity(0.20),
       menuBg: const Color(0xFFFFFFFF),
       editorBg: const Color(0xFFFFFFFF),
-      mobileSheetBg: const Color(0xFFF7F7F9),
       mobileInputBg: const Color(0xFFFFFFFF),
       accent: const Color(0xFF3B82F6),
-      accentFg: Colors.white,
       statusBg: const Color(0xFFEFF6FF),
       statusFg: const Color(0xFF1D4ED8),
       hintBg: const Color(0xFFF6F6F8),
@@ -2370,10 +2338,8 @@ class _SheetPalette {
       borderStrong: const Color(0xFFFFFFFF).withOpacity(0.16),
       menuBg: const Color(0xFF15151A),
       editorBg: const Color(0xFF15151A),
-      mobileSheetBg: const Color(0xFF121216),
       mobileInputBg: const Color(0xFF15151A),
       accent: const Color(0xFF60A5FA),
-      accentFg: const Color(0xFF0B0B0C),
       statusBg: const Color(0xFF0F172A),
       statusFg: const Color(0xFF93C5FD),
       hintBg: const Color(0xFF111113),
@@ -2392,4 +2358,4 @@ class _CtxAction {
 
 // ============================== Helpers ====================================
 
-void unawaited(Future<void> f) {} // evita dependencias extras
+void unawaited(Future<void>? f) {}
