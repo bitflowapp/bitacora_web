@@ -12,3 +12,8 @@ web/.dart_tool/
 **/.metadata
 .venv/
 .idea/
+
+# Archivos grandes / backups
+*.zip
+proyecto_bitflow_*.zip
+
