@@ -79,6 +79,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
+  DateTime? _lastSavedAt;
 
   late List<String> _headers;
   late List<_RowModel> _rows;
@@ -88,6 +89,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   int _selRow = 0;
   int _selCol = 0;
+
+  // Nombre (header Apple)
+  late final TextEditingController _nameEC = TextEditingController();
+  late final FocusNode _nameFocus = FocusNode(debugLabel: 'SheetNameAppleFocus');
+  Timer? _nameDebounceT;
 
   // Overlay editor (desktop)
   final LayerLink _editorLink = LayerLink();
@@ -143,6 +149,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     super.initState();
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false) ? widget.initialName!.trim() : 'Sheet';
+    _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
         (WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.light);
@@ -169,6 +176,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   @override
   void dispose() {
     _saveT?.cancel();
+    _nameDebounceT?.cancel();
 
     _vScroll.dispose();
     _hScroll.dispose();
@@ -181,6 +189,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     _blinkCell.dispose();
     _removeCellEditor();
+
+    _nameEC.dispose();
+    _nameFocus.dispose();
 
     super.dispose();
   }
@@ -205,7 +216,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       }
     }
 
-    return _SheetModel(headers: headers, rows: rowModels, name: _sheetName);
+    return _SheetModel(headers: headers, rows: rowModels, name: _sheetName, savedAt: _lastSavedAt);
   }
 
   List<String> _defaultHeaders() {
@@ -263,7 +274,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         _headers = loadedHeaders;
         _rows = normalizedRows.isNotEmpty ? normalizedRows : <_RowModel>[_RowModel.empty(_headers.length)];
         _isDirty = false;
+        _lastSavedAt = loaded.savedAt;
       });
+
+      if (!_nameFocus.hasFocus) {
+        _nameEC.text = _sheetName;
+      }
 
       _undo
         ..clear()
@@ -278,13 +294,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     if (_saving) return;
     _saving = true;
 
+    final savedAt = DateTime.now();
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      final model = _SheetModel(name: _sheetName, headers: _headers, rows: _rows);
+      final model = _SheetModel(name: _sheetName, headers: _headers, rows: _rows, savedAt: savedAt);
       await prefs.setString(_prefsKey, json.encode(model.toJson()));
 
       if (!mounted) return;
-      setState(() => _isDirty = false);
+      setState(() {
+        _isDirty = false;
+        _lastSavedAt = savedAt;
+      });
     } catch (_) {
       // silencio
     } finally {
@@ -330,6 +351,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       _selCol = prev.selCol.clamp(0, _headers.length - 1);
       _isDirty = true;
     });
+
+    if (!_nameFocus.hasFocus) {
+      _nameEC.text = _sheetName;
+    }
+
     _queueSave();
   }
 
@@ -346,6 +372,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       _selCol = snap.selCol.clamp(0, _headers.length - 1);
       _isDirty = true;
     });
+
+    if (!_nameFocus.hasFocus) {
+      _nameEC.text = _sheetName;
+    }
+
     _queueSave();
   }
 
@@ -420,6 +451,25 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _queueSave();
   }
 
+  void _onTitleChangedDebounced(String v) {
+    _nameDebounceT?.cancel();
+    _nameDebounceT = Timer(const Duration(milliseconds: 420), () {
+      final nv = v.trim();
+      if (nv.isEmpty) return;
+      _sheetName = nv;
+      _markDirty(snapshot: false);
+    });
+  }
+
+  String _savedLabel(_SheetPalette pal) {
+    if (_saving) return 'Saving…';
+    final d = _lastSavedAt;
+    if (d == null) return _isDirty ? 'Not saved' : ' ';
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return 'Saved $hh:$mm';
+  }
+
   // ------------------------------ Build -----------------------------------
 
   @override
@@ -436,55 +486,30 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       child: Scaffold(
         resizeToAvoidBottomInset: false, // ✅ clave iOS Web
         backgroundColor: pal.bg,
-        appBar: AppBar(
-          backgroundColor: pal.appBarBg,
-          foregroundColor: pal.fg,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleSpacing: 12,
-          title: _TitleField(
-            initial: _sheetName,
-            color: pal.fg,
-            hintColor: pal.fgMuted,
-            onChanged: (v) {
-              final nv = v.trim();
-              if (nv.isEmpty) return;
-              _sheetName = nv;
-              _markDirty(snapshot: false);
-            },
-          ),
-          actions: [
-            IconButton(
-              tooltip: _isLight ? 'Modo noche' : 'Modo blanco',
-              onPressed: _toggleTheme,
-              icon: Icon(_isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
-            ),
-            IconButton(tooltip: 'Undo', onPressed: _undoOnce, icon: const Icon(Icons.undo_rounded)),
-            IconButton(tooltip: 'Redo', onPressed: _redoOnce, icon: const Icon(Icons.redo_rounded)),
-            IconButton(
-              tooltip: 'Agregar fila',
-              onPressed: () => _insertRow(_rows.length),
-              icon: const Icon(Icons.add_rounded),
-            ),
-            IconButton(
-              tooltip: 'Export XLSX',
-              onPressed: _exportXlsx,
-              icon: const Icon(Icons.file_download_outlined),
-            ),
-            IconButton(
-              tooltip: 'Compute',
-              onPressed: widget.engineBaseUrl == null ? null : _computeEngine,
-              icon: const Icon(Icons.bolt_outlined),
-            ),
-            const SizedBox(width: 6),
-          ],
-        ),
+        appBar: null,
         body: SafeArea(
           bottom: true,
           child: Stack(
             children: [
               Column(
                 children: [
+                  _PremiumAppleHeader(
+                    palette: pal,
+                    titleController: _nameEC,
+                    titleFocus: _nameFocus,
+                    savedText: _savedLabel(pal),
+                    isDirty: _isDirty,
+                    onTitleChanged: _onTitleChangedDebounced,
+                    onToggleTheme: _toggleTheme,
+                    onUndo: _undoOnce,
+                    onRedo: _redoOnce,
+                    onAddRow: () => _insertRow(_rows.length),
+                    onSave: () => unawaited(_saveLocalNow()),
+                    onExport: () => unawaited(_exportXlsx()),
+                    onCompute: (widget.engineBaseUrl == null || _engineBusy)
+                        ? null
+                        : () => unawaited(_computeEngine()),
+                  ),
                   if (_engineStatus != null)
                     _StatusBar(
                       text: _engineStatus!,
@@ -993,7 +1018,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                               color: pal.fg,
                               fontSize: 16,
                               height: 1.05,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                             cursorColor: pal.accent,
                             decoration: InputDecoration(
@@ -1463,6 +1488,297 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool get _debugDirty => _isDirty;
 }
 
+// ============================== Header Apple ===============================
+
+class _PremiumAppleHeader extends StatelessWidget {
+  const _PremiumAppleHeader({
+    required this.palette,
+    required this.titleController,
+    required this.titleFocus,
+    required this.savedText,
+    required this.isDirty,
+    required this.onTitleChanged,
+    required this.onToggleTheme,
+    required this.onUndo,
+    required this.onRedo,
+    required this.onAddRow,
+    required this.onSave,
+    required this.onExport,
+    required this.onCompute,
+  });
+
+  final _SheetPalette palette;
+
+  final TextEditingController titleController;
+  final FocusNode titleFocus;
+  final String savedText;
+  final bool isDirty;
+
+  final ValueChanged<String> onTitleChanged;
+
+  final VoidCallback onToggleTheme;
+  final VoidCallback onUndo;
+  final VoidCallback onRedo;
+  final VoidCallback onAddRow;
+
+  final VoidCallback onSave;
+  final VoidCallback onExport;
+  final VoidCallback? onCompute;
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.paddingOf(context);
+    final top = math.max(10.0, pad.top);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(14, top + 8, 14, 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            color: palette.headerCardBg,
+            border: Border.all(color: palette.headerCardBorder, width: palette.hairline),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(palette.isLight ? 0.08 : 0.42),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title + icons (minimal)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: titleController,
+                      focusNode: titleFocus,
+                      onChanged: onTitleChanged,
+                      style: TextStyle(
+                        color: palette.fg,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        height: 1.02,
+                        letterSpacing: -0.6,
+                      ),
+                      cursorColor: palette.accent,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: 'Sheet',
+                        hintStyle: TextStyle(color: palette.fgMuted),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _IconCircleButton(
+                            palette: palette,
+                            icon: palette.isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                            onTap: onToggleTheme,
+                            tooltip: palette.isLight ? 'Modo noche' : 'Modo blanco',
+                          ),
+                          const SizedBox(width: 8),
+                          _IconCircleButton(
+                            palette: palette,
+                            icon: Icons.undo_rounded,
+                            onTap: onUndo,
+                            tooltip: 'Undo',
+                          ),
+                          const SizedBox(width: 8),
+                          _IconCircleButton(
+                            palette: palette,
+                            icon: Icons.redo_rounded,
+                            onTap: onRedo,
+                            tooltip: 'Redo',
+                          ),
+                          const SizedBox(width: 8),
+                          _IconCircleButton(
+                            palette: palette,
+                            icon: Icons.add_rounded,
+                            onTap: onAddRow,
+                            tooltip: 'Agregar fila',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Text(
+                    savedText,
+                    style: TextStyle(
+                      color: palette.fgMuted,
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
+                    ),
+                  ),
+                  if (isDirty) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: palette.accent.withOpacity(0.22), width: palette.hairline),
+                      ),
+                      child: Text(
+                        'Dirty',
+                        style: TextStyle(
+                          color: palette.isLight ? palette.accent.withOpacity(0.95) : palette.accent.withOpacity(0.95),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          height: 1.05,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _PillButton(
+                    palette: palette,
+                    filled: true,
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Save',
+                    onTap: onSave,
+                  ),
+                  const SizedBox(width: 10),
+                  _PillButton(
+                    palette: palette,
+                    filled: false,
+                    icon: Icons.ios_share_rounded,
+                    label: 'Export',
+                    onTap: onExport,
+                  ),
+                  const SizedBox(width: 10),
+                  _PillButton(
+                    palette: palette,
+                    filled: false,
+                    icon: Icons.functions_rounded,
+                    label: 'Calcular',
+                    onTap: onCompute,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconCircleButton extends StatelessWidget {
+  const _IconCircleButton({
+    required this.palette,
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: palette.pillBtnBg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: palette.pillBtnBorder, width: palette.hairline),
+          ),
+          child: Icon(icon, size: 18, color: palette.fg),
+        ),
+      ),
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.palette,
+    required this.filled,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final bool filled;
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+
+    final bg = filled
+        ? (palette.isLight ? const Color(0xFF0B0B0C) : const Color(0xFFF5F5F7))
+        : palette.pillBtnBg;
+
+    final fg = filled
+        ? (palette.isLight ? const Color(0xFFFFFFFF) : const Color(0xFF0B0B0C))
+        : palette.fg;
+
+    return Opacity(
+      opacity: disabled ? 0.45 : 1.0,
+      child: InkWell(
+        onTap: disabled ? null : onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: palette.pillBtnBorder, width: palette.hairline),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: fg),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: FontWeight.w900,
+                  height: 1.05,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ============================== UI: Grid ==================================
 
 typedef _SelectCell = void Function(int r, int c);
@@ -1529,7 +1845,7 @@ class _GridView extends StatelessWidget {
     return LayoutBuilder(
       builder: (ctx, c) {
         return Container(
-          color: palette.bg,
+          color: palette.cellBg, // ✅ “hoja” blanca/negro profundo, nítida
           child: SingleChildScrollView(
             controller: hScroll,
             scrollDirection: Axis.horizontal,
@@ -1649,7 +1965,7 @@ class _GridView extends StatelessWidget {
           bottom: BorderSide(color: palette.borderStrong, width: palette.hairline),
         ),
       ),
-      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w700)),
+      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -1703,7 +2019,7 @@ class _HeaderCell extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: palette.fg,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
             fontSize: 13,
             height: 1.05,
             letterSpacing: 0.1,
@@ -1763,7 +2079,7 @@ class _RowIndexCell extends StatelessWidget {
           index.toString(),
           style: TextStyle(
             color: selected ? palette.fg : palette.fgMuted,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             fontSize: 12,
             height: 1.05,
           ),
@@ -1819,9 +2135,7 @@ class _DataCell extends StatelessWidget {
       builder: (ctx, b, _) {
         final blinking = b == cellRef;
 
-        // Fondo siempre BLANCO (Notes vibe). El “feedback” es el borde azul + blink suave.
         final bg = blinking ? palette.blinkBg : palette.cellBg;
-
         final focusBorder = palette.accent.withOpacity(palette.isLight ? 0.55 : 0.70);
 
         final cellBody = GestureDetector(
@@ -1885,12 +2199,18 @@ class _PillText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ “Capsule” iOS real para TODAS las celdas con texto (como tu columna Status).
-    // Mucho más visible que el opacity anterior -> se nota en cualquier columna.
+    // ✅ “Glass capsule” sin blur (no lag):
+    // - Gradiente + brillo + tint iOS (solo cuando está selected).
     final isLight = palette.isLight;
 
-    final bg = isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
+    final baseA = isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
+    final baseB = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF121216);
+
     final border = isLight ? const Color(0xFFE5E5EA) : const Color(0xFF2C2C2E);
+
+    final tint = selected
+        ? palette.accent.withOpacity(isLight ? 0.16 : 0.22)
+        : Colors.transparent;
 
     final shadow = isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.38);
 
@@ -1898,13 +2218,22 @@ class _PillText extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: bg,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border, width: math.max(palette.hairline, 1.0)),
+        border: Border.all(color: border.withOpacity(isLight ? 0.90 : 0.75), width: math.max(palette.hairline, 1.0)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            baseB.withOpacity(isLight ? 0.92 : 0.22),
+            baseA.withOpacity(isLight ? 0.78 : 0.18),
+            tint,
+          ],
+          stops: const [0.0, 0.84, 1.0],
+        ),
         boxShadow: [
           BoxShadow(
             color: shadow,
-            blurRadius: selected ? 7 : 6,
+            blurRadius: selected ? 8 : 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -1917,7 +2246,7 @@ class _PillText extends StatelessWidget {
           color: palette.fg,
           fontSize: 14.5,
           height: 1.05,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0.0,
         ),
       ),
@@ -1954,7 +2283,7 @@ class _PhotosCell extends StatelessWidget {
         Expanded(
           child: Text(
             count == 0 ? '—' : '$count',
-            style: TextStyle(color: palette.fg, fontWeight: FontWeight.w800, height: 1.05),
+            style: TextStyle(color: palette.fg, fontWeight: FontWeight.w900, height: 1.05),
           ),
         ),
         InkWell(
@@ -1966,64 +2295,6 @@ class _PhotosCell extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ============================== UI: Title =================================
-
-class _TitleField extends StatefulWidget {
-  const _TitleField({
-    required this.initial,
-    required this.color,
-    required this.hintColor,
-    required this.onChanged,
-  });
-
-  final String initial;
-  final Color color;
-  final Color hintColor;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_TitleField> createState() => _TitleFieldState();
-}
-
-class _TitleFieldState extends State<_TitleField> {
-  late final TextEditingController _ec = TextEditingController(text: widget.initial);
-  late final FocusNode _fn = FocusNode(debugLabel: 'SheetNameFocus');
-
-  Timer? _t;
-
-  @override
-  void dispose() {
-    _t?.cancel();
-    _ec.dispose();
-    _fn.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: TextField(
-        controller: _ec,
-        focusNode: _fn,
-        style: TextStyle(color: widget.color, fontSize: 16, fontWeight: FontWeight.w800, height: 1.05),
-        cursorColor: const Color(0xFF0A84FF),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: 'Nombre',
-          hintStyle: TextStyle(color: widget.hintColor),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        ),
-        onChanged: (v) {
-          _t?.cancel();
-          _t = Timer(const Duration(milliseconds: 420), () => widget.onChanged(v));
-        },
-      ),
     );
   }
 }
@@ -2043,7 +2314,7 @@ class _StatusBar extends StatelessWidget {
       width: double.infinity,
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w700, height: 1.05)),
+      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w800, height: 1.05)),
     );
   }
 }
@@ -2063,7 +2334,7 @@ class _MobileHintBar extends StatelessWidget {
       ),
       child: Text(
         'Tap = editar. Mantener = menú.',
-        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w700, height: 1.05),
+        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w800, height: 1.05),
       ),
     );
   }
@@ -2171,7 +2442,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                             textInputAction: TextInputAction.done,
                             keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
                             scrollPadding: EdgeInsets.zero,
-                            style: TextStyle(color: palette.fg, fontSize: 16, height: 1.05, fontWeight: FontWeight.w700),
+                            style: TextStyle(color: palette.fg, fontSize: 16, height: 1.05, fontWeight: FontWeight.w800),
                             cursorColor: palette.accent,
                             decoration: InputDecoration(
                               isDense: true,
@@ -2219,20 +2490,24 @@ class _MobileAction {
 // ============================== Modelo =====================================
 
 class _SheetModel {
-  _SheetModel({required this.headers, required this.rows, this.name});
+  _SheetModel({required this.headers, required this.rows, this.name, this.savedAt});
 
   final String? name;
+  final DateTime? savedAt;
   final List<String> headers;
   final List<_RowModel> rows;
 
   Map<String, dynamic> toJson() => {
     'name': name,
+    'savedAt': savedAt?.toIso8601String(),
     'headers': headers,
     'rows': rows.map((r) => r.toJson()).toList(),
   };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
     final name = (map['name'] as String?)?.toString();
+    final savedAt = DateTime.tryParse((map['savedAt'] ?? '').toString());
+
     final headers = (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
 
     final rowsRaw = (map['rows'] as List?) ?? const [];
@@ -2247,7 +2522,7 @@ class _SheetModel {
       }
     }
 
-    return _SheetModel(name: name, headers: headers, rows: rowModels);
+    return _SheetModel(name: name, savedAt: savedAt, headers: headers, rows: rowModels);
   }
 }
 
@@ -2382,6 +2657,10 @@ class _SheetPalette {
     required this.statusBg,
     required this.statusFg,
     required this.hintBg,
+    required this.headerCardBg,
+    required this.headerCardBorder,
+    required this.pillBtnBg,
+    required this.pillBtnBorder,
   });
 
   final bool isLight;
@@ -2413,6 +2692,14 @@ class _SheetPalette {
 
   final Color hintBg;
 
+  // Header Apple card
+  final Color headerCardBg;
+  final Color headerCardBorder;
+
+  // Pills / icon circles
+  final Color pillBtnBg;
+  final Color pillBtnBorder;
+
   static _SheetPalette light({required double hairline}) {
     final base = const Color(0xFF0B0B0C);
     const iosBlue = Color(0xFF0A84FF);
@@ -2420,23 +2707,36 @@ class _SheetPalette {
     return _SheetPalette(
       isLight: true,
       hairline: hairline,
-      bg: const Color(0xFFFFFFFF),
+      bg: const Color(0xFFF2F2F7), // iOS grouped
       fg: const Color(0xFF0B0B0C),
       fgMuted: const Color(0xFF6B6B72),
-      appBarBg: const Color(0xFFFFFFFF),
+
+      appBarBg: const Color(0xFFF2F2F7),
       headerBg: const Color(0xFFFFFFFF),
       indexBg: const Color(0xFFFFFFFF),
-      cellBg: const Color(0xFFFFFFFF),
+
+      cellBg: const Color(0xFFFFFFFF), // hoja blanca nítida
       blinkBg: iosBlue.withOpacity(0.10),
+
       border: base.withOpacity(0.10),
       borderStrong: base.withOpacity(0.14),
+
       menuBg: const Color(0xFFFFFFFF),
       editorBg: const Color(0xFFFFFFFF),
       mobileInputBg: const Color(0xFFFFFFFF),
+
       accent: iosBlue,
+
       statusBg: iosBlue.withOpacity(0.10),
       statusFg: iosBlue.withOpacity(0.95),
-      hintBg: const Color(0xFFFFFFFF),
+
+      hintBg: const Color(0xFFF2F2F7),
+
+      headerCardBg: const Color(0xFFFFFFFF).withOpacity(0.86),
+      headerCardBorder: const Color(0xFFE5E5EA),
+
+      pillBtnBg: const Color(0xFFFFFFFF),
+      pillBtnBorder: const Color(0xFFE5E5EA),
     );
   }
 
@@ -2446,23 +2746,36 @@ class _SheetPalette {
     return _SheetPalette(
       isLight: false,
       hairline: hairline,
-      bg: const Color(0xFF0B0B0C),
+      bg: const Color(0xFF000000), // negro profundo
       fg: const Color(0xFFF5F5F7),
       fgMuted: const Color(0xFF9A9AA4),
-      appBarBg: const Color(0xFF111113),
-      headerBg: const Color(0xFF121216),
-      indexBg: const Color(0xFF121216),
-      cellBg: const Color(0xFF0F0F13),
+
+      appBarBg: const Color(0xFF000000),
+      headerBg: const Color(0xFF0B0B0C),
+      indexBg: const Color(0xFF0B0B0C),
+
+      cellBg: const Color(0xFF0B0B0C), // hoja negro profundo
       blinkBg: iosBlue.withOpacity(0.25),
+
       border: const Color(0xFFFFFFFF).withOpacity(0.10),
       borderStrong: const Color(0xFFFFFFFF).withOpacity(0.16),
+
       menuBg: const Color(0xFF15151A),
       editorBg: const Color(0xFF15151A),
       mobileInputBg: const Color(0xFF15151A),
+
       accent: iosBlue,
+
       statusBg: const Color(0xFF0F172A),
       statusFg: const Color(0xFF93C5FD),
-      hintBg: const Color(0xFF111113),
+
+      hintBg: const Color(0xFF000000),
+
+      headerCardBg: const Color(0xFF0B0B0C).withOpacity(0.82),
+      headerCardBorder: const Color(0xFF2C2C2E),
+
+      pillBtnBg: const Color(0xFF0B0B0C),
+      pillBtnBorder: const Color(0xFF2C2C2E),
     );
   }
 }
