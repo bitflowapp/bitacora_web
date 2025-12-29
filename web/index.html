@@ -1,72 +1,161 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <base href="$FLUTTER_BASE_HREF" />
 
-  <!-- iOS Safari: notch + teclado + evitar zoom -->
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <title>Bit Flow — Planilla tipo Excel para campo</title>
+    <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
+    <meta name="robots" content="index,follow" />
 
-  <title>Bitácora Web — Planilla tipo Excel para campo</title>
-  <meta name="description" content="Registra mediciones, adjuntos, GPS y exporta a Excel/PDF con experiencia tipo Apple.">
-  <meta name="robots" content="index,follow">
-  <link rel="canonical" href="https://marcoluna-nqn.github.io/bitacora_web/">
+    <!-- BUILD ID: CAMBIAR EN CADA DEPLOY -->
+    <meta name="bitflow-build" content="20251229_1705" />
 
-  <!-- PWA / iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#0A84FF">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Bit Flow" />
+    <meta name="application-name" content="Bit Flow" />
+    <meta name="theme-color" content="#0A84FF" />
+    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
-  <!-- Manifest -->
-  <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="shortcut icon" type="image/png" href="favicon.png" />
 
-  <!-- MUY IMPORTANTE PARA GH PAGES -->
-  <base href="$FLUTTER_BASE_HREF">
+    <style>
+        :root { --app-height: 100vh; }
 
-  <!-- FIX iOS: evita auto-zoom al enfocar el input/textarea que usa Flutter para TextField -->
-  <style>
-    html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      -webkit-text-size-adjust: 100%;
-      overscroll-behavior: none;
-    }
+        html {
+          height: 100%;
+          width: 100%;
+          margin: 0;
+          overflow: hidden;
+          overscroll-behavior: none;
+          background: #FFFFFF;
+          -webkit-text-size-adjust: 100%;
+          touch-action: manipulation;
+        }
 
-    /* iOS Safari: al enfocar un input con font-size < 16px hace zoom y rompe todo */
-    @supports (-webkit-touch-callout: none) {
-      input, textarea, select {
-        font-size: 16px !important;
-      }
-    }
+        body {
+          width: 100%;
+          margin: 0;
+          overflow: hidden;
+          background: #FFFFFF;
 
-    /* Mejora adicional en iOS moderno: viewport dinámico (reduce glitches con teclado) */
-    @supports (height: 100dvh) {
-      body { height: 100dvh; }
-    }
-  </style>
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: var(--app-height);
+        }
 
-  <!-- Schema.org -->
-  <script type="application/ld+json">
-    {
-      "@context":"https://schema.org",
-      "@type":"SoftwareApplication",
-      "name":"Bitácora Web",
-      "applicationCategory":"BusinessApplication",
-      "operatingSystem":"Web",
-      "url":"https://marcoluna-nqn.github.io/bitacora_web/",
-      "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}
-    }
-  </script>
+        * { -webkit-tap-highlight-color: transparent; }
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+        #build-badge {
+          position: fixed;
+          right: 10px;
+          bottom: 10px;
+          z-index: 2147483647;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+          font-size: 12px;
+          line-height: 1;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(0,0,0,0.72);
+          color: #fff;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          user-select: none;
+          pointer-events: none;
+        }
+    </style>
+
+    <script>
+        (function () {
+          function getBuildId() {
+            var m = document.querySelector('meta[name="bitflow-build"]');
+            return (m && m.getAttribute('content')) ? m.getAttribute('content') : ('dev-' + Date.now());
+          }
+
+          var BUILD = getBuildId();
+          window.__BITFLOW_BUILD__ = BUILD;
+
+          function mountBadge() {
+            try {
+              var el = document.getElementById('build-badge');
+              if (!el) {
+                el = document.createElement('div');
+                el.id = 'build-badge';
+                document.body.appendChild(el);
+              }
+              el.textContent = 'build ' + BUILD;
+            } catch (_) {}
+          }
+
+          // iOS: altura real por visualViewport + “burst” de resize para estabilizar teclado
+          function iosViewportFix() {
+            var root = document.documentElement;
+            var lastH = -1;
+
+            function getHeight() {
+              var vv = window.visualViewport;
+              return vv ? vv.height : window.innerHeight;
+            }
+
+            function apply() {
+              var h = getHeight();
+              if (Math.abs(h - lastH) > 0.5) {
+                lastH = h;
+                root.style.setProperty('--app-height', h + 'px');
+              }
+              try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+              try { window.scrollTo(0, 0); } catch (_) {}
+            }
+
+            function burst(ms) {
+              var start = Date.now();
+              (function loop() {
+                apply();
+                if (Date.now() - start < ms) requestAnimationFrame(loop);
+              })();
+            }
+
+            apply();
+
+            window.addEventListener('resize', function () { burst(450); }, { passive: true });
+            window.addEventListener('orientationchange', function () { burst(900); }, { passive: true });
+            window.addEventListener('pageshow', function () { burst(900); }, { passive: true });
+
+            if (window.visualViewport) {
+              window.visualViewport.addEventListener('resize', function () { burst(650); }, { passive: true });
+              window.visualViewport.addEventListener('scroll', function () { burst(250); }, { passive: true });
+            }
+
+            window.addEventListener('focusin', function () { burst(900); }, true);
+            window.addEventListener('focusout', function () { burst(450); }, true);
+          }
+
+          document.addEventListener('DOMContentLoaded', function () {
+            mountBadge();
+            iosViewportFix();
+
+            // Flutter bootstrap con cache-bust por build
+            var s = document.createElement('script');
+            s.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(BUILD);
+            s.defer = true;
+            document.body.appendChild(s);
+
+            // Tu interop (si lo usás)
+            var i = document.createElement('script');
+            i.src = 'interop.js?v=' + encodeURIComponent(BUILD);
+            i.defer = true;
+            document.body.appendChild(i);
+          });
+        })();
+    </script>
 </head>
-<body>
-<script src="flutter_bootstrap.js" async></script>
-</body>
+
+<body></body>
 </html>

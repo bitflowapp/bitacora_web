@@ -2,7 +2,7 @@
 //
 // BitFlow / Gridnote — EditorScreen
 // Grilla editable “tipo Notes”: 1 toque => parpadeo => editar.
-// Mobile (incluye Web iOS/Android): editor inferior FIJO arriba del teclado.
+// Mobile (incluye Web iOS/Android): editor inferior FIJO arriba del teclado (SIEMPRE montado -> iPhone estable).
 // Desktop: edición in-cell con overlay anclado a la celda (no modal centrado).
 //
 // Requiere (pubspec):
@@ -119,7 +119,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   String? _engineStatus;
 
   // ---------------- Mobile inline editor (FIJO arriba del teclado) --------
-
+  //
+  // ✅ FIX iPhone/Safari:
+  // - El editor se mantiene SIEMPRE montado en el árbol (aunque oculto).
+  // - El focus se pide dentro del mismo tap (sin depender de postFrame).
+  //
   bool _mobileEditorOpen = false;
   bool _mobileEditingHeader = false;
   int _mobileRow = -1;
@@ -423,69 +427,105 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final pal = _palette(context);
     final isDesktop = _isDesktopUi(context);
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false, // ✅ clave iOS Web
-      backgroundColor: pal.bg,
-      appBar: AppBar(
-        backgroundColor: pal.appBarBg,
-        foregroundColor: pal.fg,
-        elevation: 0,
-        titleSpacing: 12,
-        title: _TitleField(
-          initial: _sheetName,
-          color: pal.fg,
-          hintColor: pal.fgMuted,
-          onChanged: (v) {
-            final nv = v.trim();
-            if (nv.isEmpty) return;
-            _sheetName = nv;
-            _markDirty(snapshot: false);
-          },
+    // “Nitidez” práctica: evitar escalados raros de texto en iOS / Web.
+    final mq = MediaQuery.of(context);
+    final fixedMq = mq.copyWith(textScaler: const TextScaler.linear(1.0));
+
+    return MediaQuery(
+      data: fixedMq,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false, // ✅ clave iOS Web
+        backgroundColor: pal.bg,
+        appBar: AppBar(
+          backgroundColor: pal.appBarBg,
+          foregroundColor: pal.fg,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleSpacing: 12,
+          title: _TitleField(
+            initial: _sheetName,
+            color: pal.fg,
+            hintColor: pal.fgMuted,
+            onChanged: (v) {
+              final nv = v.trim();
+              if (nv.isEmpty) return;
+              _sheetName = nv;
+              _markDirty(snapshot: false);
+            },
+          ),
+          actions: [
+            IconButton(
+              tooltip: _isLight ? 'Modo noche' : 'Modo blanco',
+              onPressed: _toggleTheme,
+              icon: Icon(_isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+            ),
+            IconButton(tooltip: 'Undo', onPressed: _undoOnce, icon: const Icon(Icons.undo_rounded)),
+            IconButton(tooltip: 'Redo', onPressed: _redoOnce, icon: const Icon(Icons.redo_rounded)),
+            IconButton(
+              tooltip: 'Agregar fila',
+              onPressed: () => _insertRow(_rows.length),
+              icon: const Icon(Icons.add_rounded),
+            ),
+            IconButton(
+              tooltip: 'Export XLSX',
+              onPressed: _exportXlsx,
+              icon: const Icon(Icons.file_download_outlined),
+            ),
+            IconButton(
+              tooltip: 'Compute',
+              onPressed: widget.engineBaseUrl == null ? null : _computeEngine,
+              icon: const Icon(Icons.bolt_outlined),
+            ),
+            const SizedBox(width: 6),
+          ],
         ),
-        actions: [
-          IconButton(
-            tooltip: _isLight ? 'Modo noche' : 'Modo blanco',
-            onPressed: _toggleTheme,
-            icon: Icon(_isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
-          ),
-          IconButton(tooltip: 'Undo', onPressed: _undoOnce, icon: const Icon(Icons.undo_rounded)),
-          IconButton(tooltip: 'Redo', onPressed: _redoOnce, icon: const Icon(Icons.redo_rounded)),
-          IconButton(
-            tooltip: 'Agregar fila',
-            onPressed: () => _insertRow(_rows.length),
-            icon: const Icon(Icons.add_rounded),
-          ),
-          IconButton(
-            tooltip: 'Export XLSX',
-            onPressed: _exportXlsx,
-            icon: const Icon(Icons.file_download_outlined),
-          ),
-          IconButton(
-            tooltip: 'Compute',
-            onPressed: widget.engineBaseUrl == null ? null : _computeEngine,
-            icon: const Icon(Icons.bolt_outlined),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: SafeArea(
-        bottom: true,
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                if (_engineStatus != null)
-                  _StatusBar(
-                    text: _engineStatus!,
-                    bg: pal.statusBg,
-                    fg: pal.statusFg,
-                  ),
-                Expanded(
-                  child: isDesktop
-                      ? Focus(
-                    autofocus: true,
-                    onKeyEvent: _onKeyEvent,
-                    child: RepaintBoundary(
+        body: SafeArea(
+          bottom: true,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  if (_engineStatus != null)
+                    _StatusBar(
+                      text: _engineStatus!,
+                      bg: pal.statusBg,
+                      fg: pal.statusFg,
+                    ),
+                  Expanded(
+                    child: isDesktop
+                        ? Focus(
+                      autofocus: true,
+                      onKeyEvent: _onKeyEvent,
+                      child: RepaintBoundary(
+                        child: _GridView(
+                          palette: pal,
+                          headers: _headers,
+                          rowModels: _rows,
+                          vScroll: _vScroll,
+                          hScroll: _hScroll,
+                          selRow: _selRow,
+                          selCol: _selCol,
+                          blink: _blinkCell,
+                          editorLink: _editorLink,
+                          overlayTargetCell: _overlayTargetCell,
+                          overlayTargetHeaderCol: _overlayTargetHeaderCol,
+                          onSelect: (r, c) {
+                            setState(() {
+                              _selRow = r;
+                              _selCol = c;
+                            });
+                            _blink(r, c);
+                          },
+                          onEditRequested: (r, c, w) => _beginEditCell(context, pal, r, c, w),
+                          onHeaderEditRequested: (c, w) => _beginEditHeader(context, pal, c, w),
+                          onContextMenu: (pos, r, c, isHeader) =>
+                              _openContextMenu(context, pal, pos, r, c, isHeader),
+                          onDeleteRow: (r) => _deleteRow(r),
+                          onPickPhoto: (r) => _pickPhotoForRow(r),
+                        ),
+                      ),
+                    )
+                        : RepaintBoundary(
                       child: _GridView(
                         palette: pal,
                         headers: _headers,
@@ -513,50 +553,25 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                         onPickPhoto: (r) => _pickPhotoForRow(r),
                       ),
                     ),
-                  )
-                      : RepaintBoundary(
-                    child: _GridView(
-                      palette: pal,
-                      headers: _headers,
-                      rowModels: _rows,
-                      vScroll: _vScroll,
-                      hScroll: _hScroll,
-                      selRow: _selRow,
-                      selCol: _selCol,
-                      blink: _blinkCell,
-                      editorLink: _editorLink,
-                      overlayTargetCell: _overlayTargetCell,
-                      overlayTargetHeaderCol: _overlayTargetHeaderCol,
-                      onSelect: (r, c) {
-                        setState(() {
-                          _selRow = r;
-                          _selCol = c;
-                        });
-                        _blink(r, c);
-                      },
-                      onEditRequested: (r, c, w) => _beginEditCell(context, pal, r, c, w),
-                      onHeaderEditRequested: (c, w) => _beginEditHeader(context, pal, c, w),
-                      onContextMenu: (pos, r, c, isHeader) =>
-                          _openContextMenu(context, pal, pos, r, c, isHeader),
-                      onDeleteRow: (r) => _deleteRow(r),
-                      onPickPhoto: (r) => _pickPhotoForRow(r),
-                    ),
                   ),
-                ),
-                if (!isDesktop && !_mobileEditorOpen) _MobileHintBar(palette: pal),
-              ],
-            ),
-            if (!isDesktop && _mobileEditorOpen)
-              _MobileInlineEditorBar(
-                palette: pal,
-                title: _mobileTitle,
-                controller: _mobileEC,
-                focusNode: _mobileFocus,
-                actions: _mobileActions,
-                onCancel: _cancelMobileEdit,
-                onDone: _commitMobileEdit,
+                  if (!isDesktop && !_mobileEditorOpen) _MobileHintBar(palette: pal),
+                ],
               ),
-          ],
+
+              // ✅ SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
+              if (!isDesktop)
+                _MobileInlineEditorBar(
+                  palette: pal,
+                  isOpen: _mobileEditorOpen,
+                  title: _mobileTitle,
+                  controller: _mobileEC,
+                  focusNode: _mobileFocus,
+                  actions: _mobileActions,
+                  onCancel: _cancelMobileEdit,
+                  onDone: _commitMobileEdit,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -823,9 +838,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     required String initial,
     required List<_MobileAction> actions,
   }) {
+    // ✅ Commit si ya había otro editor abierto (simple y predecible).
     if (_mobileEditorOpen) {
       _commitMobileEdit();
     }
+
+    // ✅ Unfocus previo para evitar que Safari “pegue” el input al URL pill.
+    FocusManager.instance.primaryFocus?.unfocus();
 
     _mobileEditingHeader = isHeader;
     _mobileRow = row;
@@ -839,13 +858,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     setState(() => _mobileEditorOpen = true);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // ✅ FIX iPhone: pedir focus dentro del gesto (tap) y sin delays.
+    // Como el editor está SIEMPRE montado, esto funciona de forma estable.
+    _mobileFocus.requestFocus();
+
+    // Segundo intento micro (no Future.delayed): por si el teclado está “peleando”.
+    scheduleMicrotask(() {
       if (!mounted) return;
+      if (!_mobileEditorOpen) return;
       _mobileFocus.requestFocus();
-      Future<void>.delayed(const Duration(milliseconds: 60), () {
-        if (!mounted) return;
-        _mobileFocus.requestFocus();
-      });
     });
   }
 
@@ -950,7 +971,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: pal.editorBg,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: pal.borderStrong, width: pal.hairline),
                       boxShadow: [
                         BoxShadow(
@@ -968,7 +989,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                             focusNode: _cellFocus,
                             autofocus: true,
                             maxLines: 1,
-                            style: TextStyle(color: pal.fg, fontSize: 15, height: 1.15),
+                            style: TextStyle(
+                              color: pal.fg,
+                              fontSize: 16,
+                              height: 1.05,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            cursorColor: pal.accent,
                             decoration: InputDecoration(
                               isDense: true,
                               hintText: 'Escribir…',
@@ -1622,7 +1649,7 @@ class _GridView extends StatelessWidget {
           bottom: BorderSide(color: palette.borderStrong, width: palette.hairline),
         ),
       ),
-      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w600)),
+      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -1676,8 +1703,9 @@ class _HeaderCell extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: palette.fg,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             fontSize: 13,
+            height: 1.05,
             letterSpacing: 0.1,
           ),
         ),
@@ -1709,6 +1737,8 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = selected ? palette.accent.withOpacity(0.55) : palette.borderStrong;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -1718,18 +1748,24 @@ class _RowIndexCell extends StatelessWidget {
         height: 38,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? palette.selIndexBg : palette.indexBg,
+          color: palette.indexBg,
           border: Border(
             right: BorderSide(color: palette.borderStrong, width: palette.hairline),
             bottom: BorderSide(color: palette.border, width: palette.hairline),
           ),
         ),
+        foregroundDecoration: selected
+            ? BoxDecoration(
+          border: Border.all(color: borderColor, width: math.max(palette.hairline, 1.5)),
+        )
+            : null,
         child: Text(
           index.toString(),
           style: TextStyle(
             color: selected ? palette.fg : palette.fgMuted,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontSize: 12,
+            height: 1.05,
           ),
         ),
       ),
@@ -1782,11 +1818,11 @@ class _DataCell extends StatelessWidget {
       valueListenable: blink,
       builder: (ctx, b, _) {
         final blinking = b == cellRef;
-        final bg = selected
-            ? palette.selBg
-            : blinking
-            ? palette.blinkBg
-            : palette.cellBg;
+
+        // Fondo siempre BLANCO (Notes vibe). El “feedback” es el borde azul + blink suave.
+        final bg = blinking ? palette.blinkBg : palette.cellBg;
+
+        final focusBorder = palette.accent.withOpacity(palette.isLight ? 0.55 : 0.70);
 
         final cellBody = GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -1804,6 +1840,11 @@ class _DataCell extends StatelessWidget {
                 bottom: BorderSide(color: palette.border, width: palette.hairline),
               ),
             ),
+            foregroundDecoration: selected
+                ? BoxDecoration(
+              border: Border.all(color: focusBorder, width: math.max(palette.hairline, 1.6)),
+            )
+                : null,
             child: isPhotos
                 ? _PhotosCell(
               palette: palette,
@@ -1813,11 +1854,12 @@ class _DataCell extends StatelessWidget {
             )
                 : Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                text.isEmpty ? ' ' : text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: palette.fg, fontSize: 14, height: 1.1),
+              child: text.trim().isEmpty
+                  ? const SizedBox.shrink()
+                  : _PillText(
+                text: text,
+                palette: palette,
+                selected: selected,
               ),
             ),
           ),
@@ -1826,6 +1868,59 @@ class _DataCell extends StatelessWidget {
         if (!isOverlayTarget) return cellBody;
         return CompositedTransformTarget(link: editorLink, child: cellBody);
       },
+    );
+  }
+}
+
+class _PillText extends StatelessWidget {
+  const _PillText({
+    required this.text,
+    required this.palette,
+    required this.selected,
+  });
+
+  final String text;
+  final _SheetPalette palette;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ “Capsule” iOS real para TODAS las celdas con texto (como tu columna Status).
+    // Mucho más visible que el opacity anterior -> se nota en cualquier columna.
+    final isLight = palette.isLight;
+
+    final bg = isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
+    final border = isLight ? const Color(0xFFE5E5EA) : const Color(0xFF2C2C2E);
+
+    final shadow = isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.38);
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: math.max(palette.hairline, 1.0)),
+        boxShadow: [
+          BoxShadow(
+            color: shadow,
+            blurRadius: selected ? 7 : 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: palette.fg,
+          fontSize: 14.5,
+          height: 1.05,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.0,
+        ),
+      ),
     );
   }
 }
@@ -1859,7 +1954,7 @@ class _PhotosCell extends StatelessWidget {
         Expanded(
           child: Text(
             count == 0 ? '—' : '$count',
-            style: TextStyle(color: palette.fg, fontWeight: FontWeight.w700),
+            style: TextStyle(color: palette.fg, fontWeight: FontWeight.w800, height: 1.05),
           ),
         ),
         InkWell(
@@ -1915,7 +2010,8 @@ class _TitleFieldState extends State<_TitleField> {
       child: TextField(
         controller: _ec,
         focusNode: _fn,
-        style: TextStyle(color: widget.color, fontSize: 16, fontWeight: FontWeight.w700),
+        style: TextStyle(color: widget.color, fontSize: 16, fontWeight: FontWeight.w800, height: 1.05),
+        cursorColor: const Color(0xFF0A84FF),
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Nombre',
@@ -1947,7 +2043,7 @@ class _StatusBar extends StatelessWidget {
       width: double.infinity,
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w600)),
+      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w700, height: 1.05)),
     );
   }
 }
@@ -1967,7 +2063,7 @@ class _MobileHintBar extends StatelessWidget {
       ),
       child: Text(
         'Tap = editar. Mantener = menú.',
-        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w700, height: 1.05),
       ),
     );
   }
@@ -1978,6 +2074,7 @@ class _MobileHintBar extends StatelessWidget {
 class _MobileInlineEditorBar extends StatelessWidget {
   const _MobileInlineEditorBar({
     required this.palette,
+    required this.isOpen,
     required this.title,
     required this.controller,
     required this.focusNode,
@@ -1987,6 +2084,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final bool isOpen;
   final String title;
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -2006,83 +2104,103 @@ class _MobileInlineEditorBar extends StatelessWidget {
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(bottom: bottomInset),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-          decoration: BoxDecoration(
-            color: palette.appBarBg,
-            border: Border(top: BorderSide(color: palette.borderStrong, width: palette.hairline)),
-          ),
-          child: Container(
-            height: 52,
-            decoration: BoxDecoration(
-              color: palette.editorBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.borderStrong, width: palette.hairline),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(palette.isLight ? 0.08 : 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                )
-              ],
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: 'Cancelar',
-                  onPressed: onCancel,
-                  icon: Icon(Icons.close_rounded, color: palette.fgMuted),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: SafeArea(
+          top: false,
+          child: IgnorePointer(
+            ignoring: !isOpen,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 170),
+              curve: Curves.easeOut,
+              offset: isOpen ? Offset.zero : const Offset(0, 1.0),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 140),
+                opacity: isOpen ? 1.0 : 0.0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                   decoration: BoxDecoration(
-                    color: palette.headerBg,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: palette.border, width: palette.hairline),
+                    color: palette.appBarBg,
+                    border: Border(top: BorderSide(color: palette.borderStrong, width: palette.hairline)),
                   ),
-                  child: Text(
-                    title.isEmpty ? 'Editar' : title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w800, fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    autofocus: true,
-                    maxLines: 1,
-                    textInputAction: TextInputAction.done,
-                    keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
-                    scrollPadding: EdgeInsets.zero,
-                    style: TextStyle(color: palette.fg, fontSize: 16, height: 1.15),
-                    cursorColor: palette.accent,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      filled: true,
-                      fillColor: palette.mobileInputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      hintText: 'Escribir…',
-                      hintStyle: TextStyle(color: palette.fgMuted),
-                      border: InputBorder.none,
+                  child: Container(
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: palette.editorBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: palette.borderStrong, width: palette.hairline),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(palette.isLight ? 0.08 : 0.35),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        )
+                      ],
                     ),
-                    onSubmitted: (_) => onDone(),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Cancelar',
+                          onPressed: onCancel,
+                          icon: Icon(Icons.close_rounded, color: palette.fgMuted),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: palette.headerBg,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: palette.border, width: palette.hairline),
+                          ),
+                          child: Text(
+                            title.isEmpty ? 'Editar' : title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.fgMuted,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              height: 1.05,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            autofocus: false, // ✅ el focus lo pedimos desde el tap (iPhone estable)
+                            maxLines: 1,
+                            textInputAction: TextInputAction.done,
+                            keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
+                            scrollPadding: EdgeInsets.zero,
+                            style: TextStyle(color: palette.fg, fontSize: 16, height: 1.05, fontWeight: FontWeight.w700),
+                            cursorColor: palette.accent,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              filled: true,
+                              fillColor: palette.mobileInputBg,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              hintText: 'Escribir…',
+                              hintStyle: TextStyle(color: palette.fgMuted),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (_) => onDone(),
+                          ),
+                        ),
+                        for (final a in actions)
+                          IconButton(
+                            tooltip: a.label,
+                            onPressed: a.onTap,
+                            icon: Icon(a.icon, color: palette.fg),
+                          ),
+                        IconButton(
+                          tooltip: 'OK',
+                          onPressed: onDone,
+                          icon: Icon(Icons.check_rounded, color: palette.fg),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                for (final a in actions)
-                  IconButton(
-                    tooltip: a.label,
-                    onPressed: a.onTap,
-                    icon: Icon(a.icon, color: palette.fg),
-                  ),
-                IconButton(
-                  tooltip: 'OK',
-                  onPressed: onDone,
-                  icon: Icon(Icons.check_rounded, color: palette.fg),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -2253,9 +2371,7 @@ class _SheetPalette {
     required this.appBarBg,
     required this.headerBg,
     required this.indexBg,
-    required this.selIndexBg,
     required this.cellBg,
-    required this.selBg,
     required this.blinkBg,
     required this.border,
     required this.borderStrong,
@@ -2278,10 +2394,8 @@ class _SheetPalette {
   final Color appBarBg;
   final Color headerBg;
   final Color indexBg;
-  final Color selIndexBg;
 
   final Color cellBg;
-  final Color selBg;
   final Color blinkBg;
 
   final Color border;
@@ -2300,32 +2414,35 @@ class _SheetPalette {
   final Color hintBg;
 
   static _SheetPalette light({required double hairline}) {
+    final base = const Color(0xFF0B0B0C);
+    const iosBlue = Color(0xFF0A84FF);
+
     return _SheetPalette(
       isLight: true,
       hairline: hairline,
       bg: const Color(0xFFFFFFFF),
       fg: const Color(0xFF0B0B0C),
       fgMuted: const Color(0xFF6B6B72),
-      appBarBg: const Color(0xFFF6F6F8),
-      headerBg: const Color(0xFFF7F7F9),
-      indexBg: const Color(0xFFF7F7F9),
-      selIndexBg: const Color(0xFFEFF0F3),
+      appBarBg: const Color(0xFFFFFFFF),
+      headerBg: const Color(0xFFFFFFFF),
+      indexBg: const Color(0xFFFFFFFF),
       cellBg: const Color(0xFFFFFFFF),
-      selBg: const Color(0xFFE9F0FF),
-      blinkBg: const Color(0xFFE3EEFF),
-      border: const Color(0xFF0B0B0C).withOpacity(0.12),
-      borderStrong: const Color(0xFF0B0B0C).withOpacity(0.20),
+      blinkBg: iosBlue.withOpacity(0.10),
+      border: base.withOpacity(0.10),
+      borderStrong: base.withOpacity(0.14),
       menuBg: const Color(0xFFFFFFFF),
       editorBg: const Color(0xFFFFFFFF),
       mobileInputBg: const Color(0xFFFFFFFF),
-      accent: const Color(0xFF3B82F6),
-      statusBg: const Color(0xFFEFF6FF),
-      statusFg: const Color(0xFF1D4ED8),
-      hintBg: const Color(0xFFF6F6F8),
+      accent: iosBlue,
+      statusBg: iosBlue.withOpacity(0.10),
+      statusFg: iosBlue.withOpacity(0.95),
+      hintBg: const Color(0xFFFFFFFF),
     );
   }
 
   static _SheetPalette dark({required double hairline}) {
+    const iosBlue = Color(0xFF0A84FF);
+
     return _SheetPalette(
       isLight: false,
       hairline: hairline,
@@ -2335,16 +2452,14 @@ class _SheetPalette {
       appBarBg: const Color(0xFF111113),
       headerBg: const Color(0xFF121216),
       indexBg: const Color(0xFF121216),
-      selIndexBg: const Color(0xFF1B1B21),
-      cellBg: const Color(0xFF17171C),
-      selBg: const Color(0xFF1F2A44),
-      blinkBg: const Color(0xFF263556),
+      cellBg: const Color(0xFF0F0F13),
+      blinkBg: iosBlue.withOpacity(0.25),
       border: const Color(0xFFFFFFFF).withOpacity(0.10),
       borderStrong: const Color(0xFFFFFFFF).withOpacity(0.16),
       menuBg: const Color(0xFF15151A),
       editorBg: const Color(0xFF15151A),
       mobileInputBg: const Color(0xFF15151A),
-      accent: const Color(0xFF60A5FA),
+      accent: iosBlue,
       statusBg: const Color(0xFF0F172A),
       statusFg: const Color(0xFF93C5FD),
       hintBg: const Color(0xFF111113),
