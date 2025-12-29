@@ -31,12 +31,6 @@ jobs:
         with:
           channel: stable
 
-      - name: Cache-buster + 404.html
-        run: |
-          stamp=$(date +%Y%m%d%H%M%S)
-          sed -i "s/flutter_bootstrap.js/flutter_bootstrap.js?v=$stamp/g" web/index.html
-          cp web/index.html web/404.html
-
       - name: Pub get
         run: flutter pub get
 
@@ -44,6 +38,20 @@ jobs:
         env:
           FLUTTER_WEB_USE_SKIA: "true"
         run: flutter build web --release --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
+
+      - name: Stamp BUILD_ID + 404.html
+        run: |
+          stamp="$(date +%Y%m%d_%H%M%S)_${GITHUB_SHA::7}"
+          echo "BUILD_ID=$stamp"
+
+          # Reemplaza el placeholder en el HTML publicado
+          sed -i "s/__BUILD_ID__/$stamp/g" build/web/index.html
+
+          # SPA fallback
+          cp build/web/index.html build/web/404.html
+
+          # sanity check
+          grep -n 'meta name="bitflow-build"' -n build/web/index.html || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
