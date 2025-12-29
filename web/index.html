@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- iOS Safari: notch + teclado + evitar zoom -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 
   <title>Bitácora Web — Planilla tipo Excel para campo</title>
   <meta name="description" content="Registra mediciones, adjuntos, GPS y exporta a Excel/PDF con experiencia tipo Apple.">
@@ -23,25 +26,47 @@
   <!-- MUY IMPORTANTE PARA GH PAGES -->
   <base href="$FLUTTER_BASE_HREF">
 
+  <!-- FIX iOS: evita auto-zoom al enfocar el input/textarea que usa Flutter para TextField -->
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+      overscroll-behavior: none;
+    }
+
+    /* iOS Safari: al enfocar un input con font-size < 16px hace zoom y rompe todo */
+    @supports (-webkit-touch-callout: none) {
+      input, textarea, select {
+        font-size: 16px !important;
+      }
+    }
+
+    /* Mejora adicional en iOS moderno: viewport dinámico (reduce glitches con teclado) */
+    @supports (height: 100dvh) {
+      body { height: 100dvh; }
+    }
+  </style>
+
   <!-- Schema.org -->
   <script type="application/ld+json">
-  {
-    "@context":"https://schema.org",
-    "@type":"SoftwareApplication",
-    "name":"Bitácora Web",
-    "applicationCategory":"BusinessApplication",
-    "operatingSystem":"Web",
-    "url":"https://marcoluna-nqn.github.io/bitacora_web/",
-    "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}
-  }
+    {
+      "@context":"https://schema.org",
+      "@type":"SoftwareApplication",
+      "name":"Bitácora Web",
+      "applicationCategory":"BusinessApplication",
+      "operatingSystem":"Web",
+      "url":"https://marcoluna-nqn.github.io/bitacora_web/",
+      "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}
+    }
   </script>
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+<script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
-
-

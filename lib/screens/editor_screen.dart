@@ -367,6 +367,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   bool _isDesktopUi(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+
+    // ✅ PARCHE: teléfonos (iPhone/Android) SIEMPRE UI móvil (evita overlay editor y bugs de teclado)
+    if (size.shortestSide < 600) return false;
+
+    // ✅ blindaje extra: si el teclado está abierto, no uses desktop overlay
+    if (MediaQuery.viewInsetsOf(context).bottom > 0) return false;
+
     if (_isMobileWeb()) return false;
 
     if (!kIsWeb &&
@@ -374,7 +382,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       return false;
     }
 
-    final w = MediaQuery.of(context).size.width;
+    final w = size.width;
 
     bool mouse = false;
     try {
@@ -1032,8 +1040,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     if (isHeader) {
       if (c >= 0 && c < _headers.length - 1) {
-        actions.add(_CtxAction('Editar encabezado', Icons.edit_outlined,
-                () => _beginEditHeader(context, pal, c, 220)));
+        actions.add(_CtxAction('Editar encabezado', Icons.edit_outlined, () => _beginEditHeader(context, pal, c, 220)));
         actions.add(_CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
           _headers[c] = '';
           _markDirty(snapshot: true);
@@ -1047,12 +1054,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       actions.add(_CtxAction('Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
       if (c != _headers.length - 1) {
-        actions.add(_CtxAction('GPS -> celda', Icons.my_location_outlined,
-                () => unawaited(_pasteGpsIntoCell(r, c))));
+        actions.add(_CtxAction('GPS -> celda', Icons.my_location_outlined, () => unawaited(_pasteGpsIntoCell(r, c))));
         actions.add(_CtxAction('Maps', Icons.map_outlined, () => unawaited(_openMapsForCell(r, c))));
       } else {
-        actions.add(_CtxAction('Agregar foto', Icons.add_photo_alternate_outlined,
-                () => unawaited(_pickPhotoForRow(r))));
+        actions.add(_CtxAction('Agregar foto', Icons.add_photo_alternate_outlined, () => unawaited(_pickPhotoForRow(r))));
       }
 
       actions.add(_CtxAction('Insertar fila arriba', Icons.arrow_upward_rounded, () => _insertRow(r)));

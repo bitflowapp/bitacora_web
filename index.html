@@ -3,57 +3,109 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <!-- Base para Flutter Web (debe ir ARRIBA para que los paths relativos no se rompan). -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
   <base href="$FLUTTER_BASE_HREF" />
 
   <title>Bit Flow — Planilla tipo Excel para campo</title>
-  <meta name="description" content="Bit Flow es una planilla tipo Excel pensada para campo: mediciones, fotos, GPS y exportación real a Excel/PDF con experiencia tipo Apple." />
+  <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
   <meta name="robots" content="index,follow" />
 
-  <link rel="canonical" href="/" />
-
-  <!-- PWA / iOS -->
+  <!-- PWA / iOS (solo afecta standalone) -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="Bit Flow" />
   <meta name="application-name" content="Bit Flow" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#0A84FF" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
-  <!-- Manifest -->
   <link rel="manifest" href="manifest.json" />
-
-  <!-- Open Graph -->
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Bit Flow — Planilla tipo Excel para campo" />
-  <meta property="og:description" content="Registra mediciones con GPS, adjunta fotos y exporta a Excel/PDF desde el navegador. Ideal para relevamientos industriales." />
-  <meta property="og:url" content="/" />
-  <meta property="og:image" content="icons/Icon-512.png" />
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Bit Flow — Planilla tipo Excel para campo" />
-  <meta name="twitter:description" content="Planillas estilo Excel con GPS, fotos y exportación XLSX real para campo." />
-  <meta name="twitter:image" content="icons/Icon-512.png" />
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="shortcut icon" type="image/png" href="favicon.png" />
 
   <style>
-    html, body { height: 100%; margin: 0; }
-    body { background: #0B0B10; }
+    :root { --app-height: 100vh; }
+
+    html, body {
+      height: var(--app-height);
+      width: 100%;
+      margin: 0;
+      overflow: hidden;
+      position: fixed;
+      inset: 0;
+      overscroll-behavior: none;
+      background: #0B0B10;
+      -webkit-text-size-adjust: 100%;
+    }
+    * { -webkit-tap-highlight-color: transparent; }
   </style>
+
+  <script>
+    // Fix REAL: iOS teclado cambia el viewport. Sin esto, Flutter “se cree” otra altura y te mueve todo.
+    (function () {
+      var root = document.documentElement;
+      function setAppHeight() {
+        var vv = window.visualViewport;
+        var h = vv ? vv.height : window.innerHeight;
+        root.style.setProperty('--app-height', h + 'px');
+      }
+      setAppHeight();
+      window.addEventListener('resize', setAppHeight);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setAppHeight);
+        window.visualViewport.addEventListener('scroll', setAppHeight);
+      }
+    })();
+  </script>
+
+  <script>
+    // Opcional: evita scroll fantasma cuando Flutter enfoca el textarea oculto
+    (function () {
+      var locked = false;
+      var scrollY = 0;
+
+      function isTextTarget(t) {
+        if (!t) return false;
+        var tag = (t.tagName || '').toUpperCase();
+        return tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable;
+      }
+
+      function lockBody() {
+        if (locked) return;
+        locked = true;
+        scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+        document.body.style.position = 'fixed';
+        document.body.style.top = (-scrollY) + 'px';
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+      }
+
+      function unlockBody() {
+        if (!locked) return;
+        locked = false;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        window.scrollTo(0, scrollY);
+      }
+
+      window.addEventListener('focusin', function (e) {
+        if (isTextTarget(e.target)) lockBody();
+      }, true);
+
+      window.addEventListener('focusout', function (e) {
+        if (isTextTarget(e.target)) setTimeout(unlockBody, 80);
+      }, true);
+    })();
+  </script>
 </head>
 
 <body>
-<!-- 1) loader oficial -->
-<script src="flutter.js" defer></script>
-
-<!-- 2) bootstrap propio (no lo pisa Flutter) -->
-<script src="boot.js" defer></script>
+<script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
