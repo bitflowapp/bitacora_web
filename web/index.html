@@ -10,7 +10,7 @@
     <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
     <meta name="robots" content="index,follow" />
 
-    <!-- BUILD ID: CAMBIAR EN CADA DEPLOY -->
+    <!-- BUILD ID: CAMBIAR EN CADA DEPLOY (lo estampa GitHub Actions en build/web/index.html) -->
     <meta name="bitflow-build" content="__BUILD_ID__" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -95,10 +95,11 @@
             } catch (_) {}
           }
 
-          // iOS: altura real por visualViewport + burst para estabilizar teclado
-          function iosViewportFix() {
+          // iOS: fija altura real usando visualViewport (SIN loops / storms).
+          function iosViewportFixSafe() {
             var root = document.documentElement;
             var lastH = -1;
+            var raf = 0;
 
             function getHeight() {
               var vv = window.visualViewport;
@@ -111,31 +112,29 @@
                 lastH = h;
                 root.style.setProperty('--app-height', h + 'px');
               }
-              try { window.dispatchEvent(new Event('resize')); } catch (_) {}
-              try { window.scrollTo(0, 0); } catch (_) {}
             }
 
-            function burst(ms) {
-              var start = Date.now();
-              (function loop() {
+            function schedule() {
+              if (raf) return;
+              raf = requestAnimationFrame(function () {
+                raf = 0;
                 apply();
-                if (Date.now() - start < ms) requestAnimationFrame(loop);
-              })();
+              });
             }
 
             apply();
 
-            window.addEventListener('resize', function () { burst(450); }, { passive: true });
-            window.addEventListener('orientationchange', function () { burst(900); }, { passive: true });
-            window.addEventListener('pageshow', function () { burst(900); }, { passive: true });
+            window.addEventListener('resize', schedule, { passive: true });
+            window.addEventListener('orientationchange', schedule, { passive: true });
+            window.addEventListener('pageshow', schedule, { passive: true });
 
             if (window.visualViewport) {
-              window.visualViewport.addEventListener('resize', function () { burst(650); }, { passive: true });
-              window.visualViewport.addEventListener('scroll', function () { burst(250); }, { passive: true });
+              window.visualViewport.addEventListener('resize', schedule, { passive: true });
+              window.visualViewport.addEventListener('scroll', schedule, { passive: true });
             }
 
-            window.addEventListener('focusin', function () { burst(900); }, true);
-            window.addEventListener('focusout', function () { burst(450); }, true);
+            window.addEventListener('focusin', schedule, true);
+            window.addEventListener('focusout', schedule, true);
           }
 
           // Limpia SW + caches SOLO cuando cambia BUILD (por si antes tuviste PWA/caché pegajosa)
@@ -181,13 +180,12 @@
             });
           }
 
-          // CLAVE: cache-bust REAL al entrypoint (main.dart.js?v=BUILD)
+          // Cache-bust REAL al entrypoint
           async function bootFlutter() {
             await loadScript('flutter.js?v=' + encodeURIComponent(BUILD));
 
             var cfg = {
               entrypointUrl: 'main.dart.js?v=' + encodeURIComponent(BUILD),
-              // mientras iterás en GH Pages, esto evita que un SW te vuelva a clavar
               serviceWorker: { serviceWorkerVersion: null }
             };
 
@@ -198,19 +196,17 @@
               return;
             }
 
-            console.error('Flutter loader no encontrado. Revisá que build/web tenga flutter.js.');
+            console.error('Flutter loader no encontrado. Revisá build/web.');
           }
 
           document.addEventListener('DOMContentLoaded', function () {
             mountBadge();
-            iosViewportFix();
+            iosViewportFixSafe();
 
             nukeCachesIfBuildChanged()
               .catch(function(){})
               .finally(function () {
                 bootFlutter().catch(function(){});
-
-                // Tu interop (si lo usás)
                 loadScript('interop.js?v=' + encodeURIComponent(BUILD)).catch(function(){});
               });
           });
