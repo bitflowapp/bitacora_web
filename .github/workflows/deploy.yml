@@ -34,12 +34,10 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
-      - name: Build (release, no PWA, base-href)
-        env:
-          FLUTTER_WEB_USE_SKIA: "true"
-        run: flutter build web --release --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
+      - name: Build (release, HTML renderer, no PWA, base-href)
+        run: flutter build web --release --web-renderer=html --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
 
-      - name: Stamp BUILD_ID + 404.html
+      - name: Stamp BUILD_ID + 404.html + nojekyll
         run: |
           stamp="$(date +%Y%m%d_%H%M%S)_${GITHUB_SHA::7}"
           echo "BUILD_ID=$stamp"
@@ -50,8 +48,11 @@ jobs:
           # SPA fallback
           cp build/web/index.html build/web/404.html
 
+          # Evita cualquier cosa tipo Jekyll (por las dudas)
+          touch build/web/.nojekyll
+
           # sanity check
-          grep -n 'meta name="bitflow-build"' -n build/web/index.html || true
+          grep -n 'meta name="bitflow-build"' build/web/index.html || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
