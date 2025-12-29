@@ -30,15 +30,24 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
 
       - name: Pub get
         run: flutter pub get
 
-      # Flutter web (2025): default build => CanvasKit (no existe "html renderer" en stable actual).
-      # Si querés experimentar con skwasm: agregá --wasm (y probás en Safari).
-      - name: Build (release, no PWA, base-href)
-        run: flutter build web --release --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
+      - name: Build (release, prefer HTML renderer, no PWA, base-href)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Flutter:"
+          flutter --version
+
+          # Preferimos HTML para iOS (menos RAM que CanvasKit).
+          if flutter build web --help | grep -q -- '--web-renderer'; then
+            flutter build web --release --web-renderer=html --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
+          else
+            # Fallback por compatibilidad (si tu Flutter no soporta --web-renderer)
+            FLUTTER_WEB_USE_SKIA=false flutter build web --release --base-href "/bitacora_web/" --pwa-strategy=none --no-wasm-dry-run
+          fi
 
       - name: Stamp BUILD_ID + 404.html + nojekyll
         shell: bash
@@ -47,23 +56,17 @@ jobs:
           stamp="$(date +%Y%m%d_%H%M%S)_${GITHUB_SHA::7}"
           echo "BUILD_ID=$stamp"
 
-          # Reemplaza SOLO el content del meta (no toques el '__BUILD_ID__' del JS)
-          sed -i "s/content=\"__BUILD_ID__\"/content=\"$stamp\"/g" build/web/index.html
+          # Reemplaza placeholder SOLO en el output publicado
+          sed -i "s/__BUILD_ID__/$stamp/g" build/web/index.html
 
           # SPA fallback
           cp build/web/index.html build/web/404.html
 
-          # Evita Jekyll
+          # Por las dudas (GitHub Pages/Jekyll)
           touch build/web/.nojekyll
 
-          echo "== sanity =="
+          echo "Sanity:"
           grep -n 'meta name="bitflow-build"' build/web/index.html || true
-
-          # Si queda el placeholder en el META, fallá (pero permitimos que el JS tenga '__BUILD_ID__')
-          if grep -n '<meta name="bitflow-build" content="__BUILD_ID__"' build/web/index.html; then
-            echo "ERROR: El META quedó sin stamp (__BUILD_ID__)."
-            exit 1
-          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -10,7 +10,7 @@
     <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
     <meta name="robots" content="index,follow" />
 
-    <!-- BUILD ID: CAMBIAR EN CADA DEPLOY (lo estampa GitHub Actions en build/web/index.html) -->
+    <!-- BUILD ID: SE ESTAMPA EN CI -->
     <meta name="bitflow-build" content="__BUILD_ID__" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -95,8 +95,8 @@
             } catch (_) {}
           }
 
-          // iOS: fija altura real usando visualViewport (SIN loops / storms).
-          function iosViewportFixSafe() {
+          // iOS: fijar altura real sin disparar loops de resize/scroll
+          function iosViewportFix() {
             var root = document.documentElement;
             var lastH = -1;
             var raf = 0;
@@ -107,6 +107,7 @@
             }
 
             function apply() {
+              raf = 0;
               var h = getHeight();
               if (Math.abs(h - lastH) > 0.5) {
                 lastH = h;
@@ -116,10 +117,7 @@
 
             function schedule() {
               if (raf) return;
-              raf = requestAnimationFrame(function () {
-                raf = 0;
-                apply();
-              });
+              raf = requestAnimationFrame(apply);
             }
 
             apply();
@@ -127,17 +125,15 @@
             window.addEventListener('resize', schedule, { passive: true });
             window.addEventListener('orientationchange', schedule, { passive: true });
             window.addEventListener('pageshow', schedule, { passive: true });
+            window.addEventListener('focusin', schedule, true);
+            window.addEventListener('focusout', schedule, true);
 
             if (window.visualViewport) {
               window.visualViewport.addEventListener('resize', schedule, { passive: true });
               window.visualViewport.addEventListener('scroll', schedule, { passive: true });
             }
-
-            window.addEventListener('focusin', schedule, true);
-            window.addEventListener('focusout', schedule, true);
           }
 
-          // Limpia SW + caches SOLO cuando cambia BUILD (por si antes tuviste PWA/caché pegajosa)
           async function nukeCachesIfBuildChanged() {
             var key = 'bitflow_last_build';
             var last = null;
@@ -146,7 +142,6 @@
             if (last === BUILD) return;
             try { localStorage.setItem(key, BUILD); } catch (_) {}
 
-            // Unregister SW
             try {
               if ('serviceWorker' in navigator) {
                 var regs = await navigator.serviceWorker.getRegistrations();
@@ -156,7 +151,6 @@
               }
             } catch (_) {}
 
-            // Clear Cache Storage
             try {
               if (window.caches && caches.keys) {
                 var names = await caches.keys();
@@ -180,7 +174,7 @@
             });
           }
 
-          // Cache-bust REAL al entrypoint
+          // Cache-bust real: flutter.js + main.dart.js versionados
           async function bootFlutter() {
             await loadScript('flutter.js?v=' + encodeURIComponent(BUILD));
 
@@ -189,30 +183,36 @@
               serviceWorker: { serviceWorkerVersion: null }
             };
 
-            if (window._flutter && _flutter.loader && _flutter.loader.loadEntrypoint) {
-              _flutter.loader.loadEntrypoint(cfg)
-                .then(function (engineInitializer) { return engineInitializer.initializeEngine(); })
-                .then(function (appRunner) { return appRunner.runApp(); });
-              return;
+            if (window._flutter && _flutter.loader) {
+              if (_flutter.loader.loadEntrypoint) {
+                _flutter.loader.loadEntrypoint(cfg)
+                  .then(function (engineInitializer) { return engineInitializer.initializeEngine(); })
+                  .then(function (appRunner) { return appRunner.runApp(); });
+                return;
+              }
+              if (_flutter.loader.load) {
+                _flutter.loader.load(cfg);
+                return;
+              }
             }
 
-            console.error('Flutter loader no encontrado. Revisá build/web.');
+            // Último fallback: cargar el main directo
+            await loadScript(cfg.entrypointUrl);
           }
 
           document.addEventListener('DOMContentLoaded', function () {
             mountBadge();
-            iosViewportFixSafe();
+            iosViewportFix();
 
             nukeCachesIfBuildChanged()
               .catch(function(){})
               .finally(function () {
-                bootFlutter().catch(function(){});
+                bootFlutter().catch(function (e) { console.error(e); });
                 loadScript('interop.js?v=' + encodeURIComponent(BUILD)).catch(function(){});
               });
           });
         })();
     </script>
 </head>
-
 <body></body>
 </html>
