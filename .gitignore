@@ -1,9 +1,17 @@
-﻿# IDEs
-.idea/
-*.iml
-.vscode/
-
-# Flutter / Dart
+﻿# Flutter / Dart
 .dart_tool/
+.packages
+.pub/
+.pub-cache/
 build/
-pubspec.lock
+
+# Flutter plugins (generated)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Web-only repo (do not track platform folders)
+android/
+ios/
+macos/
+windows/
+linux/
