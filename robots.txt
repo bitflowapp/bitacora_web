@@ -1,3 +1,0 @@
-﻿User-agent: *
-Allow: /
-Sitemap: https://marcoluna-nqn.github.io/bitacora_web/sitemap.xml
