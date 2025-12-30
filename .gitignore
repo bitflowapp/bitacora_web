@@ -19,3 +19,9 @@ linux/
 .idea/
 *.iml
 .vscode/
+
+# Local backups
+*.bak
+*.bak_*
+*.focus_bak*
+*.pre_focus_fix
