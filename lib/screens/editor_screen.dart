@@ -21,7 +21,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -204,9 +204,6 @@ class _EditorScreenState extends State<EditorScreen>
 
     super.dispose();
   }
-
-
-
 
   @override
   void didChangeMetrics() {
@@ -1162,21 +1159,29 @@ class _EditorScreenState extends State<EditorScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: BackdropFilter(
+                      // ✅ GLASS NÍTIDO (OLED-friendly) + sin error (NO filterQuality en Flutter 3.35.x)
                       filter: ImageFilter.blur(
-                        sigmaX: pal.isLight ? 14.0 : 10.0,
-                        sigmaY: pal.isLight ? 14.0 : 10.0,
+                        sigmaX: pal.isLight ? 14.0 : 7.0,
+                        sigmaY: pal.isLight ? 14.0 : 7.0,
+                        tileMode: TileMode.decal,
                       ),
-                      filterQuality: pal.isLight ? FilterQuality.medium : FilterQuality.high,
                       child: Container(
                         width: width,
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: pal.isLight ? Colors.white.withOpacity(0.78) : Colors.black.withOpacity(0.78),
+                          color: pal.isLight
+                              ? Colors.white.withOpacity(0.78)
+                              : Colors.black.withOpacity(0.74),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: pal.isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.16), width: 1),
+                          border: Border.all(
+                            color: pal.isLight
+                                ? Colors.black.withOpacity(0.08)
+                                : Colors.white.withOpacity(0.18),
+                            width: 1,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(pal.isLight ? 0.10 : 0.42),
+                              color: Colors.black.withOpacity(pal.isLight ? 0.10 : 0.48),
                               blurRadius: 18,
                               offset: const Offset(0, 10),
                             ),
@@ -1740,7 +1745,7 @@ class _PremiumAppleHeader extends StatelessWidget {
         child: Stack(
           children: [
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+              filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
               child: const SizedBox.expand(),
             ),
             Container(
@@ -2429,7 +2434,7 @@ class _PillText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // “Glass capsule” sin blur (no lag)
+    // “Glass capsule” sin blur (cero lag)
     final isLight = palette.isLight;
 
     final baseA = isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
@@ -2441,20 +2446,20 @@ class _PillText extends StatelessWidget {
         ? palette.accent.withOpacity(isLight ? 0.16 : 0.22)
         : Colors.transparent;
 
-    final shadow = isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.38);
+    final shadow = isLight ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.42);
 
     return Container(
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border.withOpacity(isLight ? 0.90 : 0.75), width: math.max(palette.hairline, 1.0)),
+        border: Border.all(color: border.withOpacity(isLight ? 0.90 : 0.82), width: math.max(palette.hairline, 1.0)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            baseB.withOpacity(isLight ? 0.92 : 0.22),
-            baseA.withOpacity(isLight ? 0.78 : 0.18),
+            baseB.withOpacity(isLight ? 0.92 : 0.30),
+            baseA.withOpacity(isLight ? 0.78 : 0.26),
             tint,
           ],
           stops: const [0.0, 0.84, 1.0],

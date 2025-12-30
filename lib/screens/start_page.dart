@@ -60,13 +60,19 @@ class _StartPageState extends State<StartPage> {
   // Carpeta seleccionada (solo aplica en _HomeTab.sheets)
   String _selectedFolderId = ''; // '' = Raíz
 
-  // --------------------- Preferences (correo destino) ---------------------
+  // --------------------- Preferences (correo destino + engine url) ---------------------
   static const String _kPrefDefaultEmail = 'bitflow.default_email';
   static const String _kPrefAutoSend = 'bitflow.auto_send';
+
+  // ✅ NUEVO: Engine URL (FastAPI / Python)
+  static const String _kPrefEngineBaseUrl = 'bitflow.engine_base_url';
 
   bool _prefsLoaded = false;
   String _defaultEmail = '';
   bool _autoSend = true;
+
+  // ✅ NUEVO: base url del engine
+  String _engineBaseUrl = '';
 
   // --------------------- Organization state (folders, notes, trash, createdAt) ---------------------
   static const int _trashTtlDays = 14;
@@ -132,10 +138,14 @@ class _StartPageState extends State<StartPage> {
       final email = (p.getString(_kPrefDefaultEmail) ?? '').trim();
       final autoSend = p.getBool(_kPrefAutoSend) ?? true;
 
+      // ✅ Engine URL
+      final engine = (p.getString(_kPrefEngineBaseUrl) ?? '').trim();
+
       if (!mounted) return;
       setState(() {
         _defaultEmail = email;
         _autoSend = autoSend;
+        _engineBaseUrl = _normalizeEngineBaseUrl(engine);
         _prefsLoaded = true;
       });
     } catch (_) {
@@ -147,17 +157,42 @@ class _StartPageState extends State<StartPage> {
   Future<void> _savePrefs({
     required String email,
     required bool autoSend,
+    required String engineBaseUrl,
   }) async {
     final p = await SharedPreferences.getInstance();
     await p.setString(_kPrefDefaultEmail, email.trim());
     await p.setBool(_kPrefAutoSend, autoSend);
 
+    final normalizedEngine = _normalizeEngineBaseUrl(engineBaseUrl);
+    await p.setString(_kPrefEngineBaseUrl, normalizedEngine);
+
     if (!mounted) return;
     setState(() {
       _defaultEmail = email.trim();
       _autoSend = autoSend;
+      _engineBaseUrl = normalizedEngine;
       _prefsLoaded = true;
     });
+  }
+
+  String _normalizeEngineBaseUrl(String raw) {
+    var v = raw.trim();
+    if (v.isEmpty) return '';
+    while (v.endsWith('/')) {
+      v = v.substring(0, v.length - 1);
+    }
+    return v;
+  }
+
+  bool _looksLikeHttpUrl(String s) {
+    final v = s.trim();
+    if (v.isEmpty) return true; // permitir “sin configurar”
+    final u = Uri.tryParse(v);
+    if (u == null) return false;
+    final schemeOk = (u.scheme == 'http' || u.scheme == 'https');
+    if (!schemeOk) return false;
+    if (u.host.trim().isEmpty) return false;
+    return true;
   }
 
   // --------------------- Load/Save Org (folders/trash/notes) ---------------------
@@ -328,6 +363,8 @@ class _StartPageState extends State<StartPage> {
           isLight: widget.isLight,
           onToggleTheme: widget.onToggleTheme,
           sheetId: id,
+          // ✅ NUEVO: Engine URL persistido
+          engineBaseUrl: _engineBaseUrl.isEmpty ? null : _engineBaseUrl,
         ),
       ),
     );
@@ -358,6 +395,8 @@ class _StartPageState extends State<StartPage> {
           isLight: widget.isLight,
           onToggleTheme: widget.onToggleTheme,
           sheetId: m.id,
+          // ✅ NUEVO: Engine URL persistido
+          engineBaseUrl: _engineBaseUrl.isEmpty ? null : _engineBaseUrl,
         ),
       ),
     );
@@ -761,10 +800,12 @@ class _StartPageState extends State<StartPage> {
     return count;
   }
 
-  // --------------------- Mail Settings UI ---------------------
+  // --------------------- Settings UI (Mail + Engine) ---------------------
 
   Future<void> _openMailSettings() async {
     final emailEC = TextEditingController(text: _defaultEmail);
+    final engineEC = TextEditingController(text: _engineBaseUrl);
+
     bool autoSend = _autoSend;
 
     final result = await showCupertinoDialog<_MailSettingsResult?>(
@@ -775,15 +816,50 @@ class _StartPageState extends State<StartPage> {
             final email = emailEC.text.trim();
             final emailOk = email.isEmpty || _looksLikeEmail(email);
 
+            final engine = engineEC.text.trim();
+            final engineOk = _looksLikeHttpUrl(engine);
+
             return CupertinoAlertDialog(
-              title: const Text('Correo destino'),
+              title: const Text('Ajustes'),
               content: Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Column(
                   children: [
                     _CupertinoInfoBanner(
+                      icon: CupertinoIcons.cloud,
+                      title: 'Motor (Python)',
+                      message:
+                      'Poné la URL del engine. En iPhone/Android usá la IP de la notebook (ej: http://192.168.1.50:8001).',
+                      isLight: widget.isLight,
+                    ),
+                    const SizedBox(height: 10),
+                    CupertinoTextField(
+                      controller: engineEC,
+                      keyboardType: TextInputType.url,
+                      placeholder: 'http://192.168.1.50:8001',
+                      autocorrect: false,
+                      onChanged: (_) => setLocal(() {}),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      prefix: const Padding(
+                        padding: EdgeInsets.only(left: 10),
+                        child: Icon(CupertinoIcons.cloud, size: 18),
+                      ),
+                    ),
+                    if (!engineOk)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'URL inválida (usa http/https + host)',
+                          style: TextStyle(
+                            color: widget.isLight ? const Color(0xFFB00020) : const Color(0xFFFF6B6B),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+                    _CupertinoInfoBanner(
                       icon: CupertinoIcons.paperplane,
-                      title: 'Entregables automáticos',
+                      title: 'Correo destino',
                       message:
                       'Registrá un correo destino. Tu flujo de export (Editor/Backend/Service) puede usarlo para enviar planillas sin pasos extra.',
                       isLight: widget.isLight,
@@ -830,8 +906,18 @@ class _StartPageState extends State<StartPage> {
                 CupertinoDialogAction(
                   onPressed: () {
                     final email = emailEC.text.trim();
+                    final engine = engineEC.text.trim();
+
                     if (email.isNotEmpty && !_looksLikeEmail(email)) return;
-                    Navigator.of(dialogContext).pop(_MailSettingsResult(email: email, autoSend: autoSend));
+                    if (!_looksLikeHttpUrl(engine)) return;
+
+                    Navigator.of(dialogContext).pop(
+                      _MailSettingsResult(
+                        email: email,
+                        autoSend: autoSend,
+                        engineBaseUrl: _normalizeEngineBaseUrl(engine),
+                      ),
+                    );
                   },
                   isDefaultAction: true,
                   child: const Text('Guardar'),
@@ -844,12 +930,23 @@ class _StartPageState extends State<StartPage> {
     );
 
     emailEC.dispose();
+    engineEC.dispose();
 
     if (result == null) return;
-    await _savePrefs(email: result.email, autoSend: result.autoSend);
+
+    await _savePrefs(
+      email: result.email,
+      autoSend: result.autoSend,
+      engineBaseUrl: result.engineBaseUrl,
+    );
 
     if (!mounted) return;
-    _toast(_defaultEmail.isEmpty ? 'Correo destino limpiado.' : 'Correo destino guardado.');
+
+    if (_engineBaseUrl.isEmpty) {
+      _toast(_defaultEmail.isEmpty ? 'Ajustes guardados.' : 'Ajustes guardados (correo ok).');
+    } else {
+      _toast('Ajustes guardados. Engine: ${_engineBaseUrl.trim()}');
+    }
   }
 
   // --------------------- UI helpers ---------------------
@@ -1184,6 +1281,10 @@ class _StartPageState extends State<StartPage> {
 
     final title = _tab == _HomeTab.trash ? 'Papelera' : 'BitFlow';
 
+    final engineLabel = _prefsLoaded
+        ? (_engineBaseUrl.isEmpty ? 'Sin configurar' : _engineBaseUrl)
+        : 'Cargando…';
+
     return CupertinoPageScaffold(
       backgroundColor: colors.bg,
       child: SafeArea(
@@ -1310,7 +1411,7 @@ class _StartPageState extends State<StartPage> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Estado compacto (carpeta/correo/autosend)
+                      // Estado compacto (carpeta/correo/engine)
                       Row(
                         children: [
                           Expanded(
@@ -1337,13 +1438,21 @@ class _StartPageState extends State<StartPage> {
                         ],
                       ),
                       const SizedBox(height: 10),
+                      _StatusPill(
+                        colors: colors,
+                        icon: CupertinoIcons.cloud,
+                        title: 'Motor',
+                        value: engineLabel,
+                        onTap: _openMailSettings,
+                      ),
+                      const SizedBox(height: 10),
                       _CupertinoToggleRow(
                         title: 'Auto-envío',
                         subtitle: _defaultEmail.isEmpty ? 'Configura correo para usarlo.' : 'Listo para automatización al exportar.',
                         value: _autoSend,
                         onChanged: (v) async {
                           setState(() => _autoSend = v);
-                          await _savePrefs(email: _defaultEmail, autoSend: v);
+                          await _savePrefs(email: _defaultEmail, autoSend: v, engineBaseUrl: _engineBaseUrl);
                         },
                       ),
                     ],
@@ -1404,9 +1513,7 @@ class _StartPageState extends State<StartPage> {
                 child: Text(
                   _tab == _HomeTab.trash
                       ? 'Papelera: ${data.length} planilla(s)'
-                      : (_searchAll
-                      ? 'Mostrando ${data.length} (buscando en todas)'
-                      : 'Mostrando ${data.length} en “${_folderName(_selectedFolderId)}”'),
+                      : (_searchAll ? 'Mostrando ${data.length} (buscando en todas)' : 'Mostrando ${data.length} en “${_folderName(_selectedFolderId)}”'),
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12,
@@ -1630,8 +1737,7 @@ class _AppleInsetGroupedList extends StatelessWidget {
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
-            if (i != children.length - 1)
-              Container(height: 1, color: colors.separator.withValues(alpha: 0.75)),
+            if (i != children.length - 1) Container(height: 1, color: colors.separator.withValues(alpha: 0.75)),
           ],
         ],
       ),
@@ -2335,9 +2441,7 @@ class _AppleSheetGridCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            tab == _HomeTab.trash
-                ? '${meta.rows} filas · vence en ${daysLeftInTrash ?? 0} día(s)'
-                : '${meta.rows} filas · $folderName',
+            tab == _HomeTab.trash ? '${meta.rows} filas · vence en ${daysLeftInTrash ?? 0} día(s)' : '${meta.rows} filas · $folderName',
             style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
           ),
           if (note.isNotEmpty) ...[
@@ -2777,10 +2881,12 @@ class _MailSettingsResult {
   const _MailSettingsResult({
     required this.email,
     required this.autoSend,
+    required this.engineBaseUrl,
   });
 
   final String email;
   final bool autoSend;
+  final String engineBaseUrl;
 }
 
 // ---------------- Compat: Color.withValues(alpha: ...) ----------------
