@@ -25,3 +25,7 @@ linux/
 *.bak_*
 *.focus_bak*
 *.pre_focus_fix
+
+# Flutter tool state
+.metadata
+
