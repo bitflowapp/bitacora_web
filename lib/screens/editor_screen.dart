@@ -21,6 +21,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -49,6 +50,7 @@ class EditorScreen extends StatefulWidget {
     this.initialHeaders,
     this.initialRows,
     this.engineBaseUrl,
+    this.engineApiKey,
     this.isLight, // ✅ para compat con StartPage
     this.onToggleTheme, // ✅ compat con StartPage
   });
@@ -58,6 +60,7 @@ class EditorScreen extends StatefulWidget {
   final List<String>? initialHeaders;
   final List<List<String>>? initialRows;
   final String? engineBaseUrl;
+  final String? engineApiKey;
 
   /// Si StartPage te lo pasa, lo respetamos; si no, usamos platform brightness.
   final bool? isLight;
@@ -69,12 +72,14 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMixin {
+class _EditorScreenState extends State<EditorScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // ------------------------------ Constantes -------------------------------
 
   static const int kMaxUndo = 50;
   static const Duration _blinkDuration = Duration(milliseconds: 110);
   static const Duration _saveDebounce = Duration(milliseconds: 650);
+  static const bool _kMobilePerfLogs = false;
 
   // ------------------------------ Estado ----------------------------------
 
@@ -116,6 +121,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   Timer? _saveT;
   bool _saving = false;
 
+  double _lastViewInsetsBottom = 0.0;
   // Undo/Redo
   final List<_SheetSnapshot> _undo = <_SheetSnapshot>[];
   final List<_SheetSnapshot> _redo = <_SheetSnapshot>[];
@@ -148,7 +154,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   void initState() {
     super.initState();
 
-    _sheetName = (widget.initialName?.trim().isNotEmpty ?? false) ? widget.initialName!.trim() : 'Sheet';
+    WidgetsBinding.instance.addObserver(this);
+    _sheetName =
+    (widget.initialName?.trim().isNotEmpty ?? false) ? widget.initialName!.trim() : 'Sheet';
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -175,6 +183,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveT?.cancel();
     _nameDebounceT?.cancel();
 
@@ -194,6 +203,33 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _nameFocus.dispose();
 
     super.dispose();
+  }
+
+
+
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) return;
+    if (!_mobileEditorOpen || _mobileRow < 0) return;
+
+    // ViewInsets en dp para detectar cambios de teclado (iOS/Android/Web Mobile).
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return;
+    final view = views.first;
+    final bottom = view.viewInsets.bottom / view.devicePixelRatio;
+    if ((bottom - _lastViewInsetsBottom).abs() < 1.0) return;
+
+    _lastViewInsetsBottom = bottom;
+    if (_kMobilePerfLogs) {
+      debugPrint('[MobilePerf] viewInsets.bottom -> ${bottom.toStringAsFixed(1)}');
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(_mobileRow);
+    });
   }
 
   // ------------------------------ Construcción inicial --------------------
@@ -506,9 +542,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     onAddRow: () => _insertRow(_rows.length),
                     onSave: () => unawaited(_saveLocalNow()),
                     onExport: () => unawaited(_exportXlsx()),
-                    onCompute: (widget.engineBaseUrl == null || _engineBusy)
-                        ? null
-                        : () => unawaited(_computeEngine()),
+                    onCompute: (widget.engineBaseUrl == null || _engineBusy) ? null : () => unawaited(_computeEngine()),
                   ),
                   if (_engineStatus != null)
                     _StatusBar(
@@ -592,6 +626,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   controller: _mobileEC,
                   focusNode: _mobileFocus,
                   actions: _mobileActions,
+                  onNext: _canMobileNav ? _mobileMoveNext : null,
                   onCancel: _cancelMobileEdit,
                   onDone: _commitMobileEdit,
                 ),
@@ -863,6 +898,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     required String initial,
     required List<_MobileAction> actions,
   }) {
+    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
+
     // ✅ Commit si ya había otro editor abierto (simple y predecible).
     if (_mobileEditorOpen) {
       _commitMobileEdit();
@@ -882,6 +919,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _mobileEC.selection = TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
     setState(() => _mobileEditorOpen = true);
+    if (_kMobilePerfLogs) {
+      debugPrint('[MobilePerf] open editor state in ${sw?.elapsedMilliseconds}ms');
+    }
 
     // ✅ FIX iPhone: pedir focus dentro del gesto (tap) y sin delays.
     // Como el editor está SIEMPRE montado, esto funciona de forma estable.
@@ -893,6 +933,134 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       if (!_mobileEditorOpen) return;
       _mobileFocus.requestFocus();
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      if (row >= 0) _ensureRowVisibleForKeyboard(row);
+    });
+  }
+
+  List<_MobileAction> _mobileActionsForCell(int r, int c) {
+    if (c == _headers.length - 1) return const [];
+    return [
+      _MobileAction(
+        icon: Icons.my_location_outlined,
+        label: 'GPS',
+        onTap: () => unawaited(_pasteGpsIntoCell(r, c)),
+      ),
+      _MobileAction(
+        icon: Icons.map_outlined,
+        label: 'Maps',
+        onTap: () => unawaited(_openMapsForCell(r, c)),
+      ),
+    ];
+  }
+
+  static const double _kMobileEditorOverlayH = 92.0;
+
+  void _ensureRowVisibleForKeyboard(int row) {
+    if (!mounted) return;
+    if (!_vScroll.hasClients) return;
+    if (row < 0) return;
+
+    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
+    final mq = MediaQuery.of(context);
+    final kb = mq.viewInsets.bottom;
+
+    final viewport = _vScroll.position.viewportDimension;
+    final reserve = kb + (_mobileEditorOpen ? _kMobileEditorOverlayH : 0.0) + 8.0;
+
+    final rowTop = row * _GridView._rowH;
+    final rowBottom = rowTop + _GridView._rowH;
+
+    final visibleTop = _vScroll.offset;
+    final visibleBottom = _vScroll.offset + math.max(0.0, viewport - reserve);
+
+    double? target;
+    if (rowBottom > visibleBottom) {
+      target = rowBottom - math.max(0.0, viewport - reserve);
+    } else if (rowTop < visibleTop) {
+      target = rowTop;
+    }
+
+    if (target == null) return;
+
+    final clamped = target.clamp(_vScroll.position.minScrollExtent, _vScroll.position.maxScrollExtent);
+    _vScroll.animateTo(
+      clamped.toDouble(),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+    if (_kMobilePerfLogs) {
+      debugPrint('[MobilePerf] ensureRowVisible ${sw?.elapsedMilliseconds}ms');
+    }
+  }
+
+  bool get _canMobileNav {
+    return _mobileEditorOpen && !_mobileEditingHeader && _headers.length >= 2;
+  }
+
+  int get _lastEditableCol => math.max(0, _headers.length - 2);
+
+  void _mobileCommitDraftToModel() {
+    if (!_mobileEditorOpen) return;
+
+    final v = _mobileEC.text;
+    if (_mobileEditingHeader) return;
+
+    if (_mobileRow < 0 || _mobileRow >= _rows.length) return;
+    if (_mobileCol < 0 || _mobileCol >= _headers.length) return;
+    if (_mobileCol == _headers.length - 1) return;
+    if (_rows[_mobileRow].cells[_mobileCol] == v) return;
+
+    _setCell(_mobileRow, _mobileCol, v);
+  }
+
+  void _mobileMoveNext() {
+    if (!_canMobileNav) return;
+
+    _mobileCommitDraftToModel();
+
+    int r = _mobileRow;
+    int c = _mobileCol;
+    final last = _lastEditableCol;
+
+    if (c < last) {
+      c += 1;
+    } else {
+      r += 1;
+      c = 0;
+      if (r >= _rows.length) {
+        _insertRow(_rows.length);
+      }
+      if (r >= _rows.length) return;
+    }
+
+    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
+    setState(() {
+      _selRow = r;
+      _selCol = c;
+      _mobileEditingHeader = false;
+      _mobileRow = r;
+      _mobileCol = c;
+      _mobileTitle = _headerLabel(c);
+      _mobileActions = _mobileActionsForCell(r, c);
+      _mobileEditorOpen = true;
+    });
+
+    _blink(r, c);
+
+    _mobileEC.text = _rows[r].cells[c];
+    _mobileEC.selection = TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(r);
+      _mobileFocus.requestFocus();
+    });
+    if (_kMobilePerfLogs) {
+      debugPrint('[MobilePerf] moveNext ${sw?.elapsedMilliseconds}ms');
+    }
   }
 
   void _cancelMobileEdit() {
@@ -991,61 +1159,71 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     }
                     return KeyEventResult.ignored;
                   },
-                  child: Container(
-                    width: width,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: pal.editorBg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: pal.borderStrong, width: pal.hairline),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(pal.isLight ? 0.10 : 0.42),
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _cellEC,
-                            focusNode: _cellFocus,
-                            autofocus: true,
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: pal.fg,
-                              fontSize: 16,
-                              height: 1.05,
-                              fontWeight: FontWeight.w700,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: pal.isLight ? 14.0 : 10.0,
+                        sigmaY: pal.isLight ? 14.0 : 10.0,
+                      ),
+                      filterQuality: pal.isLight ? FilterQuality.medium : FilterQuality.high,
+                      child: Container(
+                        width: width,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: pal.isLight ? Colors.white.withOpacity(0.78) : Colors.black.withOpacity(0.78),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: pal.isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.16), width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(pal.isLight ? 0.10 : 0.42),
+                              blurRadius: 18,
+                              offset: const Offset(0, 10),
                             ),
-                            cursorColor: pal.accent,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              hintText: 'Escribir…',
-                              hintStyle: TextStyle(color: pal.fgMuted),
-                              border: InputBorder.none,
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _cellEC,
+                                focusNode: _cellFocus,
+                                autofocus: true,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: pal.fg,
+                                  fontSize: 16,
+                                  height: 1.05,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                                cursorColor: pal.accent,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  hintText: 'Escribir…',
+                                  hintStyle: TextStyle(color: pal.fgMuted),
+                                  border: InputBorder.none,
+                                ),
+                                onSubmitted: (v) {
+                                  onCommit(v);
+                                  _removeCellEditor();
+                                },
+                              ),
                             ),
-                            onSubmitted: (v) {
-                              onCommit(v);
-                              _removeCellEditor();
-                            },
-                          ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                onCommit(_cellEC.text);
+                                _removeCellEditor();
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                child: Icon(Icons.check_rounded, color: pal.fg, size: 20),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {
-                            onCommit(_cellEC.text);
-                            _removeCellEditor();
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            child: Icon(Icons.check_rounded, color: pal.fg, size: 20),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1141,7 +1319,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               children: [
                 Icon(actions[i].icon, size: 18, color: pal.fg),
                 const SizedBox(width: 10),
-                Expanded(child: Text(actions[i].label, style: TextStyle(color: pal.fg))),
+                Expanded(child: Text(actions[i].label, style: TextStyle(color: pal.fg, fontWeight: FontWeight.w800))),
               ],
             ),
           ),
@@ -1441,7 +1619,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       final resp = await http
           .post(
         uri,
-        headers: {'content-type': 'application/json'},
+        headers: () {
+          final h = <String, String>{'content-type': 'application/json'};
+          final key = widget.engineApiKey?.trim();
+          if (key != null && key.isNotEmpty) {
+            h['authorization'] = 'Bearer $key';
+            h['x-api-key'] = key;
+          }
+          return h;
+        }(),
         body: json.encode(payload),
       )
           .timeout(const Duration(seconds: 18));
@@ -1530,153 +1716,197 @@ class _PremiumAppleHeader extends StatelessWidget {
     final pad = MediaQuery.paddingOf(context);
     final top = math.max(10.0, pad.top);
 
+    final sigma = palette.isLight ? 14.0 : 12.0;
+
+    // Tinte/gradiente “Apple glass”
+    final glassGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: palette.isLight
+          ? [
+        Colors.white.withOpacity(0.80),
+        Colors.white.withOpacity(0.70),
+      ]
+          : [
+        Colors.white.withOpacity(0.11),
+        Colors.white.withOpacity(0.05),
+      ],
+    );
+
     return Padding(
       padding: EdgeInsets.fromLTRB(14, top + 8, 14, 10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(26),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          decoration: BoxDecoration(
-            color: palette.headerCardBg,
-            border: Border.all(color: palette.headerCardBorder, width: palette.hairline),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(palette.isLight ? 0.08 : 0.42),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
+        child: Stack(
+          children: [
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+              child: const SizedBox.expand(),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              decoration: BoxDecoration(
+                color: palette.headerCardBg,
+                gradient: glassGradient,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: palette.headerCardBorder, width: palette.hairline),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + icons (minimal)
-              Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: titleController,
-                      focusNode: titleFocus,
-                      onChanged: onTitleChanged,
-                      style: TextStyle(
-                        color: palette.fg,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900,
-                        height: 1.02,
-                        letterSpacing: -0.6,
-                      ),
-                      cursorColor: palette.accent,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: 'Sheet',
-                        hintStyle: TextStyle(color: palette.fgMuted),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+                      Expanded(
+                        child: TextField(
+                          controller: titleController,
+                          focusNode: titleFocus,
+                          onChanged: onTitleChanged,
+                          style: TextStyle(
+                            color: palette.fg,
+                            fontSize: 34,
+                            fontWeight: FontWeight.w900,
+                            height: 1.02,
+                            letterSpacing: -0.6,
+                          ),
+                          cursorColor: palette.accent,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            hintText: 'Sheet',
+                            hintStyle: TextStyle(color: palette.fgMuted),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
                         children: [
-                          _IconCircleButton(
-                            palette: palette,
-                            icon: palette.isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                            onTap: onToggleTheme,
-                            tooltip: palette.isLight ? 'Modo noche' : 'Modo blanco',
-                          ),
-                          const SizedBox(width: 8),
-                          _IconCircleButton(
-                            palette: palette,
-                            icon: Icons.undo_rounded,
-                            onTap: onUndo,
-                            tooltip: 'Undo',
-                          ),
-                          const SizedBox(width: 8),
-                          _IconCircleButton(
-                            palette: palette,
-                            icon: Icons.redo_rounded,
-                            onTap: onRedo,
-                            tooltip: 'Redo',
-                          ),
-                          const SizedBox(width: 8),
-                          _IconCircleButton(
-                            palette: palette,
-                            icon: Icons.add_rounded,
-                            onTap: onAddRow,
-                            tooltip: 'Agregar fila',
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _IconCircleButton(
+                                palette: palette,
+                                icon: palette.isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                                onTap: onToggleTheme,
+                                tooltip: palette.isLight ? 'Modo noche' : 'Modo blanco',
+                              ),
+                              const SizedBox(width: 8),
+                              _IconCircleButton(
+                                palette: palette,
+                                icon: Icons.undo_rounded,
+                                onTap: onUndo,
+                                tooltip: 'Undo',
+                              ),
+                              const SizedBox(width: 8),
+                              _IconCircleButton(
+                                palette: palette,
+                                icon: Icons.redo_rounded,
+                                onTap: onRedo,
+                                tooltip: 'Redo',
+                              ),
+                              const SizedBox(width: 8),
+                              _IconCircleButton(
+                                palette: palette,
+                                icon: Icons.add_rounded,
+                                onTap: onAddRow,
+                                tooltip: 'Agregar fila',
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Text(
-                    savedText,
-                    style: TextStyle(
-                      color: palette.fgMuted,
-                      fontWeight: FontWeight.w800,
-                      height: 1.05,
-                    ),
-                  ),
-                  if (isDirty) ...[
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: palette.accent.withOpacity(0.22), width: palette.hairline),
-                      ),
-                      child: Text(
-                        'Dirty',
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        savedText,
                         style: TextStyle(
-                          color: palette.isLight ? palette.accent.withOpacity(0.95) : palette.accent.withOpacity(0.95),
+                          color: palette.fgMuted,
                           fontWeight: FontWeight.w900,
-                          fontSize: 12,
                           height: 1.05,
                         ),
                       ),
+                      if (isDirty) ...[
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: palette.accent.withOpacity(0.22), width: palette.hairline),
+                          ),
+                          child: Text(
+                            'Dirty',
+                            style: TextStyle(
+                              color: palette.accent.withOpacity(0.95),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              height: 1.05,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _PillButton(
+                        palette: palette,
+                        filled: true,
+                        icon: Icons.check_circle_outline_rounded,
+                        label: 'Save',
+                        onTap: onSave,
+                      ),
+                      const SizedBox(width: 10),
+                      _PillButton(
+                        palette: palette,
+                        filled: false,
+                        icon: Icons.ios_share_rounded,
+                        label: 'Export',
+                        onTap: onExport,
+                      ),
+                      const SizedBox(width: 10),
+                      _PillButton(
+                        palette: palette,
+                        filled: false,
+                        icon: Icons.functions_rounded,
+                        label: 'Calcular',
+                        onTap: onCompute,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(palette.isLight ? 0.18 : 0.12),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.35],
                     ),
-                  ],
-                ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _PillButton(
-                    palette: palette,
-                    filled: true,
-                    icon: Icons.check_circle_outline_rounded,
-                    label: 'Save',
-                    onTap: onSave,
-                  ),
-                  const SizedBox(width: 10),
-                  _PillButton(
-                    palette: palette,
-                    filled: false,
-                    icon: Icons.ios_share_rounded,
-                    label: 'Export',
-                    onTap: onExport,
-                  ),
-                  const SizedBox(width: 10),
-                  _PillButton(
-                    palette: palette,
-                    filled: false,
-                    icon: Icons.functions_rounded,
-                    label: 'Calcular',
-                    onTap: onCompute,
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1845,7 +2075,7 @@ class _GridView extends StatelessWidget {
     return LayoutBuilder(
       builder: (ctx, c) {
         return Container(
-          color: palette.cellBg, // ✅ “hoja” blanca/negro profundo, nítida
+          color: palette.cellBg,
           child: SingleChildScrollView(
             controller: hScroll,
             scrollDirection: Axis.horizontal,
@@ -1965,7 +2195,7 @@ class _GridView extends StatelessWidget {
           bottom: BorderSide(color: palette.borderStrong, width: palette.hairline),
         ),
       ),
-      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w800)),
+      child: Text('#', style: TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w900)),
     );
   }
 }
@@ -2079,7 +2309,7 @@ class _RowIndexCell extends StatelessWidget {
           index.toString(),
           style: TextStyle(
             color: selected ? palette.fg : palette.fgMuted,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
             fontSize: 12,
             height: 1.05,
           ),
@@ -2199,8 +2429,7 @@ class _PillText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ “Glass capsule” sin blur (no lag):
-    // - Gradiente + brillo + tint iOS (solo cuando está selected).
+    // “Glass capsule” sin blur (no lag)
     final isLight = palette.isLight;
 
     final baseA = isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
@@ -2244,10 +2473,10 @@ class _PillText extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: palette.fg,
-          fontSize: 14.5,
+          fontSize: 15.0,
           height: 1.05,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.0,
+          fontWeight: FontWeight.w900,
+          letterSpacing: -0.1,
         ),
       ),
     );
@@ -2314,7 +2543,7 @@ class _StatusBar extends StatelessWidget {
       width: double.infinity,
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w800, height: 1.05)),
+      child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
     );
   }
 }
@@ -2334,7 +2563,7 @@ class _MobileHintBar extends StatelessWidget {
       ),
       child: Text(
         'Tap = editar. Mantener = menú.',
-        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w800, height: 1.05),
+        style: TextStyle(color: palette.fgMuted, fontSize: 12, fontWeight: FontWeight.w900, height: 1.05),
       ),
     );
   }
@@ -2350,6 +2579,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.actions,
+    required this.onNext,
     required this.onCancel,
     required this.onDone,
   });
@@ -2360,6 +2590,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<_MobileAction> actions;
+  final VoidCallback? onNext;
   final VoidCallback onCancel;
   final VoidCallback onDone;
 
@@ -2437,23 +2668,29 @@ class _MobileInlineEditorBar extends StatelessWidget {
                           child: TextField(
                             controller: controller,
                             focusNode: focusNode,
-                            autofocus: false, // ✅ el focus lo pedimos desde el tap (iPhone estable)
+                            autofocus: false,
                             maxLines: 1,
-                            textInputAction: TextInputAction.done,
+                            textInputAction: onNext == null ? TextInputAction.done : TextInputAction.next,
                             keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
                             scrollPadding: EdgeInsets.zero,
-                            style: TextStyle(color: palette.fg, fontSize: 16, height: 1.05, fontWeight: FontWeight.w800),
+                            style: TextStyle(
+                              color: palette.fg,
+                              fontSize: 16,
+                              height: 1.05,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.1,
+                            ),
                             cursorColor: palette.accent,
                             decoration: InputDecoration(
                               isDense: true,
                               filled: true,
-                              fillColor: palette.mobileInputBg,
+                              fillColor: palette.isLight ? palette.mobileInputBg : const Color(0xFF000000),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               hintText: 'Escribir…',
                               hintStyle: TextStyle(color: palette.fgMuted),
                               border: InputBorder.none,
                             ),
-                            onSubmitted: (_) => onDone(),
+                            onSubmitted: (_) => onNext == null ? onDone() : onNext!(),
                           ),
                         ),
                         for (final a in actions)
@@ -2508,7 +2745,8 @@ class _SheetModel {
     final name = (map['name'] as String?)?.toString();
     final savedAt = DateTime.tryParse((map['savedAt'] ?? '').toString());
 
-    final headers = (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
+    final headers =
+        (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
 
     final rowsRaw = (map['rows'] as List?) ?? const [];
     final rowModels = <_RowModel>[];
@@ -2555,7 +2793,8 @@ class _RowModel {
   };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
-    final cells = (map['cells'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
+    final cells =
+        (map['cells'] as List?)?.map((e) => (e ?? '').toString()).toList() ?? const <String>[];
     final photosRaw = (map['photos'] as List?) ?? const [];
     final photos = <_RowPhoto>[];
     for (final it in photosRaw) {
@@ -2707,7 +2946,7 @@ class _SheetPalette {
     return _SheetPalette(
       isLight: true,
       hairline: hairline,
-      bg: const Color(0xFFF2F2F7), // iOS grouped
+      bg: const Color(0xFFF2F2F7),
       fg: const Color(0xFF0B0B0C),
       fgMuted: const Color(0xFF6B6B72),
 
@@ -2715,7 +2954,7 @@ class _SheetPalette {
       headerBg: const Color(0xFFFFFFFF),
       indexBg: const Color(0xFFFFFFFF),
 
-      cellBg: const Color(0xFFFFFFFF), // hoja blanca nítida
+      cellBg: const Color(0xFFFFFFFF),
       blinkBg: iosBlue.withOpacity(0.10),
 
       border: base.withOpacity(0.10),
@@ -2746,7 +2985,7 @@ class _SheetPalette {
     return _SheetPalette(
       isLight: false,
       hairline: hairline,
-      bg: const Color(0xFF000000), // negro profundo
+      bg: const Color(0xFF000000),
       fg: const Color(0xFFF5F5F7),
       fgMuted: const Color(0xFF9A9AA4),
 
@@ -2754,7 +2993,7 @@ class _SheetPalette {
       headerBg: const Color(0xFF0B0B0C),
       indexBg: const Color(0xFF0B0B0C),
 
-      cellBg: const Color(0xFF0B0B0C), // hoja negro profundo
+      cellBg: const Color(0xFF0B0B0C),
       blinkBg: iosBlue.withOpacity(0.25),
 
       border: const Color(0xFFFFFFFF).withOpacity(0.10),
@@ -2771,11 +3010,13 @@ class _SheetPalette {
 
       hintBg: const Color(0xFF000000),
 
-      headerCardBg: const Color(0xFF0B0B0C).withOpacity(0.82),
-      headerCardBorder: const Color(0xFF2C2C2E),
+      // ✅ glass visible
+      headerCardBg: const Color(0xFF0B0B0C).withOpacity(0.35),
+      headerCardBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
 
-      pillBtnBg: const Color(0xFF0B0B0C),
-      pillBtnBorder: const Color(0xFF2C2C2E),
+      // ✅ icon pills iOS
+      pillBtnBg: const Color(0xFFFFFFFF).withOpacity(0.06),
+      pillBtnBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
     );
   }
 }
