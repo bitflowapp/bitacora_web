@@ -15,3 +15,7 @@ ios/
 macos/
 windows/
 linux/
+# IDE
+.idea/
+*.iml
+.vscode/
