@@ -140,7 +140,7 @@ class _EditorScreenState extends State<EditorScreen>
   //
   // ✅ FIX iPhone/Safari:
   // - El editor se mantiene SIEMPRE montado en el árbol (aunque oculto).
-  // - El focus se pide dentro del mismo tap (sin depender de postFrame).
+  // - El focus se pide dentro del mismo tap (sin async gaps) -> teclado estable.
   //
   bool _mobileEditorOpen = false;
   bool _mobileEditingHeader = false;
@@ -286,10 +286,11 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     return _SheetModel(
-        headers: headers,
-        rows: rowModels,
-        name: _sheetName,
-        savedAt: _lastSavedAt);
+      headers: headers,
+      rows: rowModels,
+      name: _sheetName,
+      savedAt: _lastSavedAt,
+    );
   }
 
   List<String> _defaultHeaders() {
@@ -381,10 +382,11 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final model = _SheetModel(
-          name: _sheetName,
-          headers: _headers,
-          rows: _rows,
-          savedAt: savedAt);
+        name: _sheetName,
+        headers: _headers,
+        rows: _rows,
+        savedAt: savedAt,
+      );
       await prefs.setString(_prefsKey, json.encode(model.toJson()));
 
       if (!mounted) return;
@@ -985,6 +987,7 @@ class _EditorScreenState extends State<EditorScreen>
     _setCell(r, c, v);
   }
 
+  // ✅ iOS/Web: foco sin async gaps + sin “invisible input”
   void _openMobileInlineEditor({
     required bool isHeader,
     required int row,
@@ -993,16 +996,11 @@ class _EditorScreenState extends State<EditorScreen>
     required String initial,
     required List<_MobileAction> actions,
   }) {
-    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
-
     final wasOpen = _mobileEditorOpen;
 
-    // Si ya estaba abierto, NO lo cerramos: commiteamos draft y saltamos.
+    // Si ya estaba abierto: commitea el draft y seguí (sin cerrar teclado).
     if (wasOpen) {
       _commitMobileDraftKeepingKeyboard();
-    } else {
-      // Unfocus previo: evita que Safari “pegue” el input al URL pill.
-      FocusManager.instance.primaryFocus?.unfocus();
     }
 
     _mobileEditingHeader = isHeader;
@@ -1016,24 +1014,24 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
-    setState(() => _mobileEditorOpen = true);
-
-    if (_kMobilePerfLogs) {
-      debugPrint(
-          '[MobilePerf] open/switch editor state in ${sw?.elapsedMilliseconds}ms');
+    if (!_mobileEditorOpen) {
+      setState(() => _mobileEditorOpen = true);
+    } else {
+      setState(() {});
     }
 
-    // Pedir focus directo (bar SIEMPRE montado).
+    // ✅ pedir focus “en el gesto” (sin microtask/postframe)
     _mobileFocus.requestFocus();
-    scheduleMicrotask(() {
-      if (!mounted || !_mobileEditorOpen) return;
-      _mobileFocus.requestFocus();
-    });
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    } catch (_) {}
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_mobileEditorOpen) return;
-      if (row >= 0) _ensureRowVisibleForKeyboard(row);
-    });
+    if (row >= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_mobileEditorOpen) return;
+        _ensureRowVisibleForKeyboard(row);
+      });
+    }
   }
 
   List<_MobileAction> _mobileActionsForCell(int r, int c) {
@@ -1059,9 +1057,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_vScroll.hasClients) return;
     if (row < 0) return;
 
-    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
     final mq = MediaQuery.of(context);
-
     final kb = math.max(mq.viewInsets.bottom, _kbInsetDp);
 
     final viewport = _vScroll.position.viewportDimension;
@@ -1091,10 +1087,6 @@ class _EditorScreenState extends State<EditorScreen>
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
-
-    if (_kMobilePerfLogs) {
-      debugPrint('[MobilePerf] ensureRowVisible ${sw?.elapsedMilliseconds}ms');
-    }
   }
 
   bool get _canMobileNav {
@@ -1137,7 +1129,6 @@ class _EditorScreenState extends State<EditorScreen>
       if (r >= _rows.length) return;
     }
 
-    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
     setState(() {
       _selRow = r;
       _selCol = c;
@@ -1155,15 +1146,15 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
+    _mobileFocus.requestFocus();
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    } catch (_) {}
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_mobileEditorOpen) return;
       _ensureRowVisibleForKeyboard(r);
-      _mobileFocus.requestFocus();
     });
-
-    if (_kMobilePerfLogs) {
-      debugPrint('[MobilePerf] moveNext ${sw?.elapsedMilliseconds}ms');
-    }
   }
 
   void _mobileMovePrev() {
@@ -1185,7 +1176,6 @@ class _EditorScreenState extends State<EditorScreen>
       c = last;
     }
 
-    final sw = _kMobilePerfLogs ? (Stopwatch()..start()) : null;
     setState(() {
       _selRow = r;
       _selCol = c;
@@ -1203,15 +1193,15 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
+    _mobileFocus.requestFocus();
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    } catch (_) {}
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_mobileEditorOpen) return;
       _ensureRowVisibleForKeyboard(r);
-      _mobileFocus.requestFocus();
     });
-
-    if (_kMobilePerfLogs) {
-      debugPrint('[MobilePerf] movePrev ${sw?.elapsedMilliseconds}ms');
-    }
   }
 
   void _cancelMobileEdit() {
@@ -1222,8 +1212,10 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileTitle = '';
     _mobileOriginal = '';
     _mobileActions = const [];
+
     try {
       _mobileFocus.unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
     } catch (_) {}
   }
 
@@ -1259,8 +1251,10 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileTitle = '';
     _mobileOriginal = '';
     _mobileActions = const [];
+
     try {
       _mobileFocus.unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
     } catch (_) {}
   }
 
@@ -1299,8 +1293,8 @@ class _EditorScreenState extends State<EditorScreen>
 
       if (move == _OverlayMove.down) {
         if (_rows.isEmpty) _rows.add(_RowModel.empty(_headers.length));
-        _beginEditCell(context, pal, 0, currentHeader.clamp(0, lastHeaderCol),
-            width);
+        _beginEditCell(context, pal, 0,
+            currentHeader.clamp(0, lastHeaderCol), width);
         return;
       }
 
@@ -1567,12 +1561,12 @@ class _EditorScreenState extends State<EditorScreen>
         }));
       }
     } else {
-      actions.add(_CtxAction('Editar', Icons.edit_outlined,
-              () => _beginEditCell(context, pal, r, c, 320)));
-      actions.add(_CtxAction('Copiar', Icons.copy_rounded,
-              () => unawaited(_copySelectionToClipboard())));
-      actions.add(_CtxAction('Pegar', Icons.paste_rounded,
-              () => unawaited(_pasteFromClipboard())));
+      actions.add(_CtxAction(
+          'Editar', Icons.edit_outlined, () => _beginEditCell(context, pal, r, c, 320)));
+      actions.add(_CtxAction(
+          'Copiar', Icons.copy_rounded, () => unawaited(_copySelectionToClipboard())));
+      actions.add(_CtxAction(
+          'Pegar', Icons.paste_rounded, () => unawaited(_pasteFromClipboard())));
       actions.add(_CtxAction(
           'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
@@ -1590,8 +1584,7 @@ class _EditorScreenState extends State<EditorScreen>
               () => _insertRow(r)));
       actions.add(_CtxAction('Insertar fila abajo', Icons.arrow_downward_rounded,
               () => _insertRow(r + 1)));
-      actions.add(_CtxAction(
-          'Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
+      actions.add(_CtxAction('Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
     }
 
     if (actions.isEmpty) return;
@@ -1779,8 +1772,7 @@ class _EditorScreenState extends State<EditorScreen>
     final txt = _getCellText(r, c);
     if (txt.trim().isEmpty) return;
 
-    final m = RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)')
-        .firstMatch(txt);
+    final m = RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)').firstMatch(txt);
     if (m == null) return;
 
     final lat = double.tryParse(m.group(1) ?? '');
@@ -1967,8 +1959,8 @@ class _EditorScreenState extends State<EditorScreen>
           final normalized = <_RowModel>[];
           for (final rr in out) {
             if (rr is List) {
-              normalized.add(
-                  _RowModel.fromCells(_normalizeRow(rr, _headers.length)));
+              normalized
+                  .add(_RowModel.fromCells(_normalizeRow(rr, _headers.length)));
             }
           }
           setState(() {
@@ -2078,7 +2070,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                     color: palette.headerCardBorder, width: palette.hairline),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
+                    color:
+                    Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
                     blurRadius: 30,
                     offset: const Offset(0, 14),
                   ),
@@ -2449,8 +2442,7 @@ class _GridView extends StatelessWidget {
                             isOverlayTarget: overlayTargetHeaderCol == col,
                             editorLink: editorLink,
                             onTap: () => onHeaderEditRequested(
-                                col,
-                                col == headers.length - 1 ? photosW : colW),
+                                col, col == headers.length - 1 ? photosW : colW),
                             onSecondaryTapDown: (d) =>
                                 onContextMenu(d.globalPosition, -1, col, true),
                           ),
@@ -2563,13 +2555,15 @@ class _GridView extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.headerBg,
         border: Border(
-          right: BorderSide(color: palette.borderStrong, width: palette.hairline),
-          bottom: BorderSide(color: palette.borderStrong, width: palette.hairline),
+          right:
+          BorderSide(color: palette.borderStrong, width: palette.hairline),
+          bottom:
+          BorderSide(color: palette.borderStrong, width: palette.hairline),
         ),
       ),
       child: Text('#',
-          style:
-          TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w900)),
+          style: TextStyle(
+              color: palette.fgMuted, fontWeight: FontWeight.w900)),
     );
   }
 }
@@ -2613,8 +2607,10 @@ class _HeaderCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.headerBg,
           border: Border(
-            right: BorderSide(color: palette.borderStrong, width: palette.hairline),
-            bottom: BorderSide(color: palette.borderStrong, width: palette.hairline),
+            right:
+            BorderSide(color: palette.borderStrong, width: palette.hairline),
+            bottom:
+            BorderSide(color: palette.borderStrong, width: palette.hairline),
           ),
         ),
         child: Text(
@@ -2670,7 +2666,8 @@ class _RowIndexCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.indexBg,
           border: Border(
-            right: BorderSide(color: palette.borderStrong, width: palette.hairline),
+            right:
+            BorderSide(color: palette.borderStrong, width: palette.hairline),
             bottom: BorderSide(color: palette.border, width: palette.hairline),
           ),
         ),
@@ -2754,7 +2751,8 @@ class _DataCell extends StatelessWidget {
               color: bg,
               border: Border(
                 right: BorderSide(color: palette.border, width: palette.hairline),
-                bottom: BorderSide(color: palette.border, width: palette.hairline),
+                bottom:
+                BorderSide(color: palette.border, width: palette.hairline),
               ),
             ),
             child: isPhotos
@@ -2889,8 +2887,8 @@ class _PhotosCell extends StatelessWidget {
         Expanded(
           child: Text(
             count == 0 ? '—' : '$count',
-            style:
-            TextStyle(color: palette.fg, fontWeight: FontWeight.w900, height: 1.05),
+            style: TextStyle(
+                color: palette.fg, fontWeight: FontWeight.w900, height: 1.05),
           ),
         ),
         InkWell(
@@ -2923,7 +2921,8 @@ class _StatusBar extends StatelessWidget {
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Text(text,
-          style: TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
+          style: TextStyle(
+              color: fg, fontWeight: FontWeight.w900, height: 1.05)),
     );
   }
 }
@@ -2939,7 +2938,9 @@ class _MobileHintBar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: palette.hintBg,
-        border: Border(top: BorderSide(color: palette.borderStrong, width: palette.hairline)),
+        border: Border(
+          top: BorderSide(color: palette.borderStrong, width: palette.hairline),
+        ),
       ),
       child: Text(
         'Tap = editar. Mantener = menú.',
@@ -2997,6 +2998,9 @@ class _MobileInlineEditorBar extends StatelessWidget {
         const SingleActivator(LogicalKeyboardKey.tab, shift: true): onPrev!,
     };
 
+    // ✅ iOS Web: 0 exacto puede hacer que Safari “no considere” el input visible.
+    final opacity = isOpen ? 1.0 : 0.01;
+
     return Positioned(
       left: 0,
       right: 0,
@@ -3007,128 +3011,134 @@ class _MobileInlineEditorBar extends StatelessWidget {
         padding: EdgeInsets.only(bottom: keyboardInset),
         child: SafeArea(
           top: false,
-          child: IgnorePointer(
-            ignoring: !isOpen,
-            child: AnimatedSlide(
-              duration: const Duration(milliseconds: 170),
+          child: AbsorbPointer(
+            absorbing: !isOpen, // ✅ sin pointer-events: none (iOS safe)
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,
-              offset: isOpen ? Offset.zero : const Offset(0, 1.0),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 140),
-                opacity: isOpen ? 1.0 : 0.0,
-                child: CallbackShortcuts(
-                  bindings: bindings,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                    decoration: BoxDecoration(
-                      color: palette.appBarBg,
-                      border: Border(top: BorderSide(color: palette.borderStrong, width: palette.hairline)),
+              opacity: opacity,
+              child: CallbackShortcuts(
+                bindings: bindings,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  decoration: BoxDecoration(
+                    color: palette.appBarBg,
+                    border: Border(
+                      top: BorderSide(
+                          color: palette.borderStrong, width: palette.hairline),
                     ),
-                    child: Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: palette.editorBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: palette.borderStrong, width: palette.hairline),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black
-                                .withOpacity(palette.isLight ? 0.08 : 0.35),
-                            blurRadius: 14,
-                            offset: const Offset(0, 8),
-                          )
-                        ],
-                      ),
-                      child: Row(
-                        children: [
+                  ),
+                  child: Container(
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: palette.editorBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: palette.borderStrong, width: palette.hairline),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withOpacity(palette.isLight ? 0.08 : 0.35),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        )
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Cancelar (Esc)',
+                          onPressed: onCancel,
+                          icon:
+                          Icon(Icons.close_rounded, color: palette.fgMuted),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: palette.headerBg,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                                color: palette.border, width: palette.hairline),
+                          ),
+                          child: Text(
+                            title.isEmpty ? 'Editar' : title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.fgMuted,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              height: 1.05,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            autofocus: false,
+                            maxLines: 1,
+                            enabled: true,
+                            textInputAction: onNext == null
+                                ? TextInputAction.done
+                                : TextInputAction.next,
+                            keyboardAppearance: palette.isLight
+                                ? Brightness.light
+                                : Brightness.dark,
+                            scrollPadding: EdgeInsets.zero,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            textCapitalization: TextCapitalization.none,
+                            style: TextStyle(
+                              color: palette.fg,
+                              fontSize: 16,
+                              height: 1.05,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.1,
+                            ),
+                            cursorColor: palette.accent,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              filled: true,
+                              fillColor: palette.mobileInputBg,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 12),
+                              hintText: 'Escribir…',
+                              hintStyle: TextStyle(color: palette.fgMuted),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (_) =>
+                            onNext == null ? onDone() : onNext!(),
+                          ),
+                        ),
+                        if (onPrev != null)
                           IconButton(
-                            tooltip: 'Cancelar (Esc)',
-                            onPressed: onCancel,
-                            icon: Icon(Icons.close_rounded, color: palette.fgMuted),
+                            tooltip: 'Anterior',
+                            onPressed: onPrev,
+                            icon: Icon(Icons.chevron_left_rounded,
+                                color: palette.fg),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: palette.headerBg,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: palette.border, width: palette.hairline),
-                            ),
-                            child: Text(
-                              title.isEmpty ? 'Editar' : title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: palette.fgMuted,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                height: 1.05,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              focusNode: focusNode,
-                              autofocus: false,
-                              maxLines: 1,
-                              textInputAction: onNext == null
-                                  ? TextInputAction.done
-                                  : TextInputAction.next,
-                              keyboardAppearance: palette.isLight
-                                  ? Brightness.light
-                                  : Brightness.dark,
-                              scrollPadding: EdgeInsets.zero,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              textCapitalization: TextCapitalization.none,
-                              style: TextStyle(
-                                color: palette.fg,
-                                fontSize: 16,
-                                height: 1.05,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.1,
-                              ),
-                              cursorColor: palette.accent,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                filled: true,
-                                fillColor: palette.mobileInputBg,
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
-                                hintText: 'Escribir…',
-                                hintStyle: TextStyle(color: palette.fgMuted),
-                                border: InputBorder.none,
-                              ),
-                              onSubmitted: (_) =>
-                              onNext == null ? onDone() : onNext!(),
-                            ),
-                          ),
-                          if (onPrev != null)
-                            IconButton(
-                              tooltip: 'Anterior',
-                              onPressed: onPrev,
-                              icon: Icon(Icons.chevron_left_rounded, color: palette.fg),
-                            ),
-                          if (onNext != null)
-                            IconButton(
-                              tooltip: 'Siguiente',
-                              onPressed: onNext,
-                              icon: Icon(Icons.chevron_right_rounded, color: palette.fg),
-                            ),
-                          for (final a in actions)
-                            IconButton(
-                              tooltip: a.label,
-                              onPressed: a.onTap,
-                              icon: Icon(a.icon, color: palette.fg),
-                            ),
+                        if (onNext != null)
                           IconButton(
-                            tooltip: 'OK',
-                            onPressed: onDone,
-                            icon: Icon(Icons.check_rounded, color: palette.fg),
+                            tooltip: 'Siguiente',
+                            onPressed: onNext,
+                            icon: Icon(Icons.chevron_right_rounded,
+                                color: palette.fg),
                           ),
-                        ],
-                      ),
+                        for (final a in actions)
+                          IconButton(
+                            tooltip: a.label,
+                            onPressed: a.onTap,
+                            icon: Icon(a.icon, color: palette.fg),
+                          ),
+                        IconButton(
+                          tooltip: 'OK',
+                          onPressed: onDone,
+                          icon: Icon(Icons.check_rounded, color: palette.fg),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -3142,7 +3152,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
 }
 
 class _MobileAction {
-  const _MobileAction({required this.icon, required this.label, required this.onTap});
+  const _MobileAction(
+      {required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -3151,7 +3162,8 @@ class _MobileAction {
 // ============================== Modelo =====================================
 
 class _SheetModel {
-  _SheetModel({required this.headers, required this.rows, this.name, this.savedAt});
+  _SheetModel(
+      {required this.headers, required this.rows, this.name, this.savedAt});
 
   final String? name;
   final DateTime? savedAt;
@@ -3169,9 +3181,10 @@ class _SheetModel {
     final name = (map['name'] as String?)?.toString();
     final savedAt = DateTime.tryParse((map['savedAt'] ?? '').toString());
 
-    final headers =
-        (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ??
-            const <String>[];
+    final headers = (map['headers'] as List?)
+        ?.map((e) => (e ?? '').toString())
+        .toList() ??
+        const <String>[];
 
     final rowsRaw = (map['rows'] as List?) ?? const [];
     final rowModels = <_RowModel>[];
@@ -3185,7 +3198,8 @@ class _SheetModel {
       }
     }
 
-    return _SheetModel(name: name, savedAt: savedAt, headers: headers, rows: rowModels);
+    return _SheetModel(
+        name: name, savedAt: savedAt, headers: headers, rows: rowModels);
   }
 }
 
@@ -3219,9 +3233,10 @@ class _RowModel {
   };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
-    final cells =
-        (map['cells'] as List?)?.map((e) => (e ?? '').toString()).toList() ??
-            const <String>[];
+    final cells = (map['cells'] as List?)
+        ?.map((e) => (e ?? '').toString())
+        .toList() ??
+        const <String>[];
     final photosRaw = (map['photos'] as List?) ?? const [];
     final photos = <_RowPhoto>[];
     for (final it in photosRaw) {
@@ -3259,7 +3274,8 @@ class _RowPhoto {
       name: (map['name'] ?? '').toString(),
       mime: (map['mime'] ?? 'image/jpeg').toString(),
       thumbB64: (map['thumbB64'] ?? '').toString(),
-      addedAt: DateTime.tryParse((map['addedAt'] ?? '').toString()) ?? DateTime.now(),
+      addedAt: DateTime.tryParse((map['addedAt'] ?? '').toString()) ??
+          DateTime.now(),
     );
   }
 }
@@ -3286,14 +3302,19 @@ class _CellRef {
   final int c;
 
   @override
-  bool operator ==(Object other) => other is _CellRef && other.r == r && other.c == c;
+  bool operator ==(Object other) =>
+      other is _CellRef && other.r == r && other.c == c;
 
   @override
   int get hashCode => Object.hash(r, c);
 }
 
 class _GpsFix {
-  const _GpsFix({required this.lat, required this.lng, required this.accuracyM, required this.ts});
+  const _GpsFix(
+      {required this.lat,
+        required this.lng,
+        required this.accuracyM,
+        required this.ts});
 
   final double lat;
   final double lng;
@@ -3419,37 +3440,26 @@ class _SheetPalette {
     return _SheetPalette(
       isLight: false,
       hairline: hairline,
-
       bg: oledBlack,
       fg: appleWhite,
       fgMuted: const Color(0xFFB3B3BA),
-
       appBarBg: oledBlack,
       headerBg: headerTint,
       indexBg: headerTint,
-
       // grilla/celdas: OLED off
       cellBg: oledBlack,
-
       blinkBg: iosBlue.withOpacity(0.22),
-
       border: const Color(0xFFFFFFFF).withOpacity(0.08),
       borderStrong: const Color(0xFFFFFFFF).withOpacity(0.14),
-
       menuBg: const Color(0xFF15151A),
       editorBg: const Color(0xFF101014),
       mobileInputBg: const Color(0xFF0C0C10),
-
       accent: iosBlue,
-
       statusBg: const Color(0xFF0F172A),
       statusFg: const Color(0xFF93C5FD),
-
       hintBg: oledBlack,
-
       headerCardBg: const Color(0xFF0B0B0C).withOpacity(0.28),
       headerCardBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
-
       pillBtnBg: const Color(0xFFFFFFFF).withOpacity(0.06),
       pillBtnBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
     );
