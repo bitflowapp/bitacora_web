@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <base href="$FLUTTER_BASE_HREF">
+
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+
+    <!-- IMPORTANTE en iOS -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <base href="/bitacora_web/" />
 
     <title>Bit Flow — Planilla tipo Excel para campo</title>
     <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
     <meta name="robots" content="index,follow" />
 
-    <!-- BUILD ID: SE ESTAMPA EN CI -->
-    $12468366e-1152-4a07-a635-3dd04643bd82" />
+    <!-- BUILD ID: lo estampás en tu deploy con replace -->
+    <meta name="bitflow-build" content="__BUILD_ID__" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -25,33 +28,23 @@
     <link rel="shortcut icon" type="image/png" href="favicon.png" />
 
     <style>
-        :root { --app-height: 100vh; }
+        :root { --app-h: 100vh; }
 
-        html {
-          height: 100%;
+        html, body {
           width: 100%;
+          height: 100%;
           margin: 0;
-          overflow: hidden;
+          padding: 0;
+          overflow: hidden;            /* clave: que Safari no scrollee el doc */
           overscroll-behavior: none;
           background: #FFFFFF;
           -webkit-text-size-adjust: 100%;
-          touch-action: manipulation;
-        }
-
-        body {
-          width: 100%;
-          margin: 0;
-          overflow: hidden;
-          background: #FFFFFF;
-
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: var(--app-height);
         }
 
         * { -webkit-tap-highlight-color: transparent; }
+
+        /* iOS Safari: evita zoom al enfocar inputs invisibles (text-editing de Flutter) */
+        input, textarea, select { font-size: 16px !important; }
 
         #build-badge {
           position: fixed;
@@ -95,124 +88,78 @@
             } catch (_) {}
           }
 
-          // iOS: fijar altura real sin disparar loops de resize/scroll
-          function iosViewportFix() {
-            var root = document.documentElement;
-            var lastH = -1;
-            var raf = 0;
+          // ---- iOS keyboard fix (visualViewport pan) ----
+          var raf = 0;
+          var lastH = -1, lastTop = -1;
 
-            function getHeight() {
-              var vv = window.visualViewport;
-              return vv ? vv.height : window.innerHeight;
+          function clamp0(x) { return x < 0 ? 0 : x; }
+
+          function applyViewport() {
+            raf = 0;
+            var vv = window.visualViewport;
+            var h = vv ? vv.height : window.innerHeight;
+            var top = clamp0(vv ? vv.offsetTop : 0);
+
+            if (Math.abs(h - lastH) < 0.5 && Math.abs(top - lastTop) < 0.5) return;
+            lastH = h; lastTop = top;
+
+            document.documentElement.style.setProperty('--app-h', h + 'px');
+
+            // Mover TODOS los roots de Flutter (canvas + text editing + semantics) juntos
+            var nodes = document.querySelectorAll(
+              'flt-glass-pane, flt-text-editing-host, flt-semantics-host, flt-announcement-host'
+            );
+
+            for (var i = 0; i < nodes.length; i++) {
+              var n = nodes[i];
+              n.style.position = 'fixed';
+              n.style.left = '0';
+              n.style.right = '0';
+              n.style.top = '0';
+              n.style.height = h + 'px';
+              n.style.transform = 'translateY(' + top + 'px)';
+              n.style.transformOrigin = '0 0';
+              n.style.willChange = 'transform,height';
             }
+          }
 
-            function apply() {
-              raf = 0;
-              var h = getHeight();
-              if (Math.abs(h - lastH) > 0.5) {
-                lastH = h;
-                root.style.setProperty('--app-height', h + 'px');
-              }
-            }
+          function scheduleApply() {
+            if (raf) return;
+            raf = requestAnimationFrame(applyViewport);
+          }
 
-            function schedule() {
-              if (raf) return;
-              raf = requestAnimationFrame(apply);
-            }
+          function boot() {
+            mountBadge();
+            scheduleApply();
 
-            apply();
-
-            window.addEventListener('resize', schedule, { passive: true });
-            window.addEventListener('orientationchange', schedule, { passive: true });
-            window.addEventListener('pageshow', schedule, { passive: true });
-            window.addEventListener('focusin', schedule, true);
-            window.addEventListener('focusout', schedule, true);
+            window.addEventListener('resize', scheduleApply, { passive: true });
+            window.addEventListener('orientationchange', scheduleApply, { passive: true });
+            document.addEventListener('focusin', scheduleApply, true);
+            document.addEventListener('focusout', scheduleApply, true);
 
             if (window.visualViewport) {
-              window.visualViewport.addEventListener('resize', schedule, { passive: true });
-              window.visualViewport.addEventListener('scroll', schedule, { passive: true });
+              window.visualViewport.addEventListener('resize', scheduleApply, { passive: true });
+              window.visualViewport.addEventListener('scroll', scheduleApply, { passive: true });
             }
-          }
 
-          async function nukeCachesIfBuildChanged() {
-            var key = 'bitflow_last_build';
-            var last = null;
-            try { last = localStorage.getItem(key); } catch (_) {}
-
-            if (last === BUILD) return;
-            try { localStorage.setItem(key, BUILD); } catch (_) {}
-
+            // Flutter inserta flt-* luego: observamos y aplicamos apenas aparezcan
             try {
-              if ('serviceWorker' in navigator) {
-                var regs = await navigator.serviceWorker.getRegistrations();
-                for (var i = 0; i < regs.length; i++) {
-                  try { await regs[i].unregister(); } catch (_) {}
-                }
-              }
-            } catch (_) {}
-
-            try {
-              if (window.caches && caches.keys) {
-                var names = await caches.keys();
-                for (var j = 0; j < names.length; j++) {
-                  try { await caches.delete(names[j]); } catch (_) {}
-                }
-              }
+              var mo = new MutationObserver(scheduleApply);
+              mo.observe(document.documentElement, { childList: true, subtree: true });
             } catch (_) {}
           }
 
-          function loadScript(src) {
-            return new Promise(function (resolve, reject) {
-              try {
-                var s = document.createElement('script');
-                s.src = src;
-                s.defer = true;
-                s.onload = resolve;
-                s.onerror = reject;
-                document.body.appendChild(s);
-              } catch (e) { reject(e); }
-            });
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+          } else {
+            boot();
           }
-
-          // Cache-bust real: flutter.js + main.dart.js versionados
-          async function bootFlutter() {
-            await loadScript('flutter.js?v=' + encodeURIComponent(BUILD));
-
-            var cfg = {
-              entrypointUrl: 'main.dart.js?v=' + encodeURIComponent(BUILD),
-              serviceWorker: { serviceWorkerVersion: null }
-            };
-
-            if (window._flutter && _flutter.loader) {
-              if (_flutter.loader.loadEntrypoint) {
-                _flutter.loader.loadEntrypoint(cfg)
-                  .then(function (engineInitializer) { return engineInitializer.initializeEngine(); })
-                  .then(function (appRunner) { return appRunner.runApp(); });
-                return;
-              }
-              if (_flutter.loader.load) {
-                _flutter.loader.load(cfg);
-                return;
-              }
-            }
-
-            // Último fallback: cargar el main directo
-            await loadScript(cfg.entrypointUrl);
-          }
-
-          document.addEventListener('DOMContentLoaded', function () {
-            mountBadge();
-            iosViewportFix();
-
-            nukeCachesIfBuildChanged()
-              .catch(function(){})
-              .finally(function () {
-                bootFlutter().catch(function (e) { console.error(e); });
-                loadScript('interop.js?v=' + encodeURIComponent(BUILD)).catch(function(){});
-              });
-          });
         })();
     </script>
 </head>
-<body></body>
+
+<body>
+<!-- Cache-bust del bootstrap para iOS/Safari tercos -->
+<script src="flutter_bootstrap.js?v=__BUILD_ID__" async></script>
+</body>
 </html>
