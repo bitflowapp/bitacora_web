@@ -14,7 +14,7 @@
   <meta name="robots" content="index,follow" />
 
   <!-- BUILD ID (lo reemplazÃ¡s en /docs despuÃ©s del robocopy) -->
-  <meta name="bitflow-build" content="20251231-023746" />
+  $120251231_024409_14fd56e" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -77,7 +77,7 @@
       function getBuildId() {
         var m = document.querySelector('meta[name="bitflow-build"]');
         var v = m ? (m.getAttribute('content') || '') : '';
-        return (v && v !== '20251231-023746') ? v : ('dev-' + Date.now());
+        return (v && v !== '__BUILD_ID__') ? v : ('dev-' + Date.now());
       }
 
       var BUILD = getBuildId();
