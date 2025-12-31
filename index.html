@@ -1,50 +1,66 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- BITFLOW_KB_FIX_V2 -->
     <base href="$FLUTTER_BASE_HREF">
 
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
 
-    <!-- IMPORTANTE en iOS -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- iOS: imprescindible -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
     <title>Bit Flow — Planilla tipo Excel para campo</title>
-    <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
-    <meta name="robots" content="index,follow" />
+    <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real.">
+    <meta name="robots" content="index,follow">
 
-    <!-- BUILD ID: lo estampás en tu deploy con replace -->
-    <meta name="bitflow-build" content="__BUILD_ID__" />
+    <!-- BUILD ID (lo reemplazás en deploy) -->
+    <meta name="bitflow-build" content="__BUILD_ID__">
 
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Bit Flow" />
-    <meta name="application-name" content="Bit Flow" />
-    <meta name="theme-color" content="#0A84FF" />
-    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Bit Flow">
+    <meta name="application-name" content="Bit Flow">
+    <meta name="theme-color" content="#0A84FF">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-    <link rel="manifest" href="manifest.json" />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="shortcut icon" type="image/png" href="favicon.png" />
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="shortcut icon" type="image/png" href="favicon.png">
 
     <style>
-        :root { --app-h: 100vh; }
+        :root { --app-height: 100vh; }
 
         html, body {
           width: 100%;
           height: 100%;
           margin: 0;
           padding: 0;
-          overflow: hidden;            /* clave: que Safari no scrollee el doc */
+          overflow: hidden;               /* clave: que Safari NO scrollee el doc */
           overscroll-behavior: none;
           background: #FFFFFF;
           -webkit-text-size-adjust: 100%;
         }
 
+        body {
+          position: fixed;
+          inset: 0;
+          height: var(--app-height);
+        }
+
         * { -webkit-tap-highlight-color: transparent; }
 
-        /* iOS Safari: evita zoom al enfocar inputs invisibles (text-editing de Flutter) */
+        /* iOS Safari: evita zoom al enfocar el input invisible de Flutter */
         input, textarea, select { font-size: 16px !important; }
+
+        /* Evita el “scroll-to-hidden-input” de Flutter en iOS */
+        flt-glass-pane,
+        flt-text-editing-host,
+        flt-semantics-host,
+        flt-announcement-host {
+          position: fixed !important;
+          inset: 0 !important;
+        }
 
         #build-badge {
           position: fixed;
@@ -88,44 +104,63 @@
             } catch (_) {}
           }
 
-          // ---- iOS keyboard fix (visualViewport pan) ----
           var raf = 0;
-          var lastH = -1, lastTop = -1;
-
-          function clamp0(x) { return x < 0 ? 0 : x; }
-
           function applyViewport() {
             raf = 0;
             var vv = window.visualViewport;
             var h = vv ? vv.height : window.innerHeight;
-            var top = clamp0(vv ? vv.offsetTop : 0);
 
-            if (Math.abs(h - lastH) < 0.5 && Math.abs(top - lastTop) < 0.5) return;
-            lastH = h; lastTop = top;
+            document.documentElement.style.setProperty('--app-height', h + 'px');
 
-            document.documentElement.style.setProperty('--app-h', h + 'px');
-
-            // Mover TODOS los roots de Flutter (canvas + text editing + semantics) juntos
-            var nodes = document.querySelectorAll(
-              'flt-glass-pane, flt-text-editing-host, flt-semantics-host, flt-announcement-host'
-            );
-
-            for (var i = 0; i < nodes.length; i++) {
-              var n = nodes[i];
-              n.style.position = 'fixed';
-              n.style.left = '0';
-              n.style.right = '0';
-              n.style.top = '0';
-              n.style.height = h + 'px';
-              n.style.transform = 'translateY(' + top + 'px)';
-              n.style.transformOrigin = '0 0';
-              n.style.willChange = 'transform,height';
-            }
+            // Safari a veces igual intenta “pan”: lo anulamos.
+            try { window.scrollTo(0, 0); } catch (_) {}
+            setTimeout(function(){ try { window.scrollTo(0,0); } catch(_){} }, 50);
           }
 
           function scheduleApply() {
             if (raf) return;
             raf = requestAnimationFrame(applyViewport);
+          }
+
+          async function nukeCachesIfBuildChanged() {
+            var key = 'bitflow_last_build';
+            var last = null;
+            try { last = localStorage.getItem(key); } catch (_) {}
+
+            if (last === BUILD) return;
+            try { localStorage.setItem(key, BUILD); } catch (_) {}
+
+            // iOS Safari es “creativo” con cachés/SW: los sacamos de la ecuación.
+            try {
+              if ('serviceWorker' in navigator) {
+                var regs = await navigator.serviceWorker.getRegistrations();
+                for (var i = 0; i < regs.length; i++) {
+                  try { await regs[i].unregister(); } catch (_) {}
+                }
+              }
+            } catch (_) {}
+
+            try {
+              if (window.caches && caches.keys) {
+                var names = await caches.keys();
+                for (var j = 0; j < names.length; j++) {
+                  try { await caches.delete(names[j]); } catch (_) {}
+                }
+              }
+            } catch (_) {}
+          }
+
+          function loadBootstrap() {
+            return new Promise(function (resolve, reject) {
+              try {
+                var s = document.createElement('script');
+                s.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(BUILD);
+                s.defer = true;
+                s.onload = resolve;
+                s.onerror = reject;
+                document.body.appendChild(s);
+              } catch (e) { reject(e); }
+            });
           }
 
           function boot() {
@@ -142,11 +177,17 @@
               window.visualViewport.addEventListener('scroll', scheduleApply, { passive: true });
             }
 
-            // Flutter inserta flt-* luego: observamos y aplicamos apenas aparezcan
+            // Por si Flutter inserta hosts después
             try {
               var mo = new MutationObserver(scheduleApply);
               mo.observe(document.documentElement, { childList: true, subtree: true });
             } catch (_) {}
+
+            nukeCachesIfBuildChanged()
+              .catch(function(){})
+              .finally(function () {
+                loadBootstrap().catch(function (e) { console.error(e); });
+              });
           }
 
           if (document.readyState === 'loading') {
@@ -157,9 +198,5 @@
         })();
     </script>
 </head>
-
-<body>
-<!-- Cache-bust del bootstrap para iOS/Safari tercos -->
-<script src="flutter_bootstrap.js?v=__BUILD_ID__" async></script>
-</body>
+<body></body>
 </html>
