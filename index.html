@@ -1,21 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- BITFLOW_KB_FIX_V2 -->
     <base href="$FLUTTER_BASE_HREF">
-
     <meta charset="UTF-8">
     <meta content="IE=Edge" http-equiv="X-UA-Compatible">
 
-    <!-- iOS: imprescindible -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
     <title>Bit Flow — Planilla tipo Excel para campo</title>
     <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real.">
     <meta name="robots" content="index,follow">
-
-    <!-- BUILD ID (lo reemplazás en deploy) -->
-    <meta name="bitflow-build" content="__BUILD_ID__">
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -36,7 +30,7 @@
           height: 100%;
           margin: 0;
           padding: 0;
-          overflow: hidden;               /* clave: que Safari NO scrollee el doc */
+          overflow: hidden;
           overscroll-behavior: none;
           background: #FFFFFF;
           -webkit-text-size-adjust: 100%;
@@ -49,11 +43,8 @@
         }
 
         * { -webkit-tap-highlight-color: transparent; }
-
-        /* iOS Safari: evita zoom al enfocar el input invisible de Flutter */
         input, textarea, select { font-size: 16px !important; }
 
-        /* Evita el “scroll-to-hidden-input” de Flutter en iOS */
         flt-glass-pane,
         flt-text-editing-host,
         flt-semantics-host,
@@ -83,14 +74,19 @@
 
     <script>
         (function () {
-          function getBuildId() {
-            var m = document.querySelector('meta[name="bitflow-build"]');
-            var v = m ? (m.getAttribute('content') || '') : '';
-            return (v && v !== '__BUILD_ID__') ? v : ('dev-' + Date.now());
+          var raf = 0;
+          function applyViewport() {
+            raf = 0;
+            var vv = window.visualViewport;
+            var h = vv ? vv.height : window.innerHeight;
+            document.documentElement.style.setProperty('--app-height', h + 'px');
+            try { window.scrollTo(0, 0); } catch (_) {}
+            setTimeout(function(){ try { window.scrollTo(0,0); } catch(_){} }, 50);
           }
-
-          var BUILD = getBuildId();
-          window.__BITFLOW_BUILD__ = BUILD;
+          function scheduleApply() {
+            if (raf) return;
+            raf = requestAnimationFrame(applyViewport);
+          }
 
           function mountBadge() {
             try {
@@ -100,73 +96,18 @@
                 el.id = 'build-badge';
                 document.body.appendChild(el);
               }
-              el.textContent = 'build ' + BUILD;
+              fetch('version.json?x=' + Date.now())
+                .then(function(r){ return r.ok ? r.json() : null; })
+                .then(function(j){
+                  if (!j) { el.textContent = 'build'; return; }
+                  el.textContent = 'v' + (j.version || '?') + ' (' + (j.build_number || '?') + ')';
+                })
+                .catch(function(){ el.textContent = 'build'; });
             } catch (_) {}
-          }
-
-          var raf = 0;
-          function applyViewport() {
-            raf = 0;
-            var vv = window.visualViewport;
-            var h = vv ? vv.height : window.innerHeight;
-
-            document.documentElement.style.setProperty('--app-height', h + 'px');
-
-            // Safari a veces igual intenta “pan”: lo anulamos.
-            try { window.scrollTo(0, 0); } catch (_) {}
-            setTimeout(function(){ try { window.scrollTo(0,0); } catch(_){} }, 50);
-          }
-
-          function scheduleApply() {
-            if (raf) return;
-            raf = requestAnimationFrame(applyViewport);
-          }
-
-          async function nukeCachesIfBuildChanged() {
-            var key = 'bitflow_last_build';
-            var last = null;
-            try { last = localStorage.getItem(key); } catch (_) {}
-
-            if (last === BUILD) return;
-            try { localStorage.setItem(key, BUILD); } catch (_) {}
-
-            // iOS Safari es “creativo” con cachés/SW: los sacamos de la ecuación.
-            try {
-              if ('serviceWorker' in navigator) {
-                var regs = await navigator.serviceWorker.getRegistrations();
-                for (var i = 0; i < regs.length; i++) {
-                  try { await regs[i].unregister(); } catch (_) {}
-                }
-              }
-            } catch (_) {}
-
-            try {
-              if (window.caches && caches.keys) {
-                var names = await caches.keys();
-                for (var j = 0; j < names.length; j++) {
-                  try { await caches.delete(names[j]); } catch (_) {}
-                }
-              }
-            } catch (_) {}
-          }
-
-          function loadBootstrap() {
-            return new Promise(function (resolve, reject) {
-              try {
-                var s = document.createElement('script');
-                s.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(BUILD);
-                s.defer = true;
-                s.onload = resolve;
-                s.onerror = reject;
-                document.body.appendChild(s);
-              } catch (e) { reject(e); }
-            });
           }
 
           function boot() {
-            mountBadge();
             scheduleApply();
-
             window.addEventListener('resize', scheduleApply, { passive: true });
             window.addEventListener('orientationchange', scheduleApply, { passive: true });
             document.addEventListener('focusin', scheduleApply, true);
@@ -177,17 +118,7 @@
               window.visualViewport.addEventListener('scroll', scheduleApply, { passive: true });
             }
 
-            // Por si Flutter inserta hosts después
-            try {
-              var mo = new MutationObserver(scheduleApply);
-              mo.observe(document.documentElement, { childList: true, subtree: true });
-            } catch (_) {}
-
-            nukeCachesIfBuildChanged()
-              .catch(function(){})
-              .finally(function () {
-                loadBootstrap().catch(function (e) { console.error(e); });
-              });
+            mountBadge();
           }
 
           if (document.readyState === 'loading') {
@@ -198,5 +129,9 @@
         })();
     </script>
 </head>
-<body></body>
+
+<body>
+<!-- CLAVE: bootstrap estático -->
+<script src="flutter_bootstrap.js" defer></script>
+</body>
 </html>
