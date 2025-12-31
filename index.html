@@ -14,7 +14,7 @@
   <meta name="robots" content="index,follow" />
 
   <!-- BUILD ID (lo reemplazÃ¡s en /docs despuÃ©s del robocopy) -->
-  <meta name="bitflow-build" content="20251231-014719" />
+  <meta name="bitflow-build" content="20251231-023746" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -77,7 +77,7 @@
       function getBuildId() {
         var m = document.querySelector('meta[name="bitflow-build"]');
         var v = m ? (m.getAttribute('content') || '') : '';
-        return (v && v !== '20251231-014719') ? v : ('dev-' + Date.now());
+        return (v && v !== '20251231-023746') ? v : ('dev-' + Date.now());
       }
 
       var BUILD = getBuildId();
@@ -205,7 +205,6 @@
 
 <body>
   <!-- Cache-bust real del bootstrap -->
-  <script src="flutter_bootstrap.js?v=20251231-014719" async></script>
+  <script src="flutter_bootstrap.js?v=20251231-023746" async></script>
 </body>
 </html>
-
