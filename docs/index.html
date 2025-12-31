@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <base href="/bitacora_web/" />
@@ -9,12 +9,12 @@
   <!-- iOS: viewport correcto -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <title>Bit Flow â€” Planilla tipo Excel para campo</title>
-  <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportaciÃ³n XLSX real." />
+  <title>Bit Flow — Planilla tipo Excel para campo</title>
+  <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real." />
   <meta name="robots" content="index,follow" />
 
-  <!-- BUILD ID (lo reemplazÃ¡s en /docs despuÃ©s del robocopy) -->
-  <meta name="bitflow-build" content="20251231_030516_c169c1b" />
+  <!-- BUILD ID (lo reemplazás en /docs después del robocopy) -->
+  <meta name="bitflow-build" content="__BUILD_ID__" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -50,7 +50,7 @@
 
     * { -webkit-tap-highlight-color: transparent; }
 
-    /* iOS Safari: evita zoom al enfocar input â€œinvisibleâ€ de Flutter */
+    /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
     #build-badge {
@@ -123,7 +123,7 @@
         } catch (_) {}
       }
 
-      // iOS Safari keyboard fix: â€œpegaâ€ los roots de Flutter al visualViewport
+      // iOS Safari keyboard fix: “pega” los roots de Flutter al visualViewport
       var raf = 0;
       var lastH = -1, lastTop = -1;
       var lastKick = 0;
@@ -158,7 +158,7 @@
           n.style.willChange = 'transform,height';
         }
 
-        // â€œpataditaâ€ a Flutter: fuerza recÃ¡lculo cuando iOS se hace el distraÃ­do
+        // “patadita” a Flutter: fuerza recálculo cuando iOS se hace el distraído
         try {
           var now = Date.now();
           if (now - lastKick > 120) {
@@ -205,6 +205,6 @@
 
 <body>
   <!-- Cache-bust real del bootstrap -->
-  <script src="flutter_bootstrap.js?v=20251231-023746" async></script>
+  <script src="flutter_bootstrap.js?v=__BUILD_ID__" async></script>
 </body>
 </html>
