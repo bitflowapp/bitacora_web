@@ -3,7 +3,7 @@
 // Exportador XLSX avanzado para Gridnote / Bitácora.
 // - Hoja PLANILLA: datos principales.
 // - Hoja FOTOS: metadatos de fotos por fila (opcional).
-// - Hoja UBICACION: lat/long general + link de texto a Google Maps.
+// - Hoja UBICACION: lat/long general + hyperlink a Google Maps.
 // - Hoja INSTRUCCIONES: guía para quien recibe el archivo.
 //
 // Compatible con:
@@ -27,11 +27,34 @@ class ExportXlsxService {
   /// Compatibilidad con código legacy:
   /// permite llamadas tipo:
   ///   ExportXlsxService.saveXlsx('Planilla.xlsx', bytes);
-  ///
   /// Internamente delega en el saver unificado (saveXlsxBytes).
   static Future<void> saveXlsx(String fileName, List<int> bytes) async {
     final data = Uint8List.fromList(bytes);
     await xlsx_saver.saveXlsxBytes(data, fileName);
+  }
+
+  /// Construye el XLSX en memoria (bytes).
+  /// Útil si después querés usar esos bytes para enviar/compartir por otros canales.
+  static Future<List<int>> buildXlsxBytes({
+    required List<String> headers,
+    required List<List<String>> rows,
+    List<List<String>>? photoRows,
+    Map<int, List<Uint8List>>? photosByRow,
+    double? sheetLatitude,
+    double? sheetLongitude,
+    DateTime? sheetCreatedAt,
+    String sheetName = 'PLANILLA',
+  }) {
+    return _buildXlsxBytes(
+      sheetName: sheetName,
+      headers: headers,
+      rows: rows,
+      photoRows: photoRows,
+      photosByRow: photosByRow,
+      sheetLatitude: sheetLatitude,
+      sheetLongitude: sheetLongitude,
+      sheetCreatedAt: sheetCreatedAt,
+    );
   }
 
   /// Genera y guarda/descarga un XLSX local.
@@ -48,7 +71,7 @@ class ExportXlsxService {
   }) async {
     final base = _resolveBaseName(fileName, name);
 
-    final bytes = await _buildXlsxBytes(
+    final bytes = await buildXlsxBytes(
       sheetName: 'PLANILLA',
       headers: headers,
       rows: rows,
@@ -80,7 +103,7 @@ class ExportXlsxService {
   }) async {
     final base = _resolveBaseName(fileName, name);
 
-    final bytes = await _buildXlsxBytes(
+    final bytes = await buildXlsxBytes(
       sheetName: 'PLANILLA',
       headers: headers,
       rows: rows,
@@ -141,7 +164,7 @@ class ExportXlsxService {
     if (photosByRow != null && photosByRow.isNotEmpty) {
       try {
         // OJO: buildXlsxWithPhotos NO acepta sheetName como parámetro.
-        // La hoja se llama "PLANILLA" adentro (como tu implementacion actual).
+        // La hoja se llama "PLANILLA" adentro (como tu implementación actual).
         final bytesWithPhotos = await buildXlsxWithPhotos(
           columns: headers,
           rows: rows,
@@ -244,7 +267,7 @@ class ExportXlsxService {
     final tableRange = sheet.getRangeByIndex(1, 1, lastRow, colCount);
     tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
 
-    // Auto-fit con fallback (por si Syncfusion se rompe).
+    // Auto-fit con fallback.
     for (int c = 1; c <= colCount; c++) {
       _safeAutoFitColumn(sheet, c, fallbackPx: 140);
     }
@@ -297,7 +320,7 @@ class ExportXlsxService {
       );
       tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
     } else if (photosByRow != null && photosByRow.isNotEmpty) {
-      // Fallback: construir un resumen mínimo de fotos a partir del mapa.
+      // Fallback: resumen mínimo desde el mapa.
       final entries = photosByRow.entries.toList()
         ..sort((a, b) => a.key.compareTo(b.key));
 
@@ -367,10 +390,18 @@ class ExportXlsxService {
 
       final mapsUrl = 'https://www.google.com/maps?q=$latStr,$lngStr';
 
-      final linkCell = sheet.getRangeByIndex(7, 1);
-      linkCell.setText(mapsUrl);
-      linkCell.cellStyle.fontColor = '#FF0000FF';
-      linkCell.cellStyle.bold = true;
+      // Hyperlink real (clickeable).
+      final linkRange = sheet.getRangeByIndex(7, 1);
+      final xlsio.Hyperlink link = sheet.hyperlinks.add(
+        linkRange,
+        xlsio.HyperlinkType.url,
+        mapsUrl,
+      );
+      link.textToDisplay = 'Abrir en Google Maps';
+      link.screenTip = 'Abrir ubicación en Google Maps';
+
+      linkRange.cellStyle.fontColor = '#FF0000FF';
+      linkRange.cellStyle.bold = true;
     } else {
       sheet.getRangeByIndex(4, 1).setText(
         'Ubicación no disponible en este reporte.',
@@ -403,7 +434,7 @@ class ExportXlsxService {
 2) Cómo ver los datos
    - Hoja PLANILLA   : datos principales (mediciones, observaciones, GPS).
    - Hoja FOTOS      : fotos asociadas a cada fila (n° fila, archivo, descripción).
-   - Hoja UBICACION  : punto general de la planilla y link de texto a Google Maps.
+   - Hoja UBICACION  : punto general de la planilla y link a Google Maps.
    - Hoja INSTRUCCIONES: esta ayuda.
 
 3) Revisión rápida
