@@ -1,43 +1,66 @@
+// lib/main.dart
+//
+// Gridnote / BitFlow — Main
+// - Fix definitivo de Zone mismatch (ensureInitialized y runApp en la MISMA zone)
+// - Boot no bloqueante (Firebase + SheetStore) con modo demo si Firebase falla
+// - Theme light/dark con toggle
+// - Scroll behavior consistente (mouse/touch/trackpad) + physics iOS bounce
+//
+// Requiere:
+//   firebase_core
+//   (firebase_options.dart generado por FlutterFire)
+//   services/sheet_store.dart
+//   screens/auth_gate.dart
+//   screens/start_page.dart
+//   widgets/animated_video_background.dart
+
 import 'dart:async';
 import 'dart:ui' show PointerDeviceKind, PlatformDispatcher;
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
-import 'services/sheet_store.dart';
 import 'screens/auth_gate.dart';
 import 'screens/start_page.dart';
+import 'services/sheet_store.dart';
 import 'widgets/animated_video_background.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print(details.exception);
-      // ignore: avoid_print
-      print(details.stack);
-    }
-  };
-
-  PlatformDispatcher.instance.onError = (error, stack) {
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print('Uncaught error: $error');
-      // ignore: avoid_print
-      print(stack);
-    }
-    return true;
-  };
-
+  // Debe setearse ANTES de inicializar el binding (y dentro de la misma zone).
   runZonedGuarded(() {
+    if (kDebugMode) {
+      // En debug: si hay un problema de zones, que explote acá y no “medio ande”.
+      BindingBase.debugZoneErrorsAreFatal = true;
+    }
+
+    WidgetsFlutterBinding.ensureInitialized();
+
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print(details.exception);
+        // ignore: avoid_print
+        print(details.stack);
+      }
+    };
+
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Uncaught error: $error');
+        // ignore: avoid_print
+        print(stack);
+      }
+      // true = lo marcamos como “handled” para evitar crash en web.
+      return true;
+    };
+
     runApp(const App());
-  }, (error, stack) {
+  }, (Object error, StackTrace stack) {
     if (kDebugMode) {
       // ignore: avoid_print
       print('Zoned error: $error');
@@ -80,7 +103,7 @@ class _AppState extends State<App> {
         SchedulerBinding.instance.platformDispatcher.platformBrightness;
     _isLight = platformBrightness != Brightness.dark;
 
-    // IMPORTANTÍSIMO: NO bloquear el primer frame con awaits.
+    // Boot async no bloqueante: dejamos renderizar UI inmediatamente.
     _bootFuture = _boot();
   }
 
@@ -90,7 +113,7 @@ class _AppState extends State<App> {
     Object? firebaseError;
     Object? storeError;
 
-    // 1) Firebase (si falla, NO bloquea la app: habilitamos modo demo)
+    // 1) Firebase (si falla: modo demo, NO bloquea UI)
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -101,7 +124,7 @@ class _AppState extends State<App> {
       firebaseError = e;
     }
 
-    // 2) Store local (si falla, seguimos igual)
+    // 2) Store local (si falla: seguimos igual)
     try {
       await SheetStore.init().timeout(const Duration(seconds: 6));
       storeOk = true;
@@ -120,7 +143,7 @@ class _AppState extends State<App> {
 
   @override
   Widget build(BuildContext context) {
-    const baseColor = Color(0xFF0A84FF); // azul tipo Apple/Gridnote
+    const baseColor = Color(0xFF0A84FF); // azul Apple/Gridnote
 
     final lightTheme = ThemeData(
       useMaterial3: true,
@@ -186,7 +209,6 @@ class _AppState extends State<App> {
                       snap.connectionState == ConnectionState.active;
 
               if (isWaiting) {
-                // Ya NO hay “loading infinito del index.html”: esto es UI real.
                 return _BootSplash(
                   isLight: _isLight,
                   onToggleTheme: _toggleTheme,
@@ -221,7 +243,6 @@ class _AppState extends State<App> {
                       label: 'Entrar igual',
                       outlined: true,
                       onPressed: () {
-                        // Entramos directo sin AuthGate.
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
                             builder: (_) => AnimatedVideoBackground(
@@ -269,8 +290,7 @@ class _AppState extends State<App> {
     if (!s.storeOk && s.storeError != null) {
       lines.add('Store: ${s.storeError}');
     }
-    if (lines.isEmpty) return '';
-    return lines.join('\n');
+    return lines.join('\n').trim();
   }
 }
 
@@ -293,6 +313,7 @@ class _BootSplash extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+
     final cardBg = theme.brightness == Brightness.dark
         ? const Color(0xCC0B0D1A)
         : const Color(0xCCFFFFFF);
@@ -376,7 +397,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          details!,
+                          details!.trim(),
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontFamily: 'monospace',
                             height: 1.2,
@@ -396,7 +417,7 @@ class _BootSplash extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Si esto tarda, no es tu UI: es init/red/cache. Ahora al menos se ve y no queda “infinito”.',
+                            'Si esto tarda, es init/red/cache. Lo importante: no queda “infinito” sin UI.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.7),
                               height: 1.25,
@@ -470,7 +491,9 @@ class _PillButton extends StatelessWidget {
       style: style,
       child: Text(
         label,
-        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -480,7 +503,7 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
   const _AppScrollBehavior();
 
   @override
-  Set<PointerDeviceKind> get dragDevices => <PointerDeviceKind>{
+  Set<PointerDeviceKind> get dragDevices => const <PointerDeviceKind>{
     PointerDeviceKind.touch,
     PointerDeviceKind.mouse,
     PointerDeviceKind.stylus,

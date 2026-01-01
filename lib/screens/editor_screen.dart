@@ -17,12 +17,13 @@
 // Nota: este archivo NO usa dart:io (compila en Web).
 // © 2025
 //
-// FIXES (estabilidad + “planilla en blanco”):
-// - ✅ Blink Timer: cancel + mounted guard (evita ValueNotifier used-after-dispose).
-// - ✅ Undo/Redo: snapshots NO clonan fotos/thumbs (evita RAM/lag).
-// - ✅ Persistencia: NO guarda thumbs base64 en SharedPreferences (evita overflow/JSON roto -> “no carga / queda en blanco”).
-
-import 'dart:async';
+// FIXES aplicados (estabilidad + “planilla en blanco” + UX):
+// - ✅ Guardado robusto con REV + pending-save: evita “se guardó pero no guardó” y Dirty falso.
+// - ✅ Compute preserva fotos por índice (no borra la metadata de Photos).
+// - ✅ Undo/Redo ahora incluye metadata de fotos sin duplicar thumbs (revierte count/filas sin lag).
+// - ✅ Noche (modo oscuro): glass más visible + mayor nitidez + selección más Apple (menos “azul genérico”).
+//
+import 'dart:async' hide unawaited; // ✅ FIX: evita colisión con unawaited de dart:async
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -105,6 +106,11 @@ class _EditorScreenState extends State<EditorScreen>
   int _selRow = 0;
   int _selCol = 0;
 
+  // ✅ Guardado robusto
+  int _rev = 0;
+  int _lastSavedRev = 0;
+  bool _savePending = false;
+
   // Nombre (header Apple)
   late final TextEditingController _nameEC = TextEditingController();
   late final FocusNode _nameFocus = FocusNode(debugLabel: 'SheetNameAppleFocus');
@@ -147,11 +153,7 @@ class _EditorScreenState extends State<EditorScreen>
   String? _engineStatus;
 
   // ---------------- Mobile inline editor (FIJO arriba del teclado) --------
-  //
-  // ✅ FIX iPhone/Safari:
-  // - El editor se mantiene SIEMPRE montado en el árbol (aunque oculto).
-  // - El focus se pide dentro del mismo tap (sin async gaps) -> teclado estable.
-  //
+
   bool _mobileEditorOpen = false;
   bool _mobileEditingHeader = false;
   int _mobileRow = -1;
@@ -186,6 +188,10 @@ class _EditorScreenState extends State<EditorScreen>
     final initial = _buildInitialState();
     _headers = initial.headers;
     _rows = initial.rows;
+
+    _rev = 0;
+    _lastSavedRev = 0;
+    _savePending = false;
 
     _pushUndoSnapshot(); // estado inicial
     unawaited(_loadLocal());
@@ -249,7 +255,13 @@ class _EditorScreenState extends State<EditorScreen>
 
         // Cache “firme” para el bar: si MediaQuery da 0, usamos esto.
         if ((_kbInsetDp - bottom).abs() >= 1.0) {
-          setState(() => _kbInsetDp = bottom);
+          final next = bottom;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if ((_kbInsetDp - next).abs() >= 1.0) {
+              setState(() => _kbInsetDp = next);
+            }
+          });
         }
 
         if (_kMobilePerfLogs) {
@@ -370,6 +382,10 @@ class _EditorScreenState extends State<EditorScreen>
             : <_RowModel>[_RowModel.empty(_headers.length)];
         _isDirty = false;
         _lastSavedAt = loaded.savedAt;
+
+        _rev = 0;
+        _lastSavedRev = 0;
+        _savePending = false;
       });
 
       if (!_nameFocus.hasFocus) {
@@ -380,42 +396,69 @@ class _EditorScreenState extends State<EditorScreen>
         ..clear()
         ..add(_snapshot());
       _redo.clear();
-    } catch (_) {
-      // si rompe, no matamos la UX
+    } catch (e) {
+      if (kDebugMode) debugPrint('[EditorScreen] load failed: $e');
     }
   }
 
   Future<void> _saveLocalNow() async {
-    if (_saving) return;
-
-    if (mounted) {
-      setState(() => _saving = true);
-    } else {
-      _saving = true;
+    // ✅ Si ya estás guardando, marcá pendiente y salí.
+    if (_saving) {
+      _savePending = true;
+      return;
     }
 
+    _saving = true;
+    _savePending = false;
+
+    final startRev = _rev;
     final savedAt = DateTime.now();
+
+    if (mounted) setState(() {}); // refresca “Saving…”
 
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // ✅ Captura consistente: copia headers + cells (evita mutaciones durante await).
       final model = _SheetModel(
         name: _sheetName,
-        headers: _headers,
-        rows: _rows,
+        headers: List<String>.from(_headers),
+        rows: _rows
+            .map((r) => _RowModel(
+          cells: List<String>.from(r.cells),
+          photos: r.photos
+              .map((p) => p.copyWithoutThumb())
+              .toList(growable: false),
+        ))
+            .toList(growable: false),
         savedAt: savedAt,
       );
+
       await prefs.setString(_prefsKey, json.encode(model.toJson()));
+
+      _lastSavedRev = startRev;
 
       if (!mounted) return;
       setState(() {
-        _isDirty = false;
         _lastSavedAt = savedAt;
+        // ✅ Solo limpio Dirty si no cambió mientras guardaba
+        _isDirty = _rev != _lastSavedRev;
       });
-    } catch (_) {
-      // silencio
+    } catch (e) {
+      if (kDebugMode) debugPrint('[EditorScreen] save failed: $e');
     } finally {
+      _saving = false;
       if (!mounted) return;
-      setState(() => _saving = false);
+
+      setState(() {}); // refresca “Saved…”
+
+      // ✅ Si entraron cambios mientras guardabas, re-encolá.
+      if (_savePending || _rev != _lastSavedRev) {
+        _savePending = false;
+        _queueSave();
+      } else {
+        _savePending = false;
+      }
     }
   }
 
@@ -431,8 +474,8 @@ class _EditorScreenState extends State<EditorScreen>
   _SheetSnapshot _snapshot() => _SheetSnapshot(
     name: _sheetName,
     headers: List<String>.from(_headers),
-    // ✅ FIX: snapshots NO clonan fotos/thumbs (evita RAM/lag).
-    rowModels: _rows.map((r) => r.copyCellsOnly()).toList(),
+    // ✅ Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
+    rowModels: _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
     selRow: _selRow,
     selCol: _selCol,
   );
@@ -453,10 +496,12 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _sheetName = prev.name;
       _headers = List<String>.from(prev.headers);
-      _rows = prev.rowModels.map((r) => r.copyCellsOnly()).toList();
+      _rows = prev.rowModels.map((r) => r.copyForSnapshot()).toList();
       _selRow = prev.selRow.clamp(0, _rows.length - 1);
       _selCol = prev.selCol.clamp(0, _headers.length - 1);
+
       _isDirty = true;
+      _rev++;
     });
 
     if (!_nameFocus.hasFocus) {
@@ -474,10 +519,12 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _sheetName = snap.name;
       _headers = List<String>.from(snap.headers);
-      _rows = snap.rowModels.map((r) => r.copyCellsOnly()).toList();
+      _rows = snap.rowModels.map((r) => r.copyForSnapshot()).toList();
       _selRow = snap.selRow.clamp(0, _rows.length - 1);
       _selCol = snap.selCol.clamp(0, _headers.length - 1);
+
       _isDirty = true;
+      _rev++;
     });
 
     if (!_nameFocus.hasFocus) {
@@ -533,14 +580,9 @@ class _EditorScreenState extends State<EditorScreen>
 
     final w = size.width;
 
-    bool mouse = false;
-    try {
-      mouse = RendererBinding.instance.mouseTracker.mouseIsConnected;
-    } catch (_) {
-      mouse = false;
-    }
-
-    return w >= 900 || mouse;
+    // En Web/Desktop, evitar depender de MouseTracker dentro de build: en modo debug puede
+    // disparar asserts (mouse_tracker.dart: _debugDuringDeviceUpdate). El ancho es suficiente.
+    return w >= 900;
   }
 
   void _blink(int r, int c) {
@@ -565,7 +607,14 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _markDirty({bool snapshot = true}) {
     if (snapshot) _pushUndoSnapshot();
-    setState(() => _isDirty = true);
+    _rev++;
+
+    if (mounted) {
+      setState(() => _isDirty = true);
+    } else {
+      _isDirty = true;
+    }
+
     _queueSave();
   }
 
@@ -614,7 +663,8 @@ class _EditorScreenState extends State<EditorScreen>
             bottom: true,
             child: Stack(
               children: [
-                if (pal.isLight) Positioned.fill(child: _WarmBackdrop(palette: pal)),
+                if (pal.isLight)
+                  Positioned.fill(child: _WarmBackdrop(palette: pal)),
                 Column(
                   children: [
                     _PremiumAppleHeader(
@@ -670,7 +720,8 @@ class _EditorScreenState extends State<EditorScreen>
                             onHeaderEditRequested: (c, w) =>
                                 _beginEditHeader(context, pal, c, w),
                             onContextMenu: (pos, r, c, isHeader) =>
-                                _openContextMenu(context, pal, pos, r, c, isHeader),
+                                _openContextMenu(
+                                    context, pal, pos, r, c, isHeader),
                             onDeleteRow: (r) => _deleteRow(r),
                             onPickPhoto: (r) => _pickPhotoForRow(r),
                           ),
@@ -701,13 +752,15 @@ class _EditorScreenState extends State<EditorScreen>
                           onHeaderEditRequested: (c, w) =>
                               _beginEditHeader(context, pal, c, w),
                           onContextMenu: (pos, r, c, isHeader) =>
-                              _openContextMenu(context, pal, pos, r, c, isHeader),
+                              _openContextMenu(
+                                  context, pal, pos, r, c, isHeader),
                           onDeleteRow: (r) => _deleteRow(r),
                           onPickPhoto: (r) => _pickPhotoForRow(r),
                         ),
                       ),
                     ),
-                    if (!isDesktop && !_mobileEditorOpen) _MobileHintBar(palette: pal),
+                    if (!isDesktop && !_mobileEditorOpen)
+                      _MobileHintBar(palette: pal),
                   ],
                 ),
 
@@ -1422,7 +1475,7 @@ class _EditorScreenState extends State<EditorScreen>
                       return KeyEventResult.handled;
                     }
 
-                    // Tab / Shift+Tab => commit + mover (estilo hoja).
+                    // Tab / Shift+Tab => commit + mover.
                     if (event.logicalKey == LogicalKeyboardKey.tab) {
                       _overlayCommitAndNavigate(
                         context: context,
@@ -1450,8 +1503,8 @@ class _EditorScreenState extends State<EditorScreen>
                     borderRadius: BorderRadius.circular(16),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(
-                        sigmaX: pal.isLight ? 14.0 : 7.0,
-                        sigmaY: pal.isLight ? 14.0 : 7.0,
+                        sigmaX: pal.isLight ? 16.0 : 14.0,
+                        sigmaY: pal.isLight ? 16.0 : 14.0,
                         tileMode: TileMode.decal,
                       ),
                       child: Container(
@@ -1459,23 +1512,31 @@ class _EditorScreenState extends State<EditorScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
+                          // ✅ Dark: glass más visible (sin quedar “bloque” opaco).
                           color: pal.isLight
-                              ? Colors.white.withOpacity(0.86)
-                              : Colors.black.withOpacity(0.72),
+                              ? Colors.white.withOpacity(0.90)
+                              : const Color(0xFF0B0B0C).withOpacity(0.56),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: pal.isLight
-                                ? Colors.black.withOpacity(0.08)
-                                : Colors.white.withOpacity(0.18),
+                                ? Colors.black.withOpacity(0.10)
+                                : Colors.white.withOpacity(0.24),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black
-                                  .withOpacity(pal.isLight ? 0.10 : 0.48),
+                                  .withOpacity(pal.isLight ? 0.10 : 0.55),
                               blurRadius: 18,
                               offset: const Offset(0, 10),
                             ),
+                            // ✅ micro-glow Apple (no azul fuerte)
+                            if (!pal.isLight)
+                              BoxShadow(
+                                color: pal.accent.withOpacity(0.18),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10),
+                              ),
                           ],
                         ),
                         child: Row(
@@ -1489,8 +1550,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 style: TextStyle(
                                   color: pal.fg,
                                   fontSize: 16,
-                                  height: 1.05,
-                                  fontWeight: FontWeight.w900,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w800, // ✅ nitidez
+                                  letterSpacing: -0.2,
                                 ),
                                 cursorColor: pal.accent,
                                 decoration: InputDecoration(
@@ -1582,13 +1644,11 @@ class _EditorScreenState extends State<EditorScreen>
       }
     } else {
       actions.add(_CtxAction(
-          'Editar',
-          Icons.edit_outlined,
-              () => _beginEditCell(context, pal, r, c, 320)));
+          'Editar', Icons.edit_outlined, () => _beginEditCell(context, pal, r, c, 320)));
       actions.add(_CtxAction('Copiar', Icons.copy_rounded,
               () => unawaited(_copySelectionToClipboard())));
-      actions.add(_CtxAction('Pegar', Icons.paste_rounded,
-              () => unawaited(_pasteFromClipboard())));
+      actions.add(_CtxAction(
+          'Pegar', Icons.paste_rounded, () => unawaited(_pasteFromClipboard())));
       actions.add(_CtxAction(
           'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
@@ -1606,8 +1666,8 @@ class _EditorScreenState extends State<EditorScreen>
           'Insertar fila arriba', Icons.arrow_upward_rounded, () => _insertRow(r)));
       actions.add(_CtxAction('Insertar fila abajo', Icons.arrow_downward_rounded,
               () => _insertRow(r + 1)));
-      actions.add(
-          _CtxAction('Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
+      actions.add(_CtxAction(
+          'Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
     }
 
     if (actions.isEmpty) return;
@@ -1661,6 +1721,7 @@ class _EditorScreenState extends State<EditorScreen>
       _selRow = idx.clamp(0, _rows.length - 1);
       _selCol = _selCol.clamp(0, _headers.length - 1);
       _isDirty = true;
+      _rev++;
     });
     _pushUndoSnapshot();
     _queueSave();
@@ -1674,7 +1735,9 @@ class _EditorScreenState extends State<EditorScreen>
       _rows.removeAt(idx);
       if (_rows.isEmpty) _rows.add(_RowModel.empty(_headers.length));
       _selRow = _selRow.clamp(0, _rows.length - 1);
+
       _isDirty = true;
+      _rev++;
     });
 
     _pushUndoSnapshot();
@@ -1795,7 +1858,8 @@ class _EditorScreenState extends State<EditorScreen>
     final txt = _getCellText(r, c);
     if (txt.trim().isEmpty) return;
 
-    final m = RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)').firstMatch(txt);
+    final m =
+    RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)').firstMatch(txt);
     if (m == null) return;
 
     final lat = double.tryParse(m.group(1) ?? '');
@@ -1827,10 +1891,10 @@ class _EditorScreenState extends State<EditorScreen>
       final bytes = await xf.readAsBytes();
       if (!mounted) return;
 
-      final thumb = _compressThumb(bytes, maxW: 560, maxH: 560, quality: 76);
+      final thumb = _compressThumb(bytes, maxW: 560, maxH: 560, quality: 78);
       final b64 = base64Encode(thumb);
 
-      // ✅ FIX: el thumb se codifica como JPG, guardamos mime consistente.
+      // ✅ thumb runtime sí (para futuro visor), persistencia no.
       _rows[r].photos.add(
         _RowPhoto(
           name: xf.name,
@@ -1979,18 +2043,26 @@ class _EditorScreenState extends State<EditorScreen>
         final out = (map['rows'] as List?) ?? const [];
 
         if (out.isNotEmpty) {
+          // ✅ Preserva fotos por índice (no borra Photos).
+          final old = _rows;
+
           final normalized = <_RowModel>[];
-          for (final rr in out) {
+          for (int i = 0; i < out.length; i++) {
+            final rr = out[i];
             if (rr is List) {
-              normalized
-                  .add(_RowModel.fromCells(_normalizeRow(rr, _headers.length)));
+              final cells = _normalizeRow(rr, _headers.length);
+              final photos = (i < old.length) ? old[i].photos : <_RowPhoto>[];
+              normalized.add(_RowModel(cells: cells, photos: photos));
             }
           }
+
           setState(() {
             _rows = normalized.isNotEmpty ? normalized : _rows;
             _engineStatus = 'Listo';
             _isDirty = true;
+            _rev++;
           });
+
           _pushUndoSnapshot();
           _queueSave();
         } else {
@@ -2067,8 +2139,8 @@ class _PremiumAppleHeader extends StatelessWidget {
         const Color(0xFFF5F5F7).withOpacity(0.74),
       ]
           : [
-        Colors.white.withOpacity(0.11),
-        Colors.white.withOpacity(0.05),
+        Colors.white.withOpacity(0.12),
+        Colors.white.withOpacity(0.06),
       ],
     );
 
@@ -2078,10 +2150,12 @@ class _PremiumAppleHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(26),
         child: Stack(
           children: [
-            BackdropFilter(
-              filter: ImageFilter.blur(
-                  sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
-              child: const SizedBox.expand(),
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                    sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
+                child: const SizedBox(),
+              ),
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -2187,7 +2261,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             savedText,
                             style: TextStyle(
                               color: palette.fgMuted,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                               height: 1.05,
                             ),
                           ),
@@ -2198,10 +2272,10 @@ class _PremiumAppleHeader extends StatelessWidget {
                                   horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: palette.accent.withOpacity(
-                                    palette.isLight ? 0.10 : 0.18),
+                                    palette.isLight ? 0.08 : 0.14),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                    color: palette.accent.withOpacity(0.22),
+                                    color: palette.accent.withOpacity(0.18),
                                     width: palette.hairline),
                               ),
                               child: Text(
@@ -2303,8 +2377,8 @@ class _IconCircleButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: palette.pillBtnBg,
             borderRadius: BorderRadius.circular(999),
-            border:
-            Border.all(color: palette.pillBtnBorder, width: palette.hairline),
+            border: Border.all(
+                color: palette.pillBtnBorder, width: palette.hairline),
           ),
           child: Icon(icon, size: 18, color: palette.fg),
         ),
@@ -2444,15 +2518,18 @@ class _GridView extends StatelessWidget {
 
         return LayoutBuilder(
           builder: (ctx2, c) {
+            final viewSize = MediaQuery.sizeOf(ctx2);
+            final safeH = (c.hasBoundedHeight && c.maxHeight.isFinite) ? c.maxHeight : viewSize.height;
+
             return Container(
-              color: palette.bg, // ✅ deja respirar el sistema (light/dark)
+              color: palette.bg,
               child: SingleChildScrollView(
                 controller: hScroll,
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 child: SizedBox(
                   width: totalW,
-                  height: c.maxHeight,
+                  height: safeH,
                   child: Column(
                     children: [
                       SizedBox(
@@ -2463,15 +2540,19 @@ class _GridView extends StatelessWidget {
                             for (int col = 0; col < headers.length; col++)
                               _HeaderCell(
                                 palette: palette,
-                                width: col == headers.length - 1 ? photosW : colW,
+                                width:
+                                col == headers.length - 1 ? photosW : colW,
                                 text: _labelHeader(headers, col),
                                 isPhotos: col == headers.length - 1,
                                 isOverlayTarget: overlayTargetHeaderCol == col,
                                 editorLink: editorLink,
                                 onTap: () => onHeaderEditRequested(
-                                    col, col == headers.length - 1 ? photosW : colW),
-                                onSecondaryTapDown: (d) =>
-                                    onContextMenu(d.globalPosition, -1, col, true),
+                                    col,
+                                    col == headers.length - 1
+                                        ? photosW
+                                        : colW),
+                                onSecondaryTapDown: (d) => onContextMenu(
+                                    d.globalPosition, -1, col, true),
                               ),
                           ],
                         ),
@@ -2495,38 +2576,53 @@ class _GridView extends StatelessWidget {
                                       index: r + 1,
                                       selected: r == selRow,
                                       onTap: () => onSelect(r, selCol),
-                                      onSecondaryTapDown: (d) =>
-                                          onContextMenu(d.globalPosition, r, selCol, false),
+                                      onSecondaryTapDown: (d) => onContextMenu(
+                                          d.globalPosition, r, selCol, false),
                                     ),
-                                    for (int col = 0; col < headers.length; col++)
+                                    for (int col = 0;
+                                    col < headers.length;
+                                    col++)
                                       Builder(
                                         builder: (_) {
                                           final ref = _CellRef(r, col);
                                           return _DataCell(
                                             palette: palette,
-                                            width: col == headers.length - 1 ? photosW : colW,
+                                            width: col == headers.length - 1
+                                                ? photosW
+                                                : colW,
                                             text: rowModels[r].cells[col],
                                             photosCount: rowModels[r].photos.length,
-                                            selected: r == selRow && col == selCol,
+                                            selected:
+                                            r == selRow && col == selCol,
                                             isPhotos: col == headers.length - 1,
                                             blinkRef: blinkRef,
                                             cellRef: ref,
-                                            isOverlayTarget: overlayTargetCell == ref,
+                                            isOverlayTarget:
+                                            overlayTargetCell == ref,
                                             editorLink: editorLink,
                                             onTap: () => onEditRequested(
-                                                r, col, col == headers.length - 1 ? photosW : colW),
+                                                r,
+                                                col,
+                                                col == headers.length - 1
+                                                    ? photosW
+                                                    : colW),
                                             onLongPress: () {
                                               onSelect(r, col);
                                               final box = ctx3.findRenderObject();
                                               if (box is RenderBox) {
-                                                final pos = box.localToGlobal(Offset.zero);
+                                                final pos =
+                                                box.localToGlobal(Offset.zero);
                                                 onContextMenu(
-                                                    pos + const Offset(120, 12), r, col, false);
+                                                    pos + const Offset(120, 12),
+                                                    r,
+                                                    col,
+                                                    false);
                                               }
                                             },
                                             onSecondaryTapDown: (d) {
                                               onSelect(r, col);
-                                              onContextMenu(d.globalPosition, r, col, false);
+                                              onContextMenu(d.globalPosition, r,
+                                                  col, false);
                                             },
                                             onDeleteRow: () => onDeleteRow(r),
                                             onPickPhoto: () => onPickPhoto(r),
@@ -2665,8 +2761,12 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor =
-    selected ? palette.accent.withOpacity(0.55) : palette.borderStrong;
+    // ✅ Menos “azul genérico”: borde más neutro, con halo sutil al seleccionar.
+    final neutralRing = palette.isLight
+        ? Colors.black.withOpacity(0.14)
+        : Colors.white.withOpacity(0.20);
+
+    final glow = palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2682,11 +2782,20 @@ class _RowIndexCell extends StatelessWidget {
             right: BorderSide(color: palette.borderStrong, width: palette.hairline),
             bottom: BorderSide(color: palette.border, width: palette.hairline),
           ),
+          boxShadow: selected
+              ? [
+            BoxShadow(
+              color: glow,
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            )
+          ]
+              : null,
         ),
         foregroundDecoration: selected
             ? BoxDecoration(
           border: Border.all(
-              color: borderColor, width: math.max(palette.hairline, 1.5)),
+              color: neutralRing, width: math.max(palette.hairline, 1.5)),
         )
             : null,
         child: Text(
@@ -2745,6 +2854,8 @@ class _DataCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final blinking = blinkRef == cellRef;
+
+    // ✅ Noche: blink no azul “plastificado”; es un flash suave.
     final bg = blinking ? palette.blinkBg : palette.cellBg;
 
     final cellBody = GestureDetector(
@@ -2799,39 +2910,43 @@ class _PillText extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = palette.isLight;
 
-    // Estilo “Apple glass” (light limpio / dark OLED)
+    // ✅ “Glass” más legible en dark (sin matar OLED).
     final Color top = isLight
         ? const Color(0xFFFFFFFF).withOpacity(0.92)
-        : Colors.white.withOpacity(selected ? 0.14 : 0.10);
+        : Colors.white.withOpacity(selected ? 0.26 : 0.18);
 
     final Color bottom = isLight
         ? const Color(0xFFF5F5F7).withOpacity(0.86)
-        : Colors.white.withOpacity(selected ? 0.09 : 0.06);
+        : Colors.white.withOpacity(selected ? 0.18 : 0.12);
 
     final Color edge = isLight
         ? const Color(0xFFE5E5EA).withOpacity(0.95)
-        : Colors.white.withOpacity(selected ? 0.28 : 0.20);
+        : Colors.white.withOpacity(selected ? 0.34 : 0.22);
 
-    final Color focus = palette.accent.withOpacity(0.62);
-    final Color borderColor = selected ? focus : edge;
+    // ✅ Selección “Apple”: borde neutro + halo sutil (menos azul duro).
+    final Color neutralRing = isLight
+        ? Colors.black.withOpacity(selected ? 0.18 : 0.12)
+        : Colors.white.withOpacity(selected ? 0.30 : 0.20);
+
+    final Color tint = selected
+        ? palette.accent.withOpacity(isLight ? 0.06 : 0.10)
+        : Colors.transparent;
 
     final Color shadow = isLight
         ? Colors.black.withOpacity(0.06)
-        : Colors.black.withOpacity(0.55);
+        : Colors.black.withOpacity(0.62);
 
-    final Color tint = selected
-        ? palette.accent.withOpacity(isLight ? 0.10 : 0.14)
-        : Colors.transparent;
+    final Color glow = palette.accent.withOpacity(isLight ? 0.14 : 0.22);
 
     return Container(
-      width: double.infinity, // ✅ “celda redondeada” real
+      width: double.infinity,
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: borderColor,
-          width: math.max(palette.hairline, 1.0),
+          color: selected ? neutralRing : edge,
+          width: math.max(palette.hairline, selected ? 1.2 : 1.0),
         ),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -2840,11 +2955,24 @@ class _PillText extends StatelessWidget {
           stops: const [0.0, 0.86, 1.0],
         ),
         boxShadow: [
+          // ✅ highlight suave “glass”
+          if (!isLight)
+            BoxShadow(
+              color: Colors.white.withOpacity(selected ? 0.08 : 0.05),
+              blurRadius: 10,
+              offset: const Offset(-2, -2),
+            ),
           BoxShadow(
             color: shadow,
-            blurRadius: selected ? 10 : 7,
-            offset: const Offset(0, 3),
+            blurRadius: selected ? 14 : 9,
+            offset: const Offset(0, 4),
           ),
+          if (selected)
+            BoxShadow(
+              color: glow,
+              blurRadius: 22,
+              offset: const Offset(0, 10),
+            ),
         ],
       ),
       child: Text(
@@ -2854,9 +2982,9 @@ class _PillText extends StatelessWidget {
         style: TextStyle(
           color: palette.fg,
           fontSize: 15.0,
-          height: 1.05,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -0.1,
+          height: 1.08,
+          fontWeight: FontWeight.w800, // ✅ nitidez
+          letterSpacing: -0.15,
         ),
       ),
     );
@@ -2927,7 +3055,8 @@ class _StatusBar extends StatelessWidget {
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Text(text,
-          style: TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
+          style:
+          TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
     );
   }
 }
@@ -3017,7 +3146,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
         child: SafeArea(
           top: false,
           child: AbsorbPointer(
-            absorbing: !isOpen, // ✅ sin pointer-events: none (iOS safe)
+            absorbing: !isOpen,
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,
@@ -3033,116 +3162,131 @@ class _MobileInlineEditorBar extends StatelessWidget {
                           color: palette.borderStrong, width: palette.hairline),
                     ),
                   ),
-                  child: Container(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: palette.editorBg,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: palette.borderStrong, width: palette.hairline),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black
-                              .withOpacity(palette.isLight ? 0.08 : 0.35),
-                          blurRadius: 14,
-                          offset: const Offset(0, 8),
-                        )
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Cancelar (Esc)',
-                          onPressed: onCancel,
-                          icon: Icon(Icons.close_rounded, color: palette.fgMuted),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      // ✅ glass del editor móvil (se nota más en dark)
+                      filter: ImageFilter.blur(
+                        sigmaX: palette.isLight ? 14 : 16,
+                        sigmaY: palette.isLight ? 14 : 16,
+                        tileMode: TileMode.decal,
+                      ),
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: palette.editorBg.withOpacity(
+                              palette.isLight ? 0.88 : 0.62),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: palette.borderStrong, width: palette.hairline),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black
+                                  .withOpacity(palette.isLight ? 0.08 : 0.42),
+                              blurRadius: 16,
+                              offset: const Offset(0, 10),
+                            )
+                          ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: palette.headerBg,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                                color: palette.border, width: palette.hairline),
-                          ),
-                          child: Text(
-                            title.isEmpty ? 'Editar' : title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: palette.fgMuted,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              height: 1.05,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'Cancelar (Esc)',
+                              onPressed: onCancel,
+                              icon: Icon(Icons.close_rounded,
+                                  color: palette.fgMuted),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            autofocus: false,
-                            maxLines: 1,
-                            enabled: true,
-                            textInputAction: onNext == null
-                                ? TextInputAction.done
-                                : TextInputAction.next,
-                            keyboardAppearance: palette.isLight
-                                ? Brightness.light
-                                : Brightness.dark,
-                            scrollPadding: EdgeInsets.zero,
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            textCapitalization: TextCapitalization.none,
-                            style: TextStyle(
-                              color: palette.fg,
-                              fontSize: 16,
-                              height: 1.05,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.1,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: palette.headerBg.withOpacity(
+                                    palette.isLight ? 1.0 : 0.72),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                    color: palette.border, width: palette.hairline),
+                              ),
+                              child: Text(
+                                title.isEmpty ? 'Editar' : title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.fgMuted,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                  height: 1.05,
+                                ),
+                              ),
                             ),
-                            cursorColor: palette.accent,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              filled: true,
-                              fillColor: palette.mobileInputBg,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 12),
-                              hintText: 'Escribir…',
-                              hintStyle: TextStyle(color: palette.fgMuted),
-                              border: InputBorder.none,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                autofocus: false,
+                                maxLines: 1,
+                                enabled: true,
+                                textInputAction: onNext == null
+                                    ? TextInputAction.done
+                                    : TextInputAction.next,
+                                keyboardAppearance: palette.isLight
+                                    ? Brightness.light
+                                    : Brightness.dark,
+                                scrollPadding: EdgeInsets.zero,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textCapitalization: TextCapitalization.none,
+                                style: TextStyle(
+                                  color: palette.fg,
+                                  fontSize: 16,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w800, // ✅ nitidez
+                                  letterSpacing: -0.15,
+                                ),
+                                cursorColor: palette.accent,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  filled: true,
+                                  // ✅ dark: vidrio visible
+                                  fillColor: palette.mobileInputBg,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 12),
+                                  hintText: 'Escribir…',
+                                  hintStyle: TextStyle(color: palette.fgMuted),
+                                  border: InputBorder.none,
+                                ),
+                                onSubmitted: (_) =>
+                                onNext == null ? onDone() : onNext!(),
+                              ),
                             ),
-                            onSubmitted: (_) =>
-                            onNext == null ? onDone() : onNext!(),
-                          ),
+                            if (onPrev != null)
+                              IconButton(
+                                tooltip: 'Anterior',
+                                onPressed: onPrev,
+                                icon: Icon(Icons.chevron_left_rounded,
+                                    color: palette.fg),
+                              ),
+                            if (onNext != null)
+                              IconButton(
+                                tooltip: 'Siguiente',
+                                onPressed: onNext,
+                                icon: Icon(Icons.chevron_right_rounded,
+                                    color: palette.fg),
+                              ),
+                            for (final a in actions)
+                              IconButton(
+                                tooltip: a.label,
+                                onPressed: a.onTap,
+                                icon: Icon(a.icon, color: palette.fg),
+                              ),
+                            IconButton(
+                              tooltip: 'OK',
+                              onPressed: onDone,
+                              icon: Icon(Icons.check_rounded, color: palette.fg),
+                            ),
+                          ],
                         ),
-                        if (onPrev != null)
-                          IconButton(
-                            tooltip: 'Anterior',
-                            onPressed: onPrev,
-                            icon: Icon(Icons.chevron_left_rounded,
-                                color: palette.fg),
-                          ),
-                        if (onNext != null)
-                          IconButton(
-                            tooltip: 'Siguiente',
-                            onPressed: onNext,
-                            icon: Icon(Icons.chevron_right_rounded,
-                                color: palette.fg),
-                          ),
-                        for (final a in actions)
-                          IconButton(
-                            tooltip: a.label,
-                            onPressed: a.onTap,
-                            icon: Icon(a.icon, color: palette.fg),
-                          ),
-                        IconButton(
-                          tooltip: 'OK',
-                          onPressed: onDone,
-                          icon: Icon(Icons.check_rounded, color: palette.fg),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -3166,7 +3310,12 @@ class _MobileAction {
 // ============================== Modelo =====================================
 
 class _SheetModel {
-  _SheetModel({required this.headers, required this.rows, this.name, this.savedAt});
+  _SheetModel({
+    required this.headers,
+    required this.rows,
+    this.name,
+    this.savedAt,
+  });
 
   final String? name;
   final DateTime? savedAt;
@@ -3201,7 +3350,8 @@ class _SheetModel {
       }
     }
 
-    return _SheetModel(name: name, savedAt: savedAt, headers: headers, rows: rowModels);
+    return _SheetModel(
+        name: name, savedAt: savedAt, headers: headers, rows: rowModels);
   }
 }
 
@@ -3224,10 +3374,10 @@ class _RowModel {
     photos: photos.map((p) => p.copy()).toList(),
   );
 
-  // ✅ para Undo/Redo: NO duplicar fotos/thumbs (se evita RAM y lag).
-  _RowModel copyCellsOnly() => _RowModel(
+  // ✅ Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
+  _RowModel copyForSnapshot() => _RowModel(
     cells: List<String>.from(cells),
-    photos: photos, // referencia (sin deep copy)
+    photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
   );
 
   _RowModel copyWithCells(List<String> newCells) => _RowModel(
@@ -3273,6 +3423,9 @@ class _RowPhoto {
   _RowPhoto copy() =>
       _RowPhoto(name: name, mime: mime, thumbB64: thumbB64, addedAt: addedAt);
 
+  _RowPhoto copyWithoutThumb() =>
+      _RowPhoto(name: name, mime: mime, thumbB64: '', addedAt: addedAt);
+
   Map<String, dynamic> toJson({required bool persistThumb}) => {
     'name': name,
     'mime': mime,
@@ -3286,7 +3439,8 @@ class _RowPhoto {
       name: (map['name'] ?? '').toString(),
       mime: (map['mime'] ?? 'image/jpeg').toString(),
       thumbB64: (map['thumbB64'] ?? '').toString(),
-      addedAt: DateTime.tryParse((map['addedAt'] ?? '').toString()) ?? DateTime.now(),
+      addedAt:
+      DateTime.tryParse((map['addedAt'] ?? '').toString()) ?? DateTime.now(),
     );
   }
 }
@@ -3313,7 +3467,8 @@ class _CellRef {
   final int c;
 
   @override
-  bool operator ==(Object other) => other is _CellRef && other.r == r && other.c == c;
+  bool operator ==(Object other) =>
+      other is _CellRef && other.r == r && other.c == c;
 
   @override
   int get hashCode => Object.hash(r, c);
@@ -3458,12 +3613,14 @@ class _SheetPalette {
       headerBg: headerTint,
       indexBg: headerTint,
       cellBg: oledBlack,
-      blinkBg: iosBlue.withOpacity(0.22),
+      // ✅ blink más Apple (no azul fuerte)
+      blinkBg: Colors.white.withOpacity(0.06),
       border: const Color(0xFFFFFFFF).withOpacity(0.08),
       borderStrong: const Color(0xFFFFFFFF).withOpacity(0.14),
       menuBg: const Color(0xFF15151A),
       editorBg: const Color(0xFF101014),
-      mobileInputBg: const Color(0xFF0C0C10),
+      // ✅ vidrio visible en dark
+      mobileInputBg: Colors.white.withOpacity(0.06),
       accent: iosBlue,
       statusBg: const Color(0xFF0F172A),
       statusFg: const Color(0xFF93C5FD),
@@ -3536,4 +3693,5 @@ class _NoGlowScrollBehavior extends ScrollBehavior {
 
 // ============================== Helpers ====================================
 
+// Compat simple: evita warning de "unawaited" sin depender de SDK.
 void unawaited(Future<void>? f) {}
