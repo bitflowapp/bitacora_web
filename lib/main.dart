@@ -10,7 +10,31 @@ import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
 import 'screens/start_page.dart';
 import 'services/sheet_store.dart';
+import 'services/engine_math_client.dart'; // <-- AJUSTÁ si tu ruta es distinta
 import 'widgets/animated_video_background.dart';
+
+Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
+  // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
+  final raw = Uri.base.queryParameters['engine'];
+  if (raw == null) return;
+
+  final url = raw.trim();
+  if (url.isEmpty) return;
+
+  try {
+    // Persistimos para que toda la app use el mismo baseUrl (tu EngineMathClient ya lee de prefs).
+    await EngineMathClient().setBaseUrl(url);
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('[main] Engine baseUrl override via ?engine= -> $url');
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('[main] Invalid ?engine= value: $e');
+    }
+  }
+}
 
 Future<void> main() async {
   runZonedGuarded(() async {
@@ -88,6 +112,10 @@ Future<void> main() async {
         ),
       );
     };
+
+    // IMPORTANTE: si abrís la web con ?engine=https://xxxxx.trycloudflare.com
+    // acá lo persistimos para que toda la app apunte al engine remoto.
+    await _applyEngineBaseUrlOverrideFromUrl();
 
     runApp(const App());
   }, (error, stack) {

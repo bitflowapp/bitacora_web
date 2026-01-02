@@ -40,6 +40,9 @@ import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:bitacora_web/services/photo_acquire_service.dart';
+import 'package:bitacora_web/services/keyboard_insets_controller.dart';
+import 'package:bitacora_web/services/engine_math_client.dart';
 
 // ============================== Constantes globales ========================
 
@@ -48,8 +51,13 @@ const String kPhotosHeader = 'Photos';
 
 // ✅ Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
 const bool _kPersistPhotoThumbs = false;
+const String _kPrefEngineBaseUrl = 'bitflow.engine_base_url';
+const String _kPrefEngineBaseUrlAlt = 'bitflow_engine_base_url';
+const String _kPrefEngineApiKey = 'bitflow.engine_api_key';
+const String _kPrefEngineApiKeyAlt = 'bitflow_engine_api_key';
 
 enum _OverlayMove { none, next, prev, down, up }
+enum _MobileEditPhase { closed, opening, open, switching, closing }
 
 // ============================== Pantalla principal =========================
 
@@ -90,8 +98,6 @@ class _EditorScreenState extends State<EditorScreen>
   static const int kMaxUndo = 50;
   static const Duration _blinkDuration = Duration(milliseconds: 110);
   static const Duration _saveDebounce = Duration(milliseconds: 650);
-  static const bool _kMobilePerfLogs = false;
-
   // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -140,9 +146,12 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _saveT;
   bool _saving = false;
 
-  // ✅ Teclado móvil: fallback real de insets cuando MediaQuery falla (iOS Safari Web, etc.)
-  double _kbInsetDp = 0.0;
-  double _lastViewInsetsBottom = 0.0;
+  // ✅ Teclado móvil: controlador robusto de insets
+  late final KeyboardInsetsController _kbController =
+  KeyboardInsetsController(onLog: kDebugMode ? debugPrint : null);
+  Timer? _kbEnsureDebounceT;
+  Timer? _mobileEnsureLateT;
+  Timer? _mobileFocusRetryT;
 
   // Undo/Redo
   final List<_SheetSnapshot> _undo = <_SheetSnapshot>[];
@@ -151,10 +160,14 @@ class _EditorScreenState extends State<EditorScreen>
   // Engine compute (opcional)
   bool _engineBusy = false;
   String? _engineStatus;
+  String? _engineBaseResolved;
+  String? _engineKeyResolved;
+  bool _engineAvailable = false;
 
   // ---------------- Mobile inline editor (FIJO arriba del teclado) --------
 
   bool _mobileEditorOpen = false;
+  _MobileEditPhase _mobilePhase = _MobileEditPhase.closed;
   bool _mobileEditingHeader = false;
   int _mobileRow = -1;
   int _mobileCol = 0;
@@ -165,6 +178,10 @@ class _EditorScreenState extends State<EditorScreen>
   final FocusNode _mobileFocus = FocusNode(debugLabel: 'MobileInlineEditorFocus');
 
   List<_MobileAction> _mobileActions = const [];
+  final GlobalKey _mobileBarKey = GlobalKey();
+  final Key _mobileFieldKey = const ValueKey('mobileInlineEditorField');
+  double _mobileBarH = 0.0;
+  bool _mobileBarMeasureScheduled = false;
 
   // ✅ para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -175,6 +192,9 @@ class _EditorScreenState extends State<EditorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _mobileFocus.addListener(_handleMobileFocusChange);
+    _kbController.attach();
+    _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
@@ -195,6 +215,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _pushUndoSnapshot(); // estado inicial
     unawaited(_loadLocal());
+    unawaited(_initEngineConnection());
   }
 
   @override
@@ -218,6 +239,12 @@ class _EditorScreenState extends State<EditorScreen>
     _saveT?.cancel();
     _nameDebounceT?.cancel();
     _blinkT?.cancel();
+    _kbEnsureDebounceT?.cancel();
+    _mobileEnsureLateT?.cancel();
+    _mobileFocusRetryT?.cancel();
+    _mobileFocus.removeListener(_handleMobileFocusChange);
+    _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
+    _kbController.dispose();
 
     _vScroll.dispose();
     _hScroll.dispose();
@@ -239,43 +266,9 @@ class _EditorScreenState extends State<EditorScreen>
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    if (!mounted) return;
-
-    // ✅ Actualizamos el inset de teclado aunque MediaQuery no se entere (web iOS).
-    final views = WidgetsBinding.instance.platformDispatcher.views;
-    if (views.isNotEmpty) {
-      final view = views.first;
-      final bottom = view.viewInsets.bottom / view.devicePixelRatio;
-
-      if ((bottom - _lastViewInsetsBottom).abs() >= 1.0) {
-        _lastViewInsetsBottom = bottom;
-
-        // Cache “firme” para el bar: si MediaQuery da 0, usamos esto.
-        if ((_kbInsetDp - bottom).abs() >= 1.0) {
-          final next = bottom;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            if ((_kbInsetDp - next).abs() >= 1.0) {
-              setState(() => _kbInsetDp = next);
-            }
-          });
-        }
-
-        if (_kMobilePerfLogs) {
-          debugPrint(
-              '[MobilePerf] viewInsets.bottom(dp) -> ${bottom.toStringAsFixed(1)}');
-        }
-
-        if (_mobileEditorOpen && _mobileRow >= 0) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || !_mobileEditorOpen) return;
-            _ensureRowVisibleForKeyboard(_mobileRow);
-          });
-        }
-      }
+  void _handleKbInsetChanged() {
+    if (_mobileEditorOpen && _mobileRow >= 0) {
+      _debouncedEnsureRowVisible(_mobileRow);
     }
   }
 
@@ -559,16 +552,17 @@ class _EditorScreenState extends State<EditorScreen>
         defaultTargetPlatform == TargetPlatform.android;
   }
 
-  bool _isDesktopUi(BuildContext context) {
+  bool get _isAndroidDevice =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  bool _isDesktopUi(BuildContext context, double kbInset) {
     final size = MediaQuery.sizeOf(context);
 
     // Teléfonos: SIEMPRE UI móvil
     if (size.shortestSide < 600) return false;
 
     // Si el teclado está abierto, no uses overlay desktop
-    final mqBottom = MediaQuery.viewInsetsOf(context).bottom;
-    final kbBottom = math.max(mqBottom, _kbInsetDp);
-    if (kbBottom > 0) return false;
+    if (kbInset > 0) return false;
 
     if (_isMobileWeb()) return false;
 
@@ -642,148 +636,159 @@ class _EditorScreenState extends State<EditorScreen>
   @override
   Widget build(BuildContext context) {
     final pal = _palette(context);
-    final isDesktop = _isDesktopUi(context);
+    return ValueListenableBuilder<double>(
+      valueListenable: _kbController.kbInsetDp,
+      builder: (ctx, kbInset, _) {
+        final isDesktop = _isDesktopUi(ctx, kbInset);
 
-    // Evitar escalados raros de texto (iOS / Web).
-    final mq = MediaQuery.of(context);
-    final fixedMq = mq.copyWith(textScaler: const TextScaler.linear(1.0));
+        if (!isDesktop) {
+          _scheduleMobileBarMeasure();
+        }
 
-    final mqInset = MediaQuery.viewInsetsOf(context).bottom;
-    final kbInset = math.max(mqInset, _kbInsetDp);
+        // Evitar escalados raros de texto (iOS / Web).
+        final mq = MediaQuery.of(ctx);
+        final fixedMq = mq.copyWith(textScaler: const TextScaler.linear(1.0));
 
-    return MediaQuery(
-      data: fixedMq,
-      child: ScrollConfiguration(
-        behavior: const _NoGlowScrollBehavior(),
-        child: Scaffold(
-          resizeToAvoidBottomInset: false, // clave iOS Web
-          backgroundColor: pal.bg,
-          appBar: null,
-          body: SafeArea(
-            bottom: true,
-            child: Stack(
-              children: [
-                if (pal.isLight)
-                  Positioned.fill(child: _WarmBackdrop(palette: pal)),
-                Column(
+        final mqInset = MediaQuery.viewInsetsOf(ctx).bottom;
+        _kbController.reportMediaQueryInset(mqInset);
+
+        return MediaQuery(
+          data: fixedMq,
+          child: ScrollConfiguration(
+            behavior: const _NoGlowScrollBehavior(),
+            child: Scaffold(
+              resizeToAvoidBottomInset: false, // clave iOS Web
+              backgroundColor: pal.bg,
+              appBar: null,
+              body: SafeArea(
+                bottom: true,
+                child: Stack(
                   children: [
-                    _PremiumAppleHeader(
-                      palette: pal,
-                      titleController: _nameEC,
-                      titleFocus: _nameFocus,
-                      savedText: _savedLabel(pal),
-                      isDirty: _isDirty,
-                      onTitleChanged: _onTitleChangedDebounced,
-                      onToggleTheme: _toggleTheme,
-                      onUndo: _undoOnce,
-                      onRedo: _redoOnce,
-                      onAddRow: () => _insertRow(_rows.length),
-                      onSave: () => unawaited(_saveLocalNow()),
-                      onExport: () => unawaited(_exportXlsx()),
-                      onCompute: (widget.engineBaseUrl == null || _engineBusy)
-                          ? null
-                          : () => unawaited(_computeEngine()),
-                    ),
-                    if (_engineStatus != null)
-                      _StatusBar(
-                        text: _engineStatus!,
-                        bg: pal.statusBg,
-                        fg: pal.statusFg,
-                      ),
-                    Expanded(
-                      child: isDesktop
-                          ? Focus(
-                        autofocus: true,
-                        onKeyEvent: _onKeyEvent,
-                        child: RepaintBoundary(
-                          child: _GridView(
-                            palette: pal,
-                            headers: _headers,
-                            rowModels: _rows,
-                            vScroll: _vScroll,
-                            hScroll: _hScroll,
-                            selRow: _selRow,
-                            selCol: _selCol,
-                            blink: _blinkCell,
-                            editorLink: _editorLink,
-                            overlayTargetCell: _overlayTargetCell,
-                            overlayTargetHeaderCol: _overlayTargetHeaderCol,
-                            onSelect: (r, c) {
-                              setState(() {
-                                _selRow = r;
-                                _selCol = c;
-                              });
-                              _blink(r, c);
-                            },
-                            onEditRequested: (r, c, w) =>
-                                _beginEditCell(context, pal, r, c, w),
-                            onHeaderEditRequested: (c, w) =>
-                                _beginEditHeader(context, pal, c, w),
-                            onContextMenu: (pos, r, c, isHeader) =>
-                                _openContextMenu(
-                                    context, pal, pos, r, c, isHeader),
-                            onDeleteRow: (r) => _deleteRow(r),
-                            onPickPhoto: (r) => _pickPhotoForRow(r),
+                    if (pal.isLight)
+                      Positioned.fill(child: _WarmBackdrop(palette: pal)),
+                    Column(
+                      children: [
+                        _PremiumAppleHeader(
+                          palette: pal,
+                          titleController: _nameEC,
+                          titleFocus: _nameFocus,
+                          savedText: _savedLabel(pal),
+                          isDirty: _isDirty,
+                          onTitleChanged: _onTitleChangedDebounced,
+                          onToggleTheme: _toggleTheme,
+                          onUndo: _undoOnce,
+                          onRedo: _redoOnce,
+                          onAddRow: () => _insertRow(_rows.length),
+                          onSave: () => unawaited(_saveLocalNow()),
+                          onExport: () => unawaited(_exportXlsx()),
+                          onCompute: (!_engineAvailable || _engineBusy)
+                              ? null
+                              : () => unawaited(_computeEngine()),
+                        ),
+                        if (_engineStatus != null)
+                          _StatusBar(
+                            text: _engineStatus!,
+                            bg: pal.statusBg,
+                            fg: pal.statusFg,
+                          ),
+                        Expanded(
+                          child: isDesktop
+                              ? Focus(
+                            autofocus: true,
+                            onKeyEvent: _onKeyEvent,
+                            child: RepaintBoundary(
+                              child: _GridView(
+                                palette: pal,
+                                headers: _headers,
+                                rowModels: _rows,
+                                vScroll: _vScroll,
+                                hScroll: _hScroll,
+                                selRow: _selRow,
+                                selCol: _selCol,
+                                blink: _blinkCell,
+                                editorLink: _editorLink,
+                                overlayTargetCell: _overlayTargetCell,
+                                overlayTargetHeaderCol: _overlayTargetHeaderCol,
+                                onSelect: (r, c) {
+                                  setState(() {
+                                    _selRow = r;
+                                    _selCol = c;
+                                  });
+                                  _blink(r, c);
+                                },
+                                onEditRequested: (r, c, w) =>
+                                    _beginEditCell(context, pal, r, c, w),
+                                onHeaderEditRequested: (c, w) =>
+                                    _beginEditHeader(context, pal, c, w),
+                                onContextMenu: (pos, r, c, isHeader) =>
+                                    _openContextMenu(
+                                        context, pal, pos, r, c, isHeader),
+                                onDeleteRow: (r) => _deleteRow(r),
+                                onPickPhoto: (r) => _pickPhotoForRow(r),
+                              ),
+                            ),
+                          )
+                              : RepaintBoundary(
+                            child: _GridView(
+                              palette: pal,
+                              headers: _headers,
+                              rowModels: _rows,
+                              vScroll: _vScroll,
+                              hScroll: _hScroll,
+                              selRow: _selRow,
+                              selCol: _selCol,
+                              blink: _blinkCell,
+                              editorLink: _editorLink,
+                              overlayTargetCell: _overlayTargetCell,
+                              overlayTargetHeaderCol: _overlayTargetHeaderCol,
+                              onSelect: (r, c) {
+                                setState(() {
+                                  _selRow = r;
+                                  _selCol = c;
+                                });
+                                _blink(r, c);
+                              },
+                              onEditRequested: (r, c, w) =>
+                                  _beginEditCell(context, pal, r, c, w),
+                              onHeaderEditRequested: (c, w) =>
+                                  _beginEditHeader(context, pal, c, w),
+                              onContextMenu: (pos, r, c, isHeader) =>
+                                  _openContextMenu(
+                                      context, pal, pos, r, c, isHeader),
+                              onDeleteRow: (r) => _deleteRow(r),
+                              onPickPhoto: (r) => _pickPhotoForRow(r),
+                            ),
                           ),
                         ),
-                      )
-                          : RepaintBoundary(
-                        child: _GridView(
-                          palette: pal,
-                          headers: _headers,
-                          rowModels: _rows,
-                          vScroll: _vScroll,
-                          hScroll: _hScroll,
-                          selRow: _selRow,
-                          selCol: _selCol,
-                          blink: _blinkCell,
-                          editorLink: _editorLink,
-                          overlayTargetCell: _overlayTargetCell,
-                          overlayTargetHeaderCol: _overlayTargetHeaderCol,
-                          onSelect: (r, c) {
-                            setState(() {
-                              _selRow = r;
-                              _selCol = c;
-                            });
-                            _blink(r, c);
-                          },
-                          onEditRequested: (r, c, w) =>
-                              _beginEditCell(context, pal, r, c, w),
-                          onHeaderEditRequested: (c, w) =>
-                              _beginEditHeader(context, pal, c, w),
-                          onContextMenu: (pos, r, c, isHeader) =>
-                              _openContextMenu(
-                                  context, pal, pos, r, c, isHeader),
-                          onDeleteRow: (r) => _deleteRow(r),
-                          onPickPhoto: (r) => _pickPhotoForRow(r),
-                        ),
-                      ),
+                        if (!isDesktop && !_mobileEditorOpen)
+                          _MobileHintBar(palette: pal),
+                      ],
                     ),
-                    if (!isDesktop && !_mobileEditorOpen)
-                      _MobileHintBar(palette: pal),
+
+                    // ✅ SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
+                    if (!isDesktop)
+                      _MobileInlineEditorBar(
+                        palette: pal,
+                        barKey: _mobileBarKey,
+                        fieldKey: _mobileFieldKey,
+                        isOpen: _mobileEditorOpen,
+                        title: _mobileTitle,
+                        controller: _mobileEC,
+                        focusNode: _mobileFocus,
+                        actions: _mobileActions,
+                        keyboardInset: kbInset,
+                        onPrev: _canMobileNav ? _mobileMovePrev : null,
+                        onNext: _canMobileNav ? _mobileMoveNext : null,
+                        onCancel: _cancelMobileEdit,
+                        onDone: _commitMobileEdit,
+                      ),
                   ],
                 ),
-
-                // ✅ SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
-                if (!isDesktop)
-                  _MobileInlineEditorBar(
-                    palette: pal,
-                    isOpen: _mobileEditorOpen,
-                    title: _mobileTitle,
-                    controller: _mobileEC,
-                    focusNode: _mobileFocus,
-                    actions: _mobileActions,
-                    keyboardInset: kbInset,
-                    onPrev: _canMobileNav ? _mobileMovePrev : null,
-                    onNext: _canMobileNav ? _mobileMoveNext : null,
-                    onCancel: _cancelMobileEdit,
-                    onDone: _commitMobileEdit,
-                  ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -877,7 +882,7 @@ class _EditorScreenState extends State<EditorScreen>
     _removeCellEditor();
     _blink(-1, c);
 
-    final isDesktop = _isDesktopUi(context);
+    final isDesktop = _isDesktopUi(context, _kbController.kbInsetDp.value);
     if (!isDesktop) {
       _openMobileInlineEditor(
         isHeader: true,
@@ -954,7 +959,7 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final isDesktop = _isDesktopUi(context);
+    final isDesktop = _isDesktopUi(context, _kbController.kbInsetDp.value);
     if (!isDesktop) {
       _openMobileInlineEditor(
         isHeader: false,
@@ -1085,22 +1090,19 @@ class _EditorScreenState extends State<EditorScreen>
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
     if (!_mobileEditorOpen) {
-      setState(() => _mobileEditorOpen = true);
+      setState(() {
+        _mobileEditorOpen = true;
+        _mobilePhase = _MobileEditPhase.opening;
+      });
     } else {
-      setState(() {});
+      setState(() => _mobilePhase = _MobileEditPhase.switching);
     }
 
-    // ✅ pedir focus “en el gesto” (sin microtask/postframe)
-    _mobileFocus.requestFocus();
-    try {
-      SystemChannels.textInput.invokeMethod('TextInput.show');
-    } catch (_) {}
+    _requestMobileFocusWithRetry();
 
     if (row >= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_mobileEditorOpen) return;
-        _ensureRowVisibleForKeyboard(row);
-      });
+      _scheduleEnsureRowVisiblePostFrame(row);
+      _scheduleEnsureRowVisibleLate(row);
     }
   }
 
@@ -1120,19 +1122,110 @@ class _EditorScreenState extends State<EditorScreen>
     ];
   }
 
-  static const double _kMobileEditorOverlayH = 92.0;
+  void _handleMobileFocusChange() {
+    if (!_mobileFocus.hasFocus) return;
+    if (!_mobileEditorOpen || _mobileRow < 0) return;
+    _scheduleEnsureRowVisiblePostFrame(_mobileRow);
+    _scheduleEnsureRowVisibleLate(_mobileRow);
+  }
+
+  void _requestMobileFocusWithRetry() {
+    if (!_mobileEditorOpen) return;
+    _mobileFocus.requestFocus();
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    } catch (_) {}
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      if (!_mobileFocus.hasFocus) {
+        _mobileFocus.requestFocus();
+        try {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        } catch (_) {}
+      }
+      if (_mobilePhase == _MobileEditPhase.opening ||
+          _mobilePhase == _MobileEditPhase.switching) {
+        setState(() => _mobilePhase = _MobileEditPhase.open);
+      }
+    });
+
+    _mobileFocusRetryT?.cancel();
+    _mobileFocusRetryT = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted || !_mobileEditorOpen) return;
+      if (!_mobileFocus.hasFocus) {
+        _mobileFocus.requestFocus();
+        try {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        } catch (_) {}
+      }
+      if (_mobilePhase == _MobileEditPhase.opening ||
+          _mobilePhase == _MobileEditPhase.switching) {
+        setState(() => _mobilePhase = _MobileEditPhase.open);
+      }
+    });
+  }
+
+  void _scheduleMobileBarMeasure() {
+    if (_mobileBarMeasureScheduled) return;
+    _mobileBarMeasureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mobileBarMeasureScheduled = false;
+      if (!mounted) return;
+      final ctx = _mobileBarKey.currentContext;
+      if (ctx == null) return;
+      final render = ctx.findRenderObject();
+      if (render is RenderBox && render.hasSize) {
+        final h = render.size.height;
+        if ((h - _mobileBarH).abs() >= 0.5) {
+          setState(() => _mobileBarH = h);
+        }
+      }
+    });
+  }
+
+  void _scheduleEnsureRowVisiblePostFrame(int row) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(row);
+    });
+  }
+
+  void _scheduleEnsureRowVisibleLate(int row) {
+    _mobileEnsureLateT?.cancel();
+    _mobileEnsureLateT = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(row);
+    });
+  }
+
+  void _debouncedEnsureRowVisible(int row) {
+    _kbEnsureDebounceT?.cancel();
+    _kbEnsureDebounceT = Timer(const Duration(milliseconds: 80), () {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(row);
+    });
+  }
+
+  void _cancelMobileEnsureTimers() {
+    _kbEnsureDebounceT?.cancel();
+    _mobileEnsureLateT?.cancel();
+    _mobileFocusRetryT?.cancel();
+  }
+
+  static const double _kMobileBarFallbackH = 78.0;
 
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
     if (!_vScroll.hasClients) return;
     if (row < 0) return;
 
-    final mq = MediaQuery.of(context);
-    final kb = math.max(mq.viewInsets.bottom, _kbInsetDp);
+    final kb = _kbController.kbInsetDp.value;
 
     final viewport = _vScroll.position.viewportDimension;
-    final reserve =
-        kb + (_mobileEditorOpen ? _kMobileEditorOverlayH : 0.0) + 8.0;
+    final barH =
+    _mobileEditorOpen ? (_mobileBarH > 0 ? _mobileBarH : _kMobileBarFallbackH) : 0.0;
+    final reserve = kb + barH + 8.0;
 
     final rowTop = row * _GridView.rowH;
     final rowBottom = rowTop + _GridView.rowH;
@@ -1148,15 +1241,68 @@ class _EditorScreenState extends State<EditorScreen>
       target = rowTop;
     }
 
-    if (target == null) return;
+    if (target == null) {
+      _ensureColumnVisibleForMobile();
+      return;
+    }
 
     final clamped = target.clamp(
         _vScroll.position.minScrollExtent, _vScroll.position.maxScrollExtent);
+    if ((clamped - _vScroll.offset).abs() < 6.0) {
+      _ensureColumnVisibleForMobile();
+      return;
+    }
     _vScroll.animateTo(
       clamped.toDouble(),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
+
+    _ensureColumnVisibleForMobile();
+  }
+
+  void _ensureColumnVisibleForMobile() {
+    if (!_mobileEditorOpen) return;
+    if (!_hScroll.hasClients) return;
+    if (_mobileCol < 0 || _mobileCol >= _headers.length) return;
+
+    final colW = _idealColWidth(context);
+    const photosW = 140.0;
+    final col = _mobileCol;
+
+    final colLeft = _GridView.indexW + (col * colW);
+    final colWidth = col == _headers.length - 1 ? photosW : colW;
+    final colRight = colLeft + colWidth;
+
+    final viewport = _hScroll.position.viewportDimension;
+    final visibleLeft = _hScroll.offset;
+    final visibleRight = visibleLeft + viewport;
+    const pad = 16.0;
+
+    double? target;
+    if (colLeft - pad < visibleLeft) {
+      target = colLeft - pad;
+    } else if (colRight + pad > visibleRight) {
+      target = colRight + pad - viewport;
+    }
+
+    if (target == null) return;
+
+    final clamped = target.clamp(
+        _hScroll.position.minScrollExtent, _hScroll.position.maxScrollExtent);
+    if ((clamped - _hScroll.offset).abs() < 6.0) return;
+    _hScroll.animateTo(
+      clamped.toDouble(),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  double _idealColWidth(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    if (w < 420) return 126;
+    if (w < 760) return 150;
+    return 178;
   }
 
   bool get _canMobileNav {
@@ -1208,6 +1354,7 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileTitle = _headerLabel(c);
       _mobileActions = _mobileActionsForCell(r, c);
       _mobileEditorOpen = true;
+      _mobilePhase = _MobileEditPhase.switching;
     });
 
     _blink(r, c);
@@ -1216,15 +1363,13 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
-    _mobileFocus.requestFocus();
-    try {
-      SystemChannels.textInput.invokeMethod('TextInput.show');
-    } catch (_) {}
+    _requestMobileFocusWithRetry();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_mobileEditorOpen) return;
       _ensureRowVisibleForKeyboard(r);
     });
+    _scheduleEnsureRowVisibleLate(r);
   }
 
   void _mobileMovePrev() {
@@ -1255,6 +1400,7 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileTitle = _headerLabel(c);
       _mobileActions = _mobileActionsForCell(r, c);
       _mobileEditorOpen = true;
+      _mobilePhase = _MobileEditPhase.switching;
     });
 
     _blink(r, c);
@@ -1263,19 +1409,21 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
-    _mobileFocus.requestFocus();
-    try {
-      SystemChannels.textInput.invokeMethod('TextInput.show');
-    } catch (_) {}
+    _requestMobileFocusWithRetry();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_mobileEditorOpen) return;
       _ensureRowVisibleForKeyboard(r);
     });
+    _scheduleEnsureRowVisibleLate(r);
   }
 
   void _cancelMobileEdit() {
-    setState(() => _mobileEditorOpen = false);
+    _cancelMobileEnsureTimers();
+    setState(() {
+      _mobileEditorOpen = false;
+      _mobilePhase = _MobileEditPhase.closing;
+    });
     _mobileEditingHeader = false;
     _mobileRow = -1;
     _mobileCol = 0;
@@ -1287,6 +1435,12 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileFocus.unfocus();
       SystemChannels.textInput.invokeMethod('TextInput.hide');
     } catch (_) {}
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_mobilePhase != _MobileEditPhase.closing) return;
+      setState(() => _mobilePhase = _MobileEditPhase.closed);
+    });
   }
 
   void _commitMobileEdit() {
@@ -1314,7 +1468,11 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _closeMobileEditor() {
-    setState(() => _mobileEditorOpen = false);
+    _cancelMobileEnsureTimers();
+    setState(() {
+      _mobileEditorOpen = false;
+      _mobilePhase = _MobileEditPhase.closing;
+    });
     _mobileEditingHeader = false;
     _mobileRow = -1;
     _mobileCol = 0;
@@ -1326,6 +1484,12 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileFocus.unfocus();
       SystemChannels.textInput.invokeMethod('TextInput.hide');
     } catch (_) {}
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_mobilePhase != _MobileEditPhase.closing) return;
+      setState(() => _mobilePhase = _MobileEditPhase.closed);
+    });
   }
 
   // ------------------------------ Overlay Editor (Desktop) ----------------
@@ -1658,8 +1822,15 @@ class _EditorScreenState extends State<EditorScreen>
         actions.add(_CtxAction(
             'Maps', Icons.map_outlined, () => unawaited(_openMapsForCell(r, c))));
       } else {
-        actions.add(_CtxAction('Agregar foto', Icons.add_photo_alternate_outlined,
+        final isAndroid = _isAndroidDevice;
+        actions.add(_CtxAction(
+            isAndroid ? 'Cámara' : 'Agregar foto',
+            Icons.add_photo_alternate_outlined,
                 () => unawaited(_pickPhotoForRow(r))));
+        if (isAndroid) {
+          actions.add(_CtxAction('Elegir de galería', Icons.photo_library_outlined,
+                  () => unawaited(_pickPhotoFromGalleryForRow(r))));
+        }
       }
 
       actions.add(_CtxAction(
@@ -1873,32 +2044,52 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
-  // ------------------------------ Fotos (sin image_picker) ----------------
+  // ------------------------------ Fotos -----------------------------------
 
   Future<void> _pickPhotoForRow(int r) async {
     if (r < 0 || r >= _rows.length) return;
 
     try {
-      final typeGroup = XTypeGroup(
-        label: 'Images',
-        extensions: const ['jpg', 'jpeg', 'png', 'webp'],
-      );
-
-      final xf = await openFile(acceptedTypeGroups: [typeGroup]);
+      final result = _isAndroidDevice
+          ? await PhotoAcquireService.I.captureFromCamera()
+          : await PhotoAcquireService.I.pickFromGallery();
       if (!mounted) return;
-      if (xf == null) return;
+      if (result == null) return;
 
-      final bytes = await xf.readAsBytes();
-      if (!mounted) return;
-
-      final thumb = _compressThumb(bytes, maxW: 560, maxH: 560, quality: 78);
+      final thumb =
+      _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
       final b64 = base64Encode(thumb);
 
       // ✅ thumb runtime sí (para futuro visor), persistencia no.
       _rows[r].photos.add(
         _RowPhoto(
-          name: xf.name,
-          mime: 'image/jpeg',
+          name: result.name,
+          mime: result.mime,
+          thumbB64: b64,
+          addedAt: DateTime.now(),
+        ),
+      );
+
+      _markDirty(snapshot: true);
+    } catch (_) {}
+  }
+
+  Future<void> _pickPhotoFromGalleryForRow(int r) async {
+    if (r < 0 || r >= _rows.length) return;
+
+    try {
+      final result = await PhotoAcquireService.I.pickFromGallery();
+      if (!mounted) return;
+      if (result == null) return;
+
+      final thumb =
+      _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
+      final b64 = base64Encode(thumb);
+
+      _rows[r].photos.add(
+        _RowPhoto(
+          name: result.name,
+          mime: result.mime,
           thumbB64: b64,
           addedAt: DateTime.now(),
         ),
@@ -1914,10 +2105,11 @@ class _EditorScreenState extends State<EditorScreen>
       final decoded = img.decodeImage(bytes);
       if (decoded == null) return bytes;
 
+      final oriented = img.bakeOrientation(decoded);
       final resized = img.copyResize(
-        decoded,
-        width: decoded.width > decoded.height ? maxW : null,
-        height: decoded.height >= decoded.width ? maxH : null,
+        oriented,
+        width: oriented.width > oriented.height ? maxW : null,
+        height: oriented.height >= oriented.width ? maxH : null,
         interpolation: img.Interpolation.average,
       );
 
@@ -1999,8 +2191,110 @@ class _EditorScreenState extends State<EditorScreen>
 
   // ------------------------------ Engine compute (opcional) ----------------
 
+  Future<void> _initEngineConnection() async {
+    final resolved = await _resolveEngineConfig();
+    if (!mounted) return;
+
+    _engineBaseResolved = resolved.baseUrl;
+    _engineKeyResolved = resolved.apiKey;
+
+    if (_engineBaseResolved == null || _engineBaseResolved!.isEmpty) {
+      setState(() {
+        _engineAvailable = false;
+        _engineStatus = null;
+      });
+      return;
+    }
+
+    final ok = await _checkEngineHealth(_engineBaseResolved!);
+    if (!mounted) return;
+    setState(() {
+      _engineAvailable = ok;
+      if (!ok) {
+        _engineStatus =
+        'Engine no accesible. En iPhone/Android usá IP LAN o túnel (no 127.0.0.1).';
+      } else {
+        _engineStatus = null;
+      }
+    });
+  }
+
+  Future<_EngineConfig> _resolveEngineConfig() async {
+    final widgetBase = widget.engineBaseUrl?.trim() ?? '';
+    final widgetKey = widget.engineApiKey?.trim() ?? '';
+    if (widgetBase.isNotEmpty) {
+      return _EngineConfig(
+        baseUrl: _normalizeEngineBaseUrl(widgetBase),
+        apiKey: widgetKey.isEmpty ? null : widgetKey,
+      );
+    }
+
+    // ✅ Preferimos el service existente si está.
+    try {
+      final client = EngineMathClient();
+      final base = await client.getBaseUrl();
+      final key = await _readEngineApiKeyFromPrefs();
+      return _EngineConfig(
+        baseUrl: _normalizeEngineBaseUrl(base),
+        apiKey: key,
+      );
+    } catch (_) {
+      // fallback a prefs directas
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final base =
+    (prefs.getString(_kPrefEngineBaseUrl) ?? prefs.getString(_kPrefEngineBaseUrlAlt) ?? '')
+        .trim();
+    final key = await _readEngineApiKeyFromPrefs();
+    return _EngineConfig(
+      baseUrl: base.isEmpty ? null : _normalizeEngineBaseUrl(base),
+      apiKey: key,
+    );
+  }
+
+  Future<String?> _readEngineApiKeyFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key =
+      (prefs.getString(_kPrefEngineApiKey) ?? prefs.getString(_kPrefEngineApiKeyAlt) ?? '')
+          .trim();
+      return key.isEmpty ? null : key;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _normalizeEngineBaseUrl(String base) {
+    return base.trim().replaceAll(RegExp(r'/+$'), '');
+  }
+
+  Future<bool> _checkEngineHealth(String baseUrl) async {
+    final normalized = _normalizeEngineBaseUrl(baseUrl);
+    final candidates = <String>[
+      '/health',
+      '/engine/health',
+      '/',
+    ];
+
+    for (final path in candidates) {
+      final uri = Uri.parse('$normalized$path');
+      try {
+        final res = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 4));
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          return true;
+        }
+      } catch (_) {
+        // try next endpoint
+      }
+    }
+    return false;
+  }
+
   Future<void> _computeEngine() async {
-    final base = widget.engineBaseUrl;
+    final base = _engineBaseResolved;
     if (base == null || base.trim().isEmpty) return;
     if (_engineBusy) return;
 
@@ -2017,15 +2311,14 @@ class _EditorScreenState extends State<EditorScreen>
         'savedAt': DateTime.now().toIso8601String(),
       };
 
-      final uri =
-      Uri.parse('${base.replaceAll(RegExp(r'\/+$'), '')}/engine/compute');
+      final uri = Uri.parse('${_normalizeEngineBaseUrl(base)}/engine/compute');
 
       final resp = await http
           .post(
         uri,
         headers: () {
           final h = <String, String>{'content-type': 'application/json'};
-          final key = widget.engineApiKey?.trim();
+          final key = _engineKeyResolved?.trim();
           if (key != null && key.isNotEmpty) {
             h['authorization'] = 'Bearer $key';
             h['x-api-key'] = key;
@@ -2069,11 +2362,15 @@ class _EditorScreenState extends State<EditorScreen>
           setState(() => _engineStatus = 'Sin cambios');
         }
       } else {
-        setState(() => _engineStatus = 'Error compute: ${resp.statusCode}');
+        setState(() => _engineStatus = 'Engine error: ${resp.statusCode}');
       }
     } catch (_) {
       if (!mounted) return;
-      setState(() => _engineStatus = 'Engine no responde');
+      setState(() {
+        _engineStatus =
+        'Engine no responde. Verificá IP LAN o túnel (no 127.0.0.1).';
+        _engineAvailable = false;
+      });
     } finally {
       if (!mounted) return;
       setState(() => _engineBusy = false);
@@ -3085,6 +3382,8 @@ class _MobileHintBar extends StatelessWidget {
 class _MobileInlineEditorBar extends StatelessWidget {
   const _MobileInlineEditorBar({
     required this.palette,
+    required this.barKey,
+    required this.fieldKey,
     required this.isOpen,
     required this.title,
     required this.controller,
@@ -3098,6 +3397,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final Key barKey;
+  final Key fieldKey;
   final bool isOpen;
   final String title;
   final TextEditingController controller;
@@ -3137,6 +3438,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
         padding: EdgeInsets.only(bottom: keyboardInset),
         child: SafeArea(
           top: false,
+          bottom: false,
           child: AbsorbPointer(
             absorbing: !isOpen,
             child: AnimatedOpacity(
@@ -3146,6 +3448,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
               child: CallbackShortcuts(
                 bindings: bindings,
                 child: Container(
+                  key: barKey,
                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                   decoration: BoxDecoration(
                     color: palette.appBarBg,
@@ -3212,43 +3515,15 @@ class _MobileInlineEditorBar extends StatelessWidget {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: TextField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                autofocus: false,
-                                maxLines: 1,
-                                enabled: true,
-                                textInputAction: onNext == null
-                                    ? TextInputAction.done
-                                    : TextInputAction.next,
-                                keyboardAppearance: palette.isLight
-                                    ? Brightness.light
-                                    : Brightness.dark,
-                                scrollPadding: EdgeInsets.zero,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                textCapitalization: TextCapitalization.none,
-                                style: TextStyle(
-                                  color: palette.fg,
-                                  fontSize: 16,
-                                  height: 1.08,
-                                  fontWeight: FontWeight.w800, // ✅ nitidez
-                                  letterSpacing: -0.15,
+                              child: KeyedSubtree(
+                                key: fieldKey,
+                                child: _MobileEditorField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  palette: palette,
+                                  onNext: onNext,
+                                  onDone: onDone,
                                 ),
-                                cursorColor: palette.accent,
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  filled: true,
-                                  // ✅ dark: vidrio visible
-                                  fillColor: palette.mobileInputBg,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 12),
-                                  hintText: 'Escribir…',
-                                  hintStyle: TextStyle(color: palette.fgMuted),
-                                  border: InputBorder.none,
-                                ),
-                                onSubmitted: (_) =>
-                                onNext == null ? onDone() : onNext!(),
                               ),
                             ),
                             if (onPrev != null)
@@ -3291,12 +3566,73 @@ class _MobileInlineEditorBar extends StatelessWidget {
   }
 }
 
+class _MobileEditorField extends StatelessWidget {
+  const _MobileEditorField({
+    required this.controller,
+    required this.focusNode,
+    required this.palette,
+    required this.onNext,
+    required this.onDone,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final _SheetPalette palette;
+  final VoidCallback? onNext;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      autofocus: false,
+      maxLines: 1,
+      enabled: true,
+      textInputAction:
+      onNext == null ? TextInputAction.done : TextInputAction.next,
+      keyboardAppearance:
+      palette.isLight ? Brightness.light : Brightness.dark,
+      scrollPadding: EdgeInsets.zero,
+      autocorrect: false,
+      enableSuggestions: false,
+      textCapitalization: TextCapitalization.none,
+      style: TextStyle(
+        color: palette.fg,
+        fontSize: 16,
+        height: 1.08,
+        fontWeight: FontWeight.w800, // ✅ nitidez
+        letterSpacing: -0.15,
+      ),
+      cursorColor: palette.accent,
+      decoration: InputDecoration(
+        isDense: true,
+        filled: true,
+        // ✅ dark: vidrio visible
+        fillColor: palette.mobileInputBg,
+        contentPadding:
+        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        hintText: 'Escribir…',
+        hintStyle: TextStyle(color: palette.fgMuted),
+        border: InputBorder.none,
+      ),
+      onSubmitted: (_) => onNext == null ? onDone() : onNext!(),
+    );
+  }
+}
+
 class _MobileAction {
   const _MobileAction(
       {required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+}
+
+class _EngineConfig {
+  const _EngineConfig({required this.baseUrl, required this.apiKey});
+  final String? baseUrl;
+  final String? apiKey;
 }
 
 // ============================== Modelo =====================================

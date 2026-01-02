@@ -1,3 +1,5 @@
+// lib/services/engine_math_client.dart
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -26,7 +28,7 @@ class EngineMathClient {
     required String expr,
     String task = 'eval',
     Map<String, String>? vars,
-    String? var,
+    String? variable, // <- NO usar "var" (keyword)
     String? to,
     int precision = 50,
     int order = 6,
@@ -40,56 +42,68 @@ class EngineMathClient {
       'task': task,
       'expr': expr,
       'vars': vars ?? <String, String>{},
-      'var': var,
-    'to': to,
-    'precision': precision,
-    'order': order,
-    'output': output,
+      'var': variable,
+      'to': to,
+      'precision': precision,
+      'order': order,
+      'output': output,
     }..removeWhere((k, v) => v == null);
 
     final rid = DateTime.now().millisecondsSinceEpoch.toString();
 
     http.Response res;
     try {
-    res = await http
-        .post(
-    uri,
-    headers: <String, String>{
-    'Content-Type': 'application/json; charset=utf-8',
-    'x-request-id': rid,
-    },
-    body: jsonEncode(payload),
-    )
-        .timeout(timeout);
+      res = await http
+          .post(
+        uri,
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=utf-8',
+          'x-request-id': rid,
+        },
+        body: jsonEncode(payload),
+      )
+          .timeout(timeout);
     } catch (e) {
-    throw EngineMathException('No se pudo conectar al engine ($baseUrl). Detalle: $e');
+      throw EngineMathException(
+        'No se pudo conectar al engine ($baseUrl). Detalle: $e',
+      );
     }
 
     final bodyText = res.body;
     Map<String, dynamic> data;
     try {
-    data = jsonDecode(bodyText) as Map<String, dynamic>;
+      final decoded = jsonDecode(bodyText);
+      if (decoded is! Map) {
+        throw const FormatException('JSON no es objeto');
+      }
+      data = Map<String, dynamic>.from(decoded as Map);
     } catch (_) {
-    throw EngineMathException('Respuesta inválida del engine (HTTP ${res.statusCode}).');
+      throw EngineMathException(
+        'Respuesta inválida del engine (HTTP ${res.statusCode}).',
+      );
     }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
-    final detail = (data['detail'] ?? data['message'] ?? 'Error desconocido').toString();
-    throw EngineMathException('Engine error (HTTP ${res.statusCode}): $detail');
+      final detail =
+      (data['detail'] ?? data['message'] ?? 'Error desconocido').toString();
+      throw EngineMathException('Engine error (HTTP ${res.statusCode}): $detail');
     }
 
-    final ok = data['ok'] == true;
-    if (!ok) {
-    throw EngineMathException('Engine respondió ok=false.');
+    if (data['ok'] != true) {
+      throw EngineMathException('Engine respondió ok=false.');
     }
+
+    final meta = (data['meta'] is Map)
+        ? Map<String, dynamic>.from(data['meta'] as Map)
+        : <String, dynamic>{};
 
     return EngineMathResult(
-    task: (data['task'] ?? task).toString(),
-    inputExpr: (data['input_expr'] ?? expr).toString(),
-    result: (data['result'] ?? '').toString(),
-    latex: data['latex']?.toString(),
-    meta: (data['meta'] is Map<String, dynamic>) ? (data['meta'] as Map<String, dynamic>) : const {},
-    requestId: rid,
+      task: (data['task'] ?? task).toString(),
+      inputExpr: (data['input_expr'] ?? expr).toString(),
+      result: (data['result'] ?? '').toString(),
+      latex: data['latex']?.toString(),
+      meta: meta,
+      requestId: (data['request_id'] ?? rid).toString(),
     );
   }
 }
