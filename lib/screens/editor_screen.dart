@@ -1116,7 +1116,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.map_outlined,
-        label: 'Maps',
+        label: 'Google maps',
         onTap: () => unawaited(_openMapsForCell(r, c)),
       ),
     ];
@@ -2206,8 +2206,12 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final ok = await _checkEngineHealth(_engineBaseResolved!);
+    final ok = await _checkEngineHealth(
+      _engineBaseResolved!,
+      apiKey: _engineKeyResolved,
+    );
     if (!mounted) return;
+
     setState(() {
       _engineAvailable = ok;
       if (!ok) {
@@ -2243,8 +2247,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final base =
-    (prefs.getString(_kPrefEngineBaseUrl) ?? prefs.getString(_kPrefEngineBaseUrlAlt) ?? '')
+    final base = (prefs.getString(_kPrefEngineBaseUrl) ??
+        prefs.getString(_kPrefEngineBaseUrlAlt) ??
+        '')
         .trim();
     final key = await _readEngineApiKeyFromPrefs();
     return _EngineConfig(
@@ -2256,8 +2261,9 @@ class _EditorScreenState extends State<EditorScreen>
   Future<String?> _readEngineApiKeyFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final key =
-      (prefs.getString(_kPrefEngineApiKey) ?? prefs.getString(_kPrefEngineApiKeyAlt) ?? '')
+      final key = (prefs.getString(_kPrefEngineApiKey) ??
+          prefs.getString(_kPrefEngineApiKeyAlt) ??
+          '')
           .trim();
       return key.isEmpty ? null : key;
     } catch (_) {
@@ -2269,11 +2275,27 @@ class _EditorScreenState extends State<EditorScreen>
     return base.trim().replaceAll(RegExp(r'/+$'), '');
   }
 
-  Future<bool> _checkEngineHealth(String baseUrl) async {
+  Map<String, String> _buildEngineHeaders({String? apiKey}) {
+    final h = <String, String>{
+      // bodyBytes + utf8.decode => no dependemos de charset del server
+      'content-type': 'application/json',
+      'accept': 'application/json',
+    };
+
+    final key = apiKey?.trim();
+    if (key != null && key.isNotEmpty) {
+      h['authorization'] = 'Bearer $key';
+      h['x-api-key'] = key;
+    }
+    return h;
+  }
+
+  Future<bool> _checkEngineHealth(String baseUrl, {String? apiKey}) async {
     final normalized = _normalizeEngineBaseUrl(baseUrl);
     final candidates = <String>[
       '/health',
       '/engine/health',
+      '/ready',
       '/',
     ];
 
@@ -2281,8 +2303,12 @@ class _EditorScreenState extends State<EditorScreen>
       final uri = Uri.parse('$normalized$path');
       try {
         final res = await http
-            .get(uri)
+            .get(
+          uri,
+          headers: _buildEngineHeaders(apiKey: apiKey),
+        )
             .timeout(const Duration(seconds: 4));
+
         if (res.statusCode >= 200 && res.statusCode < 300) {
           return true;
         }
@@ -2304,11 +2330,23 @@ class _EditorScreenState extends State<EditorScreen>
     });
 
     try {
-      final payload = {
+      // Normalizamos filas al ancho de headers para evitar 422 por shape inválido.
+      final normalizedRows = _rows
+          .map((r) => _normalizeRow(r.cells, _headers.length))
+          .toList(growable: false);
+
+      // ✅ Payload alineado al backend (evita 422):
+      // - sheet_id requerido
+      // - operation opcional (mandamos 'auto' para que el server detecte)
+      // - focus_row/col opcional
+      // - NO mandamos campos extra (name/savedAt) que pueden ser rechazados
+      final payload = <String, dynamic>{
+        'sheet_id': widget.sheetId,
         'headers': _headers,
-        'rows': _rows.map((r) => r.cells).toList(),
-        'name': _sheetName,
-        'savedAt': DateTime.now().toIso8601String(),
+        'rows': normalizedRows,
+        'operation': 'auto',
+        if (_selRow >= 0) 'focus_row': _selRow,
+        if (_selCol >= 0) 'focus_col': _selCol,
       };
 
       final uri = Uri.parse('${_normalizeEngineBaseUrl(base)}/engine/compute');
@@ -2316,15 +2354,7 @@ class _EditorScreenState extends State<EditorScreen>
       final resp = await http
           .post(
         uri,
-        headers: () {
-          final h = <String, String>{'content-type': 'application/json'};
-          final key = _engineKeyResolved?.trim();
-          if (key != null && key.isNotEmpty) {
-            h['authorization'] = 'Bearer $key';
-            h['x-api-key'] = key;
-          }
-          return h;
-        }(),
+        headers: _buildEngineHeaders(apiKey: _engineKeyResolved),
         body: json.encode(payload),
       )
           .timeout(const Duration(seconds: 18));
@@ -2332,14 +2362,60 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        final map = json.decode(resp.body) as Map<String, dynamic>;
-        final out = (map['rows'] as List?) ?? const [];
+        final map = json.decode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
 
-        if (out.isNotEmpty) {
-          // ✅ Preserva fotos por índice (no borra Photos).
+        // Formato nuevo: updated_cells = [{r,c,v}]
+        final updatedCells = map['updated_cells'];
+        if (updatedCells is List && updatedCells.isNotEmpty) {
           final old = _rows;
 
+          // copiamos rows/cells para mutar seguro
+          final next = <_RowModel>[];
+          for (int r = 0; r < old.length; r++) {
+            next.add(_RowModel(
+              cells: List<String>.from(old[r].cells),
+              photos: old[r].photos, // ✅ preserva fotos
+            ));
+          }
+
+          int applied = 0;
+          for (final item in updatedCells) {
+            if (item is Map) {
+              final r = item['r'];
+              final c = item['c'];
+              final v = item['v'];
+
+              if (r is int && c is int) {
+                if (r >= 0 && r < next.length && c >= 0 && c < _headers.length) {
+                  next[r].cells[c] = (v == null) ? '' : v.toString();
+                  applied++;
+                }
+              }
+            }
+          }
+
+          if (applied > 0) {
+            setState(() {
+              _rows = next;
+              _engineStatus = 'Listo';
+              _isDirty = true;
+              _rev++;
+            });
+
+            _pushUndoSnapshot();
+            _queueSave();
+          } else {
+            setState(() => _engineStatus = 'Sin cambios');
+          }
+          return;
+        }
+
+        // Formato legacy: rows = [[...]]
+        final out = (map['rows'] as List?) ?? const [];
+        if (out.isNotEmpty) {
+          final old = _rows;
           final normalized = <_RowModel>[];
+
           for (int i = 0; i < out.length; i++) {
             final rr = out[i];
             if (rr is List) {
@@ -2349,21 +2425,71 @@ class _EditorScreenState extends State<EditorScreen>
             }
           }
 
-          setState(() {
-            _rows = normalized.isNotEmpty ? normalized : _rows;
-            _engineStatus = 'Listo';
-            _isDirty = true;
-            _rev++;
-          });
+          if (normalized.isNotEmpty) {
+            setState(() {
+              _rows = normalized;
+              _engineStatus = 'Listo';
+              _isDirty = true;
+              _rev++;
+            });
 
-          _pushUndoSnapshot();
-          _queueSave();
+            _pushUndoSnapshot();
+            _queueSave();
+          } else {
+            setState(() => _engineStatus = 'Sin cambios');
+          }
         } else {
           setState(() => _engineStatus = 'Sin cambios');
         }
-      } else {
-        setState(() => _engineStatus = 'Engine error: ${resp.statusCode}');
+        return;
       }
+
+      // Errores manejados (especialmente 422)
+      if (resp.statusCode == 401 || resp.statusCode == 403) {
+        setState(() {
+          _engineStatus = 'No autorizado. Revisá API Key.';
+          _engineAvailable = true; // el server responde; el problema es auth
+        });
+        return;
+      }
+
+      if (resp.statusCode == 422) {
+        String msg = 'Request inválida (422).';
+
+        try {
+          final map =
+          json.decode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+          final detail = map['detail'];
+
+          if (detail is List && detail.isNotEmpty) {
+            // mostramos 1–3 errores para que sea accionable
+            final parts = <String>[];
+            for (final e in detail.take(3)) {
+              if (e is Map) {
+                final loc = e['loc'];
+                final emsg = e['msg'];
+                final locStr = (loc is List) ? loc.join('.') : (loc?.toString() ?? '');
+                final msgStr = (emsg?.toString() ?? 'invalid');
+                parts.add('$locStr: $msgStr');
+              }
+            }
+            if (parts.isNotEmpty) msg = '422: ${parts.join(' | ')}';
+          }
+        } catch (_) {
+          // fallback msg
+        }
+
+        setState(() {
+          _engineStatus = msg;
+          _engineAvailable = true; // responde, solo rechaza el schema
+        });
+        return;
+      }
+
+      setState(() {
+        _engineStatus = 'Engine error: ${resp.statusCode}';
+        _engineAvailable = true; // responde
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -2382,6 +2508,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 }
+
 
 // ============================== Header Apple ===============================
 
