@@ -1,4 +1,4 @@
-﻿﻿// lib/screens/editor_screen.dart
+// lib/screens/editor_screen.dart
 //
 // BitFlow / Gridnote — EditorScreen
 // Grilla editable “tipo Notes”: 1 toque => parpadeo => editar.
