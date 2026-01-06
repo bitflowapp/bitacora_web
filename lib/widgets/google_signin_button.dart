@@ -1,12 +1,8 @@
-// Contenedor para el botón de Google (lo dibuja GSI).
-import 'package:flutter/foundation.dart' show kIsWeb;
+// lib/widgets/google_signin_button.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-/* ignore: avoid_web_libraries_in_flutter */
-import 'dart:html' as html;
-/* ignore: unnecessary_import */
-import 'dart:ui' as ui;
 
-import '../services/auth_service.dart';
+import '../services/google_auth.dart';
 
 class GoogleSignInButtonWeb extends StatefulWidget {
   const GoogleSignInButtonWeb({super.key});
@@ -16,38 +12,35 @@ class GoogleSignInButtonWeb extends StatefulWidget {
 }
 
 class _GoogleSignInButtonWebState extends State<GoogleSignInButtonWeb> {
-  late final String _viewType;
-  late final html.DivElement _host;
+  bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _viewType = 'gsi_btn_${DateTime.now().microsecondsSinceEpoch}';
-    _host = html.DivElement()
-      ..id = _viewType
-      ..style.display = 'inline-block'
-      ..style.width = '100%'
-      ..style.minWidth = '240px'
-      ..style.textAlign = 'center';
-
-    if (kIsWeb) {
-      // ignore: undefined_prefixed_name
-      ui.platformViewRegistry.registerViewFactory(_viewType, (int _) => _host);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        AuthService.I.attachWebButton(_viewType);
-      });
+  Future<void> _handlePressed() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await GoogleAuthService.I.init();
+      await GoogleAuthService.I.signIn();
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('GoogleSignInButton error: $e\n$st');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Auth error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!kIsWeb) {
-      return ElevatedButton.icon(
-        onPressed: null,
-        icon: const Icon(Icons.login),
-        label: const Text('Google Sign-In (solo Web)'),
-      );
-    }
-    return SizedBox(height: 50, child: HtmlElementView(viewType: _viewType));
+    final label = _busy ? 'Procesando...' : 'Google Sign-In';
+    return FilledButton.icon(
+      onPressed: _busy ? null : _handlePressed,
+      icon: const Icon(Icons.login),
+      label: Text(label),
+    );
   }
 }

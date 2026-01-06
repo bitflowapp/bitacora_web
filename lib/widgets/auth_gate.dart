@@ -1,10 +1,12 @@
 // lib/widgets/auth_gate.dart
-// Puerta de entrada: si hay usuario -> Editor, si no -> Login BETA.
+// Simple auth gate used by legacy flows.
 
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+
+import '../screens/editor_screen.dart';
 import '../screens/login_screen.dart';
-import '../screens/editor_screen.dart'; // Ajustá si tu ruta es distinta
+import '../services/auth_service.dart';
+import '../services/sheet_store.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -15,6 +17,7 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   bool _initialized = false;
+  String? _sheetId;
 
   @override
   void initState() {
@@ -24,15 +27,34 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _initAuth() async {
     await AuthService.I.init();
+    final sheetId = await _resolveSheetId();
     if (!mounted) return;
     setState(() {
       _initialized = true;
+      _sheetId = sheetId;
     });
+  }
+
+  Future<String> _resolveSheetId() async {
+    try {
+      await SheetStore.init();
+      final list = SheetStore.list();
+      if (list.isNotEmpty) return list.first.id;
+    } catch (_) {
+      // Fall through to create a new id.
+    }
+    return SheetStore.createNew();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_sheetId == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -49,13 +71,11 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
 
-        // Sin usuario => pantalla de acceso sin cuenta (BETA)
         if (user == null) {
           return const LoginScreen();
         }
 
-        // Con usuario (invitado en esta beta) => editor principal
-        return const EditorScreen();
+        return EditorScreen(sheetId: _sheetId!);
       },
     );
   }

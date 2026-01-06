@@ -1,7 +1,7 @@
 // lib/services/engine_service.dart
 //
 // BitFlow Engine Service (HTTP)
-// - Ping:    GET  /health   (fallback GET /)
+// - Ping:    GET  /healthz  (fallback GET /readyz, luego GET /)
 // - Compute: POST /engine/compute
 // - Export:  POST /export/xlsx/flat            (simple xlsx, sin fotos)
 // - Export+: POST /export/xlsx/bitflow_photos  (xlsx con fotos)
@@ -16,7 +16,7 @@
 //   http: ^1.x
 //
 // Uso típico:
-//   final engine = EngineService(baseUrl: url, apiKey: key);
+//   final engine = EngineService(baseUrl: EngineService.defaultBaseUrl);
 //   final ping = await engine.ping();
 //   final result = await engine.compute(payload);
 
@@ -35,6 +35,9 @@ class EngineService {
   })  : baseUrl = normalizeBaseUrl(baseUrl),
         _client = client ?? http.Client();
 
+  /// Default según tu server real (logs): 127.0.0.1:8001
+  static const String defaultBaseUrl = 'http://127.0.0.1:8001';
+
   /// Ej: http://127.0.0.1:8001  (sin slash final)
   final String baseUrl;
 
@@ -45,9 +48,18 @@ class EngineService {
 
   final http.Client _client;
 
+  /// Normaliza:
+  /// - agrega scheme http:// si falta
+  /// - quita slashes finales
   static String normalizeBaseUrl(String v) {
-    var s = (v).trim();
+    var s = v.trim();
     if (s.isEmpty) return s;
+
+    // Si viene "127.0.0.1:8001" => "http://127.0.0.1:8001"
+    if (!s.startsWith('http://') && !s.startsWith('https://')) {
+      s = 'http://$s';
+    }
+
     while (s.endsWith('/')) {
       s = s.substring(0, s.length - 1);
     }
@@ -77,10 +89,17 @@ class EngineService {
     return h;
   }
 
-  Uri _u(String path) {
+  Uri _u(String path, {bool cacheBust = true}) {
     final b = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
     final p = path.trim().startsWith('/') ? path.trim() : '/${path.trim()}';
-    return Uri.parse('$b$p');
+
+    var uri = Uri.parse('$b$p');
+    if (!cacheBust) return uri;
+
+    final qp = Map<String, String>.from(uri.queryParameters);
+    qp['x'] = DateTime.now().millisecondsSinceEpoch.toString();
+    uri = uri.replace(queryParameters: qp);
+    return uri;
   }
 
   String _decodeBody(http.Response res) {
@@ -91,31 +110,39 @@ class EngineService {
     }
   }
 
-  /// GET /health (fallback GET /)
+  /// PING REAL (según tu backend):
+  /// 1) GET /healthz
+  /// 2) GET /readyz
+  /// 3) GET /
   Future<EnginePingResult> ping() async {
     if (baseUrl.trim().isEmpty) {
       return EnginePingResult(ok: false, statusCode: null, detail: 'baseUrl vacío');
     }
 
-    // 1) /health
-    try {
-      final uri = _u('/health');
-      final res = await _client.get(uri, headers: _headersJson()).timeout(timeout);
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = _decodeBody(res).trim();
-        return EnginePingResult(ok: true, statusCode: res.statusCode, detail: body.isEmpty ? 'OK' : body);
-      }
-    } catch (_) {
-      // seguimos a fallback
-    }
+    // 1) /healthz
+    final r1 = await _tryGet('/healthz');
+    if (r1.ok) return r1;
 
-    // 2) /
+    // 2) /readyz
+    final r2 = await _tryGet('/readyz');
+    if (r2.ok) return r2;
+
+    // 3) /
+    final r3 = await _tryGet('/');
+    return r3;
+  }
+
+  Future<EnginePingResult> _tryGet(String path) async {
     try {
-      final uri = _u('/');
+      final uri = _u(path);
       final res = await _client.get(uri, headers: _headersJson()).timeout(timeout);
       final body = _decodeBody(res).trim();
       final ok = res.statusCode >= 200 && res.statusCode < 300;
-      return EnginePingResult(ok: ok, statusCode: res.statusCode, detail: body.isEmpty ? 'HTTP ${res.statusCode}' : body);
+      return EnginePingResult(
+        ok: ok,
+        statusCode: res.statusCode,
+        detail: body.isEmpty ? 'HTTP ${res.statusCode}' : body,
+      );
     } catch (e) {
       return EnginePingResult(ok: false, statusCode: null, detail: e.toString());
     }
@@ -123,8 +150,11 @@ class EngineService {
 
   /// POST /engine/compute
   /// Payload libre (tu backend define el schema).
+  ///
+  /// Nota: si falta sheet_id te va a devolver 422 (como viste en logs).
   Future<Map<String, dynamic>> compute(Map<String, dynamic> payload) async {
     final uri = _u('/engine/compute');
+
     final res = await _client
         .post(uri, headers: _headersJson(), body: jsonEncode(payload))
         .timeout(timeout);
@@ -143,6 +173,7 @@ class EngineService {
     final decoded = jsonDecode(body);
     if (decoded is Map<String, dynamic>) return decoded;
 
+    // Si el backend devuelve lista/valor, lo envolvemos.
     return <String, dynamic>{'result': decoded};
   }
 
@@ -150,6 +181,7 @@ class EngineService {
   /// Devuelve bytes de un XLSX.
   Future<Uint8List> exportXlsxFlat(Map<String, dynamic> payload) async {
     final uri = _u('/export/xlsx/flat');
+
     final res = await _client
         .post(uri, headers: _headersBytes(), body: jsonEncode(payload))
         .timeout(timeout);
@@ -165,9 +197,10 @@ class EngineService {
   }
 
   /// POST /export/xlsx/bitflow_photos
-  /// Si tu backend exporta fotos embebidas en XLSX.
+  /// XLSX con fotos embebidas.
   Future<Uint8List> exportXlsxWithPhotos(Map<String, dynamic> payload) async {
     final uri = _u('/export/xlsx/bitflow_photos');
+
     final res = await _client
         .post(uri, headers: _headersBytes(), body: jsonEncode(payload))
         .timeout(timeout);
@@ -198,7 +231,7 @@ class EngineService {
     }
 
     // Fallback a texto plano (cortito)
-    if (b.length > 300) return b.substring(0, 300);
+    if (b.length > 400) return b.substring(0, 400);
     return b;
   }
 }

@@ -7,6 +7,11 @@
 // - Barra superior en píldora (Buscar / Nuevo / Más) como Reminders.
 // - Botón flotante iOS (+) abajo a la derecha (NO Material FAB).
 //
+// ✅ FIX ENGINE (apunta al puerto):
+// - Default inteligente: usa el MISMO host donde abriste la web + :8001 (en desktop: localhost -> 8001; en iPhone/Android: IP LAN -> 8001).
+// - Normaliza lo que pegás: elimina /healthz, /docs, #/..., ?... y deja solo scheme://host:port.
+// - Acepta pegar "192.168.x.x:8001" sin http://
+//
 // Mantiene:
 // - SheetStore intacto
 // - SharedPreferences (carpetas, notas, papelera, createdAt, prefs correo/engine)
@@ -22,12 +27,15 @@ import 'dart:convert';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart'
     show Colors, Border, BorderRadius, BoxDecoration, BoxShadow, Offset, BoxConstraints;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../workers/json_worker.dart';
+import '../services/engine_api.dart';
+import '../services/engine_config.dart';
 import '../services/sheet_store.dart';
 import '../services/export_xlsx_service.dart';
 import 'editor_screen.dart';
@@ -72,15 +80,18 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefDefaultEmail = 'bitflow.default_email';
   static const String _kPrefAutoSend = 'bitflow.auto_send';
 
-  // ✅ NUEVO: Engine URL (FastAPI / Python)
-  static const String _kPrefEngineBaseUrl = 'bitflow.engine_base_url';
+  // ✅ Engine URL (FastAPI / Python)
+  static const String _kPrefEngineBaseUrlLegacy = 'bitflow.engine_base_url';
+  static const int _kDefaultEnginePort = 8001;
 
   bool _prefsLoaded = false;
   String _defaultEmail = '';
   bool _autoSend = true;
 
-  // ✅ NUEVO: base url del engine
-  String _engineBaseUrl = '';
+  // Engine config (auto/manual + last resolved)
+  String _engineMode = EngineConfig.modeAuto;
+  String _manualEngineBaseUrl = '';
+  String? _lastResolvedEngineBaseUrl;
 
   // --------------------- Organization state (folders, notes, trash, createdAt) ---------------------
   static const int _trashTtlDays = 14;
@@ -138,6 +149,21 @@ class _StartPageState extends State<StartPage> {
     }
   }
 
+  // --------------------- Engine defaults ---------------------
+
+  String _manualEngineHint() {
+    if (kIsWeb) return EngineConfig.defaultTunnelBaseUrl;
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+        return EngineConfig.defaultLanBaseUrl;
+      default:
+        return 'http://192.168.1.50:$_kDefaultEnginePort';
+    }
+  }
+
   // --------------------- Load/Save Prefs ---------------------
 
   Future<void> _loadPrefs() async {
@@ -146,14 +172,26 @@ class _StartPageState extends State<StartPage> {
       final email = (p.getString(_kPrefDefaultEmail) ?? '').trim();
       final autoSend = p.getBool(_kPrefAutoSend) ?? true;
 
-      // ✅ Engine URL
-      final engine = (p.getString(_kPrefEngineBaseUrl) ?? '').trim();
+      final config = EngineConfig.instance;
+      var mode = await config.mode;
+      var manual = await config.manualBaseUrl;
+      final lastResolved = await config.lastResolvedBaseUrl;
+
+      final legacy = (p.getString(_kPrefEngineBaseUrlLegacy) ?? '').trim();
+      if (manual == null && EngineConfig.isValidBaseUrl(legacy)) {
+        manual = EngineConfig.normalize(legacy);
+        await config.setManualBaseUrl(manual);
+        await config.setMode(EngineConfig.modeManual);
+        mode = EngineConfig.modeManual;
+      }
 
       if (!mounted) return;
       setState(() {
         _defaultEmail = email;
         _autoSend = autoSend;
-        _engineBaseUrl = _normalizeEngineBaseUrl(engine);
+        _engineMode = mode;
+        _manualEngineBaseUrl = manual ?? '';
+        _lastResolvedEngineBaseUrl = lastResolved;
         _prefsLoaded = true;
       });
     } catch (_) {
@@ -165,42 +203,44 @@ class _StartPageState extends State<StartPage> {
   Future<void> _savePrefs({
     required String email,
     required bool autoSend,
-    required String engineBaseUrl,
+    required String engineMode,
+    required String manualBaseUrl,
   }) async {
     final p = await SharedPreferences.getInstance();
     await p.setString(_kPrefDefaultEmail, email.trim());
     await p.setBool(_kPrefAutoSend, autoSend);
 
-    final normalizedEngine = _normalizeEngineBaseUrl(engineBaseUrl);
-    await p.setString(_kPrefEngineBaseUrl, normalizedEngine);
+    final config = EngineConfig.instance;
+    await config.setMode(engineMode);
+    if (manualBaseUrl.trim().isNotEmpty) {
+      await config.setManualBaseUrl(manualBaseUrl);
+    }
+    final lastResolved = await config.lastResolvedBaseUrl;
 
     if (!mounted) return;
     setState(() {
       _defaultEmail = email.trim();
       _autoSend = autoSend;
-      _engineBaseUrl = normalizedEngine;
+      _engineMode = engineMode;
+      _manualEngineBaseUrl = manualBaseUrl.trim();
+      _lastResolvedEngineBaseUrl = lastResolved;
       _prefsLoaded = true;
     });
   }
 
-  String _normalizeEngineBaseUrl(String raw) {
-    var v = raw.trim();
-    if (v.isEmpty) return '';
-    while (v.endsWith('/')) {
-      v = v.substring(0, v.length - 1);
-    }
-    return v;
+  bool _looksLikeHttpUrl(String s) {
+    var v = s.trim();
+    if (v.isEmpty) return true; // permitir “sin configurar”
+
+    return EngineConfig.isValidBaseUrl(v);
   }
 
-  bool _looksLikeHttpUrl(String s) {
-    final v = s.trim();
-    if (v.isEmpty) return true; // permitir “sin configurar”
-    final u = Uri.tryParse(v);
-    if (u == null) return false;
-    final schemeOk = (u.scheme == 'http' || u.scheme == 'https');
-    if (!schemeOk) return false;
-    if (u.host.trim().isEmpty) return false;
-    return true;
+  String? _engineBaseForEditor() {
+    if (_engineMode != EngineConfig.modeManual) return null;
+    final raw = _manualEngineBaseUrl.trim();
+    if (!EngineConfig.isValidBaseUrl(raw)) return null;
+    final normalized = EngineConfig.normalize(raw);
+    return normalized.isEmpty ? null : normalized;
   }
 
   // --------------------- Load/Save Org (folders/trash/notes) ---------------------
@@ -371,8 +411,7 @@ class _StartPageState extends State<StartPage> {
           isLight: widget.isLight,
           onToggleTheme: widget.onToggleTheme,
           sheetId: id,
-          // ✅ Engine URL persistido
-          engineBaseUrl: _engineBaseUrl.isEmpty ? null : _engineBaseUrl,
+          engineBaseUrl: _engineBaseForEditor(),
         ),
       ),
     );
@@ -403,8 +442,7 @@ class _StartPageState extends State<StartPage> {
           isLight: widget.isLight,
           onToggleTheme: widget.onToggleTheme,
           sheetId: m.id,
-          // ✅ Engine URL persistido
-          engineBaseUrl: _engineBaseUrl.isEmpty ? null : _engineBaseUrl,
+          engineBaseUrl: _engineBaseForEditor(),
         ),
       ),
     );
@@ -829,10 +867,14 @@ class _StartPageState extends State<StartPage> {
   // --------------------- Settings UI (Mail + Engine) ---------------------
 
   Future<void> _openMailSettings() async {
+    var engineMode = _engineMode;
+    var lastResolved = _lastResolvedEngineBaseUrl;
+
     final emailEC = TextEditingController(text: _defaultEmail);
-    final engineEC = TextEditingController(text: _engineBaseUrl);
+    final engineEC = TextEditingController(text: _manualEngineBaseUrl);
 
     bool autoSend = _autoSend;
+    bool testing = false;
 
     final result = await showCupertinoDialog<_MailSettingsResult?>(
       context: context,
@@ -843,7 +885,10 @@ class _StartPageState extends State<StartPage> {
             final emailOk = email.isEmpty || _looksLikeEmail(email);
 
             final engine = engineEC.text.trim();
-            final engineOk = _looksLikeHttpUrl(engine);
+            final isManual = engineMode == EngineConfig.modeManual;
+            final engineOk = !isManual || _looksLikeHttpUrl(engine);
+            final resolvedLabel =
+                (lastResolved ?? (isManual ? 'Manual (sin resolver)' : 'Auto (sin resolver)'));
 
             return CupertinoAlertDialog(
               title: const Text('Ajustes'),
@@ -853,16 +898,30 @@ class _StartPageState extends State<StartPage> {
                   children: [
                     _CupertinoInfoBanner(
                       icon: CupertinoIcons.cloud,
-                      title: 'Motor (Python)',
-                      message:
-                      'Poné la URL del engine. En iPhone/Android usá la IP de la notebook (ej: http://192.168.1.50:8001).',
+                      title: 'Motor (FastAPI)',
+                      message: kIsWeb
+                          ? 'Modo AUTO usa el tunel HTTPS. Si cambia el tunel, pasa a MANUAL y pega la nueva URL.'
+                          : 'Modo AUTO intenta LAN y cae al tunel. En movil fisico usa IP LAN o tunel en MANUAL.',
                       isLight: widget.isLight,
+                    ),
+                    const SizedBox(height: 10),
+                    CupertinoSlidingSegmentedControl<String>(
+                      groupValue: engineMode,
+                      children: const <String, Widget>{
+                        EngineConfig.modeAuto: Text('AUTO'),
+                        EngineConfig.modeManual: Text('MANUAL'),
+                      },
+                      onValueChanged: (v) {
+                        if (v == null) return;
+                        setLocal(() => engineMode = v);
+                      },
                     ),
                     const SizedBox(height: 10),
                     CupertinoTextField(
                       controller: engineEC,
+                      enabled: isManual,
                       keyboardType: TextInputType.url,
-                      placeholder: 'http://192.168.1.50:8001',
+                      placeholder: _manualEngineHint(),
                       autocorrect: false,
                       onChanged: (_) => setLocal(() {}),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -870,19 +929,56 @@ class _StartPageState extends State<StartPage> {
                         padding: EdgeInsets.only(left: 10),
                         child: Icon(CupertinoIcons.cloud, size: 18),
                       ),
-                    ),
+                      ),
                     if (!engineOk)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           'URL inválida (usa http/https + host)',
                           style: TextStyle(
-                            color:
-                            widget.isLight ? const Color(0xFFB00020) : const Color(0xFFFF6B6B),
+                            color: widget.isLight ? const Color(0xFFB00020) : const Color(0xFFFF6B6B),
                             fontSize: 12,
                           ),
                         ),
                       ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Base resuelta: $resolvedLabel',
+                        style: TextStyle(
+                          color: widget.isLight ? const Color(0x88000000) : const Color(0x99FFFFFF),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: CupertinoButton(
+                        onPressed: testing
+                            ? null
+                            : () async {
+                                setLocal(() => testing = true);
+                                final result = await _probeEngineConnection(
+                                  mode: engineMode,
+                                  manualBaseUrl: engineEC.text,
+                                );
+                                if (!mounted) return;
+                                setLocal(() {
+                                  testing = false;
+                                  lastResolved = result.resolvedBase ?? lastResolved;
+                                });
+                                _toast(result.message);
+                              },
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        color: widget.isLight
+                            ? const Color(0xFFF0F2F7)
+                            : const Color(0xFF1B1F2B),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Text(testing ? 'Probando...' : 'Probar conexion'),
+                      ),
+                    ),
                     const SizedBox(height: 14),
                     _CupertinoInfoBanner(
                       icon: CupertinoIcons.paperplane,
@@ -910,8 +1006,7 @@ class _StartPageState extends State<StartPage> {
                         child: Text(
                           'Correo inválido',
                           style: TextStyle(
-                            color:
-                            widget.isLight ? const Color(0xFFB00020) : const Color(0xFFFF6B6B),
+                            color: widget.isLight ? const Color(0xFFB00020) : const Color(0xFFFF6B6B),
                             fontSize: 12,
                           ),
                         ),
@@ -937,13 +1032,15 @@ class _StartPageState extends State<StartPage> {
                     final engine = engineEC.text.trim();
 
                     if (email.isNotEmpty && !_looksLikeEmail(email)) return;
-                    if (!_looksLikeHttpUrl(engine)) return;
+                    if (engine.isNotEmpty && !_looksLikeHttpUrl(engine)) return;
 
                     Navigator.of(dialogContext).pop(
                       _MailSettingsResult(
                         email: email,
                         autoSend: autoSend,
-                        engineBaseUrl: _normalizeEngineBaseUrl(engine),
+                        engineMode: engineMode,
+                        manualBaseUrl:
+                            engine.isEmpty ? '' : EngineConfig.normalize(engine),
                       ),
                     );
                   },
@@ -965,16 +1062,80 @@ class _StartPageState extends State<StartPage> {
     await _savePrefs(
       email: result.email,
       autoSend: result.autoSend,
-      engineBaseUrl: result.engineBaseUrl,
+      engineMode: result.engineMode,
+      manualBaseUrl: result.manualBaseUrl,
     );
 
     if (!mounted) return;
 
-    if (_engineBaseUrl.isEmpty) {
-      _toast(_defaultEmail.isEmpty ? 'Ajustes guardados.' : 'Ajustes guardados (correo ok).');
+    if (_engineMode == EngineConfig.modeManual &&
+        _manualEngineBaseUrl.trim().isNotEmpty) {
+      _toast('Ajustes guardados. Engine: ${_manualEngineBaseUrl.trim()}');
     } else {
-      _toast('Ajustes guardados. Engine: ${_engineBaseUrl.trim()}');
+      _toast(_defaultEmail.isEmpty ? 'Ajustes guardados.' : 'Ajustes guardados (correo ok).');
     }
+  }
+
+  Future<_EngineProbeResult> _probeEngineConnection({
+    required String mode,
+    required String manualBaseUrl,
+  }) async {
+    final api = EngineApi();
+    try {
+      if (mode == EngineConfig.modeManual) {
+        final raw = manualBaseUrl.trim();
+        if (raw.isEmpty) {
+          return const _EngineProbeResult(
+            ok: false,
+            message: 'URL manual vacia.',
+            resolvedBase: null,
+          );
+        }
+        if (!EngineConfig.isValidBaseUrl(raw)) {
+          return const _EngineProbeResult(
+            ok: false,
+            message: 'URL manual invalida.',
+            resolvedBase: null,
+          );
+        }
+        final normalized = EngineConfig.normalize(raw);
+        await api.getJsonFromBase(normalized, '/openapi.json');
+        await EngineConfig.instance.setLastResolved(normalized);
+        return _EngineProbeResult(
+          ok: true,
+          message: 'Conexion OK.',
+          resolvedBase: normalized,
+        );
+      }
+
+      await api.getJson('/openapi.json', cacheBust: true);
+      final resolved = await EngineConfig.instance.lastResolvedBaseUrl;
+      return _EngineProbeResult(
+        ok: true,
+        message: 'Conexion OK.',
+        resolvedBase: resolved,
+      );
+    } catch (e) {
+      return _EngineProbeResult(
+        ok: false,
+        message: _engineErrorMessage(e),
+        resolvedBase: null,
+      );
+    } finally {
+      api.dispose();
+    }
+  }
+
+  String _engineErrorMessage(Object error) {
+    if (error is EngineApiException) {
+      return 'Engine error HTTP ${error.statusCode}: ${error.bodySnippet}';
+    }
+    final text = error.toString();
+    if (kIsWeb &&
+        (text.contains('XMLHttpRequest') || text.contains('Failed to fetch'))) {
+      return 'CORS bloqueado: habilitar allow_origins en FastAPI para el dominio del tunel.';
+    }
+    return 'No se pudo conectar al engine. $text';
   }
 
   Future<void> _openMoreSheet(_ApplePalette colors) async {
@@ -1134,7 +1295,6 @@ class _StartPageState extends State<StartPage> {
           _quick = _QuickFilter.today;
           break;
         case _SummaryKind.scheduled:
-        // No hay “programación” real en BitFlow todavía -> queda como “Todos”
           _tab = _HomeTab.sheets;
           _quick = _QuickFilter.none;
           break;
@@ -2961,8 +3121,8 @@ class _AppleSheetRow extends StatelessWidget {
                           color: colors.accent.withValues(alpha: 0.12),
                           border: Border.all(color: colors.accent.withValues(alpha: 0.18)),
                         ),
-                        child:
-                        Text('Hoy', style: TextStyle(color: colors.accent, fontSize: 11, fontWeight: FontWeight.w800)),
+                        child: Text('Hoy',
+                            style: TextStyle(color: colors.accent, fontSize: 11, fontWeight: FontWeight.w800)),
                       ),
                   ],
                 ),
@@ -3309,8 +3469,7 @@ class _FolderManagerPageState extends State<_FolderManagerPage> {
   @override
   Widget build(BuildContext context) {
     final pal = _ApplePalette(isLight: widget.isLight);
-    final folders = List<_Folder>.from(widget.folders)
-      ..sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
+    final folders = List<_Folder>.from(widget.folders)..sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
 
     return CupertinoPageScaffold(
       backgroundColor: pal.bg,
@@ -3471,16 +3630,30 @@ class _PromptExtraAction {
   final bool isDestructive;
 }
 
+class _EngineProbeResult {
+  const _EngineProbeResult({
+    required this.ok,
+    required this.message,
+    required this.resolvedBase,
+  });
+
+  final bool ok;
+  final String message;
+  final String? resolvedBase;
+}
+
 class _MailSettingsResult {
   const _MailSettingsResult({
     required this.email,
     required this.autoSend,
-    required this.engineBaseUrl,
+    required this.engineMode,
+    required this.manualBaseUrl,
   });
 
   final String email;
   final bool autoSend;
-  final String engineBaseUrl;
+  final String engineMode;
+  final String manualBaseUrl;
 }
 
 // ---------------- Compat: Color.withValues(alpha: ...) ----------------

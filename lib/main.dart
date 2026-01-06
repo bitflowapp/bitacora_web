@@ -12,6 +12,7 @@ import 'screens/start_page.dart';
 import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
+import 'services/engine_config.dart' as engine_cfg;
 import 'widgets/animated_video_background.dart';
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
@@ -29,6 +30,14 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
     // 2) Y también persistimos para el EngineConfig (engine_client.dart),
     //    así el EditorScreen grande usa el mismo baseUrl.
     await EngineConfig.instance.setOverride(url);
+
+    final normalized = engine_cfg.EngineConfig.normalize(url);
+    if (engine_cfg.EngineConfig.isValidBaseUrl(normalized)) {
+      await engine_cfg.EngineConfig.instance.setManualBaseUrl(normalized);
+      await engine_cfg.EngineConfig.instance
+          .setMode(engine_cfg.EngineConfig.modeManual);
+      await engine_cfg.EngineConfig.instance.setLastResolved(normalized);
+    }
 
     if (kDebugMode) {
       // ignore: avoid_print

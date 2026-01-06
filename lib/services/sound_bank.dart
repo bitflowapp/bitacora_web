@@ -7,8 +7,21 @@
 import 'sound_bank_stub.dart'
 if (dart.library.html) 'sound_bank_web.dart' as sound_impl;
 
+enum Sfx { type }
+
 /// Abstracción mínima para reproducir efectos de sonido de la app.
 abstract class SoundBank {
+  static final SoundBank instance = getSoundBank();
+
+  Future<void> init() async {}
+
+  Future<void> play(Sfx sfx, {double gain = 1.0}) async {
+    switch (sfx) {
+      case Sfx.type:
+        return click();
+    }
+  }
+
   /// Sonido corto de tap / click de interfaz.
   Future<void> click();
 
