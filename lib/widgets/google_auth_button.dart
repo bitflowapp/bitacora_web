@@ -54,10 +54,13 @@ class _GoogleAuthButtonState extends State<GoogleAuthButton> {
         ),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
         _isProcessing = false;
-      });
+      }
     }
   }
 

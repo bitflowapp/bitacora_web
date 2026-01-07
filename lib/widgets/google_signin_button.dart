@@ -29,8 +29,11 @@ class _GoogleSignInButtonWebState extends State<GoogleSignInButtonWeb> {
         SnackBar(content: Text('Auth error: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      } else {
+        _busy = false;
+      }
     }
   }
 

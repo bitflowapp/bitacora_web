@@ -565,11 +565,15 @@ class _StartPageState extends State<StartPage> {
       if (!mounted) return;
       _toast('Error al exportar XLSX: $e');
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _busySheetId = null;
+        });
+      } else {
         _busy = false;
         _busySheetId = null;
-      });
+      }
     }
   }
 

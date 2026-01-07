@@ -133,6 +133,15 @@ class _EditorScreenState extends State<EditorScreen>
   int? _overlayTargetHeaderCol;
   double _overlayTargetWidth = 320;
 
+// Draft live sync (edicion en vivo)
+  final Map<_CellRef, String> _draftCells = <_CellRef, String>{};
+  final Map<int, String> _draftHeaders = <int, String>{};
+  _CellRef? _editingCellRef;
+  int? _editingHeaderCol;
+  final ValueNotifier<int> _gridVersion = ValueNotifier<int>(0);
+  VoidCallback? _cellDraftListener;
+  VoidCallback? _mobileDraftListener;
+
 // Blink visual
   final ValueNotifier<_CellRef?> _blinkCell = ValueNotifier<_CellRef?>(null);
 
@@ -161,10 +170,18 @@ class _EditorScreenState extends State<EditorScreen>
 // Engine compute (opcional)
   bool _engineBusy = false;
   String? _engineStatus;
+  bool _engineStatusIsError = false;
   String? _engineBaseResolved;
   String? _engineKeyResolved;
   bool _engineAvailable = false;
   late final EngineApi _engineApi = EngineApi();
+
+// ---------------- Smoke test (query param ?smoke=1) ---------------------
+
+  bool _smokeRequested = false;
+  bool _smokeRan = false;
+  String? _smokeStatus;
+  bool? _smokeOk;
 
 // ---------------- Mobile inline editor (FIJO arriba del teclado) --------
 
@@ -217,8 +234,9 @@ class _EditorScreenState extends State<EditorScreen>
     _savePending = false;
 
     _pushUndoSnapshot(); // estado inicial
-    unawaited(_loadLocal());
-    unawaited(_initEngineConnection());
+    _smokeRequested = _isSmokeRequested();
+    unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
+    unawaited(_initEngineConnection().whenComplete(() => unawaited(_maybeRunSmoke())));
   }
 
   @override
@@ -252,6 +270,8 @@ class _EditorScreenState extends State<EditorScreen>
     _vScroll.dispose();
     _hScroll.dispose();
 
+    _detachCellDraftListener();
+    _detachMobileDraftListener();
     _cellEC.dispose();
     _cellFocus.dispose();
 
@@ -262,6 +282,7 @@ class _EditorScreenState extends State<EditorScreen>
     _removeCellEditor(notifyState: false);
 
     _blinkCell.dispose();
+    _gridVersion.dispose();
 
     _nameEC.dispose();
     _nameFocus.dispose();
@@ -445,14 +466,16 @@ class _EditorScreenState extends State<EditorScreen>
       if (kDebugMode) debugPrint('[EditorScreen] save failed: $e');
     } finally {
       _saving = false;
-      if (!mounted) return;
-
-      setState(() {}); // refresca ???Saved??????
+      if (mounted) {
+        setState(() {}); // refresca ???Saved??????
 
 // ??? Si entraron cambios mientras guardabas, re-encol??.
-      if (_savePending || _rev != _lastSavedRev) {
-        _savePending = false;
-        _queueSave();
+        if (_savePending || _rev != _lastSavedRev) {
+          _savePending = false;
+          _queueSave();
+        } else {
+          _savePending = false;
+        }
       } else {
         _savePending = false;
       }
@@ -627,6 +650,35 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  bool _isSmokeRequested() {
+    final raw = Uri.base.queryParameters['smoke'];
+    if (raw == null) return false;
+    final v = raw.trim().toLowerCase();
+    return v == '1' || v == 'true' || v == 'yes';
+  }
+
+  Future<void> _maybeRunSmoke() async {
+    if (!_smokeRequested || _smokeRan) return;
+    final base = _engineBaseResolved?.trim() ?? '';
+    if (base.isEmpty || _engineBusy) return;
+    _smokeRan = true;
+    await _runSmokeTest();
+  }
+
+  String _formatSmokeFailure(_EngineErrorDetails? details) {
+    if (details == null) return 'Engine BLOQUEADO (error desconocido)';
+    final parts = <String>[];
+    if (details.isCors) parts.add('CORS');
+    if (details.isTimeout) parts.add('timeout');
+    if (details.statusCode != null) {
+      parts.add('HTTP ${details.statusCode}');
+    }
+    final reason = parts.isEmpty ? 'error' : parts.join('/');
+    final msg = details.message.trim();
+    if (msg.isEmpty) return 'Engine BLOQUEADO ($reason)';
+    return 'Engine BLOQUEADO ($reason): $msg';
+  }
+
   String _savedLabel(_SheetPalette pal) {
     if (_saving) return 'Saving???';
     final d = _lastSavedAt;
@@ -634,6 +686,34 @@ class _EditorScreenState extends State<EditorScreen>
     final hh = d.hour.toString().padLeft(2, '0');
     final mm = d.minute.toString().padLeft(2, '0');
     return 'Saved $hh:$mm';
+  }
+
+  Color _smokeBg(_SheetPalette pal) {
+    if (_smokeOk == true) {
+      return pal.isLight ? const Color(0xFFD1FAE5) : const Color(0xFF064E3B);
+    }
+    if (_smokeOk == false) {
+      return pal.isLight ? const Color(0xFFFEE2E2) : const Color(0xFF7F1D1D);
+    }
+    return pal.statusBg;
+  }
+
+  Color _smokeFg(_SheetPalette pal) {
+    if (_smokeOk == true) {
+      return pal.isLight ? const Color(0xFF065F46) : const Color(0xFF6EE7B7);
+    }
+    if (_smokeOk == false) {
+      return pal.isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
+    }
+    return pal.statusFg;
+  }
+
+  Color _errorBg(_SheetPalette pal) {
+    return pal.isLight ? const Color(0xFFFEE2E2) : const Color(0xFF7F1D1D);
+  }
+
+  Color _errorFg(_SheetPalette pal) {
+    return pal.isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
   }
 
 // ------------------------------ Build -----------------------------------
@@ -690,11 +770,17 @@ class _EditorScreenState extends State<EditorScreen>
                               ? null
                               : () => unawaited(_computeEngine()),
                         ),
+                        if (_smokeStatus != null)
+                          _StatusBar(
+                            text: _smokeStatus!,
+                            bg: _smokeBg(pal),
+                            fg: _smokeFg(pal),
+                          ),
                         if (_engineStatus != null)
                           _StatusBar(
                             text: _engineStatus!,
-                            bg: pal.statusBg,
-                            fg: pal.statusFg,
+                            bg: _engineStatusIsError ? _errorBg(pal) : pal.statusBg,
+                            fg: _engineStatusIsError ? _errorFg(pal) : pal.statusFg,
                           ),
                         Expanded(
                           child: isDesktop
@@ -2212,6 +2298,7 @@ class _EditorScreenState extends State<EditorScreen>
       setState(() {
         _engineAvailable = false;
         _engineStatus = null;
+        _engineStatusIsError = false;
       });
       return;
     }
@@ -2223,8 +2310,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (!ok) {
         _engineStatus =
         'Engine no accesible. En iPhone/Android us?? IP LAN o t??nel (no 127.0.0.1).';
+        _engineStatusIsError = true;
       } else {
         _engineStatus = null;
+        _engineStatusIsError = false;
       }
     });
   }
@@ -2302,25 +2391,157 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _engineErrorMessage(Object error) {
-    if (error is EngineApiException) {
-      return 'Engine error HTTP ${error.statusCode}: ${error.bodySnippet}';
+    final details = _engineErrorDetails(error);
+    if (details.isCors) {
+      return 'CORS bloqueado (OPTIONS). Revisar allow_origins y OPTIONS.';
     }
-    final text = error.toString();
-    if (kIsWeb &&
-        (text.contains('XMLHttpRequest') || text.contains('Failed to fetch'))) {
-      return 'CORS bloqueado: habilitar allow_origins en FastAPI para el dominio del tunel.';
+    if (details.statusCode != null) {
+      return 'Engine error ${details.message}';
+    }
+    if (details.isTimeout) {
+      return 'Engine timeout. Reintenta o revisa el tunel.';
+    }
+    if (details.message.isNotEmpty && error is EngineApiDataException) {
+      return details.message;
     }
     return 'Engine no responde. En movil fisico, 127.0.0.1 es el telefono: usa IP LAN o tunel.';
   }
 
-  Future<void> _computeEngine() async {
+  void _commitActiveEditors() {
+    if (_mobileEditorOpen) {
+      _commitMobileEdit();
+    }
+
+    if (_cellEditorEntry != null) {
+      final headerCol = _overlayTargetHeaderCol;
+      final cell = _overlayTargetCell;
+      final v = _cellEC.text;
+
+      if (headerCol != null) {
+        if (headerCol >= 0 && headerCol < _headers.length - 1) {
+          final nv = v.trim();
+          if (nv != _headers[headerCol]) {
+            _headers[headerCol] = nv;
+            _markDirty(snapshot: true);
+          }
+        }
+      } else if (cell != null) {
+        _setCell(cell.r, cell.c, v);
+      }
+
+      if (_cellFocus.hasFocus) _cellFocus.unfocus();
+      _removeCellEditor();
+    }
+  }
+
+  _EngineErrorDetails _engineErrorDetails(Object error) {
+    if (error is EngineApiException) {
+      return _EngineErrorDetails(
+        message: 'HTTP ${error.statusCode}: ${error.bodySnippet}',
+        statusCode: error.statusCode,
+      );
+    }
+    if (error is EngineApiDataException) {
+      return _EngineErrorDetails(message: error.message);
+    }
+
+    final text = error.toString();
+    final lower = text.toLowerCase();
+    final isTimeout = error is TimeoutException ||
+        lower.contains('timeout') ||
+        lower.contains('timed out');
+    final isCors = kIsWeb &&
+        (text.contains('XMLHttpRequest') || text.contains('Failed to fetch'));
+
+    return _EngineErrorDetails(
+      message: text,
+      isCors: isCors,
+      isTimeout: isTimeout,
+    );
+  }
+
+  Future<void> _runSmokeTest() async {
+    if (!mounted) return;
+    setState(() {
+      _smokeStatus = 'Engine CHECK...';
+      _smokeOk = null;
+    });
+
+    final base = _engineBaseResolved?.trim() ?? '';
+    if (base.isEmpty) {
+      setState(() {
+        _smokeOk = false;
+        _smokeStatus = 'Engine BLOQUEADO (base url vacia)';
+      });
+      return;
+    }
+
+    try {
+      await _engineApi.getJsonFromBase(
+        base,
+        '/openapi.json',
+        timeout: const Duration(seconds: 8),
+      );
+      if (!mounted) return;
+      if (kDebugMode) debugPrint('[smoke] engine ping ok: $base');
+      setState(() {
+        _smokeOk = true;
+        _smokeStatus = 'Engine OK';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final details = _engineErrorDetails(e);
+      if (kDebugMode) debugPrint('[smoke] engine ping failed: $details');
+      setState(() {
+        _smokeOk = false;
+        _smokeStatus = _formatSmokeFailure(details);
+      });
+    }
+  }
+
+  Future<_EngineComputeOutcome> _computeEngine() async {
+    _commitActiveEditors();
+
     final base = _engineBaseResolved;
-    if (base == null || base.trim().isEmpty) return;
-    if (_engineBusy) return;
+    if (base == null || base.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _engineStatus = 'Engine no disponible.';
+          _engineStatusIsError = true;
+        });
+      } else {
+        _engineStatus = 'Engine no disponible.';
+        _engineStatusIsError = true;
+      }
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(
+          message: 'Engine base URL vacia',
+        ),
+      );
+    }
+    if (_engineBusy) {
+      if (mounted) {
+        setState(() {
+          _engineStatus = 'Engine ocupado.';
+          _engineStatusIsError = true;
+        });
+      } else {
+        _engineStatus = 'Engine ocupado.';
+        _engineStatusIsError = true;
+      }
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(message: 'Engine ocupado'),
+      );
+    }
 
     setState(() {
       _engineBusy = true;
       _engineStatus = 'Computando...';
+      _engineStatusIsError = false;
     });
 
     try {
@@ -2357,7 +2578,13 @@ class _EditorScreenState extends State<EditorScreen>
         timeout: const Duration(seconds: 18),
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return const _EngineComputeOutcome(
+          ok: false,
+          hadUpdates: false,
+          errorDetails: _EngineErrorDetails(message: 'Widget unmounted'),
+        );
+      }
 
       // Formatos soportados por el engine:
       // - rows: reemplazo completo
@@ -2382,13 +2609,14 @@ class _EditorScreenState extends State<EditorScreen>
         setState(() {
           _rows = normalized.isNotEmpty ? normalized : _rows;
           _engineStatus = (map['message'] ?? 'Listo').toString();
+          _engineStatusIsError = false;
           _isDirty = true;
           _rev++;
         });
 
         _pushUndoSnapshot();
         _queueSave();
-        return;
+        return const _EngineComputeOutcome(ok: true, hadUpdates: true);
       }
 
       if (updatedCells.isNotEmpty) {
@@ -2404,30 +2632,54 @@ class _EditorScreenState extends State<EditorScreen>
             _rows[r].cells[c] = v == null ? '' : '$v';
           }
           _engineStatus = (map['message'] ?? 'Listo').toString();
+          _engineStatusIsError = false;
           _isDirty = true;
           _rev++;
         });
 
         _pushUndoSnapshot();
         _queueSave();
-        return;
+        return const _EngineComputeOutcome(ok: true, hadUpdates: true);
       }
 
-      setState(() => _engineStatus = (map['message'] ?? 'Sin cambios').toString());
+      setState(() {
+        _engineStatus = (map['message'] ?? 'Sin cambios').toString();
+        _engineStatusIsError = false;
+      });
+      return const _EngineComputeOutcome(ok: true, hadUpdates: false);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return const _EngineComputeOutcome(
+          ok: false,
+          hadUpdates: false,
+          errorDetails: _EngineErrorDetails(message: 'Widget unmounted'),
+        );
+      }
+      final details = _engineErrorDetails(e);
+      if (kDebugMode) debugPrint('[engine] compute error: $details');
       setState(() {
         _engineStatus = _engineErrorMessage(e);
         _engineAvailable = false;
+        _engineStatusIsError = true;
       });
+      return _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: details,
+      );
     } finally {
-      if (!mounted) return;
-      setState(() => _engineBusy = false);
+      if (mounted) {
+        setState(() => _engineBusy = false);
+      } else {
+        _engineBusy = false; // opcional; no es critico si ya se desmonto
+      }
 
-      Timer(const Duration(seconds: 3), () {
-        if (!mounted) return;
-        setState(() => _engineStatus = null);
-      });
+      if (mounted) {
+        Timer(const Duration(seconds: 3), () {
+          if (!mounted) return;
+          setState(() => _engineStatus = null);
+        });
+      }
     }
   }
 }
@@ -3704,6 +3956,36 @@ class _EngineConfig {
   const _EngineConfig({required this.baseUrl, required this.apiKey});
   final String? baseUrl;
   final String? apiKey;
+}
+
+class _EngineErrorDetails {
+  const _EngineErrorDetails({
+    required this.message,
+    this.statusCode,
+    this.isCors = false,
+    this.isTimeout = false,
+  });
+
+  final String message;
+  final int? statusCode;
+  final bool isCors;
+  final bool isTimeout;
+
+  @override
+  String toString() =>
+      'EngineErrorDetails(message: $message, statusCode: $statusCode, cors: $isCors, timeout: $isTimeout)';
+}
+
+class _EngineComputeOutcome {
+  const _EngineComputeOutcome({
+    required this.ok,
+    required this.hadUpdates,
+    this.errorDetails,
+  });
+
+  final bool ok;
+  final bool hadUpdates;
+  final _EngineErrorDetails? errorDetails;
 }
 
 // ============================== Modelo =====================================
