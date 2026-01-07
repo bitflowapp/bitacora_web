@@ -243,6 +243,10 @@ class _EditorScreenState extends State<EditorScreen>
   void didUpdateWidget(covariant EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (widget.sheetId != oldWidget.sheetId) {
+      _resetDraftsAndEditors();
+    }
+
 // Si el padre cambia isLight, lo reflejamos localmente.
     final newLight = widget.isLight;
     if (newLight != null &&
@@ -406,6 +410,8 @@ class _EditorScreenState extends State<EditorScreen>
         _savePending = false;
       });
 
+      _resetDraftsAndEditors();
+
       if (!_nameFocus.hasFocus) {
         _nameEC.text = _sheetName;
       }
@@ -525,6 +531,8 @@ class _EditorScreenState extends State<EditorScreen>
       _rev++;
     });
 
+    _resetDraftsAndEditors();
+
     if (!_nameFocus.hasFocus) {
       _nameEC.text = _sheetName;
     }
@@ -547,6 +555,8 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+
+    _resetDraftsAndEditors();
 
     if (!_nameFocus.hasFocus) {
       _nameEC.text = _sheetName;
@@ -648,6 +658,188 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = nv;
       _markDirty(snapshot: false);
     });
+  }
+
+  void _bumpGridVersion() {
+    _gridVersion.value = _gridVersion.value + 1;
+  }
+
+  String _effectiveHeader(int c) {
+    if (c < 0 || c >= _headers.length) return '';
+    return _draftHeaders[c] ?? _headers[c];
+  }
+
+  String _effectiveCell(int r, int c) {
+    if (r < 0 || r >= _rows.length) return '';
+    if (c < 0 || c >= _headers.length) return '';
+    return _draftCells[_CellRef(r, c)] ?? _rows[r].cells[c];
+  }
+
+  void _setDraftHeader(int c, String value) {
+    if (c < 0 || c >= _headers.length) return;
+    if (c == _headers.length - 1) return;
+
+    final existing = _draftHeaders[c];
+    if (existing == value) return;
+
+    if (value == _headers[c]) {
+      if (_draftHeaders.remove(c) != null) {
+        _bumpGridVersion();
+      }
+      return;
+    }
+
+    _draftHeaders[c] = value;
+    _bumpGridVersion();
+  }
+
+  void _setDraftCell(int r, int c, String value) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    if (c == _headers.length - 1) return;
+
+    final ref = _CellRef(r, c);
+    final existing = _draftCells[ref];
+    if (existing == value) return;
+
+    if (value == _rows[r].cells[c]) {
+      if (_draftCells.remove(ref) != null) {
+        _bumpGridVersion();
+      }
+      return;
+    }
+
+    _draftCells[ref] = value;
+    _bumpGridVersion();
+  }
+
+  void _commitDraftHeader(int c) {
+    if (c < 0 || c >= _headers.length) return;
+    if (c == _headers.length - 1) return;
+
+    final draft = _draftHeaders[c];
+    final next = (draft ?? _headers[c]).trim();
+    if (next == _headers[c]) {
+      if (_draftHeaders.remove(c) != null) {
+        _bumpGridVersion();
+      }
+      return;
+    }
+
+    _headers[c] = next;
+    _draftHeaders.remove(c);
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+  }
+
+  void _commitDraftCell(int r, int c) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    if (c == _headers.length - 1) return;
+
+    final ref = _CellRef(r, c);
+    final draft = _draftCells[ref];
+    final next = draft ?? _rows[r].cells[c];
+    if (next == _rows[r].cells[c]) {
+      if (_draftCells.remove(ref) != null) {
+        _bumpGridVersion();
+      }
+      return;
+    }
+
+    _rows[r].cells[c] = next;
+    _draftCells.remove(ref);
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+  }
+
+  void _clearDrafts() {
+    if (_draftCells.isEmpty && _draftHeaders.isEmpty) return;
+    _draftCells.clear();
+    _draftHeaders.clear();
+    _bumpGridVersion();
+  }
+
+  void _resetDraftsAndEditors() {
+    _clearDrafts();
+    _removeCellEditor();
+    if (_mobileEditorOpen) {
+      _cancelMobileEdit();
+    }
+  }
+
+  bool _clearCellDrafts(Iterable<_CellRef> refs) {
+    bool changed = false;
+    for (final ref in refs) {
+      if (_draftCells.remove(ref) != null) {
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  void _syncActiveDrafts() {
+    if (_mobileEditorOpen) {
+      final v = _mobileEC.text;
+      if (_mobileEditingHeader) {
+        _setDraftHeader(_mobileCol, v);
+      } else {
+        _setDraftCell(_mobileRow, _mobileCol, v);
+      }
+    }
+
+    if (_cellEditorEntry != null) {
+      final headerCol = _editingHeaderCol;
+      final cellRef = _editingCellRef;
+      final v = _cellEC.text;
+      if (headerCol != null) {
+        _setDraftHeader(headerCol, v);
+      } else if (cellRef != null) {
+        _setDraftCell(cellRef.r, cellRef.c, v);
+      }
+    }
+  }
+
+  void _attachCellDraftListener() {
+    if (_cellDraftListener != null) return;
+    _cellDraftListener = () {
+      final headerCol = _editingHeaderCol;
+      final cellRef = _editingCellRef;
+      final v = _cellEC.text;
+      if (headerCol != null) {
+        _setDraftHeader(headerCol, v);
+      } else if (cellRef != null) {
+        _setDraftCell(cellRef.r, cellRef.c, v);
+      }
+    };
+    _cellEC.addListener(_cellDraftListener!);
+  }
+
+  void _detachCellDraftListener() {
+    final listener = _cellDraftListener;
+    if (listener == null) return;
+    _cellEC.removeListener(listener);
+    _cellDraftListener = null;
+  }
+
+  void _attachMobileDraftListener() {
+    if (_mobileDraftListener != null) return;
+    _mobileDraftListener = () {
+      final v = _mobileEC.text;
+      if (_mobileEditingHeader) {
+        _setDraftHeader(_mobileCol, v);
+      } else {
+        _setDraftCell(_mobileRow, _mobileCol, v);
+      }
+    };
+    _mobileEC.addListener(_mobileDraftListener!);
+  }
+
+  void _detachMobileDraftListener() {
+    final listener = _mobileDraftListener;
+    if (listener == null) return;
+    _mobileEC.removeListener(listener);
+    _mobileDraftListener = null;
   }
 
   bool _isSmokeRequested() {
@@ -788,68 +980,82 @@ class _EditorScreenState extends State<EditorScreen>
                             autofocus: true,
                             onKeyEvent: _onKeyEvent,
                             child: RepaintBoundary(
-                              child: _GridView(
-                                palette: pal,
-                                headers: _headers,
-                                rowModels: _rows,
-                                vScroll: _vScroll,
-                                hScroll: _hScroll,
-                                selRow: _selRow,
-                                selCol: _selCol,
-                                blink: _blinkCell,
-                                editorLink: _editorLink,
-                                overlayTargetCell: _overlayTargetCell,
-                                overlayTargetHeaderCol:
-                                _overlayTargetHeaderCol,
-                                onSelect: (r, c) {
-                                  setState(() {
-                                    _selRow = r;
-                                    _selCol = c;
-                                  });
-                                  _blink(r, c);
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _gridVersion,
+                                builder: (ctx, _, __) {
+                                  return _GridView(
+                                    palette: pal,
+                                    headers: List<String>.generate(
+                                        _headers.length, _effectiveHeader),
+                                    rowModels: _rows,
+                                    cellTextAt: (r, c) => _effectiveCell(r, c),
+                                    vScroll: _vScroll,
+                                    hScroll: _hScroll,
+                                    selRow: _selRow,
+                                    selCol: _selCol,
+                                    blink: _blinkCell,
+                                    editorLink: _editorLink,
+                                    overlayTargetCell: _overlayTargetCell,
+                                    overlayTargetHeaderCol:
+                                    _overlayTargetHeaderCol,
+                                    onSelect: (r, c) {
+                                      setState(() {
+                                        _selRow = r;
+                                        _selCol = c;
+                                      });
+                                      _blink(r, c);
+                                    },
+                                    onEditRequested: (r, c, w) =>
+                                        _beginEditCell(context, pal, r, c, w),
+                                    onHeaderEditRequested: (c, w) =>
+                                        _beginEditHeader(context, pal, c, w),
+                                    onContextMenu: (pos, r, c, isHeader) =>
+                                        _openContextMenu(context, pal, pos, r,
+                                            c, isHeader),
+                                    onDeleteRow: (r) => _deleteRow(r),
+                                    onPickPhoto: (r) => _pickPhotoForRow(r),
+                                  );
                                 },
-                                onEditRequested: (r, c, w) =>
-                                    _beginEditCell(context, pal, r, c, w),
-                                onHeaderEditRequested: (c, w) =>
-                                    _beginEditHeader(context, pal, c, w),
-                                onContextMenu: (pos, r, c, isHeader) =>
-                                    _openContextMenu(context, pal, pos, r,
-                                        c, isHeader),
-                                onDeleteRow: (r) => _deleteRow(r),
-                                onPickPhoto: (r) => _pickPhotoForRow(r),
                               ),
                             ),
                           )
                               : RepaintBoundary(
-                            child: _GridView(
-                              palette: pal,
-                              headers: _headers,
-                              rowModels: _rows,
-                              vScroll: _vScroll,
-                              hScroll: _hScroll,
-                              selRow: _selRow,
-                              selCol: _selCol,
-                              blink: _blinkCell,
-                              editorLink: _editorLink,
-                              overlayTargetCell: _overlayTargetCell,
-                              overlayTargetHeaderCol:
-                              _overlayTargetHeaderCol,
-                              onSelect: (r, c) {
-                                setState(() {
-                                  _selRow = r;
-                                  _selCol = c;
-                                });
-                                _blink(r, c);
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _gridVersion,
+                              builder: (ctx, _, __) {
+                                return _GridView(
+                                  palette: pal,
+                                  headers: List<String>.generate(
+                                      _headers.length, _effectiveHeader),
+                                  rowModels: _rows,
+                                  cellTextAt: (r, c) => _effectiveCell(r, c),
+                                  vScroll: _vScroll,
+                                  hScroll: _hScroll,
+                                  selRow: _selRow,
+                                  selCol: _selCol,
+                                  blink: _blinkCell,
+                                  editorLink: _editorLink,
+                                  overlayTargetCell: _overlayTargetCell,
+                                  overlayTargetHeaderCol:
+                                  _overlayTargetHeaderCol,
+                                  onSelect: (r, c) {
+                                    setState(() {
+                                      _selRow = r;
+                                      _selCol = c;
+                                    });
+                                    _blink(r, c);
+                                  },
+                                  onEditRequested: (r, c, w) =>
+                                      _beginEditCell(context, pal, r, c, w),
+                                  onHeaderEditRequested: (c, w) =>
+                                      _beginEditHeader(context, pal, c, w),
+                                  onContextMenu: (pos, r, c, isHeader) =>
+                                      _openContextMenu(
+                                          context, pal, pos, r, c, isHeader),
+                                  onDeleteRow: (r) => _deleteRow(r),
+                                  onPickPhoto: (r) => _pickPhotoForRow(r),
+                                );
                               },
-                              onEditRequested: (r, c, w) =>
-                                  _beginEditCell(context, pal, r, c, w),
-                              onHeaderEditRequested: (c, w) =>
-                                  _beginEditHeader(context, pal, c, w),
-                              onContextMenu: (pos, r, c, isHeader) =>
-                                  _openContextMenu(
-                                      context, pal, pos, r, c, isHeader),
-                              onDeleteRow: (r) => _deleteRow(r),
-                              onPickPhoto: (r) => _pickPhotoForRow(r),
                             ),
                           ),
                         ),
@@ -982,7 +1188,7 @@ class _EditorScreenState extends State<EditorScreen>
         row: -1,
         col: c,
         title: 'Encabezado ${c + 1}',
-        initial: _headers[c],
+        initial: _effectiveHeader(c),
         actions: const [],
       );
       return;
@@ -993,12 +1199,10 @@ class _EditorScreenState extends State<EditorScreen>
       width: headerWidth,
       context: context,
       pal: pal,
-      initial: _headers[c],
+      initial: _effectiveHeader(c),
       onCommit: (v) {
-        final nv = v.trim();
-        if (nv == _headers[c]) return;
-        _headers[c] = nv;
-        _markDirty(snapshot: true);
+        _setDraftHeader(c, v);
+        _commitDraftHeader(c);
       },
     );
   }
@@ -1015,6 +1219,8 @@ class _EditorScreenState extends State<EditorScreen>
       _overlayTargetCell = null;
       _overlayTargetHeaderCol = col;
       _overlayTargetWidth = width;
+      _editingCellRef = null;
+      _editingHeaderCol = col;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1059,7 +1265,7 @@ class _EditorScreenState extends State<EditorScreen>
         row: r,
         col: c,
         title: _headerLabel(c),
-        initial: _rows[r].cells[c],
+        initial: _effectiveCell(r, c),
         actions: _mobileActionsForCell(r, c),
       );
       return;
@@ -1071,8 +1277,11 @@ class _EditorScreenState extends State<EditorScreen>
       width: cellWidth,
       context: context,
       pal: pal,
-      initial: _rows[r].cells[c],
-      onCommit: (v) => _setCell(r, c, v),
+      initial: _effectiveCell(r, c),
+      onCommit: (v) {
+        _setDraftCell(r, c, v);
+        _commitDraftCell(r, c);
+      },
     );
   }
 
@@ -1093,6 +1302,8 @@ class _EditorScreenState extends State<EditorScreen>
       _overlayTargetCell = ref;
       _overlayTargetHeaderCol = null;
       _overlayTargetWidth = width;
+      _editingCellRef = ref;
+      _editingHeaderCol = null;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1110,7 +1321,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _headerLabel(int c) {
-    final t = _headers[c].trim();
+    final t = _effectiveHeader(c).trim();
     if (t.isNotEmpty) return t;
     if (c == _headers.length - 1) return kPhotosHeader;
     return 'Col ${c + 1}';
@@ -1136,11 +1347,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (_mobileEditingHeader) {
       final c = _mobileCol;
       if (c >= 0 && c < _headers.length - 1) {
-        final nv = v.trim();
-        if (nv != _headers[c]) {
-          _headers[c] = nv;
-          _markDirty(snapshot: true);
-        }
+        _setDraftHeader(c, v);
+        _commitDraftHeader(c);
       }
       return;
     }
@@ -1150,9 +1358,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
-    if (_rows[r].cells[c] == v) return;
-
-    _setCell(r, c, v);
+    _setDraftCell(r, c, v);
+    _commitDraftCell(r, c);
   }
 
 // ??? iOS/Web: foco sin async gaps + sin ???invisible input???
@@ -1178,9 +1385,11 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileOriginal = initial;
     _mobileActions = actions;
 
+    _detachMobileDraftListener();
     _mobileEC.text = initial;
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
+    _attachMobileDraftListener();
 
     if (!_mobileEditorOpen) {
       setState(() {
@@ -1413,9 +1622,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (_mobileRow < 0 || _mobileRow >= _rows.length) return;
     if (_mobileCol < 0 || _mobileCol >= _headers.length) return;
     if (_mobileCol == _headers.length - 1) return;
-    if (_rows[_mobileRow].cells[_mobileCol] == v) return;
-
-    _setCell(_mobileRow, _mobileCol, v);
+    _setDraftCell(_mobileRow, _mobileCol, v);
+    _commitDraftCell(_mobileRow, _mobileCol);
   }
 
   void _mobileMoveNext() {
@@ -1452,7 +1660,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _blink(r, c);
 
-    _mobileEC.text = _rows[r].cells[c];
+    _mobileEC.text = _effectiveCell(r, c);
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
@@ -1498,7 +1706,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _blink(r, c);
 
-    _mobileEC.text = _rows[r].cells[c];
+    _mobileEC.text = _effectiveCell(r, c);
     _mobileEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _mobileEC.text.length);
 
@@ -1513,6 +1721,20 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _cancelMobileEdit() {
     _cancelMobileEnsureTimers();
+    _detachMobileDraftListener();
+
+    bool cleared = false;
+    if (_mobileEditingHeader) {
+      if (_draftHeaders.remove(_mobileCol) != null) {
+        cleared = true;
+      }
+    } else if (_mobileRow >= 0 && _mobileCol >= 0) {
+      if (_draftCells.remove(_CellRef(_mobileRow, _mobileCol)) != null) {
+        cleared = true;
+      }
+    }
+    if (cleared) _bumpGridVersion();
+
     setState(() {
       _mobileEditorOpen = false;
       _mobilePhase = _MobileEditPhase.closing;
@@ -1538,30 +1760,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _commitMobileEdit() {
     if (!_mobileEditorOpen) return;
-    final v = _mobileEC.text;
-
-    if (_mobileEditingHeader) {
-      final c = _mobileCol;
-      if (c >= 0 && c < _headers.length - 1) {
-        final nv = v.trim();
-        if (nv != _headers[c]) {
-          _headers[c] = nv;
-          _markDirty(snapshot: true);
-        }
-      }
-      _closeMobileEditor();
-      return;
-    }
-
-    final r = _mobileRow;
-    final c = _mobileCol;
-
-    _closeMobileEditor();
-    _setCell(r, c, v);
+    _commitActiveEditors();
   }
 
   void _closeMobileEditor() {
     _cancelMobileEnsureTimers();
+    _detachMobileDraftListener();
     setState(() {
       _mobileEditorOpen = false;
       _mobilePhase = _MobileEditPhase.closing;
@@ -1683,9 +1887,11 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     _removeCellEditor();
 
+    _detachCellDraftListener();
     _cellEC.text = initial;
     _cellEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _cellEC.text.length);
+    _attachCellDraftListener();
 
     final overlay = Overlay.of(context, rootOverlay: true);
     if (overlay == null) return;
@@ -1862,6 +2068,25 @@ class _EditorScreenState extends State<EditorScreen>
   void _removeCellEditor({bool notifyState = true}) {
     _cellEditorEntry?.remove();
     _cellEditorEntry = null;
+    _detachCellDraftListener();
+
+    bool cleared = false;
+    final headerCol = _editingHeaderCol;
+    final cellRef = _editingCellRef;
+    if (headerCol != null) {
+      if (_draftHeaders.remove(headerCol) != null) {
+        cleared = true;
+      }
+    }
+    if (cellRef != null) {
+      if (_draftCells.remove(cellRef) != null) {
+        cleared = true;
+      }
+    }
+    if (cleared) _bumpGridVersion();
+
+    _editingHeaderCol = null;
+    _editingCellRef = null;
 
     if (!notifyState) return;
     if (!mounted) return;
@@ -2408,27 +2633,27 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _commitActiveEditors() {
+    _syncActiveDrafts();
+
     if (_mobileEditorOpen) {
-      _commitMobileEdit();
+      if (_mobileEditingHeader) {
+        _commitDraftHeader(_mobileCol);
+      } else {
+        _commitDraftCell(_mobileRow, _mobileCol);
+      }
+      _closeMobileEditor();
+    }
+
+    final headerCol = _editingHeaderCol;
+    final cell = _editingCellRef;
+
+    if (headerCol != null) {
+      _commitDraftHeader(headerCol);
+    } else if (cell != null) {
+      _commitDraftCell(cell.r, cell.c);
     }
 
     if (_cellEditorEntry != null) {
-      final headerCol = _overlayTargetHeaderCol;
-      final cell = _overlayTargetCell;
-      final v = _cellEC.text;
-
-      if (headerCol != null) {
-        if (headerCol >= 0 && headerCol < _headers.length - 1) {
-          final nv = v.trim();
-          if (nv != _headers[headerCol]) {
-            _headers[headerCol] = nv;
-            _markDirty(snapshot: true);
-          }
-        }
-      } else if (cell != null) {
-        _setCell(cell.r, cell.c, v);
-      }
-
       if (_cellFocus.hasFocus) _cellFocus.unfocus();
       _removeCellEditor();
     }
@@ -2500,7 +2725,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<_EngineComputeOutcome> _computeEngine() async {
-    _commitActiveEditors();
+    _syncActiveDrafts();
 
     final base = _engineBaseResolved;
     if (base == null || base.trim().isEmpty) {
@@ -2545,13 +2770,24 @@ class _EditorScreenState extends State<EditorScreen>
     });
 
     try {
+      final effectiveHeaders =
+          List<String>.generate(_headers.length, _effectiveHeader);
+      final effectiveRows = <List<String>>[];
+      for (int r = 0; r < _rows.length; r++) {
+        final row = <String>[];
+        for (int c = 0; c < _headers.length; c++) {
+          row.add(_effectiveCell(r, c));
+        }
+        effectiveRows.add(row);
+      }
+
       final payload = <String, dynamic>{
         // Requerido por tu backend
         'sheet_id': widget.sheetId,
         // Recomendado (te evita heur??sticas raras)
         'operation': 'calc',
-        'headers': _headers,
-        'rows': _rows.map((r) => r.cells).toList(),
+        'headers': effectiveHeaders,
+        'rows': effectiveRows,
         // Metadata opcional (se ignora si el backend no la usa)
         'name': _sheetName,
         'savedAt': DateTime.now().toIso8601String(),
@@ -2614,12 +2850,18 @@ class _EditorScreenState extends State<EditorScreen>
           _rev++;
         });
 
+        if (_draftCells.isNotEmpty) {
+          _draftCells.clear();
+        }
+        _bumpGridVersion();
+
         _pushUndoSnapshot();
         _queueSave();
         return const _EngineComputeOutcome(ok: true, hadUpdates: true);
       }
 
       if (updatedCells.isNotEmpty) {
+        final updatedRefs = <_CellRef>[];
         setState(() {
           for (final u in updatedCells) {
             if (u is! Map) continue;
@@ -2630,12 +2872,16 @@ class _EditorScreenState extends State<EditorScreen>
             if (r < 0 || r >= _rows.length) continue;
             if (c < 0 || c >= _rows[r].cells.length) continue;
             _rows[r].cells[c] = v == null ? '' : '$v';
+            updatedRefs.add(_CellRef(r, c));
           }
           _engineStatus = (map['message'] ?? 'Listo').toString();
           _engineStatusIsError = false;
           _isDirty = true;
           _rev++;
         });
+
+        _clearCellDrafts(updatedRefs);
+        _bumpGridVersion();
 
         _pushUndoSnapshot();
         _queueSave();
@@ -3057,6 +3303,7 @@ class _GridView extends StatelessWidget {
     required this.palette,
     required this.headers,
     required this.rowModels,
+    required this.cellTextAt,
     required this.vScroll,
     required this.hScroll,
     required this.selRow,
@@ -3076,6 +3323,7 @@ class _GridView extends StatelessWidget {
   final _SheetPalette palette;
   final List<String> headers;
   final List<_RowModel> rowModels;
+  final String Function(int r, int c) cellTextAt;
 
   final ScrollController vScroll;
   final ScrollController hScroll;
@@ -3188,7 +3436,7 @@ class _GridView extends StatelessWidget {
                                             width: col == headers.length - 1
                                                 ? photosW
                                                 : colW,
-                                            text: rowModels[r].cells[col],
+                                            text: cellTextAt(r, col),
                                             photosCount:
                                             rowModels[r].photos.length,
                                             selected:
