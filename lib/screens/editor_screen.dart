@@ -1096,6 +1096,10 @@ class _EditorScreenState extends State<EditorScreen>
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    if (_cellEditorEntry != null || _mobileEditorOpen) {
+      return KeyEventResult.ignored;
+    }
+
     final isCmd = HardwareKeyboard.instance.isMetaPressed;
     final isCtrl = HardwareKeyboard.instance.isControlPressed;
     final isShift = HardwareKeyboard.instance.isShiftPressed;
@@ -1158,7 +1162,39 @@ class _EditorScreenState extends State<EditorScreen>
       return KeyEventResult.handled;
     }
 
+    final printableChar = _extractPrintableChar(event);
+    if (printableChar != null &&
+        _selRow >= 0 &&
+        _selCol >= 0 &&
+        _selRow < _rows.length &&
+        _selCol < _headers.length) {
+      _beginEditCell(
+        context,
+        _palette(context),
+        _selRow,
+        _selCol,
+        340,
+        initialOverride: printableChar,
+      );
+      return KeyEventResult.handled;
+    }
+
     return KeyEventResult.ignored;
+  }
+
+  String? _extractPrintableChar(KeyDownEvent event) {
+    final char = event.character;
+    if (char == null || char.isEmpty) return null;
+    if (char.codeUnits.any((unit) => unit < 32)) return null;
+
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return null;
+    }
+
+    return char;
   }
 
   void _moveSel({int dRow = 0, int dCol = 0}) {
@@ -1238,7 +1274,8 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ Edici??n Celda ---------------------------
 
   void _beginEditCell(
-      BuildContext context, _SheetPalette pal, int r, int c, double cellWidth) {
+      BuildContext context, _SheetPalette pal, int r, int c, double cellWidth,
+      {String? initialOverride}) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
 
@@ -1277,7 +1314,7 @@ class _EditorScreenState extends State<EditorScreen>
       width: cellWidth,
       context: context,
       pal: pal,
-      initial: _effectiveCell(r, c),
+      initial: initialOverride ?? _effectiveCell(r, c),
       onCommit: (v) {
         _setDraftCell(r, c, v);
         _commitDraftCell(r, c);
@@ -1892,6 +1929,7 @@ class _EditorScreenState extends State<EditorScreen>
     _cellEC.selection =
         TextSelection(baseOffset: 0, extentOffset: _cellEC.text.length);
     _attachCellDraftListener();
+    _cellDraftListener?.call();
 
     final overlay = Overlay.of(context, rootOverlay: true);
     if (overlay == null) return;
@@ -2059,7 +2097,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     overlay.insert(_cellEditorEntry!);
 
-    Timer(const Duration(milliseconds: 20), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _cellFocus.requestFocus();
     });
