@@ -27,23 +27,27 @@ import 'dart:async'
     hide unawaited; // ??? FIX: evita colisi??n con unawaited de dart:async
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image/image.dart' as img;
+import 'package:archive/archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bitacora_web/services/photo_acquire_service.dart';
 import 'package:bitacora_web/services/keyboard_insets_controller.dart';
+import 'package:bitacora_web/services/photo_storage_service.dart';
 import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
+import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
+
+part '../widgets/mobile_notes_grid.dart';
 
 // ============================== Constantes globales ========================
 
@@ -51,7 +55,7 @@ const int kDefaultCols = 15; // 14 + Photos
 const String kPhotosHeader = 'Photos';
 
 // ??? Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
-const bool _kPersistPhotoThumbs = false;
+const bool _kPersistPhotoThumbs = true;
 const String _kPrefEngineApiKey = 'bitflow.engine_api_key';
 const String _kPrefEngineApiKeyAlt = 'bitflow_engine_api_key';
 
@@ -97,7 +101,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   static const int kMaxUndo = 50;
   static const Duration _blinkDuration = Duration(milliseconds: 110);
-  static const Duration _saveDebounce = Duration(milliseconds: 650);
+  static const Duration _saveDebounce = Duration(milliseconds: 500);
 // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -151,6 +155,11 @@ class _EditorScreenState extends State<EditorScreen>
 // Scroll
   final ScrollController _vScroll = ScrollController();
   final ScrollController _hScroll = ScrollController();
+  final ScrollController _mobileHeaderScroll = ScrollController();
+  final List<ScrollController> _mobileRowScrolls = <ScrollController>[];
+  final List<GlobalKey> _mobileRowKeys = <GlobalKey>[];
+  final GlobalKey _mobileHeaderKey = GlobalKey();
+  bool _mobileHSyncing = false;
 
 // Guardado
   Timer? _saveT;
@@ -159,6 +168,7 @@ class _EditorScreenState extends State<EditorScreen>
 // ??? Teclado m??vil: controlador robusto de insets
   late final KeyboardInsetsController _kbController =
   KeyboardInsetsController(onLog: kDebugMode ? debugPrint : null);
+  late final PhotoStorageService _photoStore = PhotoStorageService.I;
   Timer? _kbEnsureDebounceT;
   Timer? _mobileEnsureLateT;
   Timer? _mobileFocusRetryT;
@@ -191,7 +201,6 @@ class _EditorScreenState extends State<EditorScreen>
   int _mobileRow = -1;
   int _mobileCol = 0;
   String _mobileTitle = '';
-  String _mobileOriginal = '';
 
   final TextEditingController _mobileEC = TextEditingController();
   final FocusNode _mobileFocus =
@@ -202,6 +211,11 @@ class _EditorScreenState extends State<EditorScreen>
   final Key _mobileFieldKey = const ValueKey('mobileInlineEditorField');
   double _mobileBarH = 0.0;
   bool _mobileBarMeasureScheduled = false;
+  String? _lastMobileSnack;
+  VoidCallback? _vvDetach;
+  int _fillDownCount = 5;
+  int _incrementCount = 5;
+  int _incrementStep = 1;
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -215,6 +229,11 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocus.addListener(_handleMobileFocusChange);
     _kbController.attach();
     _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
+    if (kIsWeb) {
+      _vvDetach = vv.attachViewportListener(() {
+        if (mounted) setState(() {});
+      });
+    }
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
@@ -228,6 +247,7 @@ class _EditorScreenState extends State<EditorScreen>
     final initial = _buildInitialState();
     _headers = initial.headers;
     _rows = initial.rows;
+    _resetMobileRowCaches();
 
     _rev = 0;
     _lastSavedRev = 0;
@@ -270,9 +290,16 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
+    _vvDetach?.call();
 
     _vScroll.dispose();
     _hScroll.dispose();
+    _mobileHeaderScroll.dispose();
+    for (final controller in _mobileRowScrolls) {
+      controller.dispose();
+    }
+    _mobileRowScrolls.clear();
+    _mobileRowKeys.clear();
 
     _detachCellDraftListener();
     _detachMobileDraftListener();
@@ -296,8 +323,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _handleKbInsetChanged() {
-    if (_mobileEditorOpen && _mobileRow >= 0) {
-      _debouncedEnsureRowVisible(_mobileRow);
+    if (!_mobileEditorOpen) return;
+    final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
+    if (_mobileEditingHeader || _mobileRow >= 0) {
+      _debouncedEnsureRowVisible(targetRow);
     }
   }
 
@@ -410,6 +439,7 @@ class _EditorScreenState extends State<EditorScreen>
         _savePending = false;
       });
 
+      _resetMobileRowCaches();
       _resetDraftsAndEditors();
 
       if (!_nameFocus.hasFocus) {
@@ -531,6 +561,7 @@ class _EditorScreenState extends State<EditorScreen>
       _rev++;
     });
 
+    _resetMobileRowCaches();
     _resetDraftsAndEditors();
 
     if (!_nameFocus.hasFocus) {
@@ -556,6 +587,7 @@ class _EditorScreenState extends State<EditorScreen>
       _rev++;
     });
 
+    _resetMobileRowCaches();
     _resetDraftsAndEditors();
 
     if (!_nameFocus.hasFocus) {
@@ -768,6 +800,66 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  void _resetMobileRowCaches() {
+    for (final controller in _mobileRowScrolls) {
+      controller.dispose();
+    }
+    _mobileRowScrolls.clear();
+    _mobileRowKeys.clear();
+    for (int i = 0; i < _rows.length; i++) {
+      _mobileRowScrolls.add(ScrollController());
+      _mobileRowKeys.add(GlobalKey());
+    }
+  }
+
+  void _ensureMobileRowCachesLength() {
+    while (_mobileRowScrolls.length < _rows.length) {
+      _mobileRowScrolls.add(ScrollController());
+      _mobileRowKeys.add(GlobalKey());
+    }
+    while (_mobileRowScrolls.length > _rows.length) {
+      final controller = _mobileRowScrolls.removeLast();
+      controller.dispose();
+      _mobileRowKeys.removeLast();
+    }
+  }
+
+  void _insertMobileRowCache(int index) {
+    final idx = index.clamp(0, _mobileRowScrolls.length);
+    _mobileRowScrolls.insert(idx, ScrollController());
+    _mobileRowKeys.insert(idx, GlobalKey());
+  }
+
+  void _removeMobileRowCache(int index) {
+    if (_mobileRowScrolls.isEmpty) return;
+    final idx = index.clamp(0, _mobileRowScrolls.length - 1);
+    final controller = _mobileRowScrolls.removeAt(idx);
+    controller.dispose();
+    _mobileRowKeys.removeAt(idx);
+  }
+
+  void _syncMobileHorizontal(double offset, bool isHeader, int row) {
+    if (_mobileHSyncing) return;
+    _mobileHSyncing = true;
+    try {
+      void jumpTo(ScrollController controller) {
+        if (!controller.hasClients) return;
+        final min = controller.position.minScrollExtent;
+        final max = controller.position.maxScrollExtent;
+        final clamped = offset.clamp(min, max).toDouble();
+        if ((controller.offset - clamped).abs() < 0.5) return;
+        controller.jumpTo(clamped);
+      }
+
+      jumpTo(_mobileHeaderScroll);
+      for (final c in _mobileRowScrolls) {
+        jumpTo(c);
+      }
+    } finally {
+      _mobileHSyncing = false;
+    }
+  }
+
   bool _clearCellDrafts(Iterable<_CellRef> refs) {
     bool changed = false;
     for (final ref in refs) {
@@ -824,14 +916,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _attachMobileDraftListener() {
     if (_mobileDraftListener != null) return;
-    _mobileDraftListener = () {
-      final v = _mobileEC.text;
-      if (_mobileEditingHeader) {
-        _setDraftHeader(_mobileCol, v);
-      } else {
-        _setDraftCell(_mobileRow, _mobileCol, v);
-      }
-    };
+    _mobileDraftListener = () {};
     _mobileEC.addListener(_mobileDraftListener!);
   }
 
@@ -908,6 +993,29 @@ class _EditorScreenState extends State<EditorScreen>
     return pal.isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
   }
 
+  void _maybeShowMobileStatusSnack(
+    BuildContext context,
+    _SheetPalette pal, {
+    required String? message,
+    required bool isError,
+  }) {
+    if (message == null || message.trim().isEmpty) return;
+    if (message == _lastMobileSnack) return;
+    _lastMobileSnack = message;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? _errorBg(pal) : pal.statusBg,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    });
+  }
+
 // ------------------------------ Build -----------------------------------
 
   @override
@@ -916,7 +1024,9 @@ class _EditorScreenState extends State<EditorScreen>
     return ValueListenableBuilder<double>(
       valueListenable: _kbController.kbInsetDp,
       builder: (ctx, kbInset, _) {
-        final isDesktop = _isDesktopUi(ctx, kbInset);
+        final mqInset = MediaQuery.viewInsetsOf(ctx).bottom;
+        final effectiveInset = mqInset > 0 ? mqInset : kbInset;
+        final isDesktop = _isDesktopUi(ctx, effectiveInset);
 
         if (!isDesktop) {
           _scheduleMobileBarMeasure();
@@ -926,8 +1036,40 @@ class _EditorScreenState extends State<EditorScreen>
         final mq = MediaQuery.of(ctx);
         final fixedMq = mq.copyWith(textScaler: const TextScaler.linear(1.0));
 
-        final mqInset = MediaQuery.viewInsetsOf(ctx).bottom;
         _kbController.reportMediaQueryInset(mqInset);
+        final vvInset = vv.visualViewportKeyboardInset();
+        final keyboardInset = math.max(effectiveInset, vvInset);
+        final isMobile = !isDesktop;
+        final editorActive = isMobile && _mobileEditorOpen;
+        final desiredPanelH = _kMobilePanelCompactH;
+        final panelH = isDesktop
+            ? 0.0
+            : (editorActive
+                ? (_mobileBarH > 0 &&
+                        (_mobileBarH - desiredPanelH).abs() < 8)
+                    ? _mobileBarH
+                    : desiredPanelH
+                : 0.0);
+        final bodyBottomPad =
+            isDesktop ? 0.0 : (editorActive ? panelH + keyboardInset : 0.0);
+
+        if (isMobile) {
+          if (_engineStatusIsError && _engineStatus != null) {
+            _maybeShowMobileStatusSnack(
+              ctx,
+              pal,
+              message: _engineStatus,
+              isError: true,
+            );
+          } else if (_smokeOk == false && _smokeStatus != null) {
+            _maybeShowMobileStatusSnack(
+              ctx,
+              pal,
+              message: _smokeStatus,
+              isError: true,
+            );
+          }
+        }
 
         return MediaQuery(
           data: fixedMq,
@@ -939,154 +1081,208 @@ class _EditorScreenState extends State<EditorScreen>
               appBar: null,
               body: SafeArea(
                 bottom: true,
-                child: Stack(
-                  children: [
-                    if (pal.isLight)
-                      Positioned.fill(child: _WarmBackdrop(palette: pal)),
-                    Column(
-                      children: [
-                        _PremiumAppleHeader(
-                          palette: pal,
-                          titleController: _nameEC,
-                          titleFocus: _nameFocus,
-                          savedText: _savedLabel(pal),
-                          isDirty: _isDirty,
-                          onTitleChanged: _onTitleChangedDebounced,
-                          onToggleTheme: _toggleTheme,
-                          onUndo: _undoOnce,
-                          onRedo: _redoOnce,
-                          onAddRow: () => _insertRow(_rows.length),
-                          onSave: () => unawaited(_saveLocalNow()),
-                          onExport: () => unawaited(_exportXlsx()),
-                          onCompute: (!_engineAvailable || _engineBusy)
-                              ? null
-                              : () => unawaited(_computeEngine()),
-                        ),
-                        if (_smokeStatus != null)
-                          _StatusBar(
-                            text: _smokeStatus!,
-                            bg: _smokeBg(pal),
-                            fg: _smokeFg(pal),
-                          ),
-                        if (_engineStatus != null)
-                          _StatusBar(
-                            text: _engineStatus!,
-                            bg: _engineStatusIsError ? _errorBg(pal) : pal.statusBg,
-                            fg: _engineStatusIsError ? _errorFg(pal) : pal.statusFg,
-                          ),
-                        Expanded(
-                          child: isDesktop
-                              ? Focus(
-                            autofocus: true,
-                            onKeyEvent: _onKeyEvent,
-                            child: RepaintBoundary(
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _gridVersion,
-                                builder: (ctx, _, __) {
-                                  return _GridView(
-                                    palette: pal,
-                                    headers: List<String>.generate(
-                                        _headers.length, _effectiveHeader),
-                                    rowModels: _rows,
-                                    cellTextAt: (r, c) => _effectiveCell(r, c),
-                                    vScroll: _vScroll,
-                                    hScroll: _hScroll,
-                                    selRow: _selRow,
-                                    selCol: _selCol,
-                                    blink: _blinkCell,
-                                    editorLink: _editorLink,
-                                    overlayTargetCell: _overlayTargetCell,
-                                    overlayTargetHeaderCol:
-                                    _overlayTargetHeaderCol,
-                                    onSelect: (r, c) {
-                                      setState(() {
-                                        _selRow = r;
-                                        _selCol = c;
-                                      });
-                                      _blink(r, c);
-                                    },
-                                    onEditRequested: (r, c, w) =>
-                                        _beginEditCell(context, pal, r, c, w),
-                                    onHeaderEditRequested: (c, w) =>
-                                        _beginEditHeader(context, pal, c, w),
-                                    onContextMenu: (pos, r, c, isHeader) =>
-                                        _openContextMenu(context, pal, pos, r,
-                                            c, isHeader),
-                                    onDeleteRow: (r) => _deleteRow(r),
-                                    onPickPhoto: (r) => _pickPhotoForRow(r),
-                                  );
-                                },
+                  child: Stack(
+                    children: [
+                      if (pal.isLight)
+                        Positioned.fill(child: _WarmBackdrop(palette: pal)),
+                      AnimatedPadding(
+                        duration: const Duration(milliseconds: 140),
+                        curve: Curves.easeOut,
+                        padding: EdgeInsets.only(bottom: bodyBottomPad),
+                        child: Column(
+                          children: [
+                            if (isDesktop)
+                              _PremiumAppleHeader(
+                                palette: pal,
+                                titleController: _nameEC,
+                                titleFocus: _nameFocus,
+                                savedText: _savedLabel(pal),
+                                isDirty: _isDirty,
+                                onTitleChanged: _onTitleChangedDebounced,
+                                onToggleTheme: _toggleTheme,
+                                onUndo: _undoOnce,
+                                onRedo: _redoOnce,
+                                onAddRow: () => _insertRow(_rows.length),
+                                onSave: () => unawaited(_saveLocalNow()),
+                                onExport: () => unawaited(_exportXlsx()),
+                                onCompute: (!_engineAvailable || _engineBusy)
+                                    ? null
+                                    : () => unawaited(_computeEngine()),
+                              )
+                            else
+                              _MobileCompactHeader(
+                                palette: pal,
+                                title: _sheetName,
+                                savedText: _savedLabel(pal),
+                                isDirty: _isDirty,
+                                onSave: () => unawaited(_saveLocalNow()),
+                                onExport: () => unawaited(_exportXlsx()),
+                                onMenu: () => _openMobileHeaderMenu(
+                                  context,
+                                  pal,
+                                ),
                               ),
+                            if (isDesktop && _smokeStatus != null)
+                              _StatusBar(
+                                text: _smokeStatus!,
+                                bg: _smokeBg(pal),
+                                fg: _smokeFg(pal),
+                              ),
+                            if (isDesktop && _engineStatus != null)
+                              _StatusBar(
+                                text: _engineStatus!,
+                                bg: _engineStatusIsError
+                                    ? _errorBg(pal)
+                                    : pal.statusBg,
+                                fg: _engineStatusIsError
+                                    ? _errorFg(pal)
+                                    : pal.statusFg,
+                              ),
+                            Expanded(
+                              child: isDesktop
+                                  ? Focus(
+                                      autofocus: true,
+                                      onKeyEvent: _onKeyEvent,
+                                      child: RepaintBoundary(
+                                        child: ValueListenableBuilder<int>(
+                                          valueListenable: _gridVersion,
+                                          builder: (ctx, _, __) {
+                                            return _GridView(
+                                              palette: pal,
+                                              headers: List<String>.generate(
+                                                  _headers.length,
+                                                  _effectiveHeader),
+                                              rowModels: _rows,
+                                              cellTextAt: (r, c) =>
+                                                  _effectiveCell(r, c),
+                                              vScroll: _vScroll,
+                                              hScroll: _hScroll,
+                                              selRow: _selRow,
+                                              selCol: _selCol,
+                                              blink: _blinkCell,
+                                              editorLink: _editorLink,
+                                              overlayTargetCell:
+                                                  _overlayTargetCell,
+                                              overlayTargetHeaderCol:
+                                                  _overlayTargetHeaderCol,
+                                              onSelect: (r, c) {
+                                                setState(() {
+                                                  _selRow = r;
+                                                  _selCol = c;
+                                                });
+                                                _blink(r, c);
+                                              },
+                                              onEditRequested: (r, c, w) =>
+                                                  _beginEditCell(
+                                                      context, pal, r, c, w),
+                                              onHeaderEditRequested: (c, w) =>
+                                                  _beginEditHeader(
+                                                      context, pal, c, w),
+                                              onContextMenu:
+                                                  (pos, r, c, isHeader) =>
+                                                      _openContextMenu(context,
+                                                          pal, pos, r, c, isHeader),
+                                              onDeleteRow: (r) => _deleteRow(r),
+                                              onPickPhoto: (r) =>
+                                                  _pickPhotoForRow(r),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    )
+                                  : RepaintBoundary(
+                                      child: ValueListenableBuilder<int>(
+                                        valueListenable: _gridVersion,
+                                        builder: (ctx, _, __) {
+                                          _ensureMobileRowCachesLength();
+                                          final cardW =
+                                              _mobileCardWidthForScreen(
+                                                  MediaQuery.of(ctx)
+                                                      .size
+                                                      .width);
+                                          return _MobileNotesGrid(
+                                            palette: pal,
+                                            headers: List<String>.generate(
+                                                _headers.length,
+                                                _effectiveHeader),
+                                            rowModels: _rows,
+                                            cellTextAt: (r, c) =>
+                                                _effectiveCell(r, c),
+                                            verticalController: _vScroll,
+                                            headerScrollController:
+                                                _mobileHeaderScroll,
+                                            rowScrollControllers:
+                                                _mobileRowScrolls,
+                                            headerKey: _mobileHeaderKey,
+                                            rowKeys: _mobileRowKeys,
+                                            selectedRow: _selRow,
+                                            selectedCol: _selCol,
+                                            activeRow: _mobileEditorOpen &&
+                                                    !_mobileEditingHeader
+                                                ? _mobileRow
+                                                : -1,
+                                            activeCol: _mobileEditorOpen
+                                                ? _mobileCol
+                                                : -1,
+                                            activeIsHeader: _mobileEditorOpen &&
+                                                _mobileEditingHeader,
+                                            activeController: _mobileEC,
+                                            onHorizontalScroll:
+                                                _syncMobileHorizontal,
+                                            onCellTap: (cellCtx, r, c) =>
+                                                _beginEditCell(
+                                                    cellCtx, pal, r, c, cardW),
+                                            onHeaderTap: (cellCtx, c) =>
+                                                _beginEditHeader(
+                                                    cellCtx, pal, c, cardW),
+                                            onContextMenu:
+                                                (pos, r, c, isHeader) =>
+                                                    _openContextMenu(ctx, pal,
+                                                        pos, r, c, isHeader),
+                                            onDeleteRow: (r) => _deleteRow(r),
+                                            onPickPhoto: (r) =>
+                                                _pickPhotoForRow(r),
+                                          );
+                                        },
+                                      ),
+                                    ),
                             ),
-                          )
-                              : RepaintBoundary(
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: _gridVersion,
-                              builder: (ctx, _, __) {
-                                return _GridView(
-                                  palette: pal,
-                                  headers: List<String>.generate(
-                                      _headers.length, _effectiveHeader),
-                                  rowModels: _rows,
-                                  cellTextAt: (r, c) => _effectiveCell(r, c),
-                                  vScroll: _vScroll,
-                                  hScroll: _hScroll,
-                                  selRow: _selRow,
-                                  selCol: _selCol,
-                                  blink: _blinkCell,
-                                  editorLink: _editorLink,
-                                  overlayTargetCell: _overlayTargetCell,
-                                  overlayTargetHeaderCol:
-                                  _overlayTargetHeaderCol,
-                                  onSelect: (r, c) {
-                                    setState(() {
-                                      _selRow = r;
-                                      _selCol = c;
-                                    });
-                                    _blink(r, c);
-                                  },
-                                  onEditRequested: (r, c, w) =>
-                                      _beginEditCell(context, pal, r, c, w),
-                                  onHeaderEditRequested: (c, w) =>
-                                      _beginEditHeader(context, pal, c, w),
-                                  onContextMenu: (pos, r, c, isHeader) =>
-                                      _openContextMenu(
-                                          context, pal, pos, r, c, isHeader),
-                                  onDeleteRow: (r) => _deleteRow(r),
-                                  onPickPhoto: (r) => _pickPhotoForRow(r),
-                                );
-                              },
-                            ),
-                          ),
+                          ],
                         ),
-                        if (!isDesktop && !_mobileEditorOpen)
-                          _MobileHintBar(palette: pal),
-                      ],
-                    ),
+                      ),
 
 // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
-                    if (!isDesktop)
-                      _MobileInlineEditorBar(
-                        palette: pal,
-                        barKey: _mobileBarKey,
-                        fieldKey: _mobileFieldKey,
-                        isOpen: _mobileEditorOpen,
-                        title: _mobileTitle,
-                        controller: _mobileEC,
-                        focusNode: _mobileFocus,
-                        actions: _mobileActions,
-                        keyboardInset: kbInset,
-                        onPrev: _canMobileNav ? _mobileMovePrev : null,
-                        onNext: _canMobileNav ? _mobileMoveNext : null,
-                        onCancel: _cancelMobileEdit,
-                        onDone: _commitMobileEdit,
-                      ),
-                  ],
+                      if (!isDesktop)
+                        _MobileInlineEditorBar(
+                          palette: pal,
+                          barKey: _mobileBarKey,
+                          fieldKey: _mobileFieldKey,
+                          isOpen: _mobileEditorOpen,
+                          title: _mobileTitle,
+                          controller: _mobileEC,
+                          focusNode: _mobileFocus,
+                          actions: _mobileActions,
+                          keyboardInset: keyboardInset,
+                          panelHeight: panelH,
+                          canCopyPaste:
+                              _mobileEditorOpen && !_mobileEditingHeader,
+                          onGpsRow: _canMobileGps
+                              ? () => unawaited(_captureGpsForRow(_mobileRow))
+                              : null,
+                          onPrev: _canMobileNav ? _mobileMovePrev : null,
+                          onNext: _canMobileNav ? _mobileMoveNext : null,
+                          onCopy: _copyActiveMobileCell,
+                          onPaste: _pasteIntoActiveMobileCell,
+                          onOverflow: _openMobileOverflowSheet,
+                          onCancel: _cancelMobileEdit,
+                          onDone: _commitMobileEdit,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
       },
     );
   }
@@ -1291,7 +1487,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 // Photos => pick
     if (c == _headers.length - 1) {
-      unawaited(_pickPhotoForRow(r));
+      unawaited(_handlePhotosCellTap(r));
       return;
     }
 
@@ -1301,7 +1497,7 @@ class _EditorScreenState extends State<EditorScreen>
         isHeader: false,
         row: r,
         col: c,
-        title: _headerLabel(c),
+        title: _mobileCellLabel(r, c),
         initial: _effectiveCell(r, c),
         actions: _mobileActionsForCell(r, c),
       );
@@ -1364,6 +1560,12 @@ class _EditorScreenState extends State<EditorScreen>
     return 'Col ${c + 1}';
   }
 
+  String _mobileCellLabel(int r, int c) {
+    final rowLabel = 'Fila ${r + 1}';
+    final colLabel = _headerLabel(c);
+    return '$rowLabel - $colLabel';
+  }
+
   void _setCell(int r, int c, String value) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
@@ -1419,7 +1621,6 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileRow = row;
     _mobileCol = col;
     _mobileTitle = title;
-    _mobileOriginal = initial;
     _mobileActions = actions;
 
     _detachMobileDraftListener();
@@ -1439,7 +1640,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _requestMobileFocusWithRetry();
 
-    if (row >= 0) {
+    if (row >= 0 || isHeader) {
       _scheduleEnsureRowVisiblePostFrame(row);
       _scheduleEnsureRowVisibleLate(row);
     }
@@ -1448,6 +1649,31 @@ class _EditorScreenState extends State<EditorScreen>
   List<_MobileAction> _mobileActionsForCell(int r, int c) {
     if (c == _headers.length - 1) return const [];
     return [
+      _MobileAction(
+        icon: Icons.schedule_rounded,
+        label: 'Ahora',
+        onTap: () => _insertNowInCell(r, c),
+      ),
+      _MobileAction(
+        icon: Icons.vertical_align_bottom_rounded,
+        label: 'Rellenar',
+        onTap: () => _fillDownColumn(r, c, count: _fillDownCount),
+      ),
+      _MobileAction(
+        icon: Icons.exposure_plus_1_rounded,
+        label: 'Incrementar',
+        onTap: () => _incrementDownColumn(
+          r,
+          c,
+          count: _incrementCount,
+          step: _incrementStep,
+        ),
+      ),
+      _MobileAction(
+        icon: Icons.calculate_outlined,
+        label: 'Calc',
+        onTap: () => _applyCalcToCell(r, c),
+      ),
       _MobileAction(
         icon: Icons.my_location_outlined,
         label: 'GPS',
@@ -1463,9 +1689,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _handleMobileFocusChange() {
     if (!_mobileFocus.hasFocus) return;
-    if (!_mobileEditorOpen || _mobileRow < 0) return;
-    _scheduleEnsureRowVisiblePostFrame(_mobileRow);
-    _scheduleEnsureRowVisibleLate(_mobileRow);
+    if (!_mobileEditorOpen) return;
+    if (!_mobileEditingHeader && _mobileRow < 0) return;
+    final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
+    _scheduleEnsureRowVisiblePostFrame(targetRow);
+    _scheduleEnsureRowVisibleLate(targetRow);
   }
 
   void _requestMobileFocusWithRetry() {
@@ -1532,7 +1760,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _scheduleEnsureRowVisibleLate(int row) {
     _mobileEnsureLateT?.cancel();
-    _mobileEnsureLateT = Timer(const Duration(milliseconds: 120), () {
+    _mobileEnsureLateT = Timer(const Duration(milliseconds: 320), () {
       if (!mounted || !_mobileEditorOpen) return;
       _ensureRowVisibleForKeyboard(row);
     });
@@ -1546,106 +1774,200 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  Future<void> _openMobileOverflowSheet() async {
+    if (!_mobileEditorOpen) return;
+    final pal = _palette(context);
+    final actions = List<_MobileAction>.from(_mobileActions);
+    final canCopy = _mobileEditorOpen && !_mobileEditingHeader;
+    final canPaste = canCopy;
+    final row = _mobileRow;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: pal.menuBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_rounded),
+                title: const Text('Done'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _commitMobileEdit();
+                },
+              ),
+              if (canCopy)
+                ListTile(
+                  leading: const Icon(Icons.content_copy_rounded),
+                  title: const Text('Copiar'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _copyActiveMobileCell();
+                  },
+                ),
+              if (canPaste)
+                ListTile(
+                  leading: const Icon(Icons.content_paste_rounded),
+                  title: const Text('Pegar'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pasteIntoActiveMobileCell();
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Fotos de la fila'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openPhotosSheet(row);
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: const Icon(Icons.my_location_outlined),
+                  title: const Text('Guardar ubicación'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(_captureGpsForRow(row));
+                  },
+                ),
+              if (actions.isNotEmpty) const Divider(height: 1),
+              for (final a in actions)
+                ListTile(
+                  leading: Icon(a.icon),
+                  title: Text(a.label),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    a.onTap();
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _cancelMobileEnsureTimers() {
     _kbEnsureDebounceT?.cancel();
     _mobileEnsureLateT?.cancel();
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobileBarFallbackH = 78.0;
+  static const double _kMobilePanelCompactH = 96.0;
 
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
     if (!_vScroll.hasClients) return;
-    if (row < 0) return;
-
-    final kb = _kbController.kbInsetDp.value;
-
-    final viewport = _vScroll.position.viewportDimension;
-    final barH = _mobileEditorOpen
-        ? (_mobileBarH > 0 ? _mobileBarH : _kMobileBarFallbackH)
-        : 0.0;
-    final reserve = kb + barH + 8.0;
-
-    final rowTop = row * _GridView.rowH;
-    final rowBottom = rowTop + _GridView.rowH;
-
-    final visibleTop = _vScroll.offset;
-    final visibleBottom = _vScroll.offset + math.max(0.0, viewport - reserve);
-
-    double? target;
-    if (rowBottom > visibleBottom) {
-      target = rowBottom - math.max(0.0, viewport - reserve);
-    } else if (rowTop < visibleTop) {
-      target = rowTop;
-    }
-
-    if (target == null) {
+    final panelMargin = _mobileBarH > 0 ? _mobileBarH + 16 : 120.0;
+    if (_mobileEditingHeader || row < 0) {
+      final ctx = _mobileHeaderKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: 0.06,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        );
+      } else {
+        _vScroll.animateTo(
+          _vScroll.position.minScrollExtent,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+      }
       _ensureColumnVisibleForMobile();
       return;
     }
 
-    final clamped = target.clamp(
-        _vScroll.position.minScrollExtent, _vScroll.position.maxScrollExtent);
-    if ((clamped - _vScroll.offset).abs() < 6.0) {
-      _ensureColumnVisibleForMobile();
-      return;
+    if (row >= _mobileRowKeys.length) return;
+    final rowCtx = _mobileRowKeys[row].currentContext;
+    if (rowCtx != null) {
+      Scrollable.ensureVisible(
+        rowCtx,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: 0.06,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    } else {
+      final target = _mobileRowOffsetFor(row);
+      final clamped = target.clamp(
+          _vScroll.position.minScrollExtent, _vScroll.position.maxScrollExtent);
+      _vScroll.animateTo(
+        math.max(
+          _vScroll.position.minScrollExtent,
+          clamped.toDouble() - panelMargin,
+        ),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
     }
-    _vScroll.animateTo(
-      clamped.toDouble(),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-    );
 
     _ensureColumnVisibleForMobile();
   }
 
+  double _mobileRowOffsetFor(int row) {
+    return _kMobileHeaderRowH + (row * _kMobileRowH);
+  }
+
   void _ensureColumnVisibleForMobile() {
     if (!_mobileEditorOpen) return;
-    if (!_hScroll.hasClients) return;
     if (_mobileCol < 0 || _mobileCol >= _headers.length) return;
 
-    final colW = _idealColWidth(context);
-    const photosW = 140.0;
+    final controller = _mobileEditingHeader || _mobileRow < 0
+        ? _mobileHeaderScroll
+        : (_mobileRow < _mobileRowScrolls.length
+            ? _mobileRowScrolls[_mobileRow]
+            : null);
+    if (controller == null || !controller.hasClients) return;
+
+    final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
+    final stride = cardW + _kMobileCardGap;
     final col = _mobileCol;
+    final cardLeft = _kMobileRowPadH + (col * stride);
+    final cardRight = cardLeft + cardW;
 
-    final colLeft = _GridView.indexW + (col * colW);
-    final colWidth = col == _headers.length - 1 ? photosW : colW;
-    final colRight = colLeft + colWidth;
-
-    final viewport = _hScroll.position.viewportDimension;
-    final visibleLeft = _hScroll.offset;
+    final viewport = controller.position.viewportDimension;
+    final visibleLeft = controller.offset;
     final visibleRight = visibleLeft + viewport;
-    const pad = 16.0;
+    const pad = 12.0;
 
     double? target;
-    if (colLeft - pad < visibleLeft) {
-      target = colLeft - pad;
-    } else if (colRight + pad > visibleRight) {
-      target = colRight + pad - viewport;
+    if (cardLeft - pad < visibleLeft) {
+      target = cardLeft - pad;
+    } else if (cardRight + pad > visibleRight) {
+      target = cardRight + pad - viewport;
     }
 
     if (target == null) return;
 
     final clamped = target.clamp(
-        _hScroll.position.minScrollExtent, _hScroll.position.maxScrollExtent);
-    if ((clamped - _hScroll.offset).abs() < 6.0) return;
-    _hScroll.animateTo(
+        controller.position.minScrollExtent,
+        controller.position.maxScrollExtent);
+    if ((clamped - controller.offset).abs() < 6.0) return;
+    controller.animateTo(
       clamped.toDouble(),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
   }
 
-  double _idealColWidth(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    if (w < 420) return 126;
-    if (w < 760) return 150;
-    return 178;
-  }
-
   bool get _canMobileNav {
     return _mobileEditorOpen && !_mobileEditingHeader && _headers.length >= 2;
+  }
+
+  bool get _canMobileGps {
+    return _mobileEditorOpen && !_mobileEditingHeader && _mobileRow >= 0;
   }
 
   int get _lastEditableCol => math.max(0, _headers.length - 2);
@@ -1780,7 +2102,6 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileRow = -1;
     _mobileCol = 0;
     _mobileTitle = '';
-    _mobileOriginal = '';
     _mobileActions = const [];
 
     try {
@@ -1811,7 +2132,6 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileRow = -1;
     _mobileCol = 0;
     _mobileTitle = '';
-    _mobileOriginal = '';
     _mobileActions = const [];
 
     try {
@@ -1860,7 +2180,10 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       if (move == _OverlayMove.down) {
-        if (_rows.isEmpty) _rows.add(_RowModel.empty(_headers.length));
+        if (_rows.isEmpty) {
+          _rows.add(_RowModel.empty(_headers.length));
+          _ensureMobileRowCachesLength();
+        }
         _beginEditCell(
             context, pal, 0, currentHeader.clamp(0, lastHeaderCol), width);
         return;
@@ -2169,6 +2492,16 @@ class _EditorScreenState extends State<EditorScreen>
               () => unawaited(_copySelectionToClipboard())));
       actions.add(_CtxAction('Pegar', Icons.paste_rounded,
               () => unawaited(_pasteFromClipboard())));
+      actions.add(_CtxAction('Pegar resultado', Icons.calculate_outlined,
+              () => _applyCalcToCell(r, c)));
+      actions.add(_CtxAction('Fecha/Hora ahora', Icons.schedule_rounded,
+              () => _insertNowInCell(r, c)));
+      actions.add(_CtxAction('Rellenar abajo...', Icons.vertical_align_bottom_rounded,
+              () => unawaited(_promptFillDown(context, r, c))));
+      actions.add(_CtxAction('Incrementar...', Icons.exposure_plus_1_rounded,
+              () => unawaited(_promptIncrement(context, r, c))));
+      actions.add(_CtxAction('Guardar ubicaci??n en fila', Icons.my_location_outlined,
+              () => unawaited(_captureGpsForRow(r))));
       actions.add(_CtxAction(
           'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
@@ -2195,6 +2528,8 @@ class _EditorScreenState extends State<EditorScreen>
               () => _insertRow(r)));
       actions.add(_CtxAction('Insertar fila abajo',
           Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
+      actions.add(_CtxAction(
+          'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
       actions.add(_CtxAction(
           'Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
     }
@@ -2242,6 +2577,337 @@ class _EditorScreenState extends State<EditorScreen>
     actions[res].run();
   }
 
+// ------------------------------ Automatizaciones ------------------------
+
+  void _duplicateRow(int r) {
+    if (r < 0 || r >= _rows.length) return;
+    final src = _rows[r];
+    final copy = _RowModel(
+      cells: List<String>.from(src.cells),
+      photos: src.photos.map((p) => p.copy()).toList(),
+      gpsLat: src.gpsLat,
+      gpsLng: src.gpsLng,
+      gpsAccuracyM: src.gpsAccuracyM,
+      gpsTs: src.gpsTs,
+      gpsIsLastKnown: src.gpsIsLastKnown,
+    );
+    final insertAt = (r + 1).clamp(0, _rows.length);
+    setState(() {
+      _rows.insert(insertAt, copy);
+      _selRow = insertAt;
+      _selCol = _selCol.clamp(0, _headers.length - 1);
+      _isDirty = true;
+      _rev++;
+    });
+    _insertMobileRowCache(insertAt);
+    _pushUndoSnapshot();
+    _queueSave();
+  }
+
+  void _insertNowInCell(int r, int c) {
+    if (c < 0 || c >= _headers.length - 1) return;
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
+    if (_mobileEditorOpen && _mobileRow == r && _mobileCol == c) {
+      _mobileEC.value = _mobileEC.value.copyWith(
+        text: stamp,
+        selection: TextSelection.collapsed(offset: stamp.length),
+        composing: TextRange.empty,
+      );
+      _requestMobileFocusWithRetry();
+    } else {
+      _setCell(r, c, stamp);
+    }
+  }
+
+  Future<void> _promptFillDown(BuildContext context, int r, int c) async {
+    if (c < 0 || c >= _headers.length - 1) return;
+    final controller =
+        TextEditingController(text: _fillDownCount.toString());
+    final count = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Rellenar hacia abajo'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Cantidad'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                final v = int.tryParse(controller.text.trim());
+                Navigator.of(ctx).pop(v);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted) return;
+    if (count == null || count <= 0) return;
+    _fillDownCount = count;
+    _fillDownColumn(r, c, count: count);
+  }
+
+  void _fillDownColumn(int r, int c, {required int count}) {
+    if (c < 0 || c >= _headers.length - 1) return;
+    if (r < 0 || r >= _rows.length) return;
+    final value =
+        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
+            ? _mobileEC.text
+            : _effectiveCell(r, c);
+    if (count <= 0) return;
+
+    final targetRows = r + count;
+    if (targetRows >= _rows.length) {
+      final add = targetRows - _rows.length + 1;
+      for (int i = 0; i < add; i++) {
+        _rows.add(_RowModel.empty(_headers.length));
+      }
+      _ensureMobileRowCachesLength();
+    }
+
+    for (int rr = r + 1; rr <= r + count; rr++) {
+      if (rr < 0 || rr >= _rows.length) continue;
+      _rows[rr].cells[c] = value;
+    }
+
+    _markDirty(snapshot: true);
+  }
+
+  Future<void> _promptIncrement(BuildContext context, int r, int c) async {
+    if (c < 0 || c >= _headers.length - 1) return;
+    final countCtrl =
+        TextEditingController(text: _incrementCount.toString());
+    final stepCtrl = TextEditingController(text: _incrementStep.toString());
+    final res = await showDialog<List<int>>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Incrementar'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: countCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Cantidad'),
+              ),
+              TextField(
+                controller: stepCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Paso'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                final count = int.tryParse(countCtrl.text.trim());
+                final step = int.tryParse(stepCtrl.text.trim());
+                if (count == null || step == null) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+                Navigator.of(ctx).pop([count, step]);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    countCtrl.dispose();
+    stepCtrl.dispose();
+    if (!mounted) return;
+    if (res == null || res.length != 2) return;
+    final count = res[0];
+    final step = res[1];
+    if (count <= 0) return;
+    _incrementCount = count;
+    _incrementStep = step == 0 ? 1 : step;
+    _incrementDownColumn(r, c, count: _incrementCount, step: _incrementStep);
+  }
+
+  void _incrementDownColumn(int r, int c,
+      {required int count, required int step}) {
+    if (c < 0 || c >= _headers.length - 1) return;
+    if (r < 0 || r >= _rows.length) return;
+    final baseRaw =
+        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
+            ? _mobileEC.text
+            : _effectiveCell(r, c);
+    final base = double.tryParse(baseRaw.trim());
+    if (base == null) return;
+    if (count <= 0) return;
+
+    final targetRows = r + count;
+    if (targetRows >= _rows.length) {
+      final add = targetRows - _rows.length + 1;
+      for (int i = 0; i < add; i++) {
+        _rows.add(_RowModel.empty(_headers.length));
+      }
+      _ensureMobileRowCachesLength();
+    }
+
+    for (int i = 0; i <= count; i++) {
+      final rr = r + i;
+      if (rr < 0 || rr >= _rows.length) continue;
+      final v = base + (i * step);
+      _rows[rr].cells[c] = _formatNumber(v);
+    }
+    _markDirty(snapshot: true);
+  }
+
+  void _applyCalcToCell(int r, int c) {
+    if (c < 0 || c >= _headers.length - 1) return;
+    final raw =
+        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
+            ? _mobileEC.text
+            : _effectiveCell(r, c);
+    final res = _evalExpression(raw);
+    if (res == null) return;
+    final out = _formatNumber(res);
+    if (_mobileEditorOpen && _mobileRow == r && _mobileCol == c) {
+      _mobileEC.value = _mobileEC.value.copyWith(
+        text: out,
+        selection: TextSelection.collapsed(offset: out.length),
+        composing: TextRange.empty,
+      );
+      _requestMobileFocusWithRetry();
+    } else {
+      _setCell(r, c, out);
+    }
+  }
+
+  String _formatNumber(num v) {
+    if (v is int) return v.toString();
+    final s = v.toStringAsFixed(6);
+    return s.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  double? _evalExpression(String raw) {
+    final src = raw.trim();
+    if (src.isEmpty) return null;
+
+    final output = <double>[];
+    final ops = <String>[];
+    int i = 0;
+    bool expectUnary = true;
+
+    int precedence(String op) {
+      if (op == '+' || op == '-') return 1;
+      if (op == '*' || op == '/') return 2;
+      return 0;
+    }
+
+    void applyOp() {
+      if (ops.isEmpty) return;
+      final op = ops.removeLast();
+      if (output.length < 2) return;
+      final b = output.removeLast();
+      final a = output.removeLast();
+      switch (op) {
+        case '+':
+          output.add(a + b);
+        case '-':
+          output.add(a - b);
+        case '*':
+          output.add(a * b);
+        case '/':
+          output.add(b == 0 ? a : a / b);
+      }
+    }
+
+    while (i < src.length) {
+      final ch = src[i];
+      if (ch == ' ' || ch == '\t' || ch == '\n') {
+        i++;
+        continue;
+      }
+      if (ch == '(') {
+        ops.add(ch);
+        i++;
+        expectUnary = true;
+        continue;
+      }
+      if (ch == ')') {
+        while (ops.isNotEmpty && ops.last != '(') {
+          applyOp();
+        }
+        if (ops.isNotEmpty && ops.last == '(') {
+          ops.removeLast();
+        }
+        i++;
+        expectUnary = false;
+        continue;
+      }
+      if ('+-*/'.contains(ch)) {
+        if (ch == '-' && expectUnary) {
+          int j = i + 1;
+          while (j < src.length && src[j] == ' ') {
+            j++;
+          }
+          final numBuf = StringBuffer('-');
+          int k = j;
+          while (k < src.length &&
+              (RegExp(r'[0-9\\.]').hasMatch(src[k]))) {
+            numBuf.write(src[k]);
+            k++;
+          }
+          final v = double.tryParse(numBuf.toString());
+          if (v == null) return null;
+          output.add(v);
+          i = k;
+          expectUnary = false;
+          continue;
+        }
+        while (ops.isNotEmpty &&
+            precedence(ops.last) >= precedence(ch)) {
+          applyOp();
+        }
+        ops.add(ch);
+        i++;
+        expectUnary = true;
+        continue;
+      }
+
+      final buf = StringBuffer();
+      while (i < src.length && RegExp(r'[0-9\\.]').hasMatch(src[i])) {
+        buf.write(src[i]);
+        i++;
+      }
+      if (buf.isEmpty) return null;
+      final v = double.tryParse(buf.toString());
+      if (v == null) return null;
+      output.add(v);
+      expectUnary = false;
+    }
+
+    while (ops.isNotEmpty) {
+      if (ops.last == '(') {
+        ops.removeLast();
+        continue;
+      }
+      applyOp();
+    }
+    if (output.isEmpty) return null;
+    return output.last;
+  }
+
 // ------------------------------ Filas -----------------------------------
 
   void _insertRow(int index) {
@@ -2253,6 +2919,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+    _insertMobileRowCache(idx);
     _pushUndoSnapshot();
     _queueSave();
   }
@@ -2261,6 +2928,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_rows.isEmpty) return;
     final idx = r.clamp(0, _rows.length - 1);
 
+    final toDelete = List<_RowPhoto>.from(_rows[idx].photos);
     setState(() {
       _rows.removeAt(idx);
       if (_rows.isEmpty) _rows.add(_RowModel.empty(_headers.length));
@@ -2270,6 +2938,11 @@ class _EditorScreenState extends State<EditorScreen>
       _rev++;
     });
 
+    for (final p in toDelete) {
+      unawaited(_photoStore.deletePhoto(p.path));
+    }
+    _removeMobileRowCache(idx);
+    _ensureMobileRowCachesLength();
     _pushUndoSnapshot();
     _queueSave();
   }
@@ -2281,6 +2954,33 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       await Clipboard.setData(ClipboardData(text: txt));
     } catch (_) {}
+  }
+
+  Future<void> _copyActiveMobileCell() async {
+    if (!_mobileEditorOpen) return;
+    if (_mobileEditingHeader) return;
+    final txt = _mobileEC.text;
+    try {
+      await Clipboard.setData(ClipboardData(text: txt));
+    } catch (_) {}
+  }
+
+  Future<void> _pasteIntoActiveMobileCell() async {
+    if (!_mobileEditorOpen) return;
+    if (_mobileEditingHeader) return;
+    String raw = '';
+    try {
+      final data = await Clipboard.getData('text/plain');
+      raw = data?.text ?? '';
+    } catch (_) {}
+    if (raw.isEmpty) return;
+
+    _mobileEC.value = _mobileEC.value.copyWith(
+      text: raw,
+      selection: TextSelection.collapsed(offset: raw.length),
+      composing: TextRange.empty,
+    );
+    _requestMobileFocusWithRetry();
   }
 
   String _getCellText(int r, int c) {
@@ -2314,6 +3014,7 @@ class _EditorScreenState extends State<EditorScreen>
         _rows.add(_RowModel.empty(_headers.length));
       }
     }
+    _ensureMobileRowCachesLength();
 
     for (int dr = 0; dr < grid.length; dr++) {
       final row = grid[dr];
@@ -2345,16 +3046,18 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ GPS / Maps ------------------------------
 
   Future<void> _pasteGpsIntoCell(int r, int c) async {
-    final fix = await _getGpsFix();
+    final fix = await _getGpsFixWithFallback();
     if (!mounted) return;
     if (fix == null) return;
 
+    final tag = fix.isLastKnown ? ' (last)' : '';
     final text =
-        '${fix.lat.toStringAsFixed(6)}, ${fix.lng.toStringAsFixed(6)} ??${fix.accuracyM.round()} m';
+        '${fix.lat.toStringAsFixed(6)}, ${fix.lng.toStringAsFixed(6)} ??${fix.accuracyM.round()} m$tag';
     _setCell(r, c, text);
   }
 
-  Future<_GpsFix?> _getGpsFix() async {
+  Future<_GpsFix?> _getGpsFixWithFallback(
+      {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) return null;
@@ -2368,20 +3071,70 @@ class _EditorScreenState extends State<EditorScreen>
         return null;
       }
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
-        timeLimit: const Duration(seconds: 10),
-      );
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: timeout,
+        );
 
-      return _GpsFix(
-        lat: pos.latitude,
-        lng: pos.longitude,
-        accuracyM: pos.accuracy,
-        ts: pos.timestamp ?? DateTime.now(),
-      );
+        return _GpsFix(
+          lat: pos.latitude,
+          lng: pos.longitude,
+          accuracyM: pos.accuracy,
+          ts: pos.timestamp,
+          isLastKnown: false,
+        );
+      } catch (_) {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last == null) return null;
+        return _GpsFix(
+          lat: last.latitude,
+          lng: last.longitude,
+          accuracyM: last.accuracy,
+          ts: last.timestamp,
+          isLastKnown: true,
+        );
+      }
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _captureGpsForRow(int r) async {
+    if (r < 0 || r >= _rows.length) return;
+    final fix = await _getGpsFixWithFallback(
+        timeout: const Duration(seconds: 12));
+    if (!mounted) return;
+    if (fix == null) return;
+
+    setState(() {
+      _rows[r] = _rows[r].copyWithLocation(
+        lat: fix.lat,
+        lng: fix.lng,
+        accuracyM: fix.accuracyM,
+        ts: fix.ts,
+        isLastKnown: fix.isLastKnown,
+      );
+      _isDirty = true;
+      _rev++;
+    });
+
+    _pushUndoSnapshot();
+    _queueSave();
+
+    final msg = fix.isLastKnown
+        ? 'GPS guardado (last known)'
+        : 'GPS guardado';
+    setState(() {
+      _engineStatus = msg;
+      _engineStatusIsError = false;
+    });
+    Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (_engineStatus == msg) {
+        setState(() => _engineStatus = null);
+      }
+    });
   }
 
   Future<void> _openMapsForCell(int r, int c) async {
@@ -2405,6 +3158,15 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Fotos -----------------------------------
 
+  Future<void> _handlePhotosCellTap(int r) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (_rows[r].photos.isNotEmpty) {
+      _openPhotosSheet(r);
+      return;
+    }
+    await _pickPhotoForRow(r);
+  }
+
   Future<void> _pickPhotoForRow(int r) async {
     if (r < 0 || r >= _rows.length) return;
 
@@ -2415,17 +3177,36 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       if (result == null) return;
 
+      final stored = await _photoStore.savePhoto(
+        sheetId: widget.sheetId,
+        bytes: result.bytes,
+        originalName: result.name,
+        mime: result.mime,
+      );
+      if (!mounted) return;
+      if (stored == null) return;
+
       final thumb =
       _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
       final b64 = base64Encode(thumb);
 
-// ??? thumb runtime s?? (para futuro visor), persistencia no.
+      final fix = await _getGpsFixWithFallback(
+          timeout: const Duration(seconds: 8));
+      if (!mounted) return;
+
+// ??? thumb runtime s?? (para visor), persistencia s??.
       _rows[r].photos.add(
         _RowPhoto(
           name: result.name,
           mime: result.mime,
           thumbB64: b64,
           addedAt: DateTime.now(),
+          path: stored.path,
+          lat: fix?.lat,
+          lng: fix?.lng,
+          accuracyM: fix?.accuracyM,
+          isLastKnown: fix?.isLastKnown ?? false,
+          dataB64: stored.dataB64,
         ),
       );
 
@@ -2441,9 +3222,22 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       if (result == null) return;
 
+      final stored = await _photoStore.savePhoto(
+        sheetId: widget.sheetId,
+        bytes: result.bytes,
+        originalName: result.name,
+        mime: result.mime,
+      );
+      if (!mounted) return;
+      if (stored == null) return;
+
       final thumb =
       _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
       final b64 = base64Encode(thumb);
+
+      final fix = await _getGpsFixWithFallback(
+          timeout: const Duration(seconds: 8));
+      if (!mounted) return;
 
       _rows[r].photos.add(
         _RowPhoto(
@@ -2451,11 +3245,228 @@ class _EditorScreenState extends State<EditorScreen>
           mime: result.mime,
           thumbB64: b64,
           addedAt: DateTime.now(),
+          path: stored.path,
+          lat: fix?.lat,
+          lng: fix?.lng,
+          accuracyM: fix?.accuracyM,
+          isLastKnown: fix?.isLastKnown ?? false,
+          dataB64: stored.dataB64,
         ),
       );
 
       _markDirty(snapshot: true);
     } catch (_) {}
+  }
+
+  Future<void> _deletePhotoFromRow(int r, int index) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (index < 0 || index >= _rows[r].photos.length) return;
+    final photo = _rows[r].photos[index];
+    _rows[r].photos.removeAt(index);
+    await _photoStore.deletePhoto(photo.path);
+    if (!mounted) return;
+    _markDirty(snapshot: true);
+  }
+
+  void _openPhotosSheet(int r) {
+    if (r < 0 || r >= _rows.length) return;
+    final photos = _rows[r].photos;
+    if (photos.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _palette(ctx).menuBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Fotos - Fila ${r + 1}',
+                      style: TextStyle(
+                        color: _palette(ctx).fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded,
+                          color: _palette(ctx).fgMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: photos.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx2, idx) {
+                      final p = photos[idx];
+                      return Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _palette(ctx2).headerBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: _palette(ctx2).border,
+                              width: _palette(ctx2).hairline),
+                        ),
+                        child: Row(
+                          children: [
+                            if (p.thumbB64.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.memory(
+                                  base64Decode(p.thumbB64),
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  filterQuality: FilterQuality.low,
+                                ),
+                              )
+                            else
+                              Container(
+                                width: 48,
+                                height: 48,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _palette(ctx2).cellBg,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: _palette(ctx2).border,
+                                      width: _palette(ctx2).hairline),
+                                ),
+                                child: Icon(Icons.photo,
+                                    color: _palette(ctx2).fgMuted),
+                              ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _palette(ctx2).fg,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    p.addedAt.toIso8601String(),
+                                    style: TextStyle(
+                                      color: _palette(ctx2).fgMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.of(ctx2).pop();
+                                unawaited(_deletePhotoFromRow(r, idx));
+                              },
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  color: _palette(ctx2).fgMuted),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openMobileHeaderMenu(
+    BuildContext context,
+    _SheetPalette pal,
+  ) async {
+    Future<void> runAndClose(VoidCallback action) async {
+      Navigator.of(context).pop();
+      action();
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: pal.menuBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline_rounded),
+                title: const Text('Guardar'),
+                onTap: () => runAndClose(() => unawaited(_saveLocalNow())),
+              ),
+              ListTile(
+                leading: const Icon(Icons.ios_share_rounded),
+                title: const Text('Exportar / Compartir'),
+                onTap: () => runAndClose(() => unawaited(_exportXlsx())),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_rounded),
+                title: const Text('Agregar fila'),
+                onTap: () => runAndClose(() => _insertRow(_rows.length)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.undo_rounded),
+                title: const Text('Undo'),
+                onTap: () => runAndClose(_undoOnce),
+              ),
+              ListTile(
+                leading: const Icon(Icons.redo_rounded),
+                title: const Text('Redo'),
+                onTap: () => runAndClose(_redoOnce),
+              ),
+              ListTile(
+                leading: Icon(pal.isLight
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined),
+                title: Text(pal.isLight ? 'Modo noche' : 'Modo blanco'),
+                onTap: () => runAndClose(_toggleTheme),
+              ),
+              ListTile(
+                leading: const Icon(Icons.functions_rounded),
+                title: const Text('Calcular'),
+                enabled: _engineAvailable && !_engineBusy,
+                onTap: (_engineAvailable && !_engineBusy)
+                    ? () => runAndClose(
+                        () => unawaited(_computeEngine()),
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Uint8List _compressThumb(Uint8List bytes,
@@ -2483,62 +3494,289 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _exportXlsx() async {
     try {
-      final wb = xlsio.Workbook();
-      final sheet = wb.worksheets[0];
-      sheet.name = _sheetName;
-
-      for (int c = 0; c < _headers.length; c++) {
-        final text = _headerLabel(c);
-        final cell = sheet.getRangeByIndex(1, c + 1);
-        cell.setText(text);
-        cell.cellStyle.bold = true;
-      }
-
-      for (int r = 0; r < _rows.length; r++) {
-        for (int c = 0; c < _headers.length; c++) {
-          if (c == _headers.length - 1) continue; // Photos no export texto
-          final v = _rows[r].cells[c];
-          if (v.trim().isEmpty) continue;
-          sheet.getRangeByIndex(r + 2, c + 1).setText(v);
-        }
-      }
-
-      for (int c = 0; c < _headers.length; c++) {
-        try {
-          sheet.autoFitColumn(c + 1);
-        } catch (_) {}
-      }
-
-      final bytes = wb.saveAsStream();
+      final photoItems = _collectPhotoItems();
+      final hasPhotos = photoItems.isNotEmpty;
+      final wb = _buildWorkbook(photoItems: photoItems);
+      final xlsxBytes = Uint8List.fromList(wb.saveAsStream());
       wb.dispose();
 
       final now = DateTime.now();
-      final filename =
-          '${_safeFile(_sheetName)}_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}.xlsx';
+      final baseName =
+          '${_safeFile(_sheetName)}_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
-      final xf = XFile.fromData(
-        Uint8List.fromList(bytes),
-        name: filename,
-        mimeType:
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-
-// ??? Web: getSaveLocation puede no estar disponible -> fallback a ???download???.
-      if (kIsWeb) {
-        try {
-          await xf.saveTo(filename);
-          return;
-        } catch (_) {
-// seguimos con getSaveLocation
-        }
+      if (!hasPhotos) {
+        await _saveExportBytes(
+          name: '$baseName.xlsx',
+          mime:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          bytes: xlsxBytes,
+        );
+        return;
       }
 
-      final typeGroup = XTypeGroup(label: 'Excel', extensions: const ['xlsx']);
-      final loc = await getSaveLocation(
-          suggestedName: filename, acceptedTypeGroups: [typeGroup]);
-      if (loc == null) return;
-      await xf.saveTo(loc.path);
+      final zipBytes = await _buildPhotosZip(
+        xlsxBytes: xlsxBytes,
+        photoItems: photoItems,
+      );
+      if (zipBytes == null) return;
+
+      await _saveExportBytes(
+        name: '$baseName.zip',
+        mime: 'application/zip',
+        bytes: zipBytes,
+      );
     } catch (_) {}
+  }
+
+  List<_PhotoExportItem> _collectPhotoItems() {
+    final out = <_PhotoExportItem>[];
+    for (int r = 0; r < _rows.length; r++) {
+      final row = _rows[r];
+      for (int i = 0; i < row.photos.length; i++) {
+        out.add(_PhotoExportItem(
+          row: r,
+          col: _headers.length - 1,
+          photo: row.photos[i],
+          rowLat: row.gpsLat,
+          rowLng: row.gpsLng,
+          rowAccuracy: row.gpsAccuracyM,
+          rowIsLastKnown: row.gpsIsLastKnown,
+        ));
+      }
+    }
+    return out;
+  }
+
+  xlsio.Workbook _buildWorkbook({required List<_PhotoExportItem> photoItems}) {
+    final wb = xlsio.Workbook();
+    final sheet = wb.worksheets[0];
+    sheet.name = _sheetName;
+
+    final dataCols = math.max(0, _headers.length - 1); // sin Photos
+    final hasGps = _rows.any((r) => r.gpsLat != null && r.gpsLng != null);
+    final gpsCols = hasGps ? 5 : 0;
+    final lastCol = dataCols + gpsCols;
+
+    for (int c = 0; c < dataCols; c++) {
+      final text = _headerLabel(c);
+      final cell = sheet.getRangeByIndex(1, c + 1);
+      cell.setText(text);
+    }
+
+    int gpsStart = dataCols + 1;
+    if (hasGps) {
+      final headers = [
+        'GPS Lat',
+        'GPS Lon',
+        'GPS Acc (m)',
+        'GPS Time',
+        'GPS Source'
+      ];
+      for (int i = 0; i < headers.length; i++) {
+        sheet.getRangeByIndex(1, gpsStart + i).setText(headers[i]);
+      }
+    }
+
+    for (int r = 0; r < _rows.length; r++) {
+      for (int c = 0; c < dataCols; c++) {
+        final v = _rows[r].cells[c];
+        if (v.trim().isEmpty) continue;
+        _setSheetValue(sheet, r + 2, c + 1, v);
+      }
+      if (hasGps) {
+        final row = _rows[r];
+        if (row.gpsLat != null && row.gpsLng != null) {
+          sheet.getRangeByIndex(r + 2, gpsStart).setNumber(row.gpsLat ?? 0);
+          sheet.getRangeByIndex(r + 2, gpsStart + 1).setNumber(row.gpsLng ?? 0);
+          sheet.getRangeByIndex(r + 2, gpsStart + 2).setNumber(row.gpsAccuracyM ?? 0);
+          if (row.gpsTs != null) {
+            sheet.getRangeByIndex(r + 2, gpsStart + 3)
+                .setDateTime(row.gpsTs!);
+          }
+          sheet.getRangeByIndex(r + 2, gpsStart + 4)
+              .setText(row.gpsIsLastKnown ? 'lastKnown' : 'current');
+        }
+      }
+    }
+
+    if (lastCol > 0) {
+      final headerRange = sheet.getRangeByIndex(1, 1, 1, lastCol);
+      headerRange.cellStyle.bold = true;
+      headerRange.cellStyle.backColor = '#F4F0E6';
+    }
+    if (_rows.isNotEmpty && lastCol > 0) {
+      final bodyRange =
+          sheet.getRangeByIndex(1, 1, _rows.length + 1, lastCol);
+      bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    }
+
+    for (int c = 0; c < lastCol; c++) {
+      try {
+        sheet.autoFitColumn(c + 1);
+      } catch (_) {}
+    }
+
+    if (photoItems.isNotEmpty) {
+      final photosSheet = wb.worksheets.addWithName('Fotos');
+      final headers = [
+        'Row',
+        'Col',
+        'File',
+        'AddedAt',
+        'Lat',
+        'Lon',
+        'Accuracy',
+        'Source',
+        'ZipPath'
+      ];
+      for (int c = 0; c < headers.length; c++) {
+        photosSheet.getRangeByIndex(1, c + 1).setText(headers[c]);
+      }
+      for (int i = 0; i < photoItems.length; i++) {
+        final item = photoItems[i];
+        final row = i + 2;
+        final exportName = _photoExportName(item.photo, item.row, i);
+        final pathInZip = 'photos/$exportName';
+        final lat = item.lat;
+        final lng = item.lng;
+        final acc = item.accuracy;
+        final source = item.sourceLabel;
+
+        photosSheet.getRangeByIndex(row, 1).setNumber(item.row + 1);
+        photosSheet.getRangeByIndex(row, 2).setNumber(item.col + 1);
+        photosSheet.getRangeByIndex(row, 3).setText(exportName);
+        photosSheet.getRangeByIndex(row, 4)
+            .setText(item.photo.addedAt.toIso8601String());
+        if (lat != null) photosSheet.getRangeByIndex(row, 5).setNumber(lat);
+        if (lng != null) photosSheet.getRangeByIndex(row, 6).setNumber(lng);
+        if (acc != null) photosSheet.getRangeByIndex(row, 7).setNumber(acc);
+        photosSheet.getRangeByIndex(row, 8).setText(source);
+        photosSheet.getRangeByIndex(row, 9).setText(pathInZip);
+      }
+      final lastPhotoRow = photoItems.length + 1;
+      final lastPhotoCol = headers.length;
+      final headerRange =
+          photosSheet.getRangeByIndex(1, 1, 1, lastPhotoCol);
+      headerRange.cellStyle.bold = true;
+      headerRange.cellStyle.backColor = '#F4F0E6';
+      if (photoItems.isNotEmpty) {
+        final bodyRange =
+            photosSheet.getRangeByIndex(1, 1, lastPhotoRow, lastPhotoCol);
+        bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+      }
+      for (int c = 0; c < lastPhotoCol; c++) {
+        try {
+          photosSheet.autoFitColumn(c + 1);
+        } catch (_) {}
+      }
+    }
+
+    return wb;
+  }
+
+  void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
+    final trimmed = v.trim();
+    final numVal = double.tryParse(trimmed);
+    if (numVal != null && RegExp(r'^-?\\d+(?:\\.\\d+)?$').hasMatch(trimmed)) {
+      sheet.getRangeByIndex(r, c).setNumber(numVal);
+      return;
+    }
+    final dt = DateTime.tryParse(trimmed);
+    if (dt != null) {
+      sheet.getRangeByIndex(r, c).setDateTime(dt);
+      return;
+    }
+    sheet.getRangeByIndex(r, c).setText(v);
+  }
+
+  String _photoExportName(_RowPhoto photo, int row, int idx) {
+    final base = _safeFile(photo.name.isNotEmpty ? photo.name : 'photo');
+    if (base.trim().isEmpty) {
+      return 'photo_${row + 1}_$idx.jpg';
+    }
+    return '${row + 1}_${idx}_$base';
+  }
+
+  Future<Uint8List?> _buildPhotosZip({
+    required Uint8List xlsxBytes,
+    required List<_PhotoExportItem> photoItems,
+  }) async {
+    final archive = Archive();
+    archive.addFile(ArchiveFile('sheet.xlsx', xlsxBytes.length, xlsxBytes));
+
+    final manifestLines = <String>[
+      'row,col,file,added_at,lat,lon,accuracy,source,zip_path'
+    ];
+
+    for (int i = 0; i < photoItems.length; i++) {
+      final item = photoItems[i];
+      final bytes = await _loadPhotoBytes(item.photo);
+      if (bytes == null) continue;
+      final fileName = _photoExportName(item.photo, item.row, i);
+      final pathInZip = 'photos/$fileName';
+      archive.addFile(ArchiveFile(pathInZip, bytes.length, bytes));
+
+      final lat = item.lat;
+      final lng = item.lng;
+      final acc = item.accuracy;
+      final source = item.sourceLabel;
+      manifestLines.add(
+          '${item.row + 1},${item.col + 1},$fileName,${item.photo.addedAt.toIso8601String()},${lat ?? ''},${lng ?? ''},${acc ?? ''},$source,$pathInZip');
+    }
+
+    final manifest = manifestLines.join('\\n');
+    final manifestBytes = Uint8List.fromList(utf8.encode(manifest));
+    archive.addFile(
+        ArchiveFile('manifest.csv', manifestBytes.length, manifestBytes));
+
+    final encoder = ZipEncoder();
+    final zipData = encoder.encode(archive);
+    return Uint8List.fromList(zipData);
+  }
+
+  Future<Uint8List?> _loadPhotoBytes(_RowPhoto photo) async {
+    if (photo.path.trim().isNotEmpty) {
+      return _photoStore.readPhotoBytes(photo.path);
+    }
+    if (photo.dataB64.trim().isNotEmpty) {
+      try {
+        return base64Decode(photo.dataB64);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _saveExportBytes({
+    required String name,
+    required String mime,
+    required Uint8List bytes,
+  }) async {
+    final xf = XFile.fromData(bytes, name: name, mimeType: mime);
+
+    if (kIsWeb) {
+      try {
+        await xf.saveTo(name);
+        return;
+      } catch (_) {}
+    }
+
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      try {
+        await Share.shareXFiles([xf], subject: 'BitFlow Export');
+        return;
+      } catch (_) {}
+    }
+
+    final typeGroup = XTypeGroup(
+      label: 'Export',
+      extensions: name.endsWith('.zip') ? const ['zip'] : const ['xlsx'],
+    );
+    final loc = await getSaveLocation(
+        suggestedName: name, acceptedTypeGroups: [typeGroup]);
+    if (loc == null) return;
+    await xf.saveTo(loc.path);
   }
 
   String _two(int n) => n.toString().padLeft(2, '0');
@@ -2888,6 +4126,7 @@ class _EditorScreenState extends State<EditorScreen>
           _rev++;
         });
 
+        _resetMobileRowCaches();
         if (_draftCells.isNotEmpty) {
           _draftCells.clear();
         }
@@ -2972,6 +4211,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 class _PremiumAppleHeader extends StatelessWidget {
   const _PremiumAppleHeader({
+    super.key,
     required this.palette,
     required this.titleController,
     required this.titleFocus,
@@ -3231,6 +4471,112 @@ class _PremiumAppleHeader extends StatelessWidget {
   }
 }
 
+class _MobileCompactHeader extends StatelessWidget {
+  const _MobileCompactHeader({
+    super.key,
+    required this.palette,
+    required this.title,
+    required this.savedText,
+    required this.isDirty,
+    required this.onSave,
+    required this.onExport,
+    required this.onMenu,
+  });
+
+  final _SheetPalette palette;
+  final String title;
+  final String savedText;
+  final bool isDirty;
+  final VoidCallback onSave;
+  final VoidCallback onExport;
+  final VoidCallback onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = title.trim().isEmpty ? 'Sheet' : title.trim();
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: palette.appBarBg,
+        border: Border(
+          bottom:
+              BorderSide(color: palette.borderStrong, width: palette.hairline),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.fg,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      savedText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        height: 1.05,
+                      ),
+                    ),
+                    if (isDirty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: palette.accent.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Guardar',
+            onPressed: onSave,
+            icon: Icon(Icons.check_circle_outline_rounded,
+                color: palette.fg),
+            splashRadius: 18,
+          ),
+          IconButton(
+            tooltip: 'Exportar',
+            onPressed: onExport,
+            icon: Icon(Icons.ios_share_rounded, color: palette.fg),
+            splashRadius: 18,
+          ),
+          IconButton(
+            tooltip: 'Más',
+            onPressed: onMenu,
+            icon: Icon(Icons.more_horiz_rounded, color: palette.fg),
+            splashRadius: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _IconCircleButton extends StatelessWidget {
   const _IconCircleButton({
     required this.palette,
@@ -3477,6 +4823,14 @@ class _GridView extends StatelessWidget {
                                             text: cellTextAt(r, col),
                                             photosCount:
                                             rowModels[r].photos.length,
+                                            thumbB64: rowModels[r]
+                                                .photos
+                                                .isNotEmpty
+                                                ? rowModels[r]
+                                                    .photos
+                                                    .last
+                                                    .thumbB64
+                                                : '',
                                             selected:
                                             r == selRow && col == selCol,
                                             isPhotos: col == headers.length - 1,
@@ -3713,6 +5067,7 @@ class _DataCell extends StatelessWidget {
     required this.width,
     required this.text,
     required this.photosCount,
+    required this.thumbB64,
     required this.selected,
     required this.isPhotos,
     required this.blinkRef,
@@ -3730,6 +5085,7 @@ class _DataCell extends StatelessWidget {
   final double width;
   final String text;
   final int photosCount;
+  final String thumbB64;
   final bool selected;
   final bool isPhotos;
 
@@ -3748,10 +5104,11 @@ class _DataCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final blinking = blinkRef == cellRef;
-
-// ??? Noche: blink no azul ???plastificado???; es un flash suave.
-    final bg = blinking ? palette.blinkBg : palette.cellBg;
+    final isActive = blinkRef == cellRef;
+    final bg = isActive ? palette.blinkBg : palette.cellBg;
+    final borderColor = (isActive || selected)
+        ? palette.accent.withOpacity(palette.isLight ? 0.55 : 0.7)
+        : palette.border;
 
     final cellBody = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -3761,27 +5118,39 @@ class _DataCell extends StatelessWidget {
       child: Container(
         width: width,
         height: _GridView.rowH,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: bg,
           border: Border(
-            right: BorderSide(color: palette.border, width: palette.hairline),
-            bottom: BorderSide(color: palette.border, width: palette.hairline),
+            left: BorderSide(color: borderColor, width: palette.hairline),
+            top: BorderSide(color: borderColor, width: palette.hairline),
+            right: BorderSide(color: borderColor, width: palette.hairline),
+            bottom: BorderSide(color: borderColor, width: palette.hairline),
           ),
         ),
         child: isPhotos
             ? _PhotosCell(
           palette: palette,
           count: photosCount,
+          thumbB64: thumbB64,
           onAdd: onPickPhoto,
           onDeleteRow: onDeleteRow,
         )
-            : _PillText(
-// ??? siempre visible (aunque est?? vac??a)
-          text: text.trim().isEmpty ? ' ' : text,
-          palette: palette,
-          selected: selected,
-        ),
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  text.trim().isEmpty ? ' ' : text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.fg,
+                    fontSize: 13.5,
+                    height: 1.1,
+                    fontWeight:
+                        selected ? FontWeight.w700 : FontWeight.w600,
+                  ),
+                ),
+              ),
       ),
     );
 
@@ -3790,117 +5159,24 @@ class _DataCell extends StatelessWidget {
   }
 }
 
-class _PillText extends StatelessWidget {
-  const _PillText({
-    required this.text,
-    required this.palette,
-    required this.selected,
-  });
-
-  final String text;
-  final _SheetPalette palette;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final isLight = palette.isLight;
-
-// ??? ???Glass??? m??s legible en dark (sin matar OLED).
-    final Color top = isLight
-        ? const Color(0xFFFFFFFF).withOpacity(0.92)
-        : Colors.white.withOpacity(selected ? 0.26 : 0.18);
-
-    final Color bottom = isLight
-        ? const Color(0xFFF5F5F7).withOpacity(0.86)
-        : Colors.white.withOpacity(selected ? 0.18 : 0.12);
-
-    final Color edge = isLight
-        ? const Color(0xFFE5E5EA).withOpacity(0.95)
-        : Colors.white.withOpacity(selected ? 0.34 : 0.22);
-
-// ??? Selecci??n ???Apple???: borde neutro + halo sutil (menos azul duro).
-    final Color neutralRing = isLight
-        ? Colors.black.withOpacity(selected ? 0.18 : 0.12)
-        : Colors.white.withOpacity(selected ? 0.30 : 0.20);
-
-    final Color tint = selected
-        ? palette.accent.withOpacity(isLight ? 0.06 : 0.10)
-        : Colors.transparent;
-
-    final Color shadow = isLight
-        ? Colors.black.withOpacity(0.06)
-        : Colors.black.withOpacity(0.62);
-
-    final Color glow = palette.accent.withOpacity(isLight ? 0.14 : 0.22);
-
-    return Container(
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: selected ? neutralRing : edge,
-          width: math.max(palette.hairline, selected ? 1.2 : 1.0),
-        ),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [top, bottom, tint],
-          stops: const [0.0, 0.86, 1.0],
-        ),
-        boxShadow: [
-// ??? highlight suave ???glass???
-          if (!isLight)
-            BoxShadow(
-              color: Colors.white.withOpacity(selected ? 0.08 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(-2, -2),
-            ),
-          BoxShadow(
-            color: shadow,
-            blurRadius: selected ? 14 : 9,
-            offset: const Offset(0, 4),
-          ),
-          if (selected)
-            BoxShadow(
-              color: glow,
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
-        ],
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: palette.fg,
-          fontSize: 15.0,
-          height: 1.08,
-          fontWeight: FontWeight.w800, // ??? nitidez
-          letterSpacing: -0.15,
-        ),
-      ),
-    );
-  }
-}
-
 class _PhotosCell extends StatelessWidget {
   const _PhotosCell({
     required this.palette,
     required this.count,
+    required this.thumbB64,
     required this.onAdd,
     required this.onDeleteRow,
   });
 
   final _SheetPalette palette;
   final int count;
+  final String thumbB64;
   final VoidCallback onAdd;
   final VoidCallback onDeleteRow;
 
   @override
   Widget build(BuildContext context) {
+    final hasThumb = thumbB64.trim().isNotEmpty;
     return Row(
       children: [
         InkWell(
@@ -3913,6 +5189,18 @@ class _PhotosCell extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
+        if (hasThumb)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.memory(
+              base64Decode(thumbB64),
+              width: 26,
+              height: 26,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+          ),
+        if (hasThumb) const SizedBox(width: 6),
         Expanded(
           child: Text(
             count == 0 ? '???' : '$count',
@@ -3956,33 +5244,6 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
-class _MobileHintBar extends StatelessWidget {
-  const _MobileHintBar({required this.palette});
-  final _SheetPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 30,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: palette.hintBg,
-        border: Border(
-          top: BorderSide(color: palette.borderStrong, width: palette.hairline),
-        ),
-      ),
-      child: Text(
-        'Tap = editar. Mantener = men??.',
-        style: TextStyle(
-            color: palette.fgMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            height: 1.05),
-      ),
-    );
-  }
-}
-
 // ========================= Mobile inline editor bar ========================
 
 class _MobileInlineEditorBar extends StatelessWidget {
@@ -3996,8 +5257,14 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.focusNode,
     required this.actions,
     required this.keyboardInset,
+    required this.panelHeight,
+    required this.canCopyPaste,
+    required this.onGpsRow,
     required this.onPrev,
     required this.onNext,
+    required this.onCopy,
+    required this.onPaste,
+    required this.onOverflow,
     required this.onCancel,
     required this.onDone,
   });
@@ -4013,9 +5280,15 @@ class _MobileInlineEditorBar extends StatelessWidget {
 
 // inset real de teclado (dp)
   final double keyboardInset;
+  final double panelHeight;
+  final bool canCopyPaste;
+  final VoidCallback? onGpsRow;
 
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
+  final VoidCallback onCopy;
+  final VoidCallback onPaste;
+  final VoidCallback onOverflow;
 
   final VoidCallback onCancel;
   final VoidCallback onDone;
@@ -4035,6 +5308,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
 // ??? iOS Web: 0 exacto puede hacer que Safari ???no considere??? el input visible.
     final opacity = isOpen ? 1.0 : 0.01;
 
+    final label = title.trim().isEmpty ? 'Editar' : title.trim();
+
     return Positioned(
       left: 0,
       right: 0,
@@ -4045,7 +5320,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
         padding: EdgeInsets.only(bottom: keyboardInset),
         child: SafeArea(
           top: false,
-          bottom: false,
+          bottom: true,
           child: AbsorbPointer(
             absorbing: !isOpen,
             child: AnimatedOpacity(
@@ -4056,7 +5331,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
                 bindings: bindings,
                 child: Container(
                   key: barKey,
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  height: panelHeight,
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                   decoration: BoxDecoration(
                     color: palette.appBarBg,
                     border: Border(
@@ -4065,65 +5341,83 @@ class _MobileInlineEditorBar extends StatelessWidget {
                     ),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     child: BackdropFilter(
-// ??? glass del editor m??vil (se nota m??s en dark)
                       filter: ImageFilter.blur(
-                        sigmaX: palette.isLight ? 14 : 16,
-                        sigmaY: palette.isLight ? 14 : 16,
+                        sigmaX: palette.isLight ? 10 : 14,
+                        sigmaY: palette.isLight ? 10 : 14,
                         tileMode: TileMode.decal,
                       ),
                       child: Container(
-                        height: 52,
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                         decoration: BoxDecoration(
                           color: palette.editorBg
-                              .withOpacity(palette.isLight ? 0.88 : 0.62),
-                          borderRadius: BorderRadius.circular(16),
+                              .withOpacity(palette.isLight ? 0.96 : 0.70),
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                               color: palette.borderStrong,
                               width: palette.hairline),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black
-                                  .withOpacity(palette.isLight ? 0.08 : 0.42),
-                              blurRadius: 16,
-                              offset: const Offset(0, 10),
-                            )
-                          ],
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            IconButton(
-                              tooltip: 'Cancelar (Esc)',
-                              onPressed: onCancel,
-                              icon: Icon(Icons.close_rounded,
-                                  color: palette.fgMuted),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: palette.headerBg
-                                    .withOpacity(palette.isLight ? 1.0 : 0.72),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                    color: palette.border,
-                                    width: palette.hairline),
-                              ),
-                              child: Text(
-                                title.isEmpty ? 'Editar' : title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: palette.fgMuted,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 12,
-                                  height: 1.05,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.fgMuted,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12.5,
+                                      height: 1.05,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.chevron_left_rounded,
+                                  tooltip: 'Anterior',
+                                  onTap: onPrev,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.chevron_right_rounded,
+                                  tooltip: 'Siguiente',
+                                  onTap: onNext,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.check_rounded,
+                                  tooltip: 'Done',
+                                  onTap: onDone,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.more_horiz_rounded,
+                                  tooltip: 'Acciones',
+                                  onTap: onOverflow,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 46,
                               child: KeyedSubtree(
                                 key: fieldKey,
                                 child: _MobileEditorField(
@@ -4135,32 +5429,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (onPrev != null)
-                              IconButton(
-                                tooltip: 'Anterior',
-                                onPressed: onPrev,
-                                icon: Icon(Icons.chevron_left_rounded,
-                                    color: palette.fg),
-                              ),
-                            if (onNext != null)
-                              IconButton(
-                                tooltip: 'Siguiente',
-                                onPressed: onNext,
-                                icon: Icon(Icons.chevron_right_rounded,
-                                    color: palette.fg),
-                              ),
-                            for (final a in actions)
-                              IconButton(
-                                tooltip: a.label,
-                                onPressed: a.onTap,
-                                icon: Icon(a.icon, color: palette.fg),
-                              ),
-                            IconButton(
-                              tooltip: 'OK',
-                              onPressed: onDone,
-                              icon:
-                              Icon(Icons.check_rounded, color: palette.fg),
-                            ),
+                            // Acciones solo via overflow sheet
                           ],
                         ),
                       ),
@@ -4170,6 +5439,94 @@ class _MobileInlineEditorBar extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobilePanelIconButton extends StatelessWidget {
+  const _MobilePanelIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.palette,
+    this.iconSize = 20,
+    this.splashRadius = 18,
+    this.padding = const EdgeInsets.all(6),
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final _SheetPalette palette;
+  final double iconSize;
+  final double splashRadius;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final fg = enabled ? palette.fg : palette.fgMuted.withOpacity(0.5);
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, color: fg, size: iconSize),
+      padding: padding,
+      splashRadius: splashRadius,
+    );
+  }
+}
+
+class _MobilePanelPillButton extends StatelessWidget {
+  const _MobilePanelPillButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.palette,
+    this.emphasis = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final _SheetPalette palette;
+  final bool emphasis;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final bg = emphasis
+        ? palette.accent.withOpacity(0.18)
+        : palette.pillBtnBg.withOpacity(0.92);
+    final border = emphasis ? palette.accent : palette.pillBtnBorder;
+    final fg = enabled ? palette.fg : palette.fgMuted.withOpacity(0.5);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border, width: palette.hairline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: fg),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                height: 1.05,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -4197,8 +5554,10 @@ class _MobileEditorField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       autofocus: false,
-      maxLines: 1,
+      minLines: 1,
+      maxLines: 2,
       enabled: true,
+      textAlignVertical: TextAlignVertical.center,
       textInputAction:
       onNext == null ? TextInputAction.done : TextInputAction.next,
       keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
@@ -4220,7 +5579,7 @@ class _MobileEditorField extends StatelessWidget {
 // ??? dark: vidrio visible
         fillColor: palette.mobileInputBg,
         contentPadding:
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         hintText: 'Escribir???',
         hintStyle: TextStyle(color: palette.fgMuted),
         border: InputBorder.none,
@@ -4322,34 +5681,79 @@ class _SheetModel {
 }
 
 class _RowModel {
-  _RowModel({required this.cells, required this.photos});
+  _RowModel({
+    required this.cells,
+    required this.photos,
+    this.gpsLat,
+    this.gpsLng,
+    this.gpsAccuracyM,
+    this.gpsTs,
+    this.gpsIsLastKnown = false,
+  });
 
   final List<String> cells;
   final List<_RowPhoto> photos;
+  final double? gpsLat;
+  final double? gpsLng;
+  final double? gpsAccuracyM;
+  final DateTime? gpsTs;
+  final bool gpsIsLastKnown;
 
   factory _RowModel.empty(int cols) => _RowModel(
-    cells: List<String>.filled(cols, ''),
-    photos: <_RowPhoto>[],
-  );
+        cells: List<String>.filled(cols, ''),
+        photos: <_RowPhoto>[],
+      );
 
   factory _RowModel.fromCells(List<String> cells) =>
       _RowModel(cells: cells, photos: <_RowPhoto>[]);
 
   _RowModel copy() => _RowModel(
-    cells: List<String>.from(cells),
-    photos: photos.map((p) => p.copy()).toList(),
-  );
+        cells: List<String>.from(cells),
+        photos: photos.map((p) => p.copy()).toList(),
+        gpsLat: gpsLat,
+        gpsLng: gpsLng,
+        gpsAccuracyM: gpsAccuracyM,
+        gpsTs: gpsTs,
+        gpsIsLastKnown: gpsIsLastKnown,
+      );
 
 // ??? Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
   _RowModel copyForSnapshot() => _RowModel(
-    cells: List<String>.from(cells),
-    photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
-  );
+        cells: List<String>.from(cells),
+        photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
+        gpsLat: gpsLat,
+        gpsLng: gpsLng,
+        gpsAccuracyM: gpsAccuracyM,
+        gpsTs: gpsTs,
+        gpsIsLastKnown: gpsIsLastKnown,
+      );
 
   _RowModel copyWithCells(List<String> newCells) => _RowModel(
-    cells: List<String>.from(newCells),
-    photos: photos.map((p) => p.copy()).toList(),
-  );
+        cells: List<String>.from(newCells),
+        photos: photos.map((p) => p.copy()).toList(),
+        gpsLat: gpsLat,
+        gpsLng: gpsLng,
+        gpsAccuracyM: gpsAccuracyM,
+        gpsTs: gpsTs,
+        gpsIsLastKnown: gpsIsLastKnown,
+      );
+
+  _RowModel copyWithLocation({
+    required double lat,
+    required double lng,
+    required double accuracyM,
+    required DateTime ts,
+    required bool isLastKnown,
+  }) =>
+      _RowModel(
+        cells: List<String>.from(cells),
+        photos: photos.map((p) => p.copy()).toList(),
+        gpsLat: lat,
+        gpsLng: lng,
+        gpsAccuracyM: accuracyM,
+        gpsTs: ts,
+        gpsIsLastKnown: isLastKnown,
+      );
 
   Map<String, dynamic> toJson() => {
     'cells': cells,
@@ -4357,6 +5761,14 @@ class _RowModel {
     'photos': photos
         .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
         .toList(),
+    if (gpsLat != null && gpsLng != null)
+      'gps': {
+        'lat': gpsLat,
+        'lng': gpsLng,
+        'accuracyM': gpsAccuracyM,
+        'ts': gpsTs?.toIso8601String(),
+        'lastKnown': gpsIsLastKnown,
+      },
   };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
@@ -4368,6 +5780,18 @@ class _RowModel {
     for (final it in photosRaw) {
       if (it is Map) photos.add(_RowPhoto.fromJson(it.cast<String, dynamic>()));
     }
+    final gps = map['gps'];
+    if (gps is Map) {
+      return _RowModel(
+        cells: cells,
+        photos: photos,
+        gpsLat: (gps['lat'] as num?)?.toDouble(),
+        gpsLng: (gps['lng'] as num?)?.toDouble(),
+        gpsAccuracyM: (gps['accuracyM'] as num?)?.toDouble(),
+        gpsTs: DateTime.tryParse((gps['ts'] ?? '').toString()),
+        gpsIsLastKnown: (gps['lastKnown'] as bool?) ?? false,
+      );
+    }
     return _RowModel(cells: cells, photos: photos);
   }
 }
@@ -4378,18 +5802,50 @@ class _RowPhoto {
     required this.mime,
     required this.thumbB64,
     required this.addedAt,
+    required this.path,
+    this.lat,
+    this.lng,
+    this.accuracyM,
+    this.isLastKnown = false,
+    this.dataB64 = '',
   });
 
   final String name;
   final String mime;
   final String thumbB64;
   final DateTime addedAt;
+  final String path;
+  final double? lat;
+  final double? lng;
+  final double? accuracyM;
+  final bool isLastKnown;
+  final String dataB64;
 
-  _RowPhoto copy() =>
-      _RowPhoto(name: name, mime: mime, thumbB64: thumbB64, addedAt: addedAt);
+  _RowPhoto copy() => _RowPhoto(
+        name: name,
+        mime: mime,
+        thumbB64: thumbB64,
+        addedAt: addedAt,
+        path: path,
+        lat: lat,
+        lng: lng,
+        accuracyM: accuracyM,
+        isLastKnown: isLastKnown,
+        dataB64: dataB64,
+      );
 
   _RowPhoto copyWithoutThumb() =>
-      _RowPhoto(name: name, mime: mime, thumbB64: '', addedAt: addedAt);
+      _RowPhoto(
+        name: name,
+        mime: mime,
+        thumbB64: '',
+        addedAt: addedAt,
+        path: path,
+        lat: lat,
+        lng: lng,
+        accuracyM: accuracyM,
+        isLastKnown: isLastKnown,
+      );
 
   Map<String, dynamic> toJson({required bool persistThumb}) => {
     'name': name,
@@ -4397,6 +5853,11 @@ class _RowPhoto {
 // ??? NO guardamos thumb por defecto (evita que se rompa la carga por tama??o).
     'thumbB64': persistThumb ? thumbB64 : '',
     'addedAt': addedAt.toIso8601String(),
+    'path': path,
+    if (lat != null) 'lat': lat,
+    if (lng != null) 'lng': lng,
+    if (accuracyM != null) 'accuracyM': accuracyM,
+    'lastKnown': isLastKnown,
   };
 
   static _RowPhoto fromJson(Map<String, dynamic> map) {
@@ -4406,7 +5867,44 @@ class _RowPhoto {
       thumbB64: (map['thumbB64'] ?? '').toString(),
       addedAt: DateTime.tryParse((map['addedAt'] ?? '').toString()) ??
           DateTime.now(),
+      path: (map['path'] ?? '').toString(),
+      lat: (map['lat'] as num?)?.toDouble(),
+      lng: (map['lng'] as num?)?.toDouble(),
+      accuracyM: (map['accuracyM'] as num?)?.toDouble(),
+      isLastKnown: (map['lastKnown'] as bool?) ?? false,
     );
+  }
+}
+
+class _PhotoExportItem {
+  _PhotoExportItem({
+    required this.row,
+    required this.col,
+    required this.photo,
+    this.rowLat,
+    this.rowLng,
+    this.rowAccuracy,
+    this.rowIsLastKnown = false,
+  });
+
+  final int row;
+  final int col;
+  final _RowPhoto photo;
+  final double? rowLat;
+  final double? rowLng;
+  final double? rowAccuracy;
+  final bool rowIsLastKnown;
+
+  double? get lat => photo.lat ?? rowLat;
+  double? get lng => photo.lng ?? rowLng;
+  double? get accuracy => photo.accuracyM ?? rowAccuracy;
+
+  String get sourceLabel {
+    if (lat == null && lng == null) return '';
+    if (photo.lat != null || photo.lng != null) {
+      return photo.isLastKnown ? 'lastKnown' : 'current';
+    }
+    return rowIsLastKnown ? 'lastKnown' : 'current';
   }
 }
 
@@ -4445,12 +5943,14 @@ class _GpsFix {
     required this.lng,
     required this.accuracyM,
     required this.ts,
+    required this.isLastKnown,
   });
 
   final double lat;
   final double lng;
   final double accuracyM;
   final DateTime ts;
+  final bool isLastKnown;
 }
 
 // ============================== Paleta =====================================
