@@ -1,0 +1,53 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - fix/editor-screen-codex
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  BASE_HREF: /bitacora_web/
+  ENGINE_BASE_URL: https://rescue-rhode-andrea-missing.trycloudflare.com
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build web
+        run: >
+          flutter build web --release
+          --base-href "${{ env.BASE_HREF }}"
+          --dart-define=ENGINE_BASE_URL=${{ env.ENGINE_BASE_URL }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

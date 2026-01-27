@@ -1,7 +1,9 @@
 // lib/widgets/google_auth_button.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-import '../services/auth_service.dart';
+import '../services/google_auth.dart';
 
 class GoogleAuthButton extends StatefulWidget {
   const GoogleAuthButton({super.key});
@@ -21,48 +23,59 @@ class _GoogleAuthButtonState extends State<GoogleAuthButton> {
     });
 
     try {
-      // ignore: avoid_print
-      print('GoogleAuthButton PRESSED; user before: ${AuthService.I.currentUser?.email}');
+      await GoogleAuthService.I.init();
 
-      final user = AuthService.I.currentUser;
-      if (user == null) {
-        await AuthService.I.signIn();
-      } else {
-        await AuthService.I.signOut();
+      if (kDebugMode) {
+        debugPrint(
+          'GoogleAuthButton pressed; user before: ${GoogleAuthService.I.currentUser?.email}',
+        );
       }
 
-      // ignore: avoid_print
-      print('GoogleAuthButton DONE; user after: ${AuthService.I.currentUser?.email}');
+      final user = GoogleAuthService.I.currentUser;
+      if (user == null) {
+        await GoogleAuthService.I.signIn();
+      } else {
+        await GoogleAuthService.I.signOut();
+      }
+
+      if (kDebugMode) {
+        debugPrint(
+          'GoogleAuthButton done; user after: ${GoogleAuthService.I.currentUser?.email}',
+        );
+      }
     } catch (error, stack) {
-      // ignore: avoid_print
-      print('Error en GoogleAuthButton: $error\n$stack');
+      if (kDebugMode) {
+        debugPrint('GoogleAuthButton error: $error\n$stack');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error de autenticación: $error'),
+          content: Text('Auth error: $error'),
         ),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
         _isProcessing = false;
-      });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: AuthService.I.userChanges,
-      builder: (BuildContext context, AsyncSnapshot snapshot) {
-        final user = snapshot.data;
+    return ValueListenableBuilder<GoogleSignInAccount?>(
+      valueListenable: GoogleAuthService.I.user,
+      builder: (BuildContext context, GoogleSignInAccount? user, _) {
         final bool isLoggedIn = user != null;
 
         final String label;
         if (_isProcessing) {
           label = 'Procesando...';
         } else {
-          label = isLoggedIn ? 'Cerrar sesión' : 'Iniciar sesión';
+          label = isLoggedIn ? 'Cerrar sesion' : 'Iniciar sesion';
         }
 
         return Padding(

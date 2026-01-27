@@ -1,25 +1,24 @@
 // lib/services/google_auth.dart
-// Versión compatible con google_sign_in: ^6.2.1
-//
-// - Usa GoogleSignIn() con scopes y clientId.
-// - Usa onCurrentUserChanged + signInSilently().
-// - Exponde signIn(), signOut(), requestScopes() y authorizationHeaders().
+// Google sign-in wrapper (web + mobile).
 
 import 'dart:async';
-import 'package:flutter/foundation.dart' show ValueNotifier;
+
+import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleAuthService {
   GoogleAuthService._();
   static final GoogleAuthService I = GoogleAuthService._();
 
+  static const String _kWebClientId =
+      String.fromEnvironment('GSI_WEB_CLIENT_ID', defaultValue: '');
+
   late final GoogleSignIn _gsi;
   bool _inited = false;
 
   final ValueNotifier<GoogleSignInAccount?> user =
-  ValueNotifier<GoogleSignInAccount?>(null);
-  final ValueNotifier<String> lastError =
-  ValueNotifier<String>('');
+      ValueNotifier<GoogleSignInAccount?>(null);
+  final ValueNotifier<String> lastError = ValueNotifier<String>('');
 
   StreamSubscription<GoogleSignInAccount?>? _sub;
 
@@ -27,56 +26,61 @@ class GoogleAuthService {
   bool get isAuthorized => user.value != null;
 
   Future<void> init({
-    String? clientId, // en Web: TU_CLIENT_ID_WEB.apps.googleusercontent.com
+    String? clientId,
+    String? serverClientId,
     List<String> bootstrapScopes = const ['email', 'profile', 'openid'],
   }) async {
     if (_inited) return;
 
+    final resolvedClientId = _resolveClientId(clientId);
+    final resolvedServerClientId = _normalize(serverClientId);
+
     _gsi = GoogleSignIn(
-      clientId: clientId,
+      clientId: resolvedClientId,
+      serverClientId: resolvedServerClientId,
       scopes: bootstrapScopes,
     );
 
     await _sub?.cancel();
     _sub = _gsi.onCurrentUserChanged.listen(
-          (GoogleSignInAccount? account) {
+      (GoogleSignInAccount? account) {
         user.value = account;
         lastError.value = '';
       },
       onError: (Object e) {
         user.value = null;
-        lastError.value = 'Error de autenticación: $e';
+        lastError.value = 'Auth error: $e';
       },
     );
 
-    // Reintenta sesión silenciosa si el usuario ya había entrado antes.
     try {
       final acc = await _gsi.signInSilently();
       user.value = acc;
     } catch (e) {
-      lastError.value = 'Error sesión silenciosa: $e';
+      lastError.value = 'Silent sign-in error: $e';
     }
 
     _inited = true;
   }
 
-  Future<void> signIn() async {
+  Future<GoogleSignInAccount?> signIn() async {
     if (!_inited) {
-      throw StateError('Llamá antes a GoogleAuthService.I.init(...)');
+      throw StateError('Call GoogleAuthService.I.init(...) first');
     }
     try {
       final acc = await _gsi.signIn();
       user.value = acc;
       lastError.value = '';
+      return acc;
     } on Exception catch (e) {
-      lastError.value = 'Error al iniciar sesión: $e';
+      lastError.value = 'Sign-in error: $e';
+      return null;
     }
   }
 
   Future<void> signOut() async {
     if (!_inited) return;
     try {
-      // disconnect() revoca y cierra sesión en dispositivos.
       await _gsi.disconnect();
     } catch (_) {}
     try {
@@ -85,18 +89,16 @@ class GoogleAuthService {
     user.value = null;
   }
 
-  /// Pide scopes adicionales (drive, sheets, etc.).
   Future<bool> requestScopes(List<String> scopes) async {
     try {
       final ok = await _gsi.requestScopes(scopes);
       return ok;
     } on Exception catch (e) {
-      lastError.value = 'Error pidiendo permisos: $e';
+      lastError.value = 'Scope request error: $e';
       return false;
     }
   }
 
-  /// Headers Authorization para llamar a tu backend con token de Google.
   Future<Map<String, String>?> authorizationHeaders() async {
     final acc = user.value;
     if (acc == null) return null;
@@ -111,5 +113,20 @@ class GoogleAuthService {
     await _sub?.cancel();
     user.dispose();
     lastError.dispose();
+  }
+
+  String? _resolveClientId(String? raw) {
+    final normalized = _normalize(raw);
+    if (normalized != null) return normalized;
+    if (kIsWeb && _kWebClientId.trim().isNotEmpty) {
+      return _kWebClientId.trim();
+    }
+    return null;
+  }
+
+  String? _normalize(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

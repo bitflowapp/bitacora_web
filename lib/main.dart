@@ -10,7 +10,9 @@ import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
 import 'screens/start_page.dart';
 import 'services/sheet_store.dart';
-import 'services/engine_math_client.dart'; // <-- AJUSTÁ si tu ruta es distinta
+import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
+import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
+import 'services/engine_config.dart' as engine_cfg;
 import 'widgets/animated_video_background.dart';
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
@@ -22,8 +24,21 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   if (url.isEmpty) return;
 
   try {
-    // Persistimos para que toda la app use el mismo baseUrl (tu EngineMathClient ya lee de prefs).
+    // 1) Si tu app todavía usa EngineMathClient en otros lugares, mantenemos este override.
     await EngineMathClient().setBaseUrl(url);
+
+    // 2) Y también persistimos para el EngineConfig (engine_client.dart),
+    //    así el EditorScreen grande usa el mismo baseUrl.
+    await EngineConfig.instance.setOverride(url);
+
+    final normalized = engine_cfg.EngineConfig.normalize(url);
+    if (engine_cfg.EngineConfig.isValidBaseUrl(normalized)) {
+      await engine_cfg.EngineConfig.instance.setManualBaseUrl(normalized);
+      await engine_cfg.EngineConfig.instance
+          .setMode(engine_cfg.EngineConfig.modeManual);
+      await engine_cfg.EngineConfig.instance.setLastResolved(normalized);
+    }
+
     if (kDebugMode) {
       // ignore: avoid_print
       print('[main] Engine baseUrl override via ?engine= -> $url');
@@ -187,6 +202,23 @@ class _AppState extends State<App> {
     } catch (e) {
       storeOk = false;
       storeError = e;
+    }
+
+    // EngineConfig init: resuelve override/version.json/cache/dart-define.
+    // No lo tratamos como “fatal” para que la app pueda abrir igual (modo offline/demo).
+    try {
+      await EngineConfig.instance
+          .init(timeout: const Duration(seconds: 6), versionJsonPath: 'version.json')
+          .timeout(const Duration(seconds: 7));
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('[boot] Engine baseUri = ${EngineConfig.instance.baseUri}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('[boot] EngineConfig init failed: $e');
+      }
     }
 
     return _BootStatus(

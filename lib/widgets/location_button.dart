@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/location_service.dart';
 import '../services/location_web_service.dart';
 import '../services/row_geo_store.dart';
 
@@ -239,10 +240,11 @@ class _LocationSheetState extends State<_LocationSheet> {
                         onPressed: () {
                           final txt = LocationWebService.I.shareText(
                             LocationFix(
-                              lat: _geo!.lat,
-                              lng: _geo!.lng,
-                              accuracyM: _geo!.accuracyM,
-                              ts: _geo!.ts,
+                              latitude: _geo!.lat,
+                              longitude: _geo!.lng,
+                              accuracyMeters: _geo!.accuracyM,
+                              timestamp: _geo!.ts,
+                              source: 'stored',
                             ),
                           );
                           Clipboard.setData(ClipboardData(text: txt));
@@ -276,10 +278,10 @@ class _LocationSheetState extends State<_LocationSheet> {
       final g = RowGeo(
         sheetId: widget.sheetId,
         row: widget.row,
-        lat: fix.lat,
-        lng: fix.lng,
-        accuracyM: fix.accuracyM,
-        ts: fix.ts,
+        lat: fix.latitude,
+        lng: fix.longitude,
+        accuracyM: fix.accuracyMeters,
+        ts: fix.timestamp,
       );
       await RowGeoStore.I.save(g);
       await _load();

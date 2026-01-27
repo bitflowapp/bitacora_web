@@ -26,4 +26,4 @@ class _SoundBankWeb implements SoundBank {
   }
 }
 
-SoundBank getSoundBank() => _SoundBankWeb();
+SoundBank createSoundBank() => _SoundBankWeb();

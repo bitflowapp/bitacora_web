@@ -1,4 +1,6 @@
 // lib/widgets/typing_fx.dart
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import '../services/sound_bank.dart';
 
