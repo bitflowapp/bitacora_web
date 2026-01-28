@@ -26,10 +26,12 @@ class JsonWorker {
   bool _closed = false;
 
   void start(String rawJson) {
+    final resolved = _resolveScriptUrl(scriptUrl);
     try {
-      _worker = html.Worker(scriptUrl);
+      _worker = html.Worker(resolved);
     } catch (e) {
-      onError("No se pudo inicializar Worker: ");
+      onError('No se pudo inicializar Worker: $e');
+      _fallbackParse(rawJson);
       return;
     }
 
@@ -97,6 +99,46 @@ class JsonWorker {
     _worker = null;
   }
 
+  String _resolveScriptUrl(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null && uri.hasScheme) return trimmed;
+    return Uri.base.resolve(trimmed).toString();
+  }
+
+  void _fallbackParse(String rawJson) {
+    scheduleMicrotask(() {
+      try {
+        final obj = convert.jsonDecode(rawJson);
+        if (obj is! Map) throw 'JSON invalido (no es objeto)';
+        final map = obj as Map<String, dynamic>;
+
+        final headers = ((map['headers'] as List?) ?? const [])
+            .map((e) => e?.toString() ?? '')
+            .toList();
+
+        final rows = ((map['rows'] as List?) ?? const [])
+            .map((r) => (r is List ? r : const [])
+                .map((e) => e?.toString() ?? '')
+                .toList())
+            .toList();
+
+        onMeta(headers, rows.length);
+
+        final ch = chunkSize;
+        for (var i = 0; i < rows.length; i += ch) {
+          final end = (i + ch < rows.length) ? i + ch : rows.length;
+          final slice = rows.sublist(i, end);
+          final done = end >= rows.length;
+          onRowsChunk(slice, done);
+        }
+      } catch (e) {
+        onError(e);
+      }
+    });
+  }
+
   /// Versión one-shot opcional (no la usamos más abajo, pero la dejo OK).
   static Future<TableState> parseOnce(
     String rawJson, {
@@ -106,6 +148,7 @@ class JsonWorker {
     final c = Completer<TableState>();
     final headers = <String>[];
     final rows = <List<String>>[];
+    bool fallbackStarted = false;
 
     final w = JsonWorker(
       onMeta: (h, _) {
@@ -121,7 +164,13 @@ class JsonWorker {
         }
       },
       onError: (err) {
-        if (!c.isCompleted) c.completeError(err);
+        if (c.isCompleted || fallbackStarted) return;
+        fallbackStarted = true;
+        _parseDirect(rawJson).then((value) {
+          if (!c.isCompleted) c.complete(value);
+        }).catchError((e, st) {
+          if (!c.isCompleted) c.completeError(e, st);
+        });
       },
       chunkSize: chunkSize,
       scriptUrl: scriptUrl,
@@ -129,5 +178,23 @@ class JsonWorker {
 
     w.start(rawJson);
     return c.future;
+  }
+
+  static Future<TableState> _parseDirect(String rawJson) async {
+    final obj = convert.jsonDecode(rawJson);
+    if (obj is! Map) throw 'JSON invalido (no es objeto)';
+    final map = obj as Map<String, dynamic>;
+
+    final headers = ((map['headers'] as List?) ?? const [])
+        .map((e) => e?.toString() ?? '')
+        .toList();
+
+    final rows = ((map['rows'] as List?) ?? const [])
+        .map((r) => (r is List ? r : const [])
+            .map((e) => e?.toString() ?? '')
+            .toList())
+        .toList();
+
+    return TableState(headers: headers, rows: rows, savedAt: DateTime.now());
   }
 }

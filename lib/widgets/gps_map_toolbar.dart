@@ -20,6 +20,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -160,12 +161,15 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
 
   bool _followUser = true;
   double _zoom = 16.0;
+  bool _gpsStarted = false;
+  bool _gpsRequestInFlight = false;
+  bool _needsUserAction = false;
 
   @override
   void initState() {
     super.initState();
     _markerLatLng = _initialMarkerFromProps();
-    _initLocation();
+    _initLocation(userInitiated: !kIsWeb);
   }
 
   @override
@@ -181,39 +185,45 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     return LatLng(lat, lng);
   }
 
-  Future<void> _initLocation() async {
+  Future<void> _initLocation({required bool userInitiated}) async {
+    if (_gpsStarted || _gpsRequestInFlight) return;
+    _gpsRequestInFlight = true;
+
     setState(() {
       _status = _GpsStatus.initializing;
     });
 
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (!mounted) return;
-      setState(() {
-        _status = _GpsStatus.disabled;
-      });
-      return;
-    }
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      if (!mounted) return;
-      setState(() {
-        _status = _GpsStatus.denied;
-      });
-      return;
-    }
-
-    setState(() {
-      _status = _GpsStatus.searching;
-    });
-
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled && !kIsWeb) {
+        if (!mounted) return;
+        setState(() {
+          _status = _GpsStatus.disabled;
+        });
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied && userInitiated) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _needsUserAction = permission == LocationPermission.denied;
+        if (!mounted) return;
+        setState(() {
+          _status = _GpsStatus.denied;
+        });
+        return;
+      }
+
+      _needsUserAction = false;
+      if (!mounted) return;
+      setState(() {
+        _status = _GpsStatus.searching;
+      });
+
       final initialPos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 15),
@@ -231,11 +241,14 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
         if (!mounted) return;
         _processPosition(position);
       });
+      _gpsStarted = true;
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _status = _GpsStatus.error;
       });
+    } finally {
+      _gpsRequestInFlight = false;
     }
   }
 
@@ -369,7 +382,10 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     }
   }
 
-  void _pickCurrentPosition() {
+  Future<void> _pickCurrentPosition() async {
+    if (_tracked == null || _needsUserAction) {
+      await _initLocation(userInitiated: true);
+    }
     final t = _tracked;
     if (t == null) return;
 
@@ -381,7 +397,10 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     _notifyPicked(point);
   }
 
-  void _centerOnUser() {
+  Future<void> _centerOnUser() async {
+    if (_tracked == null || _needsUserAction) {
+      await _initLocation(userInitiated: true);
+    }
     final t = _tracked;
     if (t == null) return;
 
@@ -675,9 +694,8 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     final subtle = textColor.withValues(alpha: 0.7);
     final coords = _coordinateLabel();
 
-    final gpsUnavailable = _status == _GpsStatus.disabled ||
-        _status == _GpsStatus.denied ||
-        _status == _GpsStatus.error;
+    final gpsUnavailable =
+        _status == _GpsStatus.disabled || _status == _GpsStatus.error;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),

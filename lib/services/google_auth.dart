@@ -12,9 +12,11 @@ class GoogleAuthService {
 
   static const String _kWebClientId =
       String.fromEnvironment('GSI_WEB_CLIENT_ID', defaultValue: '');
+  static const List<String> _kDefaultScopes = ['email', 'profile', 'openid'];
 
   late final GoogleSignIn _gsi;
   bool _inited = false;
+  List<String> _scopes = _kDefaultScopes;
 
   final ValueNotifier<GoogleSignInAccount?> user =
       ValueNotifier<GoogleSignInAccount?>(null);
@@ -28,34 +30,43 @@ class GoogleAuthService {
   Future<void> init({
     String? clientId,
     String? serverClientId,
-    List<String> bootstrapScopes = const ['email', 'profile', 'openid'],
+    List<String> bootstrapScopes = _kDefaultScopes,
   }) async {
     if (_inited) return;
 
     final resolvedClientId = _resolveClientId(clientId);
     final resolvedServerClientId = _normalize(serverClientId);
 
-    _gsi = GoogleSignIn(
+    _scopes = bootstrapScopes;
+    _gsi = GoogleSignIn.instance;
+    await _gsi.initialize(
       clientId: resolvedClientId,
       serverClientId: resolvedServerClientId,
-      scopes: bootstrapScopes,
     );
 
     await _sub?.cancel();
-    _sub = _gsi.onCurrentUserChanged.listen(
-      (GoogleSignInAccount? account) {
-        user.value = account;
+    _sub = _gsi.authenticationEvents.listen((event) {
+      if (event is GoogleSignInAuthenticationEventSignIn) {
+        user.value = event.user;
         lastError.value = '';
-      },
-      onError: (Object e) {
+      } else if (event is GoogleSignInAuthenticationEventSignOut) {
         user.value = null;
-        lastError.value = 'Auth error: $e';
-      },
-    );
+        lastError.value = '';
+      }
+    }, onError: (Object e) {
+      user.value = null;
+      lastError.value = 'Auth error: $e';
+    });
 
     try {
-      final acc = await _gsi.signInSilently();
-      user.value = acc;
+      final future = _gsi.attemptLightweightAuthentication();
+      if (future != null) {
+        final acc = await future;
+        if (acc != null) {
+          user.value = acc;
+          lastError.value = '';
+        }
+      }
     } catch (e) {
       lastError.value = 'Silent sign-in error: $e';
     }
@@ -68,7 +79,7 @@ class GoogleAuthService {
       throw StateError('Call GoogleAuthService.I.init(...) first');
     }
     try {
-      final acc = await _gsi.signIn();
+      final acc = await _gsi.authenticate(scopeHint: _scopes);
       user.value = acc;
       lastError.value = '';
       return acc;
@@ -91,8 +102,10 @@ class GoogleAuthService {
 
   Future<bool> requestScopes(List<String> scopes) async {
     try {
-      final ok = await _gsi.requestScopes(scopes);
-      return ok;
+      final acc = user.value;
+      final client = acc?.authorizationClient ?? _gsi.authorizationClient;
+      await client.authorizeScopes(scopes);
+      return true;
     } on Exception catch (e) {
       lastError.value = 'Scope request error: $e';
       return false;
@@ -103,7 +116,11 @@ class GoogleAuthService {
     final acc = user.value;
     if (acc == null) return null;
     try {
-      return await acc.authHeaders;
+      final client = acc.authorizationClient;
+      return await client.authorizationHeaders(
+        _scopes,
+        promptIfNecessary: false,
+      );
     } catch (_) {
       return null;
     }

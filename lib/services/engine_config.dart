@@ -22,7 +22,7 @@ class EngineConfig {
   static const String webQueryParam = 'engine';
 
   static const String defaultTunnelBaseUrl =
-      'https://rescue-rhode-andrea-missing.trycloudflare.com';
+      'https://dock-stranger-crossing-breeding.trycloudflare.com';
   static const String defaultLanBaseUrl = 'http://192.168.1.37:8001';
 
   static const String _kModeKey = 'engine_mode';

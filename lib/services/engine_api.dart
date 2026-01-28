@@ -63,6 +63,14 @@ class EngineApi {
       }
 
       if (kIsWeb) {
+        final fromVersion = await _tryLoadBaseFromVersionJson();
+        if (fromVersion != null && fromVersion.trim().isNotEmpty) {
+          final u = Uri.parse(_normalizeBase(fromVersion));
+          _resolvedBase = u;
+          await _config.setLastResolved(u.toString());
+          completer.complete(u);
+          return u;
+        }
         final u = Uri.parse(_normalizeBase(tunnelBase));
         _resolvedBase = u;
         await _config.setLastResolved(u.toString());
@@ -90,6 +98,33 @@ class EngineApi {
       return fallback;
     } finally {
       _resolving = null;
+    }
+  }
+
+  Future<String?> _tryLoadBaseFromVersionJson() async {
+    try {
+      final cacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
+      final versionUri = Uri.base.resolve('version.json?x=$cacheBuster');
+      final resp = await _client
+          .get(versionUri, headers: const {'Cache-Control': 'no-store'})
+          .timeout(const Duration(seconds: 6));
+
+      if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
+      final decoded = jsonDecode(resp.body);
+      if (decoded is! Map) return null;
+
+      final raw = decoded['engine_url'] ??
+          decoded['engine_base_url'] ??
+          decoded['engine'];
+      if (raw is! String) return null;
+
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty || !EngineConfig.isValidBaseUrl(trimmed)) {
+        return null;
+      }
+      return EngineConfig.normalize(trimmed);
+    } catch (_) {
+      return null;
     }
   }
 

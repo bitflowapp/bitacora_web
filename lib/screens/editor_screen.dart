@@ -33,7 +33,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image/image.dart' as img;
 import 'package:archive/archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,8 +44,11 @@ import 'package:bitacora_web/services/keyboard_insets_controller.dart';
 import 'package:bitacora_web/services/photo_storage_service.dart';
 import 'package:bitacora_web/services/photo_bytes_resolver.dart';
 import 'package:bitacora_web/services/photo_json_codec.dart';
+import 'package:bitacora_web/services/location_service.dart';
+import 'package:bitacora_web/services/location_web_service.dart';
 import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
+import 'package:bitacora_web/services/expression_eval.dart';
 import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 
 part '../widgets/mobile_notes_grid.dart';
@@ -2938,114 +2940,7 @@ class _EditorScreenState extends State<EditorScreen>
     return s.replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
-  double? _evalExpression(String raw) {
-    final src = raw.trim();
-    if (src.isEmpty) return null;
-
-    final output = <double>[];
-    final ops = <String>[];
-    int i = 0;
-    bool expectUnary = true;
-
-    int precedence(String op) {
-      if (op == '+' || op == '-') return 1;
-      if (op == '*' || op == '/') return 2;
-      return 0;
-    }
-
-    void applyOp() {
-      if (ops.isEmpty) return;
-      final op = ops.removeLast();
-      if (output.length < 2) return;
-      final b = output.removeLast();
-      final a = output.removeLast();
-      switch (op) {
-        case '+':
-          output.add(a + b);
-        case '-':
-          output.add(a - b);
-        case '*':
-          output.add(a * b);
-        case '/':
-          output.add(b == 0 ? a : a / b);
-      }
-    }
-
-    while (i < src.length) {
-      final ch = src[i];
-      if (ch == ' ' || ch == '\t' || ch == '\n') {
-        i++;
-        continue;
-      }
-      if (ch == '(') {
-        ops.add(ch);
-        i++;
-        expectUnary = true;
-        continue;
-      }
-      if (ch == ')') {
-        while (ops.isNotEmpty && ops.last != '(') {
-          applyOp();
-        }
-        if (ops.isNotEmpty && ops.last == '(') {
-          ops.removeLast();
-        }
-        i++;
-        expectUnary = false;
-        continue;
-      }
-      if ('+-*/'.contains(ch)) {
-        if (ch == '-' && expectUnary) {
-          int j = i + 1;
-          while (j < src.length && src[j] == ' ') {
-            j++;
-          }
-          final numBuf = StringBuffer('-');
-          int k = j;
-          while (k < src.length &&
-              (RegExp(r'[0-9\\.]').hasMatch(src[k]))) {
-            numBuf.write(src[k]);
-            k++;
-          }
-          final v = double.tryParse(numBuf.toString());
-          if (v == null) return null;
-          output.add(v);
-          i = k;
-          expectUnary = false;
-          continue;
-        }
-        while (ops.isNotEmpty &&
-            precedence(ops.last) >= precedence(ch)) {
-          applyOp();
-        }
-        ops.add(ch);
-        i++;
-        expectUnary = true;
-        continue;
-      }
-
-      final buf = StringBuffer();
-      while (i < src.length && RegExp(r'[0-9\\.]').hasMatch(src[i])) {
-        buf.write(src[i]);
-        i++;
-      }
-      if (buf.isEmpty) return null;
-      final v = double.tryParse(buf.toString());
-      if (v == null) return null;
-      output.add(v);
-      expectUnary = false;
-    }
-
-    while (ops.isNotEmpty) {
-      if (ops.last == '(') {
-        ops.removeLast();
-        continue;
-      }
-      applyOp();
-    }
-    if (output.isEmpty) return null;
-    return output.last;
-  }
+  double? _evalExpression(String raw) => evalExpression(raw);
 
 // ------------------------------ Filas -----------------------------------
 
@@ -3198,43 +3093,59 @@ class _EditorScreenState extends State<EditorScreen>
   Future<_GpsFix?> _getGpsFixWithFallback(
       {Duration timeout = const Duration(seconds: 10)}) async {
     try {
-      final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return null;
-
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
+      if (kIsWeb) {
+        final result = await LocationWebService.I.tryGetBestFix(
+          samples: 3,
+          perSampleTimeout: timeout < const Duration(seconds: 4)
+              ? timeout
+              : const Duration(seconds: 4),
+          betweenSamples: const Duration(milliseconds: 600),
+          targetAccuracyMeters: 25,
+          maxAccuracyMeters: 120,
+        );
+        final fix = result.fix;
+        if (!result.ok || fix == null) {
+          if (kDebugMode) {
+            debugPrint('[gps] web fix failed: ${result.message}');
+          }
+          return null;
+        }
+        return _GpsFix(
+          lat: fix.latitude,
+          lng: fix.longitude,
+          accuracyM: fix.accuracyMeters ?? 0,
+          ts: fix.timestamp,
+          isLastKnown: fix.source == 'lastKnown',
+        );
       }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
+
+      final quickTimeout = timeout < const Duration(seconds: 4)
+          ? timeout
+          : const Duration(seconds: 4);
+      final result = await LocationService.I.tryGetFixPreciseFast(
+        quickTimeout: quickTimeout,
+        hardTimeout: timeout,
+        targetAccuracyMeters: 25,
+        maxAccuracyMeters: 120,
+      );
+      final fix = result.fix;
+      if (!result.ok || fix == null) {
+        if (kDebugMode) {
+          debugPrint('[gps] fix failed: ${result.message}');
+        }
         return null;
       }
-
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: timeout,
-        );
-
-        return _GpsFix(
-          lat: pos.latitude,
-          lng: pos.longitude,
-          accuracyM: pos.accuracy,
-          ts: pos.timestamp,
-          isLastKnown: false,
-        );
-      } catch (_) {
-        final last = await Geolocator.getLastKnownPosition();
-        if (last == null) return null;
-        return _GpsFix(
-          lat: last.latitude,
-          lng: last.longitude,
-          accuracyM: last.accuracy,
-          ts: last.timestamp,
-          isLastKnown: true,
-        );
+      return _GpsFix(
+        lat: fix.latitude,
+        lng: fix.longitude,
+        accuracyM: fix.accuracyMeters ?? 0,
+        ts: fix.timestamp,
+        isLastKnown: fix.source == 'lastKnown',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[gps] unexpected error: $e');
       }
-    } catch (_) {
       return null;
     }
   }
