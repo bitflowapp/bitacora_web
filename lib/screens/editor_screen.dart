@@ -191,8 +191,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _engineStatusIsError = false;
   String? _engineBaseResolved;
   String? _engineKeyResolved;
-  bool _engineAvailable = false;
   late final EngineApi _engineApi = EngineApi();
+
+  bool get _engineHasBase =>
+      _engineBaseResolved != null && _engineBaseResolved!.trim().isNotEmpty;
 
 // ---------------- Smoke test (query param ?smoke=1) ---------------------
 
@@ -1244,7 +1246,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 onAddRow: () => _insertRow(_rows.length),
                                 onSave: () => unawaited(_saveLocalNow()),
                                 onExport: () => unawaited(_exportXlsx()),
-                                onCompute: (!_engineAvailable || _engineBusy)
+                                onCompute: (!_engineHasBase || _engineBusy)
                                     ? null
                                     : () => unawaited(_computeEngine()),
                               )
@@ -3528,8 +3530,8 @@ class _EditorScreenState extends State<EditorScreen>
               ListTile(
                 leading: const Icon(Icons.functions_rounded),
                 title: const Text('Calcular'),
-                enabled: _engineAvailable && !_engineBusy,
-                onTap: (_engineAvailable && !_engineBusy)
+                enabled: _engineHasBase && !_engineBusy,
+                onTap: (_engineHasBase && !_engineBusy)
                     ? () => runAndClose(
                         () => unawaited(_computeEngine()),
                       )
@@ -3768,34 +3770,52 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ Engine compute (opcional) ----------------
 
   Future<void> _initEngineConnection() async {
+    await _ensureEngineReady(showErrors: true);
+  }
+
+  Future<bool> _ensureEngineReady({required bool showErrors}) async {
     final resolved = await _resolveEngineConfig();
-    if (!mounted) return;
+    if (!mounted) return false;
 
     _engineBaseResolved = resolved.baseUrl;
     _engineKeyResolved = resolved.apiKey;
 
-    if (_engineBaseResolved == null || _engineBaseResolved!.isEmpty) {
-      setState(() {
-        _engineAvailable = false;
-        _engineStatus = null;
-        _engineStatusIsError = false;
-      });
-      return;
+    final base = _engineBaseResolved?.trim() ?? '';
+    if (base.isEmpty || !EngineConfig.isValidBaseUrl(base)) {
+      if (mounted) {
+        setState(() {
+          if (showErrors) {
+            _engineStatus =
+                'Engine URL invalida o vacia. Configura engine_url.';
+            _engineStatusIsError = true;
+          } else {
+            _engineStatus = null;
+            _engineStatusIsError = false;
+          }
+        });
+      }
+      return false;
     }
 
-    final ok = await _checkEngineHealth(_engineBaseResolved!);
-    if (!mounted) return;
+    if (kDebugMode) {
+      debugPrint('[engine] base url: $base');
+    }
+
+    final ok = await _checkEngineHealth(base);
+    if (!mounted) return ok;
     setState(() {
-      _engineAvailable = ok;
       if (!ok) {
-        _engineStatus =
-        'Engine no accesible. En iPhone/Android us?? IP LAN o t??nel (no 127.0.0.1).';
-        _engineStatusIsError = true;
+        _engineStatus = showErrors
+            ? 'Engine offline o URL invalida. Revisa tunel/IP.'
+            : null;
+        _engineStatusIsError = showErrors;
       } else {
         _engineStatus = null;
         _engineStatusIsError = false;
       }
     });
+
+    return ok;
   }
 
   Future<_EngineConfig> _resolveEngineConfig() async {
@@ -3855,15 +3875,26 @@ class _EditorScreenState extends State<EditorScreen>
       '/openapi.json',
       '/healthz',
       '/readyz',
+      '/health',
       '/',
     ];
 
     for (final path in candidates) {
       try {
-        await _engineApi.getJsonFromBase(normalized, path);
+        await _engineApi.getJsonFromBase(
+          normalized,
+          path,
+          timeout: const Duration(seconds: 10),
+        );
+        if (kDebugMode) {
+          debugPrint('[engine] health ok: $normalized$path');
+        }
         return true;
-      } catch (_) {
-        // try next endpoint
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[engine] health fail: $normalized$path -> '
+              '${_engineErrorDetails(e)}');
+        }
       }
     }
 
@@ -3982,25 +4013,6 @@ class _EditorScreenState extends State<EditorScreen>
   Future<_EngineComputeOutcome> _computeEngine() async {
     _syncActiveDrafts();
 
-    final base = _engineBaseResolved;
-    if (base == null || base.trim().isEmpty) {
-      if (mounted) {
-        setState(() {
-          _engineStatus = 'Engine no disponible.';
-          _engineStatusIsError = true;
-        });
-      } else {
-        _engineStatus = 'Engine no disponible.';
-        _engineStatusIsError = true;
-      }
-      return const _EngineComputeOutcome(
-        ok: false,
-        hadUpdates: false,
-        errorDetails: _EngineErrorDetails(
-          message: 'Engine base URL vacia',
-        ),
-      );
-    }
     if (_engineBusy) {
       if (mounted) {
         setState(() {
@@ -4015,6 +4027,28 @@ class _EditorScreenState extends State<EditorScreen>
         ok: false,
         hadUpdates: false,
         errorDetails: _EngineErrorDetails(message: 'Engine ocupado'),
+      );
+    }
+
+    final ready = await _ensureEngineReady(showErrors: true);
+    if (!ready) {
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(
+          message: 'Engine no disponible.',
+        ),
+      );
+    }
+
+    final base = _engineBaseResolved;
+    if (base == null || base.trim().isEmpty) {
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(
+          message: 'Engine base URL vacia',
+        ),
       );
     }
 
@@ -4161,7 +4195,6 @@ class _EditorScreenState extends State<EditorScreen>
       if (kDebugMode) debugPrint('[engine] compute error: $details');
       setState(() {
         _engineStatus = _engineErrorMessage(e);
-        _engineAvailable = false;
         _engineStatusIsError = true;
       });
       return _EngineComputeOutcome(

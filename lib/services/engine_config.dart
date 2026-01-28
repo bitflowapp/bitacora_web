@@ -34,7 +34,7 @@ class EngineConfig {
     var u = url.trim();
     if (u.isEmpty) return u;
 
-    final hasScheme = u.startsWith('http://') || u.startsWith('https://');
+    final hasScheme = u.contains('://');
     if (!hasScheme) {
       u = 'http://$u';
     }
