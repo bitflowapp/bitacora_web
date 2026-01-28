@@ -38,7 +38,7 @@ import 'package:image/image.dart' as img;
 import 'package:archive/archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:bitacora_web/services/export_xlsx_with_photos.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bitacora_web/services/photo_acquire_service.dart';
 import 'package:bitacora_web/services/keyboard_insets_controller.dart';
@@ -1349,9 +1349,6 @@ class _EditorScreenState extends State<EditorScreen>
                                             rowModels: _rows,
                                             cellTextAt: (r, c) =>
                                                 _effectiveCell(r, c),
-                                            isInvalid: (r, c) =>
-                                                _invalidCells
-                                                    .contains(_CellRef(r, c)),
                                             verticalController: _vScroll,
                                             headerScrollController:
                                                 _mobileHeaderScroll,
@@ -3638,12 +3635,60 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final photoItems = _collectPhotoItems();
       final photosByRow = await _loadPhotoBytesByRow(photoItems);
-      final wb = _buildWorkbook(
-        photoItems: photoItems,
+      final dataCols = math.max(0, _headers.length - 1); // sin Photos
+      final columns =
+          List<String>.generate(dataCols, (i) => _headerLabel(i));
+      final rows = <List<String>>[];
+      for (final row in _rows) {
+        final values = List<String>.filled(dataCols, '');
+        for (int c = 0; c < dataCols && c < row.cells.length; c++) {
+          values[c] = row.cells[c];
+        }
+        rows.add(values);
+      }
+
+      final gpsByRow = <GpsExport?>[];
+      bool hasGps = false;
+      for (final row in _rows) {
+        final gps = GpsExport(
+          lat: row.gpsLat,
+          lng: row.gpsLng,
+          accuracy: row.gpsAccuracyM,
+          ts: row.gpsTs,
+          isLastKnown: row.gpsIsLastKnown,
+        );
+        if (gps.hasFix) hasGps = true;
+        gpsByRow.add(gps);
+      }
+
+      final photoMeta = photoItems.isEmpty
+          ? null
+          : photoItems
+              .map(
+                (item) => PhotoMeta(
+                  rowIndex: item.row,
+                  colIndex: item.col,
+                  photoIndex: item.indexInRow,
+                  addedAt: item.photo.addedAt,
+                  sourceLabel: item.sourceLabel,
+                  lat: item.lat,
+                  lng: item.lng,
+                  accuracy: item.accuracy,
+                ),
+              )
+              .toList(growable: false);
+
+      final xlsxBytes = await buildXlsxWithPhotos(
+        columns: columns,
+        rows: rows,
         photosByRow: photosByRow,
+        gpsByRow: hasGps ? gpsByRow : null,
+        photoMeta: photoMeta,
+        sheetName: _sheetName,
+        includeIndexColumn: false,
+        includeCoverSheet: true,
+        includeSummarySheet: true,
       );
-      final xlsxBytes = Uint8List.fromList(wb.saveAsStream());
-      wb.dispose();
 
       final now = DateTime.now();
       final baseName =
@@ -3666,6 +3711,7 @@ class _EditorScreenState extends State<EditorScreen>
         out.add(_PhotoExportItem(
           row: r,
           col: _headers.length - 1,
+          indexInRow: i,
           photo: row.photos[i],
           rowLat: row.gpsLat,
           rowLng: row.gpsLng,
@@ -3687,272 +3733,6 @@ class _EditorScreenState extends State<EditorScreen>
       list.add(bytes ?? Uint8List(0));
     }
     return out;
-  }
-
-  xlsio.Workbook _buildWorkbook({
-    required List<_PhotoExportItem> photoItems,
-    required Map<int, List<Uint8List>> photosByRow,
-  }) {
-    final wb = xlsio.Workbook();
-    final sheet = wb.worksheets[0];
-    sheet.name = _sheetName;
-
-    final dataCols = math.max(0, _headers.length - 1); // sin Photos
-    final hasGps = _rows.any((r) => r.gpsLat != null && r.gpsLng != null);
-    final gpsCols = hasGps ? 5 : 0;
-    final maxPhotosPerRow = photosByRow.values
-        .fold<int>(0, (prev, list) => math.max(prev, list.length));
-    final photoCols = maxPhotosPerRow;
-    final photoStart = dataCols + gpsCols + 1;
-    final lastCol = math.max(1, dataCols + gpsCols + photoCols);
-
-    for (int c = 0; c < dataCols; c++) {
-      final text = _headerLabel(c);
-      final cell = sheet.getRangeByIndex(1, c + 1);
-      cell.setText(text);
-    }
-
-    int gpsStart = dataCols + 1;
-    if (hasGps) {
-      final headers = [
-        'GPS Lat',
-        'GPS Lon',
-        'GPS Acc (m)',
-        'GPS Time',
-        'GPS Source'
-      ];
-      for (int i = 0; i < headers.length; i++) {
-        sheet.getRangeByIndex(1, gpsStart + i).setText(headers[i]);
-      }
-    }
-
-    if (photoCols > 0) {
-      for (int p = 0; p < photoCols; p++) {
-        sheet.getRangeByIndex(1, photoStart + p).setText('Foto ${p + 1}');
-        sheet.setColumnWidthInPixels(photoStart + p, 112);
-      }
-    }
-
-    for (int r = 0; r < _rows.length; r++) {
-      for (int c = 0; c < dataCols; c++) {
-        final v = _rows[r].cells[c];
-        if (v.trim().isEmpty) continue;
-        _setSheetValue(sheet, r + 2, c + 1, v);
-      }
-      if (hasGps) {
-        final row = _rows[r];
-        if (row.gpsLat != null && row.gpsLng != null) {
-          sheet.getRangeByIndex(r + 2, gpsStart).setNumber(row.gpsLat ?? 0);
-          sheet.getRangeByIndex(r + 2, gpsStart + 1).setNumber(row.gpsLng ?? 0);
-          sheet.getRangeByIndex(r + 2, gpsStart + 2).setNumber(row.gpsAccuracyM ?? 0);
-          if (row.gpsTs != null) {
-            sheet.getRangeByIndex(r + 2, gpsStart + 3)
-                .setDateTime(row.gpsTs!);
-          }
-          sheet.getRangeByIndex(r + 2, gpsStart + 4)
-              .setText(row.gpsIsLastKnown ? 'lastKnown' : 'current');
-        }
-      }
-
-      if (photoCols > 0) {
-        final picsForRow = photosByRow[r] ?? const <Uint8List>[];
-        if (picsForRow.isNotEmpty) {
-          sheet.setRowHeightInPixels(r + 2, 90);
-          for (int p = 0; p < picsForRow.length && p < photoCols; p++) {
-            final bytes = picsForRow[p];
-            if (bytes.isEmpty) {
-              sheet.getRangeByIndex(r + 2, photoStart + p).setText('N/D');
-              continue;
-            }
-            try {
-              final picture = sheet.pictures.addBase64(
-                r + 2,
-                photoStart + p,
-                base64Encode(bytes),
-              );
-              picture.width = 100;
-              picture.height = 80;
-            } catch (_) {
-              sheet.getRangeByIndex(r + 2, photoStart + p).setText('N/D');
-            }
-          }
-        }
-      }
-    }
-
-    if (lastCol > 0) {
-      final headerRange = sheet.getRangeByIndex(1, 1, 1, lastCol);
-      headerRange.cellStyle.bold = true;
-      headerRange.cellStyle.backColor = '#F4F0E6';
-    }
-    if (_rows.isNotEmpty && lastCol > 0) {
-      final bodyRange =
-          sheet.getRangeByIndex(1, 1, _rows.length + 1, lastCol);
-      bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
-    }
-
-    final autoFitCols = dataCols + gpsCols;
-    for (int c = 0; c < autoFitCols; c++) {
-      try {
-        sheet.autoFitColumn(c + 1);
-      } catch (_) {}
-    }
-
-    _buildCoverSheet(wb);
-    _buildSummarySheet(
-      wb,
-      rowsCount: _rows.length,
-      photosCount: photoItems.length,
-      gpsCount: _rows.where((r) => r.gpsLat != null && r.gpsLng != null).length,
-    );
-
-    if (photoItems.isNotEmpty) {
-      final photosSheet = wb.worksheets.addWithName('Fotos');
-      photosSheet.showGridlines = false;
-      final headers = [
-        'Row',
-        'Col',
-        'File',
-        'AddedAt',
-        'Lat',
-        'Lon',
-        'Accuracy',
-        'Source',
-        'Foto'
-      ];
-      for (int c = 0; c < headers.length; c++) {
-        photosSheet.getRangeByIndex(1, c + 1).setText(headers[c]);
-      }
-      final previewCol = headers.length;
-      photosSheet.setColumnWidthInPixels(previewCol, 112);
-      photosSheet.setRowHeightInPixels(1, 28);
-      photosSheet.getRangeByIndex(2, 1).freezePanes();
-
-      const hiddenHeaders = <String>{'File', 'Mime', 'Path'};
-      for (int c = 0; c < headers.length; c++) {
-        if (!hiddenHeaders.contains(headers[c])) continue;
-        final existing = photosSheet.columns[c + 1];
-        final col = existing ?? (xlsio.Column(photosSheet)..index = c + 1);
-        col.isHidden = true;
-        photosSheet.columns[c + 1] = col;
-      }
-
-      final rowPhotoCursor = <int, int>{};
-      for (int i = 0; i < photoItems.length; i++) {
-        final item = photoItems[i];
-        final row = i + 2;
-        final lat = item.lat;
-        final lng = item.lng;
-        final acc = item.accuracy;
-        final source = item.sourceLabel;
-        final idxInRow = rowPhotoCursor[item.row] ?? 0;
-        rowPhotoCursor[item.row] = idxInRow + 1;
-        final photoList = photosByRow[item.row];
-        final bytes = (photoList != null && idxInRow < photoList.length)
-            ? photoList[idxInRow]
-            : null;
-
-        photosSheet.getRangeByIndex(row, 1).setNumber(item.row + 1);
-        photosSheet.getRangeByIndex(row, 2).setNumber(item.col + 1);
-        photosSheet.getRangeByIndex(row, 3).setText('');
-        photosSheet.getRangeByIndex(row, 4)
-            .setText(item.photo.addedAt.toIso8601String());
-        if (lat != null) photosSheet.getRangeByIndex(row, 5).setNumber(lat);
-        if (lng != null) photosSheet.getRangeByIndex(row, 6).setNumber(lng);
-        if (acc != null) photosSheet.getRangeByIndex(row, 7).setNumber(acc);
-        photosSheet.getRangeByIndex(row, 8).setText(source);
-        photosSheet.setRowHeightInPixels(row, 96);
-        if (bytes != null && bytes.isNotEmpty) {
-          try {
-            final picture = photosSheet.pictures.addBase64(
-              row,
-              previewCol,
-              base64Encode(bytes),
-            );
-            picture.width = 110;
-            picture.height = 82;
-          } catch (_) {
-            photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
-          }
-        } else {
-          photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
-        }
-      }
-      final lastPhotoRow = photoItems.length + 1;
-      final lastPhotoCol = headers.length;
-      final headerRange =
-          photosSheet.getRangeByIndex(1, 1, 1, lastPhotoCol);
-      headerRange.cellStyle.bold = true;
-      headerRange.cellStyle.backColor = '#F4F0E6';
-      headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
-      headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
-      headerRange.cellStyle.fontSize = 11;
-      if (photoItems.isNotEmpty) {
-        final bodyRange =
-          photosSheet.getRangeByIndex(1, 1, lastPhotoRow, lastPhotoCol);
-        bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
-      }
-      for (int c = 0; c < lastPhotoCol - 1; c++) {
-        try {
-          if (!hiddenHeaders.contains(headers[c])) {
-            photosSheet.autoFitColumn(c + 1);
-          }
-        } catch (_) {}
-      }
-    }
-
-    return wb;
-  }
-
-  void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
-    final trimmed = v.trim();
-    final numVal = double.tryParse(trimmed);
-    if (numVal != null && RegExp(r'^-?\\d+(?:\\.\\d+)?$').hasMatch(trimmed)) {
-      sheet.getRangeByIndex(r, c).setNumber(numVal);
-      return;
-    }
-    final dt = DateTime.tryParse(trimmed);
-    if (dt != null) {
-      sheet.getRangeByIndex(r, c).setDateTime(dt);
-      return;
-    }
-    sheet.getRangeByIndex(r, c).setText(v);
-  }
-
-  void _buildCoverSheet(xlsio.Workbook wb) {
-    final cover = wb.worksheets.addWithName('Caratula');
-    final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
-    for (int i = 0; i < labels.length; i++) {
-      cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
-      cover.getRangeByIndex(i + 1, 2).setText('');
-    }
-    final title = cover.getRangeByIndex(1, 4);
-    title.setText('Bitácora PRO');
-    title.cellStyle.bold = true;
-    cover.autoFitColumn(1);
-    cover.autoFitColumn(2);
-  }
-
-  void _buildSummarySheet(
-    xlsio.Workbook wb, {
-    required int rowsCount,
-    required int photosCount,
-    required int gpsCount,
-  }) {
-    final summary = wb.worksheets.addWithName('Resumen');
-    final data = [
-      ['Filas', rowsCount],
-      ['Fotos', photosCount],
-      ['Ubicaciones', gpsCount],
-    ];
-    for (int i = 0; i < data.length; i++) {
-      summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
-      summary.getRangeByIndex(i + 1, 2).setNumber(
-        (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-      );
-    }
-    summary.autoFitColumn(1);
-    summary.autoFitColumn(2);
   }
 
   String _photoExportName(_RowPhoto photo, int row, int idx) {
@@ -6125,6 +5905,7 @@ class _PhotoExportItem {
   _PhotoExportItem({
     required this.row,
     required this.col,
+    required this.indexInRow,
     required this.photo,
     this.rowLat,
     this.rowLng,
@@ -6134,6 +5915,7 @@ class _PhotoExportItem {
 
   final int row;
   final int col;
+  final int indexInRow;
   final _RowPhoto photo;
   final double? rowLat;
   final double? rowLng;

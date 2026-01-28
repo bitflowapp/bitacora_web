@@ -146,8 +146,7 @@ class ExportXlsxService {
   /// Construye el XLSX en memoria.
   ///
   /// Caso 1: SIN fotos → workbook con 4 hojas (PLANILLA/FOTOS/UBICACION/INSTRUCCIONES).
-  /// Caso 2: CON fotos → intenta embeber en PLANILLA con [buildXlsxWithPhotos].
-  ///          Si esa ruta falla, cae al modo clásico sin romper la exportación.
+  /// Caso 2: CON fotos → embeber en PLANILLA con [buildXlsxWithPhotos].
   static Future<List<int>> _buildXlsxBytes({
     required String sheetName,
     required List<String> headers,
@@ -160,20 +159,16 @@ class ExportXlsxService {
   }) async {
     final safeSheetName = _sanitizeWorksheetName(sheetName);
 
-    // Si hay fotos, intentamos embebidas primero.
+    // Si hay fotos, embeber en la hoja principal.
     if (photosByRow != null && photosByRow.isNotEmpty) {
-      try {
-        // OJO: buildXlsxWithPhotos NO acepta sheetName como parámetro.
-        // La hoja se llama "PLANILLA" adentro (como tu implementación actual).
-        final bytesWithPhotos = await buildXlsxWithPhotos(
-          columns: headers,
-          rows: rows,
-          photosByRow: photosByRow,
-        );
-        return bytesWithPhotos;
-      } catch (_) {
-        // Fallback automático a modo clásico.
-      }
+      final bytesWithPhotos = await buildXlsxWithPhotos(
+        columns: headers,
+        rows: rows,
+        photosByRow: photosByRow,
+        sheetName: safeSheetName,
+        includeIndexColumn: false,
+      );
+      return bytesWithPhotos;
     }
 
     // Modo clásico (4 hojas).
@@ -204,6 +199,12 @@ class ExportXlsxService {
       );
 
       _buildInstruccionesSheet(sheetInstrucciones);
+
+      addBitflowMetaSheet(
+        workbook,
+        embeddedImageCount: 0,
+        timestamp: DateTime.now(),
+      );
 
       final bytes = workbook.saveAsStream();
       return bytes;

@@ -1,11 +1,11 @@
-// lib/services/export_xlsx_with_photos.dart
+﻿// lib/services/export_xlsx_with_photos.dart
 //
 // XLSX con fotos embebidas (Syncfusion XlsIO) — robusto y sin referencias por nombre.
 // - Escribe todo con getRangeByIndex.
-// - Inserta fotos con pictures.addStream(row, col, bytes).
+// - Inserta fotos con pictures.addBase64(row, col, base64).
 // - NO usa picture.left/top (no existen en Flutter XlsIO).
 // - autoFitColumn con try/catch + fallback por ancho estimado para que nunca rompa el export.
-// - Maneja filas con más columnas que headers sin pisar columnas de fotos.
+// - Maneja filas con mas columnas que headers sin pisar columnas de fotos.
 //
 // Devuelve bytes del XLSX listo para guardar/enviar.
 
@@ -15,54 +15,112 @@ import 'dart:typed_data';
 
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
+const String _kExportVersion = 'bitflow_xlsx_v2';
+const String _kAppVersion = String.fromEnvironment('APP_VERSION', defaultValue: '');
+
+class GpsExport {
+  const GpsExport({
+    this.lat,
+    this.lng,
+    this.accuracy,
+    this.ts,
+    this.isLastKnown = false,
+  });
+
+  final double? lat;
+  final double? lng;
+  final double? accuracy;
+  final DateTime? ts;
+  final bool isLastKnown;
+
+  bool get hasFix => lat != null && lng != null;
+}
+
+class PhotoMeta {
+  const PhotoMeta({
+    required this.rowIndex,
+    required this.colIndex,
+    required this.photoIndex,
+    required this.addedAt,
+    required this.sourceLabel,
+    this.lat,
+    this.lng,
+    this.accuracy,
+  });
+
+  final int rowIndex;
+  final int colIndex;
+  final int photoIndex;
+  final DateTime addedAt;
+  final String sourceLabel;
+  final double? lat;
+  final double? lng;
+  final double? accuracy;
+}
+
 /// Genera un XLSX con datos + fotos embebidas.
 ///
 /// - [columns]: encabezados de la grilla (sin la columna "#").
 /// - [rows]: filas (cada fila = lista de strings).
 /// - [photosByRow]:
-///     key = índice de fila 0-based (misma posición que en [rows])
-///     value = lista de imágenes (Uint8List JPG/PNG) para esa fila.
+///     key = indice de fila 0-based (misma posicion que en [rows])
+///     value = lista de imagenes (Uint8List JPG/PNG) para esa fila.
+/// - [gpsByRow]: lista opcional de GPS por fila.
+/// - [photoMeta]: lista opcional para armar hoja "Fotos" con previews embebidas.
 ///
 /// Devuelve bytes del XLSX.
 Future<Uint8List> buildXlsxWithPhotos({
   required List<String> columns,
   required List<List<String>> rows,
   Map<int, List<Uint8List>>? photosByRow,
+  List<GpsExport?>? gpsByRow,
+  List<PhotoMeta>? photoMeta,
+  String sheetName = 'PLANILLA',
+  bool includeIndexColumn = true,
+  bool includeCoverSheet = false,
+  bool includeSummarySheet = false,
 }) async {
   final workbook = xlsio.Workbook(1);
   try {
     final sheet = workbook.worksheets[0];
-    sheet.name = 'PLANILLA';
+    sheet.name = _sanitizeWorksheetName(sheetName);
 
     const int headerRow = 1;
     const int firstDataRow = headerRow + 1;
 
-    // Ancho real de texto: puede haber filas más largas que headers.
+    // Ancho real de texto: puede haber filas mas largas que headers.
     int textCols = columns.length;
     for (final r in rows) {
       if (r.length > textCols) textCols = r.length;
     }
     if (textCols < 0) textCols = 0;
 
-    // Col 1 = "#", luego textCols columnas de texto.
-    final int baseColumnsCount = 1 + textCols;
+    final bool hasGps = _hasGps(gpsByRow);
+    final int gpsCols = hasGps ? 5 : 0;
 
-    // Máxima cantidad de fotos por fila (para crear columnas "Foto 1..N").
+    // Col 1 = "#" si se pide, luego textCols columnas de texto y gps.
+    final int baseColumnsCount =
+        (includeIndexColumn ? 1 : 0) + textCols + gpsCols;
+
+    // Max fotos por fila (para crear columnas "Foto 1..N").
     final int maxPhotosPerRow = (photosByRow == null || photosByRow.isEmpty)
         ? 0
         : photosByRow.values.fold<int>(
-      0,
-          (prev, list) => math.max(prev, list.length),
-    );
+            0,
+            (prev, list) => math.max(prev, list.length),
+          );
 
-    // Fotos empiezan inmediatamente después del bloque de texto.
-    // (solo si hay fotos)
+    // Fotos empiezan despues del bloque de texto+gps (solo si hay fotos).
     final int firstPhotoCol = baseColumnsCount + 1;
     final int lastCol = (maxPhotosPerRow > 0)
         ? (baseColumnsCount + maxPhotosPerRow)
         : baseColumnsCount;
+    final int safeLastCol = math.max(1, lastCol);
 
-    // Estilo header (nombre único por seguridad).
+    final int textStartCol = includeIndexColumn ? 2 : 1;
+    final int gpsStartCol = textStartCol + textCols;
+
+    // Estilo header (nombre unico por seguridad).
     final styleName = 'HeaderStyle_${DateTime.now().microsecondsSinceEpoch}';
     final headerStyle = workbook.styles.add(styleName);
     headerStyle.bold = true;
@@ -73,12 +131,29 @@ Future<Uint8List> buildXlsxWithPhotos({
     // --------------------------
     // 1) Encabezados
     // --------------------------
-    sheet.getRangeByIndex(headerRow, 1).setText('#');
+    if (includeIndexColumn) {
+      sheet.getRangeByIndex(headerRow, 1).setText('#');
+    }
 
-    // Headers de texto (si faltan, se completan con vacío).
+    // Headers de texto (si faltan, se completan con vacio).
     for (int i = 0; i < textCols; i++) {
       final title = (i < columns.length) ? columns[i] : '';
-      sheet.getRangeByIndex(headerRow, 2 + i).setText(title);
+      sheet.getRangeByIndex(headerRow, textStartCol + i).setText(title);
+    }
+
+    if (hasGps) {
+      const headers = [
+        'GPS Lat',
+        'GPS Lon',
+        'GPS Acc (m)',
+        'GPS Time',
+        'GPS Source',
+      ];
+      for (int i = 0; i < headers.length; i++) {
+        sheet
+            .getRangeByIndex(headerRow, gpsStartCol + i)
+            .setText(headers[i]);
+      }
     }
 
     // Headers de fotos (Foto 1..N)
@@ -92,7 +167,7 @@ Future<Uint8List> buildXlsxWithPhotos({
 
     // Aplica estilo a toda la fila de encabezados.
     final headerRange =
-    sheet.getRangeByIndex(headerRow, 1, headerRow, lastCol);
+        sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
     headerRange.cellStyle = headerStyle;
 
     // --------------------------
@@ -110,17 +185,45 @@ Future<Uint8List> buildXlsxWithPhotos({
       }
     }
 
+    int embeddedCount = 0;
+
     for (int r = 0; r < rows.length; r++) {
       final excelRow = firstDataRow + r;
       final rowValues = rows[r];
 
       // Columna "#"
-      sheet.getRangeByIndex(excelRow, 1).setNumber((r + 1).toDouble());
+      if (includeIndexColumn) {
+        sheet.getRangeByIndex(excelRow, 1).setNumber((r + 1).toDouble());
+      }
 
       // Texto: escribe hasta textCols, padding con ''.
       for (int c = 0; c < textCols; c++) {
         final v = (c < rowValues.length) ? rowValues[c] : '';
-        sheet.getRangeByIndex(excelRow, 2 + c).setText(v);
+        _setSheetValue(sheet, excelRow, textStartCol + c, v);
+      }
+
+      // GPS
+      if (hasGps) {
+        final gps = (gpsByRow != null && r < gpsByRow.length)
+            ? gpsByRow[r]
+            : null;
+        if (gps != null && gps.hasFix) {
+          sheet.getRangeByIndex(excelRow, gpsStartCol).setNumber(gps.lat ?? 0);
+          sheet
+              .getRangeByIndex(excelRow, gpsStartCol + 1)
+              .setNumber(gps.lng ?? 0);
+          sheet
+              .getRangeByIndex(excelRow, gpsStartCol + 2)
+              .setNumber(gps.accuracy ?? 0);
+          if (gps.ts != null) {
+            sheet
+                .getRangeByIndex(excelRow, gpsStartCol + 3)
+                .setDateTime(gps.ts!);
+          }
+          sheet
+              .getRangeByIndex(excelRow, gpsStartCol + 4)
+              .setText(gps.isLastKnown ? 'lastKnown' : 'current');
+        }
       }
 
       // Fotos de esta fila
@@ -148,9 +251,10 @@ Future<Uint8List> buildXlsxWithPhotos({
               );
               picture.width = photoThumbW;
               picture.height = photoThumbH;
+              embeddedCount++;
               // Nota: en Flutter XlsIO no existen picture.left/top.
             } catch (_) {
-              // Si una imagen está corrupta, no rompemos el XLSX.
+              // Si una imagen esta corrupta, no rompemos el XLSX.
               sheet.getRangeByIndex(excelRow, col).setText('N/D');
             }
           }
@@ -159,31 +263,66 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
 
     // --------------------------
-    // 3) Bordes finos para toda el área usada
+    // 3) Bordes finos para toda el area usada
     // --------------------------
     final int lastRow = rows.length + 1; // incluye headers
-    final tableRange = sheet.getRangeByIndex(1, 1, lastRow, lastCol);
+    final tableRange = sheet.getRangeByIndex(1, 1, lastRow, safeLastCol);
     tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
 
     // --------------------------
     // 4) Anchos: autoFit con fallback seguro
     // --------------------------
-    // Solo texto (incluye '#'), fotos ya tienen ancho fijo.
-    final int lastTextCol = baseColumnsCount;
+    // Solo texto (incluye '#', GPS), fotos ya tienen ancho fijo.
+    final int lastTextCol = math.max(1, baseColumnsCount);
     for (int col = 1; col <= lastTextCol; col++) {
       try {
         sheet.autoFitColumn(col);
       } catch (_) {
-        // Fallback heurístico en px (evita romper la exportación).
+        // Fallback heuristico en px (evita romper la exportacion).
         final maxLen = _maxTextLenForColumn(
           headers: columns,
           rows: rows,
           excelCol: col,
+          includeIndexColumn: includeIndexColumn,
         );
         final px = _widthPxForLen(maxLen);
         sheet.setColumnWidthInPixels(col, px);
       }
     }
+
+    // --------------------------
+    // 5) Hoja "Fotos" (opcional)
+    // --------------------------
+    if (photoMeta != null && photoMeta.isNotEmpty) {
+      embeddedCount += _buildFotosSheet(
+        workbook,
+        photoMeta: photoMeta,
+        photosByRow: photosByRow ?? const <int, List<Uint8List>>{},
+      );
+    }
+
+    if (includeCoverSheet) {
+      _buildCoverSheet(workbook);
+    }
+
+    if (includeSummarySheet) {
+      _buildSummarySheet(
+        workbook,
+        rowsCount: rows.length,
+        photosCount: (photosByRow ?? const <int, List<Uint8List>>{})
+            .values
+            .fold<int>(0, (prev, list) => prev + list.length),
+        gpsCount: _gpsCount(gpsByRow),
+      );
+    }
+
+    addBitflowMetaSheet(
+      workbook,
+      embeddedImageCount: embeddedCount,
+      exportVersion: _kExportVersion,
+      appVersion: _kAppVersion.isEmpty ? null : _kAppVersion,
+      timestamp: DateTime.now(),
+    );
 
     final bytes = workbook.saveAsStream();
     return Uint8List.fromList(bytes);
@@ -192,22 +331,247 @@ Future<Uint8List> buildXlsxWithPhotos({
   }
 }
 
+void addBitflowMetaSheet(
+  xlsio.Workbook workbook, {
+  required int embeddedImageCount,
+  String? exportVersion,
+  String? appVersion,
+  DateTime? timestamp,
+}) {
+  final meta = workbook.worksheets.addWithName('_BITFLOW_META');
+  meta.visibility = xlsio.WorksheetVisibility.hidden;
+  meta.showGridlines = false;
+
+  final ts = (timestamp ?? DateTime.now()).toIso8601String();
+  final rows = <List<String>>[
+    ['exportVersion', exportVersion ?? _kExportVersion],
+    ['appVersion', appVersion ?? ''],
+    ['timestamp', ts],
+    ['embeddedImageCount', embeddedImageCount.toString()],
+  ];
+
+  for (int i = 0; i < rows.length; i++) {
+    meta.getRangeByIndex(i + 1, 1).setText(rows[i][0]);
+    meta.getRangeByIndex(i + 1, 2).setText(rows[i][1]);
+  }
+
+  try {
+    meta.autoFitColumn(1);
+    meta.autoFitColumn(2);
+  } catch (_) {}
+}
+
+int _buildFotosSheet(
+  xlsio.Workbook workbook, {
+  required List<PhotoMeta> photoMeta,
+  required Map<int, List<Uint8List>> photosByRow,
+}) {
+  final photosSheet = workbook.worksheets.addWithName('Fotos');
+  photosSheet.showGridlines = false;
+
+  final headers = [
+    'Row',
+    'Col',
+    'File',
+    'AddedAt',
+    'Lat',
+    'Lon',
+    'Accuracy',
+    'Source',
+    'Foto',
+  ];
+
+  for (int c = 0; c < headers.length; c++) {
+    photosSheet.getRangeByIndex(1, c + 1).setText(headers[c]);
+  }
+
+  final previewCol = headers.length;
+  photosSheet.setColumnWidthInPixels(previewCol, 112);
+  photosSheet.setRowHeightInPixels(1, 28);
+  photosSheet.getRangeByIndex(2, 1).freezePanes();
+
+  const hiddenHeaders = <String>{'File', 'Mime', 'Path'};
+  for (int c = 0; c < headers.length; c++) {
+    if (!hiddenHeaders.contains(headers[c])) continue;
+    final existing = photosSheet.columns[c + 1];
+    final col = existing ?? (xlsio.Column(photosSheet)..index = c + 1);
+    col.isHidden = true;
+    photosSheet.columns[c + 1] = col;
+  }
+
+  int embeddedCount = 0;
+
+  for (int i = 0; i < photoMeta.length; i++) {
+    final item = photoMeta[i];
+    final row = i + 2;
+    final bytes = (photosByRow[item.rowIndex] != null &&
+            item.photoIndex < photosByRow[item.rowIndex]!.length)
+        ? photosByRow[item.rowIndex]![item.photoIndex]
+        : null;
+
+    photosSheet.getRangeByIndex(row, 1).setNumber(item.rowIndex + 1);
+    photosSheet.getRangeByIndex(row, 2).setNumber(item.colIndex + 1);
+    photosSheet.getRangeByIndex(row, 3).setText('');
+    photosSheet
+        .getRangeByIndex(row, 4)
+        .setText(item.addedAt.toIso8601String());
+    if (item.lat != null) {
+      photosSheet.getRangeByIndex(row, 5).setNumber(item.lat ?? 0);
+    }
+    if (item.lng != null) {
+      photosSheet.getRangeByIndex(row, 6).setNumber(item.lng ?? 0);
+    }
+    if (item.accuracy != null) {
+      photosSheet.getRangeByIndex(row, 7).setNumber(item.accuracy ?? 0);
+    }
+    photosSheet.getRangeByIndex(row, 8).setText(item.sourceLabel);
+    photosSheet.setRowHeightInPixels(row, 96);
+
+    if (bytes != null && bytes.isNotEmpty) {
+      try {
+        final picture = photosSheet.pictures.addBase64(
+          row,
+          previewCol,
+          base64Encode(bytes),
+        );
+        picture.width = 110;
+        picture.height = 82;
+        embeddedCount++;
+      } catch (_) {
+        photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
+      }
+    } else {
+      photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
+    }
+  }
+
+  final lastPhotoRow = photoMeta.length + 1;
+  final lastPhotoCol = headers.length;
+  final headerRange =
+      photosSheet.getRangeByIndex(1, 1, 1, lastPhotoCol);
+  headerRange.cellStyle.bold = true;
+  headerRange.cellStyle.backColor = '#F4F0E6';
+  headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
+  headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
+  headerRange.cellStyle.fontSize = 11;
+
+  if (photoMeta.isNotEmpty) {
+    final bodyRange =
+        photosSheet.getRangeByIndex(1, 1, lastPhotoRow, lastPhotoCol);
+    bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+  }
+
+  for (int c = 0; c < lastPhotoCol - 1; c++) {
+    try {
+      if (!hiddenHeaders.contains(headers[c])) {
+        photosSheet.autoFitColumn(c + 1);
+      }
+    } catch (_) {}
+  }
+
+  return embeddedCount;
+}
+
+bool _hasGps(List<GpsExport?>? gpsByRow) {
+  if (gpsByRow == null || gpsByRow.isEmpty) return false;
+  for (final g in gpsByRow) {
+    if (g != null && g.hasFix) return true;
+  }
+  return false;
+}
+
+int _gpsCount(List<GpsExport?>? gpsByRow) {
+  if (gpsByRow == null || gpsByRow.isEmpty) return 0;
+  int count = 0;
+  for (final g in gpsByRow) {
+    if (g != null && g.hasFix) count++;
+  }
+  return count;
+}
+
+void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
+  final trimmed = v.trim();
+  final numVal = double.tryParse(trimmed);
+  if (numVal != null && RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(trimmed)) {
+    sheet.getRangeByIndex(r, c).setNumber(numVal);
+    return;
+  }
+  final dt = DateTime.tryParse(trimmed);
+  if (dt != null) {
+    sheet.getRangeByIndex(r, c).setDateTime(dt);
+    return;
+  }
+  sheet.getRangeByIndex(r, c).setText(v);
+}
+
+void _buildCoverSheet(xlsio.Workbook wb) {
+  final cover = wb.worksheets.addWithName('Caratula');
+  final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
+  for (int i = 0; i < labels.length; i++) {
+    cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
+    cover.getRangeByIndex(i + 1, 2).setText('');
+  }
+  final title = cover.getRangeByIndex(1, 4);
+  title.setText('Bitacora PRO');
+  title.cellStyle.bold = true;
+  try {
+    cover.autoFitColumn(1);
+    cover.autoFitColumn(2);
+  } catch (_) {}
+}
+
+void _buildSummarySheet(
+  xlsio.Workbook wb, {
+  required int rowsCount,
+  required int photosCount,
+  required int gpsCount,
+}) {
+  final summary = wb.worksheets.addWithName('Resumen');
+  final data = [
+    ['Filas', rowsCount],
+    ['Fotos', photosCount],
+    ['Ubicaciones', gpsCount],
+  ];
+  for (int i = 0; i < data.length; i++) {
+    summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
+    summary.getRangeByIndex(i + 1, 2).setNumber(
+      (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
+    );
+  }
+  try {
+    summary.autoFitColumn(1);
+    summary.autoFitColumn(2);
+  } catch (_) {}
+}
+
+String _sanitizeWorksheetName(String name) {
+  var n = name.trim();
+  if (n.isEmpty) return 'PLANILLA';
+  // Excel: max 31 y sin : \ / ? * [ ]
+  n = n.replaceAll(RegExp(r'[:\\/?*\[\]]'), ' ');
+  n = n.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (n.isEmpty) n = 'PLANILLA';
+  if (n.length > 31) n = n.substring(0, 31).trim();
+  return n.isEmpty ? 'PLANILLA' : n;
+}
+
 int _maxTextLenForColumn({
   required List<String> headers,
   required List<List<String>> rows,
   required int excelCol,
+  required bool includeIndexColumn,
 }) {
-  // excelCol: 1 = "#", 2 = headers[0], ...
+  // excelCol: 1 = "#" (si se incluye), 2 = headers[0], ...
   int maxLen = 0;
 
-  if (excelCol == 1) {
+  if (includeIndexColumn && excelCol == 1) {
     maxLen = math.max(maxLen, 1); // "#"
     final n = rows.length.toString();
     maxLen = math.max(maxLen, n.length);
     return maxLen;
   }
 
-  final idx = excelCol - 2; // col 2 -> index 0
+  final idx = includeIndexColumn ? (excelCol - 2) : (excelCol - 1);
   if (idx >= 0 && idx < headers.length) {
     maxLen = math.max(maxLen, headers[idx].length);
   }
@@ -224,3 +588,4 @@ int _widthPxForLen(int len) {
   final clamped = len.clamp(0, 60);
   return (80 + (clamped * 7)).toInt();
 }
+
