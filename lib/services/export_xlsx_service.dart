@@ -307,7 +307,8 @@ class ExportXlsxService {
       for (int r = 0; r < saneRows.length; r++) {
         final row = saneRows[r];
         for (int c = 0; c < fotoHeaders.length; c++) {
-          sheet.getRangeByIndex(r + 2, c + 1).setText(row[c]);
+          final value = (c == 1) ? '' : row[c];
+          sheet.getRangeByIndex(r + 2, c + 1).setText(value);
         }
       }
 
@@ -331,7 +332,7 @@ class ExportXlsxService {
 
         for (int i = 0; i < list.length; i++) {
           final filaHumana = (rowIndex0 + 1).toString();
-          final archivo = 'embedded_${rowIndex0 + 1}_${i + 1}.jpg';
+          final archivo = 'N/D';
           final desc = 'Foto embebida en PLANILLA (Export)';
 
           sheet.getRangeByIndex(outRow, 1).setText(filaHumana);

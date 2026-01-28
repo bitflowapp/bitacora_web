@@ -9,6 +9,7 @@
 //
 // Devuelve bytes del XLSX listo para guardar/enviar.
 
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -134,16 +135,23 @@ Future<Uint8List> buildXlsxWithPhotos({
           for (int p = 0; p < picsForRow.length && p < maxPhotosPerRow; p++) {
             final col = firstPhotoCol + p;
             final bytes = picsForRow[p];
-            if (bytes.isEmpty) continue;
+            if (bytes.isEmpty) {
+              sheet.getRangeByIndex(excelRow, col).setText('N/D');
+              continue;
+            }
 
             try {
-              final picture = sheet.pictures.addStream(excelRow, col, bytes);
+              final picture = sheet.pictures.addBase64(
+                excelRow,
+                col,
+                base64Encode(bytes),
+              );
               picture.width = photoThumbW;
               picture.height = photoThumbH;
               // Nota: en Flutter XlsIO no existen picture.left/top.
             } catch (_) {
               // Si una imagen está corrupta, no rompemos el XLSX.
-              sheet.getRangeByIndex(excelRow, col).setText('Imagen inválida');
+              sheet.getRangeByIndex(excelRow, col).setText('N/D');
             }
           }
         }
