@@ -1630,7 +1630,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 // Photos => pick
     if (c == _headers.length - 1) {
-      unawaited(_handlePhotosCellTap(r));
+      _handlePhotosCellTap(r);
       return;
     }
 
@@ -1968,8 +1968,7 @@ class _EditorScreenState extends State<EditorScreen>
                   leading: const Icon(Icons.photo_library_outlined),
                   title: const Text('Fotos de la fila'),
                   onTap: () {
-                    Navigator.pop(ctx);
-                    _openPhotosSheet(row);
+                    _startRowPhotoPickFromSheet(row);
                   },
                 ),
               if (row >= 0)
@@ -2655,14 +2654,18 @@ class _EditorScreenState extends State<EditorScreen>
       } else {
         final isAndroid = _isAndroidDevice;
         actions.add(_CtxAction(
-            isAndroid ? 'C??mara' : 'Agregar foto',
-            Icons.add_photo_alternate_outlined,
-                () => unawaited(_pickPhotoForRow(r))));
+          isAndroid ? 'C??mara' : 'Agregar foto',
+          Icons.add_photo_alternate_outlined,
+          () => unawaited(_pickPhotoForRow(r)),
+          runOnTap: true,
+        ));
         if (isAndroid) {
           actions.add(_CtxAction(
-              'Elegir de galer??a',
-              Icons.photo_library_outlined,
-                  () => unawaited(_pickPhotoFromGalleryForRow(r))));
+            'Elegir de galer??a',
+            Icons.photo_library_outlined,
+            () => unawaited(_pickPhotoFromGalleryForRow(r)),
+            runOnTap: true,
+          ));
         }
       }
 
@@ -2697,6 +2700,7 @@ class _EditorScreenState extends State<EditorScreen>
         for (int i = 0; i < actions.length; i++)
           PopupMenuItem<int>(
             value: i,
+            onTap: actions[i].runOnTap ? actions[i].run : null,
             child: Row(
               children: [
                 Icon(actions[i].icon, size: 18, color: pal.fg),
@@ -2715,7 +2719,9 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     if (res == null) return;
-    actions[res].run();
+    final action = actions[res];
+    if (action.runOnTap) return;
+    action.run();
   }
 
 // ------------------------------ Automatizaciones ------------------------
@@ -3208,13 +3214,21 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Fotos -----------------------------------
 
-  Future<void> _handlePhotosCellTap(int r) async {
+  void _handlePhotosCellTap(int r) {
     if (r < 0 || r >= _rows.length) return;
     if (_rows[r].photos.isNotEmpty) {
       _openPhotosSheet(r);
       return;
     }
-    await _pickPhotoForRow(r);
+    unawaited(_pickPhotoForRow(r));
+  }
+
+  void _startRowPhotoPickFromSheet(int r) {
+    if (r < 0 || r >= _rows.length) return;
+    unawaited(_pickPhotoForRow(r).whenComplete(() {
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    }));
   }
 
   Future<void> _pickPhotoForRow(int r) async {
@@ -3225,7 +3239,12 @@ class _EditorScreenState extends State<EditorScreen>
           ? await PhotoAcquireService.I.captureFromCamera()
           : await PhotoAcquireService.I.pickFromGallery();
       if (!mounted) return;
-      if (result == null) return;
+      if (result == null) {
+        if (kDebugMode) {
+          debugPrint('[photo] picker cancelled or blocked.');
+        }
+        return;
+      }
 
       final stored = await _photoStore.savePhoto(
         sheetId: widget.sheetId,
@@ -3270,7 +3289,12 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final result = await PhotoAcquireService.I.pickFromGallery();
       if (!mounted) return;
-      if (result == null) return;
+      if (result == null) {
+        if (kDebugMode) {
+          debugPrint('[photo] picker cancelled or blocked.');
+        }
+        return;
+      }
 
       final stored = await _photoStore.savePhoto(
         sheetId: widget.sheetId,
@@ -6041,10 +6065,11 @@ class _SheetPalette {
 // ============================== Context actions ============================
 
 class _CtxAction {
-  _CtxAction(this.label, this.icon, this.run);
+  _CtxAction(this.label, this.icon, this.run, {this.runOnTap = false});
   final String label;
   final IconData icon;
   final VoidCallback run;
+  final bool runOnTap;
 }
 
 // ============================== Backdrop / Scroll ==========================

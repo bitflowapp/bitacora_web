@@ -7,6 +7,9 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'photo_acquire_web_stub.dart'
+    if (dart.library.html) 'photo_acquire_web.dart';
+
 class PhotoAcquireResult {
   const PhotoAcquireResult({
     required this.bytes,
@@ -38,7 +41,13 @@ class PhotoAcquireService {
   }
 
   Future<PhotoAcquireResult?> captureFromCamera() async {
-    if (kIsWeb) return _pickWithFileSelector();
+    if (kIsWeb) {
+      final web = await pickImageFromWeb(capture: true);
+      if (web == null) return null;
+
+      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
+      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
+    }
 
     if (_isMobilePlatform) {
       final file = await _picker.pickImage(
@@ -58,7 +67,13 @@ class PhotoAcquireService {
   }
 
   Future<PhotoAcquireResult?> pickFromGallery() async {
-    if (kIsWeb) return _pickWithFileSelector();
+    if (kIsWeb) {
+      final web = await pickImageFromWeb(capture: false);
+      if (web == null) return null;
+
+      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
+      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
+    }
 
     if (_isMobilePlatform) {
       final file = await _picker.pickImage(source: ImageSource.gallery);
@@ -75,6 +90,14 @@ class PhotoAcquireService {
   }
 
   Future<PhotoAcquireResult?> pickFromFilesWeb() async {
+    if (kIsWeb) {
+      final web = await pickImageFromWeb(capture: false);
+      if (web == null) return null;
+
+      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
+      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
+    }
+
     return _pickWithFileSelector();
   }
 
