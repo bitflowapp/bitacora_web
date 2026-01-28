@@ -3808,6 +3808,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (photoItems.isNotEmpty) {
       final photosSheet = wb.worksheets.addWithName('Fotos');
+      photosSheet.showGridlines = false;
       final headers = [
         'Row',
         'Col',
@@ -3824,6 +3825,17 @@ class _EditorScreenState extends State<EditorScreen>
       }
       final previewCol = headers.length;
       photosSheet.setColumnWidthInPixels(previewCol, 112);
+      photosSheet.setRowHeightInPixels(1, 28);
+      photosSheet.getRangeByIndex(2, 1).freezePanes();
+
+      const hiddenHeaders = <String>{'File', 'Mime', 'Path'};
+      for (int c = 0; c < headers.length; c++) {
+        if (!hiddenHeaders.contains(headers[c])) continue;
+        final existing = photosSheet.columns[c + 1];
+        final col = existing ?? (xlsio.Column(photosSheet)..index = c + 1);
+        col.isHidden = true;
+        photosSheet.columns[c + 1] = col;
+      }
 
       final rowPhotoCursor = <int, int>{};
       for (int i = 0; i < photoItems.length; i++) {
@@ -3849,9 +3861,9 @@ class _EditorScreenState extends State<EditorScreen>
         if (lng != null) photosSheet.getRangeByIndex(row, 6).setNumber(lng);
         if (acc != null) photosSheet.getRangeByIndex(row, 7).setNumber(acc);
         photosSheet.getRangeByIndex(row, 8).setText(source);
+        photosSheet.setRowHeightInPixels(row, 96);
         if (bytes != null && bytes.isNotEmpty) {
           try {
-            photosSheet.setRowHeightInPixels(row, 96);
             final picture = photosSheet.pictures.addBase64(
               row,
               previewCol,
@@ -3872,6 +3884,9 @@ class _EditorScreenState extends State<EditorScreen>
           photosSheet.getRangeByIndex(1, 1, 1, lastPhotoCol);
       headerRange.cellStyle.bold = true;
       headerRange.cellStyle.backColor = '#F4F0E6';
+      headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
+      headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
+      headerRange.cellStyle.fontSize = 11;
       if (photoItems.isNotEmpty) {
         final bodyRange =
           photosSheet.getRangeByIndex(1, 1, lastPhotoRow, lastPhotoCol);
@@ -3879,7 +3894,9 @@ class _EditorScreenState extends State<EditorScreen>
       }
       for (int c = 0; c < lastPhotoCol - 1; c++) {
         try {
-          photosSheet.autoFitColumn(c + 1);
+          if (!hiddenHeaders.contains(headers[c])) {
+            photosSheet.autoFitColumn(c + 1);
+          }
         } catch (_) {}
       }
     }
