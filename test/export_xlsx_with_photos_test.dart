@@ -15,6 +15,20 @@ void main() {
     return Uint8List.fromList(img.encodePng(tiny));
   }
 
+  void expectNoPhotoTokens(String xml) {
+    expect(xml.contains('.jpg'), isFalse);
+    expect(xml.contains('.jpeg'), isFalse);
+    expect(xml.contains('.png'), isFalse);
+    expect(xml.contains('file:'), isFalse);
+    expect(xml.contains('/storage/'), isFalse);
+    expect(xml.contains('c:\\'), isFalse);
+    expect(xml.contains('img_'), isFalse);
+    expect(xml.contains('camera_'), isFalse);
+    expect(xml.contains('gallery_'), isFalse);
+    expect(xml.contains('photo_'), isFalse);
+    expect(xml.contains('embedded_'), isFalse);
+  }
+
   void expectMediaAndDrawings(Uint8List bytes) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final names = archive.files
@@ -45,14 +59,27 @@ void main() {
       final sharedXml =
           utf8.decode(shared.content as List<int>).toLowerCase();
 
-      // No file names or typical photo tokens.
-      expect(sharedXml.contains('.jpg'), isFalse);
-      expect(sharedXml.contains('.jpeg'), isFalse);
-      expect(sharedXml.contains('.png'), isFalse);
-      expect(sharedXml.contains('camera_'), isFalse);
-      expect(sharedXml.contains('gallery_'), isFalse);
-      expect(sharedXml.contains('photo_'), isFalse);
-      expect(sharedXml.contains('embedded_'), isFalse);
+      expectNoPhotoTokens(sharedXml);
+    }
+
+    final worksheetXmls = names.where(
+      (n) => n.startsWith('xl/worksheets/') && !n.contains('_rels/'),
+    );
+    for (final name in worksheetXmls) {
+      final file = archive.files
+          .firstWhere((f) => f.name.replaceAll('\\', '/') == name);
+      final xml = utf8.decode(file.content as List<int>).toLowerCase();
+      expectNoPhotoTokens(xml);
+    }
+
+    final drawingXmls = names.where(
+      (n) => n.startsWith('xl/drawings/drawing') && !n.contains('_rels/'),
+    );
+    for (final name in drawingXmls) {
+      final file = archive.files
+          .firstWhere((f) => f.name.replaceAll('\\', '/') == name);
+      final xml = utf8.decode(file.content as List<int>).toLowerCase();
+      expectNoPhotoTokens(xml);
     }
   }
 
