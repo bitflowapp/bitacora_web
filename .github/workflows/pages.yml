@@ -3,6 +3,8 @@ name: Deploy Pages
 on:
   push:
     branches:
+      - main
+      # opcional: también deploy si pusheás a esta rama
       - fix/editor-screen-codex
   workflow_dispatch:
 
@@ -13,7 +15,6 @@ permissions:
 
 env:
   BASE_HREF: /bitacora_web/
-  ENGINE_BASE_URL: https://rescue-rhode-andrea-missing.trycloudflare.com
 
 jobs:
   build:
@@ -26,6 +27,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Flutter pub get
         run: flutter pub get
@@ -34,7 +36,7 @@ jobs:
         run: >
           flutter build web --release
           --base-href "${{ env.BASE_HREF }}"
-          --dart-define=ENGINE_BASE_URL=${{ env.ENGINE_BASE_URL }}
+          --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
