@@ -39,7 +39,7 @@ jobs:
           --base-href "${{ env.BASE_HREF }}"
           --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }}
           --dart-define=GIT_SHA=${{ github.sha }}
-          --dart-define=BUILD_TIME=${{ env.BUILD_TIME }}
+          --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -56,3 +56,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
