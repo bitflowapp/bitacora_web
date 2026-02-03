@@ -28,6 +28,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'theme/app_theme.dart';
 import 'package:flutter/material.dart'
     show Colors, Border, BorderRadius, BoxDecoration, BoxShadow, Offset, BoxConstraints;
 import 'package:flutter_animate/flutter_animate.dart';
@@ -2201,7 +2202,7 @@ class _TopPillActions extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(colors.isLight ? 0.08 : 0.45),
-                blurRadius: 18,
+                blurRadius: 16,
                 offset: const Offset(0, 10),
               ),
             ],
@@ -2421,6 +2422,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
     return CupertinoButton(
       padding: EdgeInsets.zero,
       pressedOpacity: 0.7,
@@ -2430,12 +2432,13 @@ class _SummaryCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(t.radii.lg),
+          border: Border.all(color: const Color(0xFFFFFFFF).withOpacity(0.18), width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.45),
-              blurRadius: 18,
-              offset: const Offset(0, 12),
+              color: Colors.black.withOpacity(t.colors.isLight ? 0.22 : 0.45),
+              blurRadius: 16,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -3772,6 +3775,20 @@ extension _ColorWithValuesCompat on Color {
     return withAlpha(a);
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
