@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/auth_gate.dart';
 import 'start_page.dart';
+import 'theme/app_theme.dart';
 import 'theme/gridnote_theme.dart';
 
 class MyApp extends StatefulWidget {
@@ -59,8 +60,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _lightTheme = GridnoteTheme.build(true).material;
-    _darkTheme = GridnoteTheme.build(false).material;
+    _lightTheme = AppTheme.material(true);
+    _darkTheme = AppTheme.material(false);
 
     _initPrefs();
   }
@@ -197,6 +198,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
+
 
 
 

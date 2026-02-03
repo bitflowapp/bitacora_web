@@ -69,13 +69,13 @@ class GridnoteTheme {
 
     // “Warm Apple” (beige/arena) para que se sienta premium.
     // Si querés más frío, cambiá scaffoldLight a 0xFFF5F5F7 y listo.
-    const scaffoldLight = Color(0xFFF7F4EE);
+    const scaffoldLight = Color(0xFFF5F5F7);
     const scaffoldDark = Color(0xFF050A14);
 
     const cardLight = Color(0xFFFFFFFF);
     const cardDark = Color(0xFF0B1220);
 
-    const dividerLight = Color(0xFFE6E2DA);
+    const dividerLight = Color(0xFFE5E7EB);
     const dividerDark = Color(0xFF1E293B);
 
     final brightness = light ? Brightness.light : Brightness.dark;
@@ -100,7 +100,7 @@ class GridnoteTheme {
     final overlayFocusRing = accentBlue.withAlpha(_a(light ? 0.22 : 0.28));
 
     // Tonos secundarios para headers/variants.
-    final surfaceVariant = light ? const Color(0xFFF3F1EC) : const Color(0xFF0F172A);
+    final surfaceVariant = light ? const Color(0xFFF2F2F4) : const Color(0xFF0F172A);
     final onSurfaceVariant =
     (light ? const Color(0xFF111827) : const Color(0xFFE5E7EB))
         .withAlpha(_a(light ? 0.78 : 0.82));
@@ -532,7 +532,7 @@ class GridnoteTableStyle {
     final divider = g.divider;
 
     final headerBg = isLight
-        ? const Color(0xFFFBFAF7) // cálido, premium
+        ? const Color(0xFFF7F7F9) // cálido, premium
         : const Color(0xFF0F172A);
 
     final cellBg = g.card;
@@ -576,3 +576,4 @@ class GridnoteTableStyle {
     );
   }
 }
+
