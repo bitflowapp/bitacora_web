@@ -7196,6 +7196,7 @@ class _GridView extends StatelessWidget {
                                                 hasAudio: cellHasAudios(r, col),
                                                 photoThumbB64: thumbB64,
                                                 photosCount: photosCount,
+                                                zebra: r.isEven,
                                                 thumbB64: thumbB64,
                                                 selected:
                                                 r == selRow && col == selCol,
@@ -7317,36 +7318,45 @@ class _HeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t =
-    text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
+        text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
       onSecondaryTapDown: onSecondaryTapDown,
-      child: Container(
-        width: width,
-        height: _GridView.headerH,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        alignment: Alignment.centerLeft,
-        decoration: BoxDecoration(
-          color: palette.headerBg,
-          border: Border(
-            right: BorderSide(
-                color: palette.borderStrong, width: palette.hairline),
-            bottom: BorderSide(
-                color: palette.borderStrong, width: palette.hairline),
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: palette.headerBg,
+            border: Border(
+              right: BorderSide(
+                  color: palette.borderStrong, width: palette.hairline),
+              bottom: BorderSide(
+                  color: palette.borderStrong, width: palette.hairline),
+            ),
           ),
-        ),
-        child: Text(
-          t.isEmpty ? ' ' : t,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: palette.fg,
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
-            height: 1.05,
-            letterSpacing: 0.1,
+          child: InkWell(
+            onTap: onTap,
+            hoverColor: palette.hoverBg,
+            splashColor: palette.pressedBg,
+            child: Container(
+              width: width,
+              height: _GridView.headerH,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                t.isEmpty ? ' ' : t,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                  height: 1.05,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -7356,7 +7366,6 @@ class _HeaderCell extends StatelessWidget {
     return CompositedTransformTarget(link: editorLink, child: cell);
   }
 }
-
 class _RowIndexCell extends StatelessWidget {
   const _RowIndexCell({
     required this.palette,
@@ -7376,58 +7385,69 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-// ??? Menos ???azul gen??rico???: borde m??s neutro, con halo sutil al seleccionar.
     final neutralRing = palette.isLight
-        ? Colors.black.withOpacity(0.14)
-        : Colors.white.withOpacity(0.20);
+        ? Colors.black.withOpacity(0.12)
+        : Colors.white.withOpacity(0.18);
 
     final glow = palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
+    final bg = selected
+        ? palette.accent.withOpacity(palette.isLight ? 0.08 : 0.18)
+        : palette.indexBg;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
       onSecondaryTapDown: onSecondaryTapDown,
-      child: Container(
-        width: width,
-        height: _GridView.rowH,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: palette.indexBg,
-          border: Border(
-            right: BorderSide(
-                color: palette.borderStrong, width: palette.hairline),
-            bottom: BorderSide(color: palette.border, width: palette.hairline),
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border(
+              right: BorderSide(
+                  color: palette.borderStrong, width: palette.hairline),
+              bottom: BorderSide(color: palette.border, width: palette.hairline),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: glow,
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    )
+                  ]
+                : null,
           ),
-          boxShadow: selected
-              ? [
-            BoxShadow(
-              color: glow,
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            )
-          ]
-              : null,
-        ),
-        foregroundDecoration: selected
-            ? BoxDecoration(
-          border: Border.all(
-              color: neutralRing, width: math.max(palette.hairline, 1.5)),
-        )
-            : null,
-        child: Text(
-          index.toString(),
-          style: TextStyle(
-            color: selected ? palette.fg : palette.fgMuted,
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-            height: 1.05,
+          child: InkWell(
+            onTap: onTap,
+            hoverColor: palette.hoverBg,
+            splashColor: palette.pressedBg,
+            child: Container(
+              width: width,
+              height: _GridView.rowH,
+              alignment: Alignment.center,
+              foregroundDecoration: selected
+                  ? BoxDecoration(
+                      border: Border.all(
+                          color: neutralRing,
+                          width: math.max(palette.hairline, 1.2)),
+                    )
+                  : null,
+              child: Text(
+                index.toString(),
+                style: TextStyle(
+                  color: selected ? palette.fg : palette.fgMuted,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  height: 1.05,
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 }
-
 class _DataCell extends StatelessWidget {
   const _DataCell({
     required this.palette,
@@ -7437,6 +7457,7 @@ class _DataCell extends StatelessWidget {
     required this.hasAudio,
     required this.photoThumbB64,
     required this.photosCount,
+    required this.zebra,
     required this.thumbB64,
     required this.selected,
     required this.invalid,
@@ -7459,6 +7480,7 @@ class _DataCell extends StatelessWidget {
   final bool hasAudio;
   final String photoThumbB64;
   final int photosCount;
+  final bool zebra;
   final String thumbB64;
   final bool selected;
   final bool invalid;
@@ -7480,37 +7502,73 @@ class _DataCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = blinkRef == cellRef;
-    final bg = isActive ? palette.blinkBg : palette.cellBg;
+    final focus = selected || isOverlayTarget;
+    final baseBg = zebra ? palette.zebraBg : palette.cellBg;
+    final selectedBg =
+        palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
+    final bg = isActive ? palette.blinkBg : (selected ? selectedBg : baseBg);
+
     final borderColor = invalid
         ? Colors.red.withOpacity(palette.isLight ? 0.85 : 0.75)
-        : (isActive || selected)
+        : focus
             ? palette.accent.withOpacity(palette.isLight ? 0.55 : 0.7)
             : palette.border;
 
+    final decoration = BoxDecoration(
+      color: bg,
+      border: Border.all(color: borderColor, width: palette.hairline),
+      boxShadow: focus
+          ? [
+              BoxShadow(
+                color: palette.accent
+                    .withOpacity(palette.isLight ? 0.12 : 0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ]
+          : null,
+    );
+
     final cellBody = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onLongPress: onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
-      child: Container(
-        width: width,
-        height: _GridView.rowH,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border(
-            left: BorderSide(color: borderColor, width: palette.hairline),
-            top: BorderSide(color: borderColor, width: palette.hairline),
-            right: BorderSide(color: borderColor, width: palette.hairline),
-            bottom: BorderSide(color: borderColor, width: palette.hairline),
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: decoration,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            hoverColor: palette.hoverBg,
+            splashColor: palette.pressedBg,
+            child: Container(
+              width: width,
+              height: _GridView.rowH,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: _buildCellBody(context),
+            ),
           ),
         ),
-        child: _buildCellBody(context),
       ),
     );
 
     if (!isOverlayTarget) return cellBody;
     return CompositedTransformTarget(link: editorLink, child: cellBody);
+  }
+
+  Widget _badge(Widget child) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: palette.accent.withOpacity(palette.isLight ? 0.12 : 0.20),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: palette.accent.withOpacity(0.35),
+          width: palette.hairline,
+        ),
+      ),
+      child: child,
+    );
   }
 
   Widget _buildCellBody(BuildContext context) {
@@ -7542,14 +7600,16 @@ class _DataCell extends StatelessWidget {
       final bytes = _tryDecodeB64(photoThumbB64);
       if (bytes != null) {
         badges.add(
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: Image.memory(
-              bytes,
-              width: 14,
-              height: 14,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.low,
+          _badge(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Image.memory(
+                bytes,
+                width: 12,
+                height: 12,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.low,
+              ),
             ),
           ),
         );
@@ -7557,19 +7617,23 @@ class _DataCell extends StatelessWidget {
     }
     if (hasAudio) {
       badges.add(
-        Icon(
-          Icons.graphic_eq_rounded,
-          size: 12,
-          color: palette.accent.withOpacity(0.6),
+        _badge(
+          Icon(
+            Icons.graphic_eq_rounded,
+            size: 12,
+            color: palette.accent.withOpacity(0.8),
+          ),
         ),
       );
     }
     if (hasGps) {
       badges.add(
-        Icon(
-          Icons.my_location_rounded,
-          size: 12,
-          color: palette.accent.withOpacity(0.55),
+        _badge(
+          Icon(
+            Icons.my_location_rounded,
+            size: 12,
+            color: palette.accent.withOpacity(0.8),
+          ),
         ),
       );
     }
@@ -7586,7 +7650,7 @@ class _DataCell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (int i = 0; i < badges.length; i++) ...[
-                if (i > 0) const SizedBox(width: 3),
+                if (i > 0) const SizedBox(width: 4),
                 badges[i],
               ],
             ],
@@ -7596,7 +7660,6 @@ class _DataCell extends StatelessWidget {
     );
   }
 }
-
 class _PhotosCell extends StatelessWidget {
   const _PhotosCell({
     required this.palette,
@@ -7683,6 +7746,87 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
+class _MobileQuickActionsBar extends StatelessWidget {
+  const _MobileQuickActionsBar({
+    required this.palette,
+    required this.onGps,
+    required this.onPhoto,
+    required this.onAudio,
+    required this.onExport,
+    required this.onShare,
+  });
+
+  final _SheetPalette palette;
+  final VoidCallback onGps;
+  final VoidCallback onPhoto;
+  final VoidCallback onAudio;
+  final VoidCallback onExport;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    final bg = t.colors.surfaceElevated
+        .withOpacity(palette.isLight ? 0.92 : 0.78);
+
+    return AppleCard(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      radius: t.radii.xl,
+      color: bg,
+      borderColor: t.colors.border,
+      shadows: t.shadows.soft,
+      child: SizedBox(
+        height: _kMobileQuickBarH,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              AppleButton(
+                icon: Icons.my_location_rounded,
+                label: 'GPS',
+                dense: true,
+                onPressed: onGps,
+                variant: AppleButtonVariant.tonal,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.photo_camera_outlined,
+                label: 'Camara',
+                dense: true,
+                onPressed: onPhoto,
+                variant: AppleButtonVariant.tonal,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.mic_none_rounded,
+                label: 'Audio',
+                dense: true,
+                onPressed: onAudio,
+                variant: AppleButtonVariant.tonal,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.download_rounded,
+                label: 'Exportar',
+                dense: true,
+                onPressed: onExport,
+                variant: AppleButtonVariant.tonal,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.ios_share_rounded,
+                label: 'Compartir',
+                dense: true,
+                onPressed: onShare,
+                variant: AppleButtonVariant.tonal,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 // ========================= Mobile inline editor bar ========================
 
 class _MobileInlineEditorBar extends StatelessWidget {
@@ -8427,7 +8571,15 @@ class _SheetPalette {
     required this.headerCardBorder,
     required this.pillBtnBg,
     required this.pillBtnBorder,
-  });
+    Color? hoverBg,
+    Color? pressedBg,
+    Color? zebraBg,
+  })  : hoverBg = hoverBg ??
+            (isLight ? Colors.black.withOpacity(0.04) : Colors.white.withOpacity(0.08)),
+        pressedBg = pressedBg ??
+            (isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.14)),
+        zebraBg = zebraBg ??
+            (isLight ? const Color(0xFFF9F9FB) : Colors.white.withOpacity(0.02));
 
   final bool isLight;
   final double hairline;
@@ -8458,89 +8610,47 @@ class _SheetPalette {
 
   final Color hintBg;
 
-// Header Apple card
   final Color headerCardBg;
   final Color headerCardBorder;
 
-// Pills / icon circles
   final Color pillBtnBg;
   final Color pillBtnBorder;
 
-  static _SheetPalette light({required double hairline}) {
-    const iosBlue = Color(0xFF0A84FF);
+  final Color hoverBg;
+  final Color pressedBg;
+  final Color zebraBg;
 
-// Apple limpio
-    const bg = Color(0xFFF5F5F7);
-    const card = Color(0xFFFFFFFF);
-    const cell = Color(0xFFFFFFFF);
-    const separator = Color(0xFFE5E5EA);
-    const ink = Color(0xFF0B0B0C);
+  factory _SheetPalette.fromApp(AppThemeData t, {required double hairline}) {
+    final c = t.colors;
+    final card = c.surfaceElevated;
 
     return _SheetPalette(
-      isLight: true,
+      isLight: c.isLight,
       hairline: hairline,
-      bg: bg,
-      fg: ink,
-      fgMuted: const Color(0xFF6B6B72),
-      appBarBg: bg,
+      bg: c.bg,
+      fg: c.textPrimary,
+      fgMuted: c.textSecondary,
+      appBarBg: c.bg,
       headerBg: card,
       indexBg: card,
-      cellBg: cell,
-      blinkBg: iosBlue.withOpacity(0.10),
-      border: ink.withOpacity(0.10),
-      borderStrong: ink.withOpacity(0.14),
-      menuBg: card,
-      editorBg: card,
-      mobileInputBg: const Color(0xFFFFFFFF),
-      accent: iosBlue,
-      statusBg: iosBlue.withOpacity(0.10),
-      statusFg: iosBlue.withOpacity(0.95),
-      hintBg: bg,
-      headerCardBg: card.withOpacity(0.86),
-      headerCardBorder: separator.withOpacity(0.95),
-      pillBtnBg: card.withOpacity(0.92),
-      pillBtnBorder: separator.withOpacity(0.95),
-    );
-  }
-
-  static _SheetPalette dark({required double hairline}) {
-    const iosBlue = Color(0xFF0A84FF);
-
-// OLED: negro real (apaga p??xel)
-    const oledBlack = Color(0xFF000000);
-
-// Header ???tinted gray???
-    const headerTint = Color(0xFF121216);
-
-// Blanco Apple (texto primario)
-    const appleWhite = Color(0xFFFFFFFF);
-
-    return _SheetPalette(
-      isLight: false,
-      hairline: hairline,
-      bg: oledBlack,
-      fg: appleWhite,
-      fgMuted: const Color(0xFFB3B3BA),
-      appBarBg: oledBlack,
-      headerBg: headerTint,
-      indexBg: headerTint,
-      cellBg: oledBlack,
-// ??? blink m??s Apple (no azul fuerte)
-      blinkBg: Colors.white.withOpacity(0.06),
-      border: const Color(0xFFFFFFFF).withOpacity(0.08),
-      borderStrong: const Color(0xFFFFFFFF).withOpacity(0.14),
-      menuBg: const Color(0xFF15151A),
-      editorBg: const Color(0xFF101014),
-// ??? vidrio visible en dark
-      mobileInputBg: Colors.white.withOpacity(0.06),
-      accent: iosBlue,
-      statusBg: const Color(0xFF0F172A),
-      statusFg: const Color(0xFF93C5FD),
-      hintBg: oledBlack,
-      headerCardBg: const Color(0xFF0B0B0C).withOpacity(0.28),
-      headerCardBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
-      pillBtnBg: const Color(0xFFFFFFFF).withOpacity(0.06),
-      pillBtnBorder: const Color(0xFFFFFFFF).withOpacity(0.14),
+      cellBg: c.surface,
+      blinkBg: c.accentMuted,
+      border: c.border,
+      borderStrong: c.borderStrong,
+      menuBg: c.surfaceElevated,
+      editorBg: c.surfaceElevated,
+      mobileInputBg: c.surfaceElevated.withOpacity(c.isLight ? 0.96 : 0.72),
+      accent: c.accent,
+      statusBg: c.statusBg,
+      statusFg: c.statusFg,
+      hintBg: c.surfaceMuted,
+      headerCardBg: c.surfaceElevated.withOpacity(c.isLight ? 0.9 : 0.65),
+      headerCardBorder: c.border,
+      pillBtnBg: c.surfaceMuted,
+      pillBtnBorder: c.border,
+      hoverBg: c.hover,
+      pressedBg: c.pressed,
+      zebraBg: c.surfaceMuted.withOpacity(c.isLight ? 0.6 : 0.12),
     );
   }
 }
@@ -8608,3 +8718,82 @@ class _NoGlowScrollBehavior extends ScrollBehavior {
 
 // Compat simple: evita warning de "unawaited" sin depender de SDK.
 void unawaited(Future<void>? f) {}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

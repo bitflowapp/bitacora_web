@@ -1,12 +1,12 @@
 part of '../screens/editor_screen.dart';
 
-const double _kMobileCardMinW = 110.0;
-const double _kMobileCardMaxW = 140.0;
-const double _kMobileCardH = 52.0;
-const double _kMobileCardGap = 0.0;
-const double _kMobileRowPadH = 0.0;
-const double _kMobileRowPadV = 0.0;
-const double _kMobileRowSpacing = 0.0;
+const double _kMobileCardMinW = 120.0;
+const double _kMobileCardMaxW = 170.0;
+const double _kMobileCardH = 60.0;
+const double _kMobileCardGap = 8.0;
+const double _kMobileRowPadH = 12.0;
+const double _kMobileRowPadV = 6.0;
+const double _kMobileRowSpacing = 8.0;
 const double _kMobileRowH = _kMobileCardH + (_kMobileRowPadV * 2);
 const double _kMobileHeaderRowH = _kMobileRowH;
 
@@ -243,38 +243,51 @@ class _MobileNotesGrid extends StatelessWidget {
     required ValueChanged<Offset> onLongPress,
     required Widget child,
   }) {
-    final headerBg = palette.isLight
-        ? const Color(0xFFF4F0E6)
-        : palette.headerBg;
-    final cellBg = palette.isLight
-        ? const Color(0xFFFFFFFF)
-        : palette.cellBg;
-    final activeBg = palette.isLight
-        ? const Color(0xFFFDF4E2)
-        : palette.cellBg;
-    final bg = isActive ? activeBg : (isHeader ? headerBg : cellBg);
+    final t = AppTheme.of(context);
+    final headerBg = palette.headerBg;
+    final baseBg = palette.cellBg;
+    final activeBg = palette.blinkBg;
+    final selectedBg = palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
+    final bg = isActive ? activeBg : (isSelected ? selectedBg : (isHeader ? headerBg : baseBg));
 
-    final borderColor = isActive
-        ? palette.accent.withAlpha(_alphaFor(0.7))
-        : (palette.isLight
-            ? const Color(0xFFE0E0E0)
-            : palette.borderStrong);
+    final borderColor = (isActive || isSelected)
+        ? palette.accent.withOpacity(palette.isLight ? 0.55 : 0.7)
+        : palette.border;
+
+    final radius = t.radii.sm;
 
     Offset? lastTapPos;
+
+    Widget badge(Widget inner) {
+      return Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: palette.accent.withOpacity(palette.isLight ? 0.12 : 0.20),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: palette.accent.withOpacity(0.35),
+            width: palette.hairline,
+          ),
+        ),
+        child: inner,
+      );
+    }
 
     final badges = <Widget>[];
     if (photoThumbB64.trim().isNotEmpty) {
       final bytes = _tryDecodeB64(photoThumbB64);
       if (bytes != null) {
         badges.add(
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: Image.memory(
-              bytes,
-              width: 14,
-              height: 14,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.low,
+          badge(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Image.memory(
+                bytes,
+                width: 12,
+                height: 12,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.low,
+              ),
             ),
           ),
         );
@@ -282,19 +295,23 @@ class _MobileNotesGrid extends StatelessWidget {
     }
     if (hasAudio) {
       badges.add(
-        Icon(
-          Icons.graphic_eq_rounded,
-          size: 12,
-          color: palette.accent.withOpacity(0.6),
+        badge(
+          Icon(
+            Icons.graphic_eq_rounded,
+            size: 12,
+            color: palette.accent.withOpacity(0.8),
+          ),
         ),
       );
     }
     if (hasGps) {
       badges.add(
-        Icon(
-          Icons.my_location_rounded,
-          size: 12,
-          color: palette.accent.withOpacity(0.55),
+        badge(
+          Icon(
+            Icons.my_location_rounded,
+            size: 12,
+            color: palette.accent.withOpacity(0.8),
+          ),
         ),
       );
     }
@@ -311,7 +328,7 @@ class _MobileNotesGrid extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (int i = 0; i < badges.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 3),
+                      if (i > 0) const SizedBox(width: 4),
                       badges[i],
                     ],
                   ],
@@ -332,15 +349,20 @@ class _MobileNotesGrid extends StatelessWidget {
             final pos = lastTapPos ?? _fallbackTapPos(context);
             onLongPress(pos);
           },
-          borderRadius: BorderRadius.circular(1),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          borderRadius: BorderRadius.circular(radius),
+          hoverColor: palette.hoverBg,
+          splashColor: palette.pressedBg,
+          child: Ink(
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(1),
-              border: Border.all(color: borderColor, width: 1),
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: borderColor, width: palette.hairline),
+              boxShadow: isSelected ? t.shadows.soft : null,
             ),
-            child: decoratedChild,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: decoratedChild,
+            ),
           ),
         ),
       ),
@@ -379,3 +401,7 @@ class _MobileNotesGrid extends StatelessWidget {
     return Offset.zero;
   }
 }
+
+
+
+
