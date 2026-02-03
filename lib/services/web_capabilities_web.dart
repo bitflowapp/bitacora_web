@@ -3,6 +3,31 @@ import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 class WebCapabilitiesImpl {
   static bool get isSecureContext => html.window.isSecureContext == true;
 
+  static bool get isInAppBrowser {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    const markers = <String>[
+      'instagram',
+      'fbav',
+      'fban',
+      'fbios',
+      'fb_iab',
+      'line/',
+      'whatsapp',
+      'twitter',
+      'linkedin',
+      'snapchat',
+      'pinterest',
+      'messenger',
+      'kakaotalk',
+      'gsa/',
+      'wv',
+    ];
+    for (final m in markers) {
+      if (ua.contains(m)) return true;
+    }
+    return false;
+  }
+
   static bool get geolocationAvailable =>
       html.window.navigator.geolocation != null;
 
