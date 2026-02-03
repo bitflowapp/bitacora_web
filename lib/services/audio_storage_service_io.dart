@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -14,6 +13,8 @@ class AudioStorageServiceImpl implements AudioStorageService {
   @override
   Future<StoredAudio?> saveRecording({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required RecordedAudio recording,
   }) async {
     try {
@@ -25,9 +26,9 @@ class AudioStorageServiceImpl implements AudioStorageService {
       }
 
       final ext = _extFor(recording.fileName, recording.mime);
-      final stamp = DateTime.now().millisecondsSinceEpoch;
-      final salt = Random().nextInt(9999).toString().padLeft(4, '0');
-      final fileName = 'audio_${stamp}_$salt$ext';
+      final safeCell = _sanitize(cellKey);
+      final safeId = _sanitize(attachmentId);
+      final fileName = 'audio_${safeCell}_$safeId$ext';
       final filePath = p.join(folder.path, fileName);
 
       if (recording.path != null && recording.path!.trim().isNotEmpty) {

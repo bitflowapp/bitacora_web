@@ -25,6 +25,8 @@ abstract class AudioStorageService {
 
   Future<StoredAudio?> saveRecording({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required RecordedAudio recording,
   });
 

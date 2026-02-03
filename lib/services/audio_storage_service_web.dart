@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -22,33 +21,33 @@ class AudioStorageServiceImpl implements AudioStorageService {
     }
   }
 
-  String _genId() {
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final r = Random();
-    final tail = List.generate(6, (_) => r.nextInt(36))
-        .map((n) => 'abcdefghijklmnopqrstuvwxyz0123456789'[n])
-        .join();
-    return 'aud_$now$tail';
+  String _makeKey(String sheetId, String cellKey, String attachmentId) {
+    final safeSheet = _sanitize(sheetId);
+    final safeCell = _sanitize(cellKey);
+    final safeId = _sanitize(attachmentId);
+    return '$safeSheet:$safeCell:$safeId';
   }
 
   @override
   Future<StoredAudio?> saveRecording({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required RecordedAudio recording,
   }) async {
     final bytes = recording.bytes;
     if (bytes == null || bytes.isEmpty) return null;
     await _ensureBox();
 
-    final id = _genId();
-    await _box!.put(id, <String, dynamic>{
+    final key = _makeKey(sheetId, cellKey, attachmentId);
+    await _box!.put(key, <String, dynamic>{
       'name': recording.fileName,
       'mime': recording.mime,
       'bytes': bytes,
     });
 
     return StoredAudio(
-      storageKey: id,
+      storageKey: key,
       fileName: recording.fileName,
       mime: recording.mime,
       bytesLength: bytes.lengthInBytes,
@@ -71,4 +70,10 @@ class AudioStorageServiceImpl implements AudioStorageService {
     await _ensureBox();
     await _box!.delete(storageKey);
   }
+
+  String _sanitize(String raw) {
+    final t = raw.trim().isEmpty ? 'x' : raw.trim();
+    return t.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+  }
 }
+

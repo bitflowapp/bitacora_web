@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -13,6 +12,8 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
   @override
   Future<StoredPhoto?> savePhoto({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required Uint8List bytes,
     required String originalName,
     required String mime,
@@ -26,9 +27,9 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
       }
 
       final ext = _extFor(originalName, mime);
-      final stamp = DateTime.now().millisecondsSinceEpoch;
-      final salt = Random().nextInt(9999).toString().padLeft(4, '0');
-      final fileName = 'photo_${stamp}_$salt$ext';
+      final safeCell = _sanitize(cellKey);
+      final safeId = _sanitize(attachmentId);
+      final fileName = 'photo_${safeCell}_$safeId$ext';
       final filePath = p.join(folder.path, fileName);
 
       final file = File(filePath);

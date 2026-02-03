@@ -53,6 +53,7 @@ import 'package:bitacora_web/services/location_web_service.dart';
 import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
 import 'package:bitacora_web/services/expression_eval.dart';
+import 'package:bitacora_web/services/diagnostics_log.dart';
 import 'package:bitacora_web/utils/location_format.dart';
 import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 
@@ -1700,6 +1701,11 @@ class _EditorScreenState extends State<EditorScreen>
       return KeyEventResult.handled;
     }
 
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
+      unawaited(_openShortcutsHelp());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyG) {
       unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
       return KeyEventResult.handled;
@@ -1752,6 +1758,44 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     return KeyEventResult.ignored;
+  }
+
+  Future<void> _openShortcutsHelp() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Atajos'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('Ctrl/Cmd+S — Guardar'),
+                Text('Ctrl/Cmd+Z — Deshacer'),
+                Text('Ctrl/Cmd+Y — Rehacer'),
+                Text('Ctrl/Cmd+E — Exportar XLSX'),
+                Text('Ctrl/Cmd+Shift+E — Exportar ZIP'),
+                Text('Ctrl/Cmd+G — GPS en celda'),
+                Text('Ctrl/Cmd+Shift+A — Audio en celda'),
+                Text('Ctrl/Cmd+P — Foto en celda'),
+                Text('Ctrl/Cmd+K — Ayuda'),
+                Text('Enter — Editar/confirmar'),
+                Text('Esc — Cancelar'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String? _extractPrintableChar(KeyDownEvent event) {
@@ -3860,6 +3904,11 @@ class _EditorScreenState extends State<EditorScreen>
         '${wroteText ? '' : ' (solo metadata)'}';
     _engineStatus = msg;
     _engineStatusIsError = false;
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.gps,
+      ok: true,
+      message: msg,
+    );
     if (mounted) {
       setState(() {});
       _showSnack(msg, isError: false);
@@ -3876,6 +3925,11 @@ class _EditorScreenState extends State<EditorScreen>
     final msg = (outcome.error ?? 'No se pudo obtener ubicación.').trim();
     _engineStatus = msg;
     _engineStatusIsError = true;
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.gps,
+      ok: false,
+      message: msg.isEmpty ? 'No se pudo obtener ubicación.' : msg,
+    );
     if (mounted) {
       setState(() {});
       _showSnack(
@@ -4034,17 +4088,33 @@ class _EditorScreenState extends State<EditorScreen>
         if (kDebugMode) {
           debugPrint('[photo] picker cancelled or blocked.');
         }
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'Selección de foto cancelada o bloqueada.',
+        );
         return;
       }
 
+      final attachmentId = _genAttachmentId('ph_');
+      final cellKey = CellKey(r, c).toKey();
       final stored = await _photoStore.savePhoto(
         sheetId: widget.sheetId,
+        cellKey: cellKey,
+        attachmentId: attachmentId,
         bytes: result.bytes,
         originalName: result.name,
         mime: result.mime,
       );
       if (!mounted) return;
-      if (stored == null) return;
+      if (stored == null) {
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'No se pudo guardar la foto.',
+        );
+        return;
+      }
 
       final thumbBytes =
           _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
@@ -4055,7 +4125,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
 
       final attachment = PhotoAttachment(
-        id: _genAttachmentId('ph_'),
+        id: attachmentId,
         filename: result.name,
         mime: result.mime,
         size: result.bytes.lengthInBytes,
@@ -4069,7 +4139,18 @@ class _EditorScreenState extends State<EditorScreen>
       );
 
       _addPhotoToCell(r, c, attachment);
-    } catch (_) {}
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: true,
+        message: 'Foto guardada en ${CellKey(r, c).a1}.',
+      );
+    } catch (e) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: false,
+        message: 'Error guardando foto: $e',
+      );
+    }
   }
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
@@ -4366,9 +4447,9 @@ class _EditorScreenState extends State<EditorScreen>
     final key = stored.storageKey.trim();
     if (key.isEmpty) return '';
     if (key.startsWith('file:') || key.startsWith('key:')) return key;
-    final looksLikePath =
-        key.contains('\\') || key.contains('/') || key.contains(':');
-    return looksLikePath ? 'file:$key' : 'key:$key';
+    final hasSlash = key.contains('\\') || key.contains('/');
+    if (key.contains(':') && !hasSlash) return 'key:$key';
+    return hasSlash ? 'file:$key' : 'key:$key';
   }
 
   String _audioKeyFromRef(String storedRef) {
@@ -4403,6 +4484,11 @@ class _EditorScreenState extends State<EditorScreen>
     final supported = await _audioService.isSupported();
     if (!mounted) return;
     if (!supported) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'Grabación de audio no disponible.',
+      );
       _showSnack('Grabación de audio no disponible.', isError: true);
       return;
     }
@@ -4411,6 +4497,11 @@ class _EditorScreenState extends State<EditorScreen>
       await _audioService.startRecording(sheetId: widget.sheetId);
     } catch (_) {
       if (!mounted) return;
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'No se pudo iniciar la grabación.',
+      );
       _showSnack('No se pudo iniciar la grabación.', isError: true);
       return;
     }
@@ -4435,22 +4526,35 @@ class _EditorScreenState extends State<EditorScreen>
     });
 
     if (recording == null || target == null) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'No se guardó el audio.',
+      );
       _showSnack('No se guardó el audio.', isError: true);
       return;
     }
 
+    final attachmentId = _genAttachmentId('au_');
     final stored = await _audioStore.saveRecording(
       sheetId: widget.sheetId,
+      cellKey: target.toKey(),
+      attachmentId: attachmentId,
       recording: recording,
     );
     if (!mounted) return;
     if (stored == null) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'No se pudo guardar el audio.',
+      );
       _showSnack('No se pudo guardar el audio.', isError: true);
       return;
     }
 
     final attachment = AudioAttachment(
-      id: _genAttachmentId('au_'),
+      id: attachmentId,
       filename: recording.fileName,
       mime: recording.mime,
       size: stored.bytesLength,
@@ -4460,6 +4564,11 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     _addAudioToCell(target.row, target.col, attachment);
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.audio,
+      ok: true,
+      message: 'Audio guardado en ${target.a1}.',
+    );
     _showSnack('Audio guardado en ${target.a1}.', isError: false);
   }
 

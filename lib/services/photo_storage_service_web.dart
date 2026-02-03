@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -21,31 +20,31 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     }
   }
 
-  String _genId() {
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final r = Random();
-    final tail = List.generate(6, (_) => r.nextInt(36))
-        .map((n) => 'abcdefghijklmnopqrstuvwxyz0123456789'[n])
-        .join();
-    return 'ph_$now$tail';
+  String _makeKey(String sheetId, String cellKey, String attachmentId) {
+    final safeSheet = _sanitize(sheetId);
+    final safeCell = _sanitize(cellKey);
+    final safeId = _sanitize(attachmentId);
+    return '$safeSheet:$safeCell:$safeId';
   }
 
   @override
   Future<StoredPhoto?> savePhoto({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required Uint8List bytes,
     required String originalName,
     required String mime,
   }) async {
     try {
       await _ensureBox();
-      final id = _genId();
-      await _box!.put(id, <String, dynamic>{
+      final key = _makeKey(sheetId, cellKey, attachmentId);
+      await _box!.put(key, <String, dynamic>{
         'name': originalName,
         'mime': mime,
         'bytes': bytes,
       });
-      return StoredPhoto(path: 'key:$id', fileName: originalName, mime: mime);
+      return StoredPhoto(path: 'key:$key', fileName: originalName, mime: mime);
     } catch (_) {
       return null;
     }
@@ -83,4 +82,10 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     if (t.startsWith('key:')) return t.substring(4);
     return t;
   }
+
+  String _sanitize(String raw) {
+    final t = raw.trim().isEmpty ? 'x' : raw.trim();
+    return t.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+  }
 }
+

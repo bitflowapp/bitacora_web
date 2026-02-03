@@ -15,6 +15,10 @@ Future<LocationFix> browserCurrentPosition({
     throw const LocationException(
         'Geolocalización no soportada en este navegador.');
   }
+  if (html.window.isSecureContext != true) {
+    throw const LocationException(
+        'Geolocalización requiere HTTPS (o localhost).');
+  }
 
   try {
     final pos = await geo.getCurrentPosition(

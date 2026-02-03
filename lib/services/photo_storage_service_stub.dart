@@ -6,6 +6,8 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
   @override
   Future<StoredPhoto?> savePhoto({
     required String sheetId,
+    required String cellKey,
+    required String attachmentId,
     required Uint8List bytes,
     required String originalName,
     required String mime,
