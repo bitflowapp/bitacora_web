@@ -1,16 +1,52 @@
-# bitacora_web
+# Bitacora Web
 
-A new Flutter project.
+Planilla tipo Excel con UX premium para bitácoras de obra. Funciona en Web, iOS, Android y Desktop.
 
-## Getting Started
+Demo (GitHub Pages): `https://marcoluna-nqn.github.io/bitacora_web/`
 
-This project is a starting point for a Flutter application.
+## Requisitos
+- Flutter 3.22+
 
-A few resources to get you started if this is your first Flutter project:
+## Configuración de Engine (opcional)
+Si querés usar el engine remoto, setear `ENGINE_BASE_URL`.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Local (opcional):
+```bash
+flutter run -d chrome --dart-define-from-file=.env
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Ejemplo `.env`:
+```
+ENGINE_BASE_URL=https://engine.tu-dominio.com
+```
+
+Si no hay `ENGINE_BASE_URL`, la calculadora funciona offline con el evaluador local.
+
+## Desarrollo
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d chrome
+```
+
+## Build
+```bash
+flutter build web --release --base-href "/bitacora_web/" --dart-define=ENGINE_BASE_URL=...
+flutter build apk --release
+```
+
+## Exportar / Compartir
+- `Exportar XLSX`: genera planilla con fotos embebidas (1ra por celda) y hoja `Attachments`.
+- `Exportar ZIP (adjuntos)`: `Sheet.xlsx` + `attachments/` + `manifest.json`.
+- `Compartir ZIP`: abre share sheet (WhatsApp / Gmail / Outlook en móvil).
+
+## GPS / Fotos / Audio
+- GPS por celda: pega texto en la celda seleccionada y guarda metadata por celda.
+- Fotos por celda: múltiples fotos, thumbnails, renombrar/borrar.
+- Audio por celda: grabar/reproducir/renombrar/borrar (web + mobile + desktop).
+
+## GitHub Pages
+Workflow recomendado: `.github/workflows/deploy_pages.yml`
+- Usa `flutter build web --release --base-href "/bitacora_web/"`
+- Toma `ENGINE_BASE_URL` desde `vars.ENGINE_BASE_URL`

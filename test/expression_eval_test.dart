@@ -17,6 +17,8 @@ void main() {
       expect(evalExpression('1,5 + 2,5'), 4);
       expect(evalExpression('2x3'), 6);
       expect(evalExpression('10 \u00F7 2'), 5);
+      expect(evalExpression('50%'), closeTo(0.5, 0.000001));
+      expect(evalExpression('200+10%'), closeTo(200.1, 0.000001));
     });
 
     test('returns null on invalid input', () {

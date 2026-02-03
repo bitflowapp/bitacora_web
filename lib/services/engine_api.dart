@@ -242,6 +242,36 @@ class EngineApi {
     );
   }
 
+  /// Healthcheck that throws on failure (no silencios).
+  Future<void> ensureHealthyBase(
+    String baseUrl, {
+    List<String>? paths,
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final normalized = EngineConfig.normalize(baseUrl);
+    if (!EngineConfig.isValidBaseUrl(normalized)) {
+      throw const EngineApiDataException('Invalid base URL.');
+    }
+
+    final candidates = paths ??
+        const ['/health', '/healthz', '/readyz', '/openapi.json', '/'];
+    Object? lastError;
+
+    for (final path in candidates) {
+      try {
+        await getJsonFromBase(normalized, path, timeout: timeout);
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError != null) {
+      throw lastError;
+    }
+    throw const EngineApiDataException('Engine healthcheck failed.');
+  }
+
   /// JSON POST for a specific base URL (used by explicit overrides).
   Future<Map<String, dynamic>> postJsonFromBase(
     String baseUrl,

@@ -41,60 +41,12 @@ void main() {
     return out;
   }
 
-  String colLetter(int col) {
-    var n = col;
-    var out = '';
-    while (n > 0) {
-      final rem = (n - 1) % 26;
-      out = String.fromCharCode(65 + rem) + out;
-      n = (n - 1) ~/ 26;
-    }
-    return out;
-  }
-
-  String? cellText({
-    required String sheetXml,
-    required String cellRef,
-    required List<String> sharedStrings,
-  }) {
-    final reg = RegExp(
-      '<c[^>]*r="$cellRef"[^>]*>(.*?)</c>',
-      dotAll: true,
-    );
-    final match = reg.firstMatch(sheetXml);
-    if (match == null) return null;
-
-    final cellXml = match.group(0) ?? '';
-    final valueMatch = RegExp('<v>(.*?)</v>', dotAll: true).firstMatch(cellXml);
-    if (valueMatch == null) return '';
-
-    final raw = (valueMatch.group(1) ?? '').trim();
-    if (raw.isEmpty) return '';
-
-    final isShared = RegExp('t="s"').hasMatch(cellXml);
-    if (isShared) {
-      final idx = int.tryParse(raw);
-      if (idx == null || idx < 0 || idx >= sharedStrings.length) return '';
-      return sharedStrings[idx];
-    }
-
-    return '';
-  }
-
-  void expectNoPhotoTokens(String xml) {
-    expect(xml.contains('.jpg'), isFalse);
-    expect(xml.contains('.jpeg'), isFalse);
-    expect(xml.contains('.png'), isFalse);
+  void expectNoLocalPathTokens(String xml) {
     expect(xml.contains('file:'), isFalse);
     expect(xml.contains('content://'), isFalse);
     expect(xml.contains('/storage/'), isFalse);
     expect(xml.contains('c:\\'), isFalse);
     expect(xml.contains('dcim'), isFalse);
-    expect(xml.contains('img_'), isFalse);
-    expect(xml.contains('camera_'), isFalse);
-    expect(xml.contains('gallery_'), isFalse);
-    expect(xml.contains('photo_'), isFalse);
-    expect(xml.contains('embedded_'), isFalse);
   }
 
   Map<String, String> parseDrawingRels(String relXml) {
@@ -155,43 +107,6 @@ void main() {
     }
   }
 
-  void expectPhotoCellsState({
-    required Archive archive,
-    required List<int> photoCols,
-    required List<int> rowsWithPhotos,
-    required List<int> rowsWithMissing,
-  }) {
-    final sheet = archive.files.firstWhere(
-      (f) => f.name.replaceAll('\\', '/') == 'xl/worksheets/sheet1.xml',
-    );
-    final xml = utf8.decode(sheet.content as List<int>);
-    final sharedStrings = readSharedStrings(archive);
-
-    for (final row in rowsWithPhotos) {
-      for (final col in photoCols) {
-        final ref = '${colLetter(col)}$row';
-        final value = cellText(
-          sheetXml: xml,
-          cellRef: ref,
-          sharedStrings: sharedStrings,
-        );
-        expect(value == null || value.isEmpty, isTrue);
-      }
-    }
-
-    for (final row in rowsWithMissing) {
-      for (final col in photoCols) {
-        final ref = '${colLetter(col)}$row';
-        final value = cellText(
-          sheetXml: xml,
-          cellRef: ref,
-          sharedStrings: sharedStrings,
-        );
-        expect(value, 'N/D');
-      }
-    }
-  }
-
   void expectMediaAndDrawings(Uint8List bytes) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final names = archive.files
@@ -217,7 +132,7 @@ void main() {
       );
       final sharedXml =
           utf8.decode(shared.content as List<int>).toLowerCase();
-      expectNoPhotoTokens(sharedXml);
+      expectNoLocalPathTokens(sharedXml);
     }
 
     final worksheetXmls = names.where(
@@ -227,7 +142,7 @@ void main() {
       final file = archive.files
           .firstWhere((f) => f.name.replaceAll('\\', '/') == name);
       final xml = utf8.decode(file.content as List<int>).toLowerCase();
-      expectNoPhotoTokens(xml);
+      expectNoLocalPathTokens(xml);
     }
 
     final drawingXmls = names.where(
@@ -237,7 +152,7 @@ void main() {
       final file = archive.files
           .firstWhere((f) => f.name.replaceAll('\\', '/') == name);
       final xml = utf8.decode(file.content as List<int>).toLowerCase();
-      expectNoPhotoTokens(xml);
+      expectNoLocalPathTokens(xml);
     }
   }
 
@@ -250,23 +165,23 @@ void main() {
         ['fila 2'],
         ['fila 3'],
       ],
-      photosByRow: {
-        0: [png],
-        1: [Uint8List(0)],
-        2: [png],
-      },
+      embeddedPhotos: [
+        EmbeddedPhoto(rowIndex: 0, colIndex: 0, bytes: png),
+        EmbeddedPhoto(rowIndex: 2, colIndex: 0, bytes: png),
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1_foto.jpg',
+          notes: '',
+          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+        ),
+      ],
     );
 
     expect(bytes, isNotEmpty);
     expectMediaAndDrawings(bytes);
-
-    // buildXlsxWithPhotos: col 1 = '#', col 2 = 'Dato', col 3 = 'Foto 1'
-    expectPhotoCellsState(
-      archive: ZipDecoder().decodeBytes(bytes),
-      photoCols: const [3],
-      rowsWithPhotos: const [2, 4],
-      rowsWithMissing: const [3],
-    );
   });
 
   test('re-open with dataB64 preserves bytes and embeds photos', () async {
@@ -295,17 +210,17 @@ void main() {
       debugTag: 'test_reopen',
     );
 
-    expect(resolved, isNotNull);
-    expect(resolved!.isNotEmpty, isTrue);
+    final resolvedBytes = resolved ?? Uint8List(0);
+    expect(resolvedBytes.isNotEmpty, isTrue);
 
     final bytes = await buildXlsxWithPhotos(
       columns: const ['Dato'],
       rows: const [
         ['fila 1'],
       ],
-      photosByRow: {
-        0: [resolved],
-      },
+      embeddedPhotos: [
+        EmbeddedPhoto(rowIndex: 0, colIndex: 0, bytes: resolvedBytes),
+      ],
     );
 
     expectMediaAndDrawings(bytes);
@@ -313,8 +228,6 @@ void main() {
 
   test('generate sample XLSX with photos for manual review', () async {
     final png = makeTinyPng();
-    final stamp = DateTime.utc(2026, 1, 1, 12);
-
     final bytes = await buildXlsxWithPhotos(
       columns: const ['Dato'],
       rows: const [
@@ -322,32 +235,18 @@ void main() {
         ['fila 2'],
         ['fila 3'],
       ],
-      photosByRow: {
-        0: [png],
-        1: [png],
-        2: [png],
-      },
-      photoMeta: [
-        PhotoMeta(
-          rowIndex: 0,
-          colIndex: 0,
-          photoIndex: 0,
-          addedAt: stamp,
-          sourceLabel: '',
-        ),
-        PhotoMeta(
-          rowIndex: 1,
-          colIndex: 0,
-          photoIndex: 0,
-          addedAt: stamp,
-          sourceLabel: '',
-        ),
-        PhotoMeta(
-          rowIndex: 2,
-          colIndex: 0,
-          photoIndex: 0,
-          addedAt: stamp,
-          sourceLabel: '',
+      embeddedPhotos: [
+        EmbeddedPhoto(rowIndex: 0, colIndex: 0, bytes: png),
+        EmbeddedPhoto(rowIndex: 1, colIndex: 0, bytes: png),
+        EmbeddedPhoto(rowIndex: 2, colIndex: 0, bytes: png),
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1_foto.jpg',
+          notes: '',
+          relativePath: 'attachments/photos/A1_p1_foto.jpg',
         ),
       ],
       includeIndexColumn: false,

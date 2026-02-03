@@ -15,17 +15,27 @@ function decodeJwt(jwt) {
   const b64 = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const json = decodeURIComponent(
-    atob(b64 + pad).split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+    atob(b64 + pad)
+      .split("")
+      .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+      .join("")
   );
   return JSON.parse(json);
 }
 
 function getUser() {
-  try { return JSON.parse(localStorage.getItem(STATE_KEY) || "null"); }
-  catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem(STATE_KEY) || "null");
+  } catch {
+    return null;
+  }
 }
-function setUser(u) { localStorage.setItem(STATE_KEY, JSON.stringify(u)); }
-function clearUser() { localStorage.removeItem(STATE_KEY); }
+function setUser(u) {
+  localStorage.setItem(STATE_KEY, JSON.stringify(u));
+}
+function clearUser() {
+  localStorage.removeItem(STATE_KEY);
+}
 
 // Espera a que cargue Google Identity (GSI) hasta 5s
 function waitForGsi(maxMs = 5000) {
@@ -33,11 +43,20 @@ function waitForGsi(maxMs = 5000) {
     if (window.google?.accounts?.id) return resolve();
     const t0 = Date.now();
     const iv = setInterval(() => {
-      if (window.google?.accounts?.id) { clearInterval(iv); resolve(); }
-      else if (Date.now() - t0 > maxMs) { clearInterval(iv); reject(new Error("GSI load timeout")); }
+      if (window.google?.accounts?.id) {
+        clearInterval(iv);
+        resolve();
+      } else if (Date.now() - t0 > maxMs) {
+        clearInterval(iv);
+        reject(new Error("GSI load timeout"));
+      }
     }, 50);
+
     window.addEventListener("load", () => {
-      if (window.google?.accounts?.id) { clearInterval(iv); resolve(); }
+      if (window.google?.accounts?.id) {
+        clearInterval(iv);
+        resolve();
+      }
     });
   });
 }
@@ -46,14 +65,20 @@ function waitForGsi(maxMs = 5000) {
 function renderAuthed(user) {
   const gbtn = document.getElementById("g-btn");
   const status = document.getElementById("authStatus");
+  if (!gbtn || !status) return;
+
   gbtn.innerHTML = "";
   status.style.display = "flex";
+
+  // Ojo: acá se usa innerHTML solo para armar UI rápido.
+  // Si querés 0 riesgo XSS, lo armamos con createElement.
   status.innerHTML = `
     <img class="avatar" src="${user.picture || ""}" alt="">
     <div class="user" style="margin-left:.5rem">
       ${user.name || ""}<br><small>${user.email || ""}</small>
     </div>
   `;
+
   const btn = document.createElement("button");
   btn.className = "btn";
   btn.type = "button";
@@ -62,13 +87,17 @@ function renderAuthed(user) {
   gbtn.appendChild(btn);
 
   window.dispatchEvent(new CustomEvent("auth:changed", { detail: user }));
-  try { google.accounts.id.disableAutoSelect(); } catch {}
+  try {
+    google.accounts.id.disableAutoSelect();
+  } catch {}
 }
 
 async function renderSignedOut() {
   const cid = getClientId();
   const gbtn = document.getElementById("g-btn");
   const status = document.getElementById("authStatus");
+  if (!gbtn || !status) return;
+
   status.style.display = "none";
   status.textContent = "";
 
@@ -85,17 +114,23 @@ async function renderSignedOut() {
       callback: onCredential,
       auto_select: true,
       ux_mode: "popup",
-      itp_support: true,`n      use_fedcm_for_prompt: true
+      itp_support: true,
+      use_fedcm_for_prompt: true,
     });
+
     google.accounts.id.renderButton(gbtn, {
       type: "standard",
       shape: "pill",
       theme: "outline",
       size: "large",
       text: "signin_with",
-      logo_alignment: "left"
+      logo_alignment: "left",
     });
-    google.accounts.id.prompt();
+
+    // Si el prompt automático no aparece en Safari, el botón igual funciona.
+    try {
+      google.accounts.id.prompt();
+    } catch {}
   } catch {
     gbtn.innerHTML = `<small>No cargó Google Identity. Revisá bloqueadores/extensiones.</small>`;
   }
@@ -105,15 +140,22 @@ async function renderSignedOut() {
 
 // ----- Callbacks -----
 function onCredential(resp) {
-  const payload = decodeJwt(resp.credential);
-  const user = {
-    sub: payload.sub,
-    name: payload.name,
-    email: payload.email,
-    picture: payload.picture
-  };
-  setUser(user);
-  renderAuthed(user);
+  try {
+    if (!resp?.credential) throw new Error("Missing credential");
+    const payload = decodeJwt(resp.credential);
+    const user = {
+      sub: payload.sub,
+      name: payload.name,
+      email: payload.email,
+      picture: payload.picture,
+    };
+    setUser(user);
+    renderAuthed(user);
+  } catch (e) {
+    console.error("[auth] credential parse failed:", e);
+    clearUser();
+    renderSignedOut();
+  }
 }
 
 function logout() {
@@ -127,12 +169,16 @@ function logout() {
 }
 
 // Exponer API a Flutter / JS
-function signIn() { try { google.accounts.id.prompt(); } catch {} }
+function signIn() {
+  try {
+    google.accounts.id.prompt();
+  } catch {}
+}
 window.BitacoraAuth = { getUser, logout, signIn };
 
 // Inicialización
 window.addEventListener("DOMContentLoaded", () => {
   const user = getUser();
-  if (user) renderAuthed(user); else renderSignedOut();
+  if (user) renderAuthed(user);
+  else renderSignedOut();
 });
-

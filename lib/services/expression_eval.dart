@@ -80,8 +80,12 @@ double? evalExpression(String raw) {
           numBuf.write(src[k]);
           k++;
         }
-        final v = double.tryParse(numBuf.toString());
+        var v = double.tryParse(numBuf.toString());
         if (v == null) return null;
+        if (k < src.length && src[k] == '%') {
+          v = v / 100;
+          k++;
+        }
         output.add(v);
         i = k;
         expectUnary = false;
@@ -103,8 +107,12 @@ double? evalExpression(String raw) {
       i++;
     }
     if (buf.isEmpty) return null;
-    final v = double.tryParse(buf.toString());
+    var v = double.tryParse(buf.toString());
     if (v == null) return null;
+    if (i < src.length && src[i] == '%') {
+      v = v / 100;
+      i++;
+    }
     output.add(v);
     expectUnary = false;
   }

@@ -8,7 +8,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
-import 'screens/start_page.dart';
+import 'start_page.dart';
 import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
@@ -596,3 +596,6 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
     return const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
   }
 }
+
+
+

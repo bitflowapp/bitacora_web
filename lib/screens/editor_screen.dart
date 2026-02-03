@@ -35,13 +35,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:archive/archive.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:bitacora_web/models/cell_meta.dart';
 import 'package:bitacora_web/services/export_xlsx_with_photos.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bitacora_web/services/photo_acquire_service.dart';
 import 'package:bitacora_web/services/keyboard_insets_controller.dart';
 import 'package:bitacora_web/services/photo_storage_service.dart';
+import 'package:bitacora_web/services/audio_service.dart';
+import 'package:bitacora_web/services/audio_storage_service.dart';
 import 'package:bitacora_web/services/photo_bytes_resolver.dart';
 import 'package:bitacora_web/services/photo_json_codec.dart';
 import 'package:bitacora_web/services/location_service.dart';
@@ -49,6 +53,7 @@ import 'package:bitacora_web/services/location_web_service.dart';
 import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
 import 'package:bitacora_web/services/expression_eval.dart';
+import 'package:bitacora_web/utils/location_format.dart';
 import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 
 part '../widgets/mobile_notes_grid.dart';
@@ -66,6 +71,7 @@ const String _kPrefEngineApiKeyAlt = 'bitflow_engine_api_key';
 enum _OverlayMove { none, next, prev, down, up }
 
 enum _MobileEditPhase { closed, opening, open, switching, closing }
+enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
 
 // ============================== Pantalla principal =========================
 
@@ -119,6 +125,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   int _selRow = 0;
   int _selCol = 0;
+
+  final Map<String, CellMeta> _cellMeta = <String, CellMeta>{};
+  _GpsWriteMode _gpsWriteMode = _GpsWriteMode.pasteActive;
+  _GpsFix? _pendingGpsFix;
+  bool _gpsPickingTarget = false;
+  static const String _prefGpsMode = 'bitflow:gps_mode';
 
 // ??? Guardado robusto
   int _rev = 0;
@@ -177,6 +189,13 @@ class _EditorScreenState extends State<EditorScreen>
   late final KeyboardInsetsController _kbController =
   KeyboardInsetsController(onLog: kDebugMode ? debugPrint : null);
   late final PhotoStorageService _photoStore = PhotoStorageService.I;
+  late final AudioService _audioService = AudioService.I;
+  late final AudioStorageService _audioStore = AudioStorageService.I;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription<void>? _audioCompleteSub;
+  CellKey? _recordingAudioCell;
+  bool _audioRecording = false;
+  String? _playingAudioId;
   Timer? _kbEnsureDebounceT;
   Timer? _mobileEnsureLateT;
   Timer? _mobileFocusRetryT;
@@ -191,6 +210,9 @@ class _EditorScreenState extends State<EditorScreen>
   bool _engineStatusIsError = false;
   String? _engineBaseResolved;
   String? _engineKeyResolved;
+  DateTime? _engineLastCheckAt;
+  bool _engineLastOk = false;
+  String? _engineLastError;
   late final EngineApi _engineApi = EngineApi();
 
   bool get _engineHasBase =>
@@ -262,12 +284,18 @@ class _EditorScreenState extends State<EditorScreen>
     _resetMobileRowCaches();
     _recomputeValidation();
 
+    _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() => _playingAudioId = null);
+    });
+
     _rev = 0;
     _lastSavedRev = 0;
     _savePending = false;
 
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
+    unawaited(_loadGpsMode());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection().whenComplete(() => unawaited(_maybeRunSmoke())));
   }
@@ -332,6 +360,9 @@ class _EditorScreenState extends State<EditorScreen>
     _nameFocus.dispose();
     _engineApi.dispose();
     _backupTimer?.cancel();
+    unawaited(_audioService.dispose());
+    _audioCompleteSub?.cancel();
+    _audioPlayer.dispose();
 
     super.dispose();
   }
@@ -415,6 +446,99 @@ class _EditorScreenState extends State<EditorScreen>
     return r;
   }
 
+  Map<String, CellMeta> _normalizeCellMeta(
+    Map<String, CellMeta> incoming,
+    int rowCount,
+    int colCount,
+  ) {
+    if (incoming.isEmpty) return <String, CellMeta>{};
+    final out = <String, CellMeta>{};
+    incoming.forEach((key, meta) {
+      final cell = CellKey.fromKey(key);
+      if (cell == null) return;
+      if (cell.row < 0 || cell.row >= rowCount) return;
+      if (cell.col < 0 || cell.col >= colCount) return;
+      out[CellKey(cell.row, cell.col).toKey()] = meta.copy();
+    });
+    return out;
+  }
+
+  Map<String, CellMeta> _migrateLegacyRowGps(
+    Map<String, CellMeta> incoming,
+    List<_RowModel> rows,
+    int colCount,
+  ) {
+    if (incoming.isNotEmpty) return incoming;
+    final out = <String, CellMeta>{};
+    if (colCount <= 0) return out;
+    final lastDataCol = math.max(0, colCount - 1);
+    final gpsPattern =
+        RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)');
+
+    for (int r = 0; r < rows.length; r++) {
+      final row = rows[r];
+      if (row.gpsLat == null || row.gpsLng == null) continue;
+
+      int targetCol = -1;
+      for (int c = 0; c < lastDataCol && c < row.cells.length; c++) {
+        if (gpsPattern.hasMatch(row.cells[c])) {
+          targetCol = c;
+          break;
+        }
+      }
+      if (targetCol < 0) targetCol = 0;
+
+      final gps = GpsMeta(
+        lat: row.gpsLat!,
+        lng: row.gpsLng!,
+        accuracyM: row.gpsAccuracyM ?? 0,
+        timestamp: row.gpsTs ?? DateTime.now(),
+        source: row.gpsIsLastKnown ? 'lastKnown' : 'current',
+        provider: 'legacy-row',
+      );
+      out[CellKey(r, targetCol).toKey()] = CellMeta(gps: gps);
+    }
+
+    return out;
+  }
+
+  Map<String, CellMeta> _migrateLegacyRowPhotos(
+    Map<String, CellMeta> incoming,
+    List<_RowModel> rows,
+    int colCount,
+  ) {
+    if (rows.isEmpty) return incoming;
+    if (colCount <= 0) return incoming;
+
+    final out = <String, CellMeta>{};
+    out.addAll(incoming);
+    final photosCol = colCount - 1;
+
+    for (int r = 0; r < rows.length; r++) {
+      final row = rows[r];
+      if (row.photos.isEmpty) continue;
+
+      final key = CellKey(r, photosCol).toKey();
+      final current = out[key];
+      final photos = <PhotoAttachment>[
+        ...?current?.photos,
+      ];
+      for (final photo in row.photos) {
+        photos.add(_photoAttachmentFromRowPhoto(photo));
+      }
+      final next = CellMeta(
+        gps: current?.gps,
+        photos: photos,
+        audios: current?.audios ?? const <AudioAttachment>[],
+      );
+      out[key] = next;
+
+      row.photos.clear();
+    }
+
+    return out;
+  }
+
 // ------------------------------ Local persistence -----------------------
 
   String get _prefsKey => 'bitflow:sheet:${widget.sheetId}';
@@ -448,6 +572,21 @@ class _EditorScreenState extends State<EditorScreen>
       final cells = _normalizeRow(rm.cells, loadedHeaders.length);
       normalizedRows.add(rm.copyWithCells(cells));
     }
+    final migratedMeta = _migrateLegacyRowGps(
+      loaded.cellMeta,
+      normalizedRows,
+      loadedHeaders.length,
+    );
+    final migratedPhotos = _migrateLegacyRowPhotos(
+      migratedMeta,
+      normalizedRows,
+      loadedHeaders.length,
+    );
+    final normalizedMeta = _normalizeCellMeta(
+      migratedPhotos,
+      normalizedRows.length,
+      loadedHeaders.length,
+    );
 
     setState(() {
       _sheetName = (loaded.name?.trim().isNotEmpty ?? false)
@@ -457,6 +596,9 @@ class _EditorScreenState extends State<EditorScreen>
       _rows = normalizedRows.isNotEmpty
           ? normalizedRows
           : <_RowModel>[_RowModel.empty(_headers.length)];
+      _cellMeta
+        ..clear()
+        ..addAll(normalizedMeta);
       _isDirty = false;
       _lastSavedAt = loaded.savedAt;
 
@@ -493,6 +635,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           )
           .toList(growable: false),
+      cellMeta: _cloneCellMeta(_cellMeta),
       savedAt: savedAt,
     );
   }
@@ -608,12 +751,22 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Undo / Redo -----------------------------
 
+  Map<String, CellMeta> _cloneCellMeta(Map<String, CellMeta> source) {
+    if (source.isEmpty) return <String, CellMeta>{};
+    final out = <String, CellMeta>{};
+    source.forEach((key, meta) {
+      out[key] = meta.copy();
+    });
+    return out;
+  }
+
   _SheetSnapshot _snapshot() => _SheetSnapshot(
     name: _sheetName,
     headers: List<String>.from(_headers),
 // ??? Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
     rowModels:
     _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
+    cellMeta: _cloneCellMeta(_cellMeta),
     selRow: _selRow,
     selCol: _selCol,
   );
@@ -635,6 +788,9 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = prev.name;
       _headers = List<String>.from(prev.headers);
       _rows = prev.rowModels.map((r) => r.copyForSnapshot()).toList();
+      _cellMeta
+        ..clear()
+        ..addAll(_cloneCellMeta(prev.cellMeta));
       _selRow = prev.selRow.clamp(0, _rows.length - 1);
       _selCol = prev.selCol.clamp(0, _headers.length - 1);
 
@@ -661,6 +817,9 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = snap.name;
       _headers = List<String>.from(snap.headers);
       _rows = snap.rowModels.map((r) => r.copyForSnapshot()).toList();
+      _cellMeta
+        ..clear()
+        ..addAll(_cloneCellMeta(snap.cellMeta));
       _selRow = snap.selRow.clamp(0, _rows.length - 1);
       _selCol = snap.selCol.clamp(0, _headers.length - 1);
 
@@ -1157,6 +1316,20 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _showSnack(String message, {required bool isError}) {
+    if (!mounted || message.trim().isEmpty) return;
+    final pal = _palette(context);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? _errorBg(pal) : pal.statusBg,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
 // ------------------------------ Build -----------------------------------
 
   @override
@@ -1245,8 +1418,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 onRedo: _redoOnce,
                                 onAddRow: () => _insertRow(_rows.length),
                                 onSave: () => unawaited(_saveLocalNow()),
-                                onExport: () => unawaited(_exportXlsx()),
-                                onCompute: (!_engineHasBase || _engineBusy)
+                                onExport: () => unawaited(_openExportMenu()),
+                                onCompute: _engineBusy
                                     ? null
                                     : () => unawaited(_computeEngine()),
                               )
@@ -1258,7 +1431,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 isDirty: _isDirty,
                                 pendingRequired: _pendingRequired,
                                 onSave: () => unawaited(_saveLocalNow()),
-                                onExport: () => unawaited(_exportXlsx()),
+                                onExport: () => unawaited(_openExportMenu()),
                                 onMenu: () => _openMobileHeaderMenu(
                                   context,
                                   pal,
@@ -1297,6 +1470,10 @@ class _EditorScreenState extends State<EditorScreen>
                                               rowModels: _rows,
                                               cellTextAt: (r, c) =>
                                                   _effectiveCell(r, c),
+                                              cellHasGps: _cellHasGps,
+                                              cellHasAudios: _cellHasAudios,
+                                              cellPhotoThumb: _cellPhotoThumb,
+                                              cellPhotoCount: _cellPhotoCount,
                                               isInvalid: (r, c) =>
                                                   _invalidCells
                                                       .contains(_CellRef(r, c)),
@@ -1329,7 +1506,11 @@ class _EditorScreenState extends State<EditorScreen>
                                                           pal, pos, r, c, isHeader),
                                               onDeleteRow: (r) => _deleteRow(r),
                                               onPickPhoto: (r) =>
-                                                  _pickPhotoForRow(r),
+                                                  _pickPhotoForCell(
+                                                    r,
+                                                    _headers.length - 1,
+                                                    fromCamera: _isAndroidDevice,
+                                                  ),
                                             );
                                           },
                                         ),
@@ -1353,6 +1534,10 @@ class _EditorScreenState extends State<EditorScreen>
                                             rowModels: _rows,
                                             cellTextAt: (r, c) =>
                                                 _effectiveCell(r, c),
+                                            cellHasGps: _cellHasGps,
+                                            cellHasAudios: _cellHasAudios,
+                                            cellPhotoThumb: _cellPhotoThumb,
+                                            cellPhotoCount: _cellPhotoCount,
                                             verticalController: _vScroll,
                                             headerScrollController:
                                                 _mobileHeaderScroll,
@@ -1386,7 +1571,11 @@ class _EditorScreenState extends State<EditorScreen>
                                                         pos, r, c, isHeader),
                                             onDeleteRow: (r) => _deleteRow(r),
                                             onPickPhoto: (r) =>
-                                                _pickPhotoForRow(r),
+                                                _pickPhotoForCell(
+                                                  r,
+                                                  _headers.length - 1,
+                                                  fromCamera: _isAndroidDevice,
+                                                ),
                                           );
                                         },
                                       ),
@@ -1436,6 +1625,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    if (event.logicalKey == LogicalKeyboardKey.escape && _gpsPickingTarget) {
+      _cancelGpsPick();
+      return KeyEventResult.handled;
+    }
 
     if (_cellEditorEntry != null || _mobileEditorOpen) {
       return KeyEventResult.ignored;
@@ -1489,6 +1683,43 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyV) {
       unawaited(_pasteFromClipboard());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyS) {
+      unawaited(_saveLocalNow());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyE) {
+      if (isShift) {
+        unawaited(_exportZipBundle(share: false));
+      } else {
+        unawaited(_exportXlsxOnly());
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyG) {
+      unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyA) {
+      if (_audioRecording) {
+        unawaited(_stopAudioRecording());
+      } else {
+        unawaited(_startAudioRecordingForCell(_selRow, _selCol));
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyP) {
+      unawaited(_pickPhotoForCell(
+        _selRow,
+        _selCol,
+        fromCamera: _isAndroidDevice,
+      ));
       return KeyEventResult.handled;
     }
 
@@ -1620,6 +1851,17 @@ class _EditorScreenState extends State<EditorScreen>
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
 
+    if (_tryConsumePendingGps(r, c)) {
+      if (_selRow != r || _selCol != c) {
+        setState(() {
+          _selRow = r;
+          _selCol = c;
+        });
+      }
+      _blink(r, c);
+      return;
+    }
+
     if (_selRow != r || _selCol != c) {
       setState(() {
         _selRow = r;
@@ -1632,7 +1874,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 // Photos => pick
     if (c == _headers.length - 1) {
-      _handlePhotosCellTap(r);
+      _handlePhotosCellTap(r, c);
       return;
     }
 
@@ -1821,8 +2063,8 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.my_location_outlined,
-        label: 'GPS',
-        onTap: () => unawaited(_pasteGpsIntoCell(r, c)),
+        label: 'GPS -> Pegar',
+        onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
       ),
       _MobileAction(
         icon: Icons.map_outlined,
@@ -1968,18 +2210,56 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Fotos de la fila'),
+                  title: const Text('Fotos de esta celda'),
                   onTap: () {
-                    _startRowPhotoPickFromSheet(row);
+                    _startCellPhotoPickFromSheet(row, _mobileCol);
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: Icon(
+                    _audioRecording
+                        ? Icons.stop_circle_outlined
+                        : Icons.mic_none_rounded,
+                  ),
+                  title: Text(_audioRecording
+                      ? 'Detener grabación'
+                      : 'Grabar audio en esta celda'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (_audioRecording) {
+                      unawaited(_stopAudioRecording());
+                    } else {
+                      unawaited(_startAudioRecordingForCell(row, _mobileCol));
+                    }
+                  },
+                ),
+              if (row >= 0 && _cellHasAudios(row, _mobileCol))
+                ListTile(
+                  leading: const Icon(Icons.graphic_eq_rounded),
+                  title: const Text('Audios de esta celda'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openAudiosSheetForCell(row, _mobileCol);
                   },
                 ),
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('Guardar ubicación'),
+                  title: const Text('GPS -> Pegar en esta celda'),
+                  onTap: () {
+                    unawaited(
+                        _requestGpsForCell(row, _mobileCol, forceWriteText: true));
+                    Navigator.pop(ctx);
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: const Icon(Icons.tune_rounded),
+                  title: const Text('Modo GPS...'),
                   onTap: () {
                     Navigator.pop(ctx);
-                    unawaited(_captureGpsForRow(row));
+                    unawaited(_showGpsModePicker());
                   },
                 ),
               if (actions.isNotEmpty) const Divider(height: 1),
@@ -2643,31 +2923,88 @@ class _EditorScreenState extends State<EditorScreen>
               () => unawaited(_promptFillDown(context, r, c))));
       actions.add(_CtxAction('Incrementar...', Icons.exposure_plus_1_rounded,
               () => unawaited(_promptIncrement(context, r, c))));
-      actions.add(_CtxAction('Guardar ubicaci??n en fila', Icons.my_location_outlined,
-              () => unawaited(_captureGpsForRow(r))));
       actions.add(_CtxAction(
           'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
       if (c != _headers.length - 1) {
-        actions.add(_CtxAction('GPS -> celda', Icons.my_location_outlined,
-                () => unawaited(_pasteGpsIntoCell(r, c))));
+        actions.add(_CtxAction('GPS -> Pegar en esta celda',
+            Icons.my_location_outlined,
+            () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
+            runOnTap: true));
+        actions.add(_CtxAction('Modo GPS...', Icons.tune_rounded,
+            () => unawaited(_showGpsModePicker()),
+            runOnTap: true));
         actions.add(_CtxAction('Maps', Icons.map_outlined,
-                () => unawaited(_openMapsForCell(r, c))));
+            () => unawaited(_openMapsForCell(r, c))));
+
+        if (_audioRecording) {
+          actions.add(_CtxAction(
+              'Detener grabación', Icons.stop_circle_outlined,
+              () => unawaited(_stopAudioRecording()),
+              runOnTap: true));
+        } else {
+          actions.add(_CtxAction(
+              'Grabar audio en esta celda', Icons.mic_none_rounded,
+              () => unawaited(_startAudioRecordingForCell(r, c)),
+              runOnTap: true));
+        }
+        if (_cellHasAudios(r, c)) {
+          actions.add(_CtxAction('Audios de esta celda',
+              Icons.graphic_eq_rounded,
+              () => _openAudiosSheetForCell(r, c)));
+        }
+
+        actions.add(_CtxAction(
+            'Agregar foto a esta celda', Icons.add_photo_alternate_outlined,
+            () => unawaited(_pickPhotoForCell(r, c,
+                fromCamera: _isAndroidDevice)),
+            runOnTap: true));
+        if (_cellHasPhotos(r, c)) {
+          actions.add(_CtxAction('Ver fotos de esta celda',
+              Icons.photo_library_outlined,
+              () => _openPhotosSheetForCell(r, c)));
+        }
       } else {
         final isAndroid = _isAndroidDevice;
+        if (_audioRecording) {
+          actions.add(_CtxAction(
+            'Detener grabación',
+            Icons.stop_circle_outlined,
+            () => unawaited(_stopAudioRecording()),
+            runOnTap: true,
+          ));
+        } else {
+          actions.add(_CtxAction(
+            'Grabar audio en esta celda',
+            Icons.mic_none_rounded,
+            () => unawaited(_startAudioRecordingForCell(r, c)),
+            runOnTap: true,
+          ));
+        }
+        if (_cellHasAudios(r, c)) {
+          actions.add(_CtxAction('Audios de esta celda',
+              Icons.graphic_eq_rounded,
+              () => _openAudiosSheetForCell(r, c)));
+        }
         actions.add(_CtxAction(
-          isAndroid ? 'C??mara' : 'Agregar foto',
+          isAndroid ? 'Camara' : 'Agregar foto',
           Icons.add_photo_alternate_outlined,
-          () => unawaited(_pickPhotoForRow(r)),
+          () => unawaited(_pickPhotoForCell(r, c,
+              fromCamera: _isAndroidDevice)),
           runOnTap: true,
         ));
         if (isAndroid) {
           actions.add(_CtxAction(
-            'Elegir de galer??a',
+            'Elegir de galeria',
             Icons.photo_library_outlined,
-            () => unawaited(_pickPhotoFromGalleryForRow(r)),
+            () => unawaited(_pickPhotoForCell(r, c)),
             runOnTap: true,
           ));
+        }
+        if (_cellHasPhotos(r, c)) {
+          actions.add(_CtxAction('Ver fotos de esta celda',
+              Icons.photo_library_outlined,
+              () => _openPhotosSheetForCell(r, c)));
         }
       }
 
@@ -2741,6 +3078,7 @@ class _EditorScreenState extends State<EditorScreen>
       gpsIsLastKnown: src.gpsIsLastKnown,
     );
     final insertAt = (r + 1).clamp(0, _rows.length);
+    _duplicateCellMetaRow(r, insertAt);
     setState(() {
       _rows.insert(insertAt, copy);
       _selRow = insertAt;
@@ -2952,8 +3290,58 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Filas -----------------------------------
 
+  void _shiftCellMetaForInsert(int atRow) {
+    if (_cellMeta.isEmpty) return;
+    final updated = <String, CellMeta>{};
+    _cellMeta.forEach((key, meta) {
+      final cell = CellKey.fromKey(key);
+      if (cell == null) return;
+      final r = cell.row >= atRow ? cell.row + 1 : cell.row;
+      updated[CellKey(r, cell.col).toKey()] = meta;
+    });
+    _cellMeta
+      ..clear()
+      ..addAll(updated);
+  }
+
+  void _shiftCellMetaForDelete(int atRow) {
+    if (_cellMeta.isEmpty) return;
+    final updated = <String, CellMeta>{};
+    _cellMeta.forEach((key, meta) {
+      final cell = CellKey.fromKey(key);
+      if (cell == null) return;
+      if (cell.row == atRow) return;
+      final r = cell.row > atRow ? cell.row - 1 : cell.row;
+      if (r < 0) return;
+      updated[CellKey(r, cell.col).toKey()] = meta;
+    });
+    _cellMeta
+      ..clear()
+      ..addAll(updated);
+  }
+
+  void _duplicateCellMetaRow(int fromRow, int insertAt) {
+    if (_cellMeta.isEmpty) {
+      _shiftCellMetaForInsert(insertAt);
+      return;
+    }
+    final rowEntries = <MapEntry<int, CellMeta>>[];
+    _cellMeta.forEach((key, meta) {
+      final cell = CellKey.fromKey(key);
+      if (cell == null) return;
+      if (cell.row == fromRow) {
+        rowEntries.add(MapEntry(cell.col, meta.copy()));
+      }
+    });
+    _shiftCellMetaForInsert(insertAt);
+    for (final entry in rowEntries) {
+      _cellMeta[CellKey(insertAt, entry.key).toKey()] = entry.value;
+    }
+  }
+
   void _insertRow(int index) {
     final idx = index.clamp(0, _rows.length);
+    _shiftCellMetaForInsert(idx);
     setState(() {
       _rows.insert(idx, _RowModel.empty(_headers.length));
       _selRow = idx.clamp(0, _rows.length - 1);
@@ -2971,6 +3359,16 @@ class _EditorScreenState extends State<EditorScreen>
     final idx = r.clamp(0, _rows.length - 1);
 
     final toDelete = List<_RowPhoto>.from(_rows[idx].photos);
+    final metaPhotos = <PhotoAttachment>[];
+    final metaAudios = <AudioAttachment>[];
+    _cellMeta.forEach((key, meta) {
+      final cell = CellKey.fromKey(key);
+      if (cell == null) return;
+      if (cell.row != idx) return;
+      metaPhotos.addAll(meta.photos);
+      metaAudios.addAll(meta.audios);
+    });
+    _shiftCellMetaForDelete(idx);
     setState(() {
       _rows.removeAt(idx);
       if (_rows.isEmpty) _rows.add(_RowModel.empty(_headers.length));
@@ -2982,6 +3380,18 @@ class _EditorScreenState extends State<EditorScreen>
 
     for (final p in toDelete) {
       unawaited(_photoStore.deletePhoto(p.path));
+    }
+    for (final p in metaPhotos) {
+      final path = _photoPathFromRef(p.storedRef);
+      if (path.trim().isNotEmpty) {
+        unawaited(_photoStore.deletePhoto(path));
+      }
+    }
+    for (final a in metaAudios) {
+      final keyRef = _audioKeyFromRef(a.storedRef);
+      if (keyRef.trim().isNotEmpty) {
+        unawaited(_audioStore.deleteAudio(keyRef));
+      }
     }
     _removeMobileRowCache(idx);
     _ensureMobileRowCachesLength();
@@ -3087,43 +3497,238 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ GPS / Maps ------------------------------
 
-  Future<void> _pasteGpsIntoCell(int r, int c) async {
-    final fix = await _getGpsFixWithFallback();
-    if (!mounted) return;
-    if (fix == null) return;
+  CellMeta? _cellMetaAt(int r, int c) =>
+      _cellMeta[CellKey(r, c).toKey()];
 
-    final tag = fix.isLastKnown ? ' (last)' : '';
-    final text =
-        '${fix.lat.toStringAsFixed(6)}, ${fix.lng.toStringAsFixed(6)} ??${fix.accuracyM.round()} m$tag';
-    _setCell(r, c, text);
+  bool _cellHasGps(int r, int c) => _cellMetaAt(r, c)?.hasGps ?? false;
+  bool _cellHasPhotos(int r, int c) => _cellMetaAt(r, c)?.hasPhotos ?? false;
+  bool _cellHasAudios(int r, int c) => _cellMetaAt(r, c)?.hasAudios ?? false;
+
+  List<PhotoAttachment> _cellPhotosAt(int r, int c) =>
+      _cellMetaAt(r, c)?.photos ?? const <PhotoAttachment>[];
+
+  List<AudioAttachment> _cellAudiosAt(int r, int c) =>
+      _cellMetaAt(r, c)?.audios ?? const <AudioAttachment>[];
+
+  String _cellPhotoThumb(int r, int c) {
+    final meta = _cellMetaAt(r, c);
+    if (meta == null || meta.photos.isEmpty) return '';
+    return meta.photos.last.thumbRef;
   }
 
-  Future<_GpsFix?> _getGpsFixWithFallback(
+  int _cellPhotoCount(int r, int c) =>
+      _cellMetaAt(r, c)?.photos.length ?? 0;
+
+  String _gpsModeLabel(_GpsWriteMode mode) {
+    switch (mode) {
+      case _GpsWriteMode.pasteActive:
+        return 'Pegar en celda activa';
+      case _GpsWriteMode.pickTarget:
+        return 'Elegir celda destino';
+      case _GpsWriteMode.metadataOnly:
+        return 'Solo metadata (no texto)';
+    }
+  }
+
+  String _gpsModeDesc(_GpsWriteMode mode) {
+    switch (mode) {
+      case _GpsWriteMode.pasteActive:
+        return 'Inserta coordenadas en la celda seleccionada.';
+      case _GpsWriteMode.pickTarget:
+        return 'Luego de capturar GPS, elegís la celda destino.';
+      case _GpsWriteMode.metadataOnly:
+        return 'Guarda GPS en metadata sin tocar el texto.';
+    }
+  }
+
+  _GpsWriteMode _gpsModeFromPref(String? raw) {
+    switch (raw) {
+      case 'pasteActive':
+        return _GpsWriteMode.pasteActive;
+      case 'pickTarget':
+        return _GpsWriteMode.pickTarget;
+      case 'metadataOnly':
+        return _GpsWriteMode.metadataOnly;
+      default:
+        return _GpsWriteMode.pasteActive;
+    }
+  }
+
+  Future<void> _loadGpsMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefGpsMode);
+      final mode = _gpsModeFromPref(raw);
+      if (!mounted) return;
+      if (mode != _gpsWriteMode) {
+        setState(() => _gpsWriteMode = mode);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _setGpsMode(_GpsWriteMode mode) async {
+    if (mode == _gpsWriteMode) return;
+    if (mounted) setState(() => _gpsWriteMode = mode);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefGpsMode, mode.name);
+    } catch (_) {}
+  }
+
+  Future<void> _showGpsModePicker() async {
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<_GpsWriteMode>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Modo GPS',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final mode in _GpsWriteMode.values)
+                  RadioListTile<_GpsWriteMode>(
+                    dense: true,
+                    value: mode,
+                    groupValue: _gpsWriteMode,
+                    onChanged: (v) => Navigator.of(ctx).pop(v),
+                    title: Text(
+                      _gpsModeLabel(mode),
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _gpsModeDesc(mode),
+                      style: TextStyle(color: pal.fgMuted, fontSize: 12),
+                    ),
+                    activeColor: pal.accent,
+                  ),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    if (picked != null) {
+      await _setGpsMode(picked);
+    }
+  }
+
+  Future<void> _requestGpsForCell(int r, int c,
+      {bool forceWriteText = false}) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    if (c == _headers.length - 1) return;
+
+    final outcome = await _getGpsFixWithFallback(
+      timeout: const Duration(seconds: 12),
+    );
+    if (!mounted) return;
+    if (!outcome.ok || outcome.fix == null) {
+      _showGpsError(outcome);
+      return;
+    }
+
+    final fix = outcome.fix!;
+    if (!forceWriteText && _gpsWriteMode == _GpsWriteMode.pickTarget) {
+      setState(() {
+        _gpsPickingTarget = true;
+        _pendingGpsFix = fix;
+      });
+      _engineStatus = 'Tocá la celda destino para pegar GPS.';
+      _engineStatusIsError = false;
+      _showSnack('Tocá la celda destino para pegar GPS.', isError: false);
+      return;
+    }
+
+    final shouldWrite =
+        forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
+    _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+  }
+
+  bool _tryConsumePendingGps(int r, int c) {
+    if (!_gpsPickingTarget || _pendingGpsFix == null) return false;
+    if (c == _headers.length - 1) return true;
+    if (_selRow != r || _selCol != c) {
+      setState(() {
+        _selRow = r;
+        _selCol = c;
+      });
+    }
+    _blink(r, c);
+    final fix = _pendingGpsFix!;
+    _pendingGpsFix = null;
+    _gpsPickingTarget = false;
+    _applyGpsFixToCell(r, c, fix, writeText: true);
+    return true;
+  }
+
+  void _cancelGpsPick() {
+    if (!_gpsPickingTarget) return;
+    setState(() {
+      _gpsPickingTarget = false;
+      _pendingGpsFix = null;
+    });
+    _engineStatus = null;
+    _engineStatusIsError = false;
+  }
+
+  Future<void> _pasteGpsIntoCell(int r, int c) async {
+    await _requestGpsForCell(r, c, forceWriteText: true);
+  }
+
+  Future<_GpsOutcome> _getGpsFixWithFallback(
       {Duration timeout = const Duration(seconds: 10)}) async {
     try {
       if (kIsWeb) {
-        final result = await LocationWebService.I.tryGetBestFix(
-          samples: 3,
-          perSampleTimeout: timeout < const Duration(seconds: 4)
-              ? timeout
-              : const Duration(seconds: 4),
-          betweenSamples: const Duration(milliseconds: 600),
-          targetAccuracyMeters: 25,
-          maxAccuracyMeters: 120,
+        final result = await LocationWebService.I.tryGetCurrent(
+          timeout: timeout,
+          enableHighAccuracy: true,
+          maximumAge: const Duration(seconds: 5),
         );
         final fix = result.fix;
         if (!result.ok || fix == null) {
-          if (kDebugMode) {
-            debugPrint('[gps] web fix failed: ${result.message}');
-          }
-          return null;
+          return _GpsOutcome(error: result.message, code: result.code);
         }
-        return _GpsFix(
-          lat: fix.latitude,
-          lng: fix.longitude,
-          accuracyM: fix.accuracyMeters ?? 0,
-          ts: fix.timestamp,
-          isLastKnown: fix.source == 'lastKnown',
+        return _GpsOutcome(
+          fix: _GpsFix(
+            lat: fix.latitude,
+            lng: fix.longitude,
+            accuracyM: fix.accuracyMeters ?? 0,
+            ts: fix.timestamp,
+            source: fix.source,
+            provider: 'browser',
+          ),
         );
       }
 
@@ -3138,56 +3743,128 @@ class _EditorScreenState extends State<EditorScreen>
       );
       final fix = result.fix;
       if (!result.ok || fix == null) {
-        if (kDebugMode) {
-          debugPrint('[gps] fix failed: ${result.message}');
-        }
-        return null;
+        return _GpsOutcome(error: result.message, code: result.code);
       }
-      return _GpsFix(
-        lat: fix.latitude,
-        lng: fix.longitude,
-        accuracyM: fix.accuracyMeters ?? 0,
-        ts: fix.timestamp,
-        isLastKnown: fix.source == 'lastKnown',
+      return _GpsOutcome(
+        fix: _GpsFix(
+          lat: fix.latitude,
+          lng: fix.longitude,
+          accuracyM: fix.accuracyMeters ?? 0,
+          ts: fix.timestamp,
+          source: fix.source,
+          provider: 'geolocator',
+        ),
       );
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[gps] unexpected error: $e');
-      }
-      return null;
+      if (kDebugMode) debugPrint('[gps] unexpected error: $e');
+      return _GpsOutcome(error: e.toString(), code: 'unknown');
     }
   }
 
-  Future<void> _captureGpsForRow(int r) async {
+  Future<void> _captureGpsForRow(int r, {int? targetCol}) async {
+    final col = targetCol ?? _selCol;
+    await _requestGpsForCell(r, col);
+  }
+
+  String _gpsTextForFix(_GpsFix fix) {
+    return '${formatLatLng(fix.lat, fix.lng)} (±${fix.accuracyM.toStringAsFixed(0)}m)';
+  }
+
+  void _applyGpsFixToCell(int r, int c, _GpsFix fix,
+      {required bool writeText, bool announce = true}) {
     if (r < 0 || r >= _rows.length) return;
-    final fix = await _getGpsFixWithFallback(
-        timeout: const Duration(seconds: 12));
-    if (!mounted) return;
-    if (fix == null) return;
+    if (c < 0 || c >= _headers.length - 1) return;
 
-    setState(() {
-      _rows[r] = _rows[r].copyWithLocation(
-        lat: fix.lat,
-        lng: fix.lng,
-        accuracyM: fix.accuracyM,
-        ts: fix.ts,
-        isLastKnown: fix.isLastKnown,
+    _setCellGpsMeta(r, c, fix, markDirty: !writeText);
+    if (writeText) {
+      _setCell(r, c, _gpsTextForFix(fix));
+    }
+    if (announce) {
+      _announceGpsSaved(
+        fix,
+        cell: CellKey(r, c),
+        wroteText: writeText,
       );
-      _isDirty = true;
-      _rev++;
-    });
+    }
+  }
 
-    _pushUndoSnapshot();
-    _queueSave();
+  @visibleForTesting
+  void debugApplyGpsFixToCell(
+    int r,
+    int c, {
+    double lat = -38.95,
+    double lng = -68.06,
+    double accuracyM = 12,
+    DateTime? timestamp,
+    String source = 'test',
+    String provider = 'test',
+    bool writeText = true,
+  }) {
+    final fix = _GpsFix(
+      lat: lat,
+      lng: lng,
+      accuracyM: accuracyM,
+      ts: timestamp ?? DateTime.now(),
+      source: source,
+      provider: provider,
+    );
+    _applyGpsFixToCell(r, c, fix, writeText: writeText, announce: false);
+  }
 
-    final msg = fix.isLastKnown
-        ? 'GPS guardado (last known)'
-        : 'GPS guardado';
-    setState(() {
-      _engineStatus = msg;
-      _engineStatusIsError = false;
-    });
-    Timer(const Duration(seconds: 2), () {
+  @visibleForTesting
+  String debugCellText(int r, int c) => _getCellText(r, c);
+
+  @visibleForTesting
+  bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
+
+  void _setCellGpsMeta(int r, int c, _GpsFix fix,
+      {required bool markDirty}) {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    final gps = GpsMeta(
+      lat: fix.lat,
+      lng: fix.lng,
+      accuracyM: fix.accuracyM,
+      timestamp: fix.ts,
+      source: fix.source,
+      provider: fix.provider,
+    );
+    final next = CellMeta(
+      gps: gps,
+      photos: current?.photos ?? const <PhotoAttachment>[],
+      audios: current?.audios ?? const <AudioAttachment>[],
+    );
+    _setCellMetaEntry(r, c, next, markDirty: markDirty);
+  }
+
+  void _setCellMetaEntry(int r, int c, CellMeta meta,
+      {required bool markDirty}) {
+    final key = CellKey(r, c).toKey();
+    if (meta.isEmpty) {
+      _cellMeta.remove(key);
+    } else {
+      _cellMeta[key] = meta;
+    }
+
+    if (markDirty) {
+      _markDirty(snapshot: true);
+    } else {
+      _bumpGridVersion();
+    }
+  }
+
+  void _announceGpsSaved(_GpsFix fix,
+      {required CellKey cell, required bool wroteText}) {
+    final msg =
+        'GPS guardado en ${cell.a1}: ${formatLatLng(fix.lat, fix.lng)} ±${fix.accuracyM.toStringAsFixed(0)} m'
+        '${wroteText ? '' : ' (solo metadata)'}';
+    _engineStatus = msg;
+    _engineStatusIsError = false;
+    if (mounted) {
+      setState(() {});
+      _showSnack(msg, isError: false);
+    }
+    Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
       if (_engineStatus == msg) {
         setState(() => _engineStatus = null);
@@ -3195,16 +3872,36 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _showGpsError(_GpsOutcome outcome) {
+    final msg = (outcome.error ?? 'No se pudo obtener ubicación.').trim();
+    _engineStatus = msg;
+    _engineStatusIsError = true;
+    if (mounted) {
+      setState(() {});
+      _showSnack(
+        msg.isEmpty
+            ? 'No se pudo obtener ubicación. Ajustes > Safari > Ubicación.'
+            : msg,
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _openMapsForCell(int r, int c) async {
+    final meta = _cellMetaAt(r, c)?.gps;
     final txt = _getCellText(r, c);
-    if (txt.trim().isEmpty) return;
-
-    final m =
-    RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)').firstMatch(txt);
-    if (m == null) return;
-
-    final lat = double.tryParse(m.group(1) ?? '');
-    final lng = double.tryParse(m.group(2) ?? '');
+    double? lat;
+    double? lng;
+    if (meta != null) {
+      lat = meta.lat;
+      lng = meta.lng;
+    } else if (txt.trim().isNotEmpty) {
+      final m =
+          RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)').firstMatch(txt);
+      if (m == null) return;
+      lat = double.tryParse(m.group(1) ?? '');
+      lng = double.tryParse(m.group(2) ?? '');
+    }
     if (lat == null || lng == null) return;
 
     final uri =
@@ -3216,28 +3913,120 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Fotos -----------------------------------
 
-  void _handlePhotosCellTap(int r) {
+  void _handlePhotosCellTap(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
-    if (_rows[r].photos.isNotEmpty) {
-      _openPhotosSheet(r);
+    if (c < 0 || c >= _headers.length) return;
+
+    final photos = _cellMetaAt(r, c)?.photos ?? const <PhotoAttachment>[];
+    if (photos.isNotEmpty) {
+      _openPhotosSheetForCell(r, c);
       return;
     }
-    unawaited(_pickPhotoForRow(r));
+    unawaited(_pickPhotoForCell(r, c, fromCamera: _isAndroidDevice));
   }
 
-  void _startRowPhotoPickFromSheet(int r) {
+  void _startCellPhotoPickFromSheet(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
-    unawaited(_pickPhotoForRow(r).whenComplete(() {
+    if (c < 0 || c >= _headers.length) return;
+    unawaited(_pickPhotoForCell(r, c, fromCamera: _isAndroidDevice)
+        .whenComplete(() {
       if (!mounted) return;
       Navigator.of(context).maybePop();
     }));
   }
 
-  Future<void> _pickPhotoForRow(int r) async {
+  String _genAttachmentId(String prefix) {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final rand = math.Random().nextInt(1 << 32);
+    return '$prefix$now$rand';
+  }
+
+  String _photoStoredRefFrom(StoredPhoto stored) {
+    final path = stored.path.trim();
+    if (path.isNotEmpty) {
+      if (path.startsWith('key:') || path.startsWith('mem:')) {
+        return path;
+      }
+      return 'file:$path';
+    }
+    if (stored.dataB64.trim().isNotEmpty) {
+      return 'b64:${stored.dataB64}';
+    }
+    return '';
+  }
+
+  String _photoPathFromRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('key:')) return raw;
+    if (raw.startsWith('file:')) return raw.substring(5);
+    if (raw.startsWith('b64:')) return '';
+    if (raw.startsWith('data:')) return '';
+    final looksLikePath =
+        raw.contains('\\') || raw.contains('/') || raw.contains(':');
+    return looksLikePath ? raw : '';
+  }
+
+  String _photoDataFromRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('b64:')) return raw.substring(4);
+    if (raw.startsWith('data:')) return raw;
+    if (raw.startsWith('key:')) return '';
+    final looksLikePath =
+        raw.contains('\\') || raw.contains('/') || raw.contains(':');
+    return looksLikePath ? '' : raw;
+  }
+
+  String _photoStoredRefFromRowPhoto(_RowPhoto photo) {
+    if (photo.path.trim().isNotEmpty) {
+      return 'file:${photo.path}';
+    }
+    if (photo.dataB64.trim().isNotEmpty) {
+      return 'b64:${photo.dataB64}';
+    }
+    return '';
+  }
+
+  int _estimateB64Size(String raw) {
+    var s = raw.trim();
+    if (s.isEmpty) return 0;
+    if (s.startsWith('data:')) {
+      final comma = s.indexOf(',');
+      if (comma >= 0 && comma < s.length - 1) {
+        s = s.substring(comma + 1);
+      }
+    }
+    s = s.replaceAll(RegExp(r'\s+'), '');
+    if (s.isEmpty) return 0;
+    return ((s.length * 3) / 4).floor();
+  }
+
+  PhotoAttachment _photoAttachmentFromRowPhoto(_RowPhoto photo) {
+    final storedRef = _photoStoredRefFromRowPhoto(photo);
+    final size = photo.dataB64.trim().isNotEmpty
+        ? _estimateB64Size(photo.dataB64)
+        : 0;
+    return PhotoAttachment(
+      id: _genAttachmentId('ph_legacy_'),
+      filename: photo.name,
+      mime: photo.mime,
+      size: size,
+      storedRef: storedRef,
+      thumbRef: photo.thumbB64,
+      addedAt: photo.addedAt,
+      lat: photo.lat,
+      lon: photo.lng,
+      accuracyM: photo.accuracyM,
+      isLastKnown: photo.isLastKnown,
+    );
+  }
+
+  Future<void> _pickPhotoForCell(int r, int c,
+      {bool fromCamera = false}) async {
     if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
 
     try {
-      final result = _isAndroidDevice
+      final result = fromCamera
           ? await PhotoAcquireService.I.captureFromCamera()
           : await PhotoAcquireService.I.pickFromGallery();
       if (!mounted) return;
@@ -3257,109 +4046,198 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       if (stored == null) return;
 
-      final thumb =
-      _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
-      final b64 = base64Encode(thumb);
+      final thumbBytes =
+          _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
+      final thumbB64 = base64Encode(thumbBytes);
 
-      final fix = await _getGpsFixWithFallback(
-          timeout: const Duration(seconds: 8));
+      final fixOutcome =
+          await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
       if (!mounted) return;
 
-// ??? thumb runtime s?? (para visor), persistencia s??.
-      _rows[r].photos.add(
-        _RowPhoto(
-          name: result.name,
-          mime: result.mime,
-          thumbB64: b64,
-          addedAt: DateTime.now(),
-          path: stored.path,
-          lat: fix?.lat,
-          lng: fix?.lng,
-          accuracyM: fix?.accuracyM,
-          isLastKnown: fix?.isLastKnown ?? false,
-          dataB64: stored.dataB64,
-        ),
-      );
-
-      _markDirty(snapshot: true);
-    } catch (_) {}
-  }
-
-  Future<void> _pickPhotoFromGalleryForRow(int r) async {
-    if (r < 0 || r >= _rows.length) return;
-
-    try {
-      final result = await PhotoAcquireService.I.pickFromGallery();
-      if (!mounted) return;
-      if (result == null) {
-        if (kDebugMode) {
-          debugPrint('[photo] picker cancelled or blocked.');
-        }
-        return;
-      }
-
-      final stored = await _photoStore.savePhoto(
-        sheetId: widget.sheetId,
-        bytes: result.bytes,
-        originalName: result.name,
+      final attachment = PhotoAttachment(
+        id: _genAttachmentId('ph_'),
+        filename: result.name,
         mime: result.mime,
-      );
-      if (!mounted) return;
-      if (stored == null) return;
-
-      final thumb =
-      _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
-      final b64 = base64Encode(thumb);
-
-      final fix = await _getGpsFixWithFallback(
-          timeout: const Duration(seconds: 8));
-      if (!mounted) return;
-
-      _rows[r].photos.add(
-        _RowPhoto(
-          name: result.name,
-          mime: result.mime,
-          thumbB64: b64,
-          addedAt: DateTime.now(),
-          path: stored.path,
-          lat: fix?.lat,
-          lng: fix?.lng,
-          accuracyM: fix?.accuracyM,
-          isLastKnown: fix?.isLastKnown ?? false,
-          dataB64: stored.dataB64,
-        ),
+        size: result.bytes.lengthInBytes,
+        storedRef: _photoStoredRefFrom(stored),
+        thumbRef: thumbB64,
+        addedAt: DateTime.now(),
+        lat: fixOutcome.fix?.lat,
+        lon: fixOutcome.fix?.lng,
+        accuracyM: fixOutcome.fix?.accuracyM,
+        isLastKnown: fixOutcome.fix?.source == 'lastKnown',
       );
 
-      _markDirty(snapshot: true);
+      _addPhotoToCell(r, c, attachment);
     } catch (_) {}
   }
 
-  Future<void> _deletePhotoFromRow(int r, int index) async {
-    if (r < 0 || r >= _rows.length) return;
-    if (index < 0 || index >= _rows[r].photos.length) return;
-    final photo = _rows[r].photos[index];
-    _rows[r].photos.removeAt(index);
-    await _photoStore.deletePhoto(photo.path);
-    if (!mounted) return;
-    _markDirty(snapshot: true);
+  void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    final photos = <PhotoAttachment>[
+      ...?current?.photos,
+      attachment,
+    ];
+    final next = CellMeta(
+      gps: current?.gps,
+      photos: photos,
+      audios: current?.audios ?? const <AudioAttachment>[],
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
   }
 
-  void _openPhotosSheet(int r) {
+  Future<void> _deletePhotoFromCell(int r, int c, int index) async {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    if (current == null) return;
+    if (index < 0 || index >= current.photos.length) return;
+    final photo = current.photos[index];
+    final nextPhotos = List<PhotoAttachment>.from(current.photos)
+      ..removeAt(index);
+    final next = CellMeta(
+      gps: current.gps,
+      photos: nextPhotos,
+      audios: current.audios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+
+    final path = _photoPathFromRef(photo.storedRef);
+    if (path.trim().isNotEmpty) {
+      await _photoStore.deletePhoto(path);
+    }
+  }
+
+  Future<void> _renamePhotoOnCell(
+    BuildContext context,
+    int r,
+    int c,
+    int index,
+  ) async {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    if (current == null) return;
+    if (index < 0 || index >= current.photos.length) return;
+
+    final original = current.photos[index];
+    final controller = TextEditingController(text: original.filename);
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Renombrar foto'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Nombre'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted) return;
+    final nextName = (picked ?? '').trim();
+    if (nextName.isEmpty || nextName == original.filename) return;
+
+    final updated = original.copyWith(filename: nextName);
+    final nextPhotos = List<PhotoAttachment>.from(current.photos);
+    nextPhotos[index] = updated;
+    final next = CellMeta(
+      gps: current.gps,
+      photos: nextPhotos,
+      audios: current.audios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+  }
+
+  Future<Uint8List?> _loadPhotoBytesFromAttachment(
+    PhotoAttachment photo, {
+    bool preferThumb = false,
+  }) async {
+    final path = _photoPathFromRef(photo.storedRef);
+    final data = _photoDataFromRef(photo.storedRef);
+    final thumb = photo.thumbRef;
+    return PhotoBytesResolver.resolve(
+      path: preferThumb ? '' : path,
+      dataB64: preferThumb ? '' : data,
+      thumbB64: thumb,
+      readFromPath: _photoStore.readPhotoBytes,
+      debugTag: photo.filename,
+    );
+  }
+
+  Future<void> _openPhotoPreview(
+    BuildContext context,
+    PhotoAttachment photo,
+  ) async {
+    final bytes = await _loadPhotoBytesFromAttachment(photo);
+    if (!context.mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      _showSnack('No se pudo cargar la foto.', isError: true);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return Dialog(
+          backgroundColor: pal.menuBg,
+          insetPadding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4,
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              Positioned(
+                right: 8,
+                top: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  icon: Icon(Icons.close_rounded, color: pal.fg),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openPhotosSheetForCell(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
-    final photos = _rows[r].photos;
+    if (c < 0 || c >= _headers.length) return;
+    final photos = _cellMetaAt(r, c)?.photos ?? const <PhotoAttachment>[];
     if (photos.isEmpty) return;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        final pal = _palette(ctx);
         return SafeArea(
           top: false,
           child: Container(
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _palette(ctx).menuBg,
+              color: pal.menuBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -3368,17 +4246,16 @@ class _EditorScreenState extends State<EditorScreen>
                 Row(
                   children: [
                     Text(
-                      'Fotos - Fila ${r + 1}',
+                      'Fotos - ${CellKey(r, c).a1}',
                       style: TextStyle(
-                        color: _palette(ctx).fg,
+                        color: pal.fg,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      icon: Icon(Icons.close_rounded,
-                          color: _palette(ctx).fgMuted),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
                     ),
                   ],
                 ),
@@ -3390,62 +4267,415 @@ class _EditorScreenState extends State<EditorScreen>
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (ctx2, idx) {
                       final p = photos[idx];
+                      return InkWell(
+                        onTap: () => unawaited(_openPhotoPreview(ctx2, p)),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: pal.headerBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: pal.border, width: pal.hairline),
+                          ),
+                          child: Row(
+                            children: [
+                              if (p.thumbRef.isNotEmpty &&
+                                  _tryDecodeB64(p.thumbRef) != null)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    _tryDecodeB64(p.thumbRef)!,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.low,
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: pal.cellBg,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: pal.border,
+                                        width: pal.hairline),
+                                  ),
+                                  child:
+                                      Icon(Icons.photo, color: pal.fgMuted),
+                                ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p.filename,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: pal.fg,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      p.addedAt.toIso8601String(),
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => unawaited(
+                                    _renamePhotoOnCell(ctx2, r, c, idx)),
+                                icon: Icon(Icons.edit_rounded,
+                                    color: pal.fgMuted),
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  Navigator.of(ctx2).pop();
+                                  unawaited(_deletePhotoFromCell(r, c, idx));
+                                },
+                                icon: Icon(Icons.delete_outline_rounded,
+                                    color: pal.fgMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+// ------------------------------ Audio -----------------------------------
+
+  String _audioStoredRefFrom(StoredAudio stored) {
+    final key = stored.storageKey.trim();
+    if (key.isEmpty) return '';
+    if (key.startsWith('file:') || key.startsWith('key:')) return key;
+    final looksLikePath =
+        key.contains('\\') || key.contains('/') || key.contains(':');
+    return looksLikePath ? 'file:$key' : 'key:$key';
+  }
+
+  String _audioKeyFromRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('file:')) return raw.substring(5);
+    if (raw.startsWith('key:')) return raw.substring(4);
+    return raw;
+  }
+
+  bool _audioIsFileRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('file:')) return true;
+    if (raw.startsWith('key:')) return false;
+    return raw.contains('\\') || raw.contains('/') || raw.contains(':');
+  }
+
+  String _formatDuration(Duration d) {
+    final totalSec = d.inSeconds;
+    final min = (totalSec ~/ 60).toString().padLeft(2, '0');
+    final sec = (totalSec % 60).toString().padLeft(2, '0');
+    return '$min:$sec';
+  }
+
+  Future<void> _startAudioRecordingForCell(int r, int c) async {
+    if (_audioRecording) {
+      final cell = _recordingAudioCell;
+      final label = cell == null ? '' : ' (${cell.a1})';
+      _showSnack('Ya hay una grabación en curso$label.', isError: false);
+      return;
+    }
+
+    final supported = await _audioService.isSupported();
+    if (!mounted) return;
+    if (!supported) {
+      _showSnack('Grabación de audio no disponible.', isError: true);
+      return;
+    }
+
+    try {
+      await _audioService.startRecording(sheetId: widget.sheetId);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('No se pudo iniciar la grabación.', isError: true);
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _audioRecording = true;
+      _recordingAudioCell = CellKey(r, c);
+    });
+    _showSnack('Grabando audio en ${CellKey(r, c).a1}...', isError: false);
+  }
+
+  Future<void> _stopAudioRecording() async {
+    if (!_audioRecording) return;
+    final target = _recordingAudioCell;
+    final recording = await _audioService.stopRecording();
+    if (!mounted) return;
+
+    setState(() {
+      _audioRecording = false;
+      _recordingAudioCell = null;
+    });
+
+    if (recording == null || target == null) {
+      _showSnack('No se guardó el audio.', isError: true);
+      return;
+    }
+
+    final stored = await _audioStore.saveRecording(
+      sheetId: widget.sheetId,
+      recording: recording,
+    );
+    if (!mounted) return;
+    if (stored == null) {
+      _showSnack('No se pudo guardar el audio.', isError: true);
+      return;
+    }
+
+    final attachment = AudioAttachment(
+      id: _genAttachmentId('au_'),
+      filename: recording.fileName,
+      mime: recording.mime,
+      size: stored.bytesLength,
+      durationMs: recording.duration.inMilliseconds,
+      storedRef: _audioStoredRefFrom(stored),
+      addedAt: DateTime.now(),
+    );
+
+    _addAudioToCell(target.row, target.col, attachment);
+    _showSnack('Audio guardado en ${target.a1}.', isError: false);
+  }
+
+  void _addAudioToCell(int r, int c, AudioAttachment attachment) {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    final audios = <AudioAttachment>[
+      ...?current?.audios,
+      attachment,
+    ];
+    final next = CellMeta(
+      gps: current?.gps,
+      photos: current?.photos ?? const <PhotoAttachment>[],
+      audios: audios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+  }
+
+  Future<void> _deleteAudioFromCell(int r, int c, int index) async {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    if (current == null) return;
+    if (index < 0 || index >= current.audios.length) return;
+    final audio = current.audios[index];
+    final nextAudios = List<AudioAttachment>.from(current.audios)
+      ..removeAt(index);
+    final next = CellMeta(
+      gps: current.gps,
+      photos: current.photos,
+      audios: nextAudios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+
+    if (_playingAudioId == audio.id) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _playingAudioId = null);
+    }
+
+    final keyRef = _audioKeyFromRef(audio.storedRef);
+    if (keyRef.trim().isNotEmpty) {
+      await _audioStore.deleteAudio(keyRef);
+    }
+  }
+
+  Future<void> _renameAudioOnCell(
+    BuildContext context,
+    int r,
+    int c,
+    int index,
+  ) async {
+    final key = CellKey(r, c).toKey();
+    final current = _cellMeta[key];
+    if (current == null) return;
+    if (index < 0 || index >= current.audios.length) return;
+
+    final original = current.audios[index];
+    final controller = TextEditingController(text: original.filename);
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Renombrar audio'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Nombre'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted) return;
+    final nextName = (picked ?? '').trim();
+    if (nextName.isEmpty || nextName == original.filename) return;
+
+    final updated = original.copyWith(filename: nextName);
+    final nextAudios = List<AudioAttachment>.from(current.audios);
+    nextAudios[index] = updated;
+    final next = CellMeta(
+      gps: current.gps,
+      photos: current.photos,
+      audios: nextAudios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+  }
+
+  Future<void> _playAudioAttachment(AudioAttachment audio) async {
+    if (_audioRecording) {
+      _showSnack('Detén la grabación para reproducir.', isError: false);
+      return;
+    }
+
+    if (_playingAudioId == audio.id) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _playingAudioId = null);
+      return;
+    }
+
+    await _audioPlayer.stop();
+    if (!mounted) return;
+
+    final keyRef = _audioKeyFromRef(audio.storedRef);
+    if (keyRef.trim().isEmpty) return;
+
+    if (_audioIsFileRef(audio.storedRef) && !kIsWeb) {
+      await _audioPlayer.play(DeviceFileSource(keyRef));
+    } else {
+      final bytes = await _audioStore.readAudioBytes(keyRef);
+      if (bytes == null || bytes.isEmpty) return;
+      await _audioPlayer.play(BytesSource(bytes));
+    }
+
+    if (!mounted) return;
+    setState(() => _playingAudioId = audio.id);
+  }
+
+  void _openAudiosSheetForCell(int r, int c) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    final audios = _cellMetaAt(r, c)?.audios ?? const <AudioAttachment>[];
+    if (audios.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Audios - ${CellKey(r, c).a1}',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: audios.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx2, idx) {
+                      final a = audios[idx];
+                      final playing = _playingAudioId == a.id;
                       return Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: _palette(ctx2).headerBg,
+                          color: pal.headerBg,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: _palette(ctx2).border,
-                              width: _palette(ctx2).hairline),
+                              color: pal.border, width: pal.hairline),
                         ),
                         child: Row(
                           children: [
-                            if (p.thumbB64.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.memory(
-                                  base64Decode(p.thumbB64),
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  filterQuality: FilterQuality.low,
-                                ),
-                              )
-                            else
-                              Container(
-                                width: 48,
-                                height: 48,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _palette(ctx2).cellBg,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: _palette(ctx2).border,
-                                      width: _palette(ctx2).hairline),
-                                ),
-                                child: Icon(Icons.photo,
-                                    color: _palette(ctx2).fgMuted),
+                            IconButton(
+                              onPressed: () => unawaited(_playAudioAttachment(a)),
+                              icon: Icon(
+                                playing
+                                    ? Icons.stop_circle_rounded
+                                    : Icons.play_circle_fill_rounded,
+                                color: pal.accent,
                               ),
-                            const SizedBox(width: 10),
+                            ),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    p.name,
+                                    a.filename,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: _palette(ctx2).fg,
+                                      color: pal.fg,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    p.addedAt.toIso8601String(),
+                                    _formatDuration(
+                                      Duration(milliseconds: a.durationMs),
+                                    ),
                                     style: TextStyle(
-                                      color: _palette(ctx2).fgMuted,
+                                      color: pal.fgMuted,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -3453,12 +4683,18 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             ),
                             IconButton(
+                              onPressed: () => unawaited(
+                                  _renameAudioOnCell(ctx2, r, c, idx)),
+                              icon: Icon(Icons.edit_rounded,
+                                  color: pal.fgMuted),
+                            ),
+                            IconButton(
                               onPressed: () {
                                 Navigator.of(ctx2).pop();
-                                unawaited(_deletePhotoFromRow(r, idx));
+                                unawaited(_deleteAudioFromCell(r, c, idx));
                               },
                               icon: Icon(Icons.delete_outline_rounded,
-                                  color: _palette(ctx2).fgMuted),
+                                  color: pal.fgMuted),
                             ),
                           ],
                         ),
@@ -3503,7 +4739,7 @@ class _EditorScreenState extends State<EditorScreen>
               ListTile(
                 leading: const Icon(Icons.ios_share_rounded),
                 title: const Text('Exportar / Compartir'),
-                onTap: () => runAndClose(() => unawaited(_exportXlsx())),
+                onTap: () => runAndClose(() => unawaited(_openExportMenu())),
               ),
               ListTile(
                 leading: const Icon(Icons.add_rounded),
@@ -3529,9 +4765,10 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               ListTile(
                 leading: const Icon(Icons.functions_rounded),
-                title: const Text('Calcular'),
-                enabled: _engineHasBase && !_engineBusy,
-                onTap: (_engineHasBase && !_engineBusy)
+                title:
+                    Text(_engineHasBase ? 'Calcular' : 'Calcular (local)'),
+                enabled: !_engineBusy,
+                onTap: !_engineBusy
                     ? () => runAndClose(
                         () => unawaited(_computeEngine()),
                       )
@@ -3566,66 +4803,65 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-// ------------------------------ Export XLSX -----------------------------
+// ------------------------------ Export/Share -----------------------------
 
-  Future<void> _exportXlsx() async {
-    try {
-      final photoItems = _collectPhotoItems();
-      final photosByRow = await _loadPhotoBytesByRow(photoItems);
-      final dataCols = math.max(0, _headers.length - 1); // sin Photos
-      final columns =
-          List<String>.generate(dataCols, (i) => _headerLabel(i));
-      final rows = <List<String>>[];
-      for (final row in _rows) {
-        final values = List<String>.filled(dataCols, '');
-        for (int c = 0; c < dataCols && c < row.cells.length; c++) {
-          values[c] = row.cells[c];
+  Future<void> _openExportMenu() async {
+    if (!mounted) return;
+    final pal = _palette(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: pal.menuBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      showDragHandle: true,
+      builder: (ctx) {
+        Future<void> runAndClose(Future<void> Function() fn) async {
+          Navigator.of(ctx).pop();
+          await fn();
         }
-        rows.add(values);
-      }
 
-      final gpsByRow = <GpsExport?>[];
-      bool hasGps = false;
-      for (final row in _rows) {
-        final gps = GpsExport(
-          lat: row.gpsLat,
-          lng: row.gpsLng,
-          accuracy: row.gpsAccuracyM,
-          ts: row.gpsTs,
-          isLastKnown: row.gpsIsLastKnown,
-        );
-        if (gps.hasFix) hasGps = true;
-        gpsByRow.add(gps);
-      }
-
-      final photoMeta = photoItems.isEmpty
-          ? null
-          : photoItems
-              .map(
-                (item) => PhotoMeta(
-                  rowIndex: item.row,
-                  colIndex: item.col,
-                  photoIndex: item.indexInRow,
-                  addedAt: item.photo.addedAt,
-                  sourceLabel: item.sourceLabel,
-                  lat: item.lat,
-                  lng: item.lng,
-                  accuracy: item.accuracy,
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.table_view_rounded),
+                title: const Text('Exportar XLSX'),
+                onTap: () => runAndClose(_exportXlsxOnly),
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_zip_rounded),
+                title: const Text('Exportar ZIP (adjuntos)'),
+                onTap: () => runAndClose(
+                  () => _exportZipBundle(share: false),
                 ),
-              )
-              .toList(growable: false);
+              ),
+              ListTile(
+                leading: const Icon(Icons.ios_share_rounded),
+                title: const Text('Compartir ZIP'),
+                onTap: () => runAndClose(
+                  () => _exportZipBundle(share: true),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-      final xlsxBytes = await buildXlsxWithPhotos(
-        columns: columns,
-        rows: rows,
-        photosByRow: photosByRow,
-        gpsByRow: hasGps ? gpsByRow : null,
-        photoMeta: photoMeta,
-        sheetName: _sheetName,
-        includeIndexColumn: false,
-        includeCoverSheet: true,
-        includeSummarySheet: true,
+  Future<void> _exportXlsxOnly() async {
+    try {
+      final prep = await _prepareExportPayload(includeZip: false);
+      if (!mounted) return;
+
+      final xlsxBytes = await _buildXlsxBytesForExport(
+        embeddedPhotos: prep.embeddedPhotos,
+        attachments: prep.attachments,
       );
+      if (!mounted || xlsxBytes == null) return;
 
       final now = DateTime.now();
       final baseName =
@@ -3636,101 +4872,385 @@ class _EditorScreenState extends State<EditorScreen>
         mime:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: xlsxBytes,
+        share: false,
       );
     } catch (_) {}
   }
 
-  List<_PhotoExportItem> _collectPhotoItems() {
-    final out = <_PhotoExportItem>[];
-    for (int r = 0; r < _rows.length; r++) {
-      final row = _rows[r];
-      for (int i = 0; i < row.photos.length; i++) {
-        out.add(_PhotoExportItem(
-          row: r,
-          col: _headers.length - 1,
-          indexInRow: i,
-          photo: row.photos[i],
-          rowLat: row.gpsLat,
-          rowLng: row.gpsLng,
-          rowAccuracy: row.gpsAccuracyM,
-          rowIsLastKnown: row.gpsIsLastKnown,
-        ));
+  Future<void> _exportZipBundle({required bool share}) async {
+    try {
+      final prep = await _prepareExportPayload(includeZip: true);
+      if (!mounted) return;
+
+      final xlsxBytes = await _buildXlsxBytesForExport(
+        embeddedPhotos: prep.embeddedPhotos,
+        attachments: prep.attachments,
+      );
+      if (!mounted || xlsxBytes == null) return;
+
+      final zipBytes = await _buildAttachmentsZip(
+        xlsxBytes: xlsxBytes,
+        photoItems: prep.photoItems,
+        audioItems: prep.audioItems,
+        manifest: prep.manifest,
+      );
+      if (!mounted || zipBytes == null) return;
+
+      final now = DateTime.now();
+      final baseName =
+          '${_safeFile(_sheetName)}_bitacora_pro_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
+
+      await _saveExportBytes(
+        name: '$baseName.zip',
+        mime: 'application/zip',
+        bytes: zipBytes,
+        share: share,
+      );
+    } catch (_) {}
+  }
+
+  Future<Uint8List?> _buildXlsxBytesForExport({
+    required List<EmbeddedPhoto> embeddedPhotos,
+    required List<AttachmentRow> attachments,
+  }) async {
+    final dataCols = math.max(0, _headers.length - 1); // sin Photos
+    final columns =
+        List<String>.generate(dataCols, (i) => _headerLabel(i));
+    final rows = <List<String>>[];
+    for (final row in _rows) {
+      final values = List<String>.filled(dataCols, '');
+      for (int c = 0; c < dataCols && c < row.cells.length; c++) {
+        values[c] = row.cells[c];
+      }
+      rows.add(values);
+    }
+
+    return buildXlsxWithPhotos(
+      columns: columns,
+      rows: rows,
+      embeddedPhotos: embeddedPhotos,
+      attachments: attachments,
+      sheetName: _sheetName,
+      includeIndexColumn: false,
+      includeCoverSheet: true,
+      includeSummarySheet: true,
+    );
+  }
+
+  Future<_ExportPrep> _prepareExportPayload({required bool includeZip}) async {
+    final attachments = <AttachmentRow>[];
+    final embeddedPhotos = <EmbeddedPhoto>[];
+    final photoItems = <_ZipPhotoItem>[];
+    final audioItems = <_ZipAudioItem>[];
+    final manifestCells = <String, Map<String, dynamic>>{};
+    final dataCols = math.max(0, _headers.length - 1);
+
+    final entries = _cellMeta.entries.toList();
+    entries.sort((a, b) {
+      final ca = CellKey.fromKey(a.key);
+      final cb = CellKey.fromKey(b.key);
+      if (ca == null && cb == null) return 0;
+      if (ca == null) return 1;
+      if (cb == null) return -1;
+      final r = ca.row.compareTo(cb.row);
+      if (r != 0) return r;
+      return ca.col.compareTo(cb.col);
+    });
+
+    for (final entry in entries) {
+      final cell = CellKey.fromKey(entry.key);
+      if (cell == null) continue;
+      final meta = entry.value;
+      if (meta.isEmpty) continue;
+      final cellRef = cell.a1;
+      final cellManifest = <String, dynamic>{};
+
+      if (meta.gps != null) {
+        final gps = meta.gps!;
+        attachments.add(
+          AttachmentRow(
+            cellRef: cellRef,
+            type: 'gps',
+            fileName: '',
+            notes: _gpsNotes(gps),
+            relativePath: '',
+          ),
+        );
+        if (includeZip) {
+          cellManifest['gps'] = gps.toJson();
+        }
+      }
+
+      if (meta.photos.isNotEmpty) {
+        final manifestPhotos = <Map<String, dynamic>>[];
+        for (int i = 0; i < meta.photos.length; i++) {
+          final photo = meta.photos[i];
+          final fileName =
+              _exportPhotoFileName(cellRef, photo, index: i + 1);
+          final relPath = 'attachments/photos/$fileName';
+
+          attachments.add(
+            AttachmentRow(
+              cellRef: cellRef,
+              type: 'photo',
+              fileName: fileName,
+              notes: _photoNotes(photo),
+              relativePath: relPath,
+            ),
+          );
+
+          if (i == 0 && cell.col >= 0 && cell.col < dataCols) {
+            final bytes = await _loadPhotoBytesFromAttachment(photo);
+            if (bytes != null && bytes.isNotEmpty) {
+              embeddedPhotos.add(
+                EmbeddedPhoto(
+                  rowIndex: cell.row,
+                  colIndex: cell.col,
+                  bytes: _resizeForExport(bytes),
+                ),
+              );
+            }
+          }
+
+          if (includeZip) {
+            photoItems.add(_ZipPhotoItem(
+              cell: cell,
+              photo: photo,
+              fileName: fileName,
+              pathInZip: relPath,
+            ));
+            manifestPhotos.add({
+              'id': photo.id,
+              'fileName': fileName,
+              'mime': photo.mime,
+              'size': photo.size,
+              'path': relPath,
+              'addedAt': photo.addedAt.toIso8601String(),
+            });
+          }
+        }
+        if (includeZip && manifestPhotos.isNotEmpty) {
+          cellManifest['photos'] = manifestPhotos;
+        }
+      }
+
+      if (meta.audios.isNotEmpty) {
+        final manifestAudios = <Map<String, dynamic>>[];
+        for (int i = 0; i < meta.audios.length; i++) {
+          final audio = meta.audios[i];
+          final fileName =
+              _exportAudioFileName(cellRef, audio, index: i + 1);
+          final relPath = 'attachments/audio/$fileName';
+
+          attachments.add(
+            AttachmentRow(
+              cellRef: cellRef,
+              type: 'audio',
+              fileName: fileName,
+              notes: _audioNotes(audio),
+              relativePath: relPath,
+            ),
+          );
+
+          if (includeZip) {
+            audioItems.add(_ZipAudioItem(
+              cell: cell,
+              audio: audio,
+              fileName: fileName,
+              pathInZip: relPath,
+            ));
+            manifestAudios.add({
+              'id': audio.id,
+              'fileName': fileName,
+              'mime': audio.mime,
+              'size': audio.size,
+              'durationMs': audio.durationMs,
+              'path': relPath,
+              'addedAt': audio.addedAt.toIso8601String(),
+            });
+          }
+        }
+        if (includeZip && manifestAudios.isNotEmpty) {
+          cellManifest['audios'] = manifestAudios;
+        }
+      }
+
+      if (includeZip && cellManifest.isNotEmpty) {
+        manifestCells[cellRef] = cellManifest;
       }
     }
-    return out;
+
+    final manifest = includeZip
+        ? <String, dynamic>{
+            'sheet': {
+              'name': _sheetName,
+              'exportedAt': DateTime.now().toIso8601String(),
+            },
+            'cells': manifestCells,
+          }
+        : const <String, dynamic>{};
+
+    return _ExportPrep(
+      attachments: attachments,
+      embeddedPhotos: embeddedPhotos,
+      photoItems: photoItems,
+      audioItems: audioItems,
+      manifest: manifest,
+    );
   }
 
-  Future<Map<int, List<Uint8List>>> _loadPhotoBytesByRow(
-    List<_PhotoExportItem> photoItems,
-  ) async {
-    final Map<int, List<Uint8List>> out = {};
-    for (final item in photoItems) {
-      final bytes = await _loadPhotoBytes(item.photo);
-      final list = out.putIfAbsent(item.row, () => <Uint8List>[]);
-      list.add(bytes ?? Uint8List(0));
-    }
-    return out;
-  }
-
-  String _photoExportName(_RowPhoto photo, int row, int idx) {
-    final base = _safeFile(photo.name.isNotEmpty ? photo.name : 'photo');
-    if (base.trim().isEmpty) {
-      return 'photo_${row + 1}_$idx.jpg';
-    }
-    return '${row + 1}_${idx}_$base';
-  }
-
-  Future<Uint8List?> _buildPhotosZip({
+  Future<Uint8List?> _buildAttachmentsZip({
     required Uint8List xlsxBytes,
-    required List<_PhotoExportItem> photoItems,
+    required List<_ZipPhotoItem> photoItems,
+    required List<_ZipAudioItem> audioItems,
+    required Map<String, dynamic> manifest,
   }) async {
     final archive = Archive();
-    archive.addFile(ArchiveFile('sheet.xlsx', xlsxBytes.length, xlsxBytes));
+    archive.addFile(ArchiveFile('Sheet.xlsx', xlsxBytes.length, xlsxBytes));
 
-    final manifestLines = <String>[
-      'row,col,file,added_at,lat,lon,accuracy,source,zip_path'
-    ];
-
-    for (int i = 0; i < photoItems.length; i++) {
-      final item = photoItems[i];
-      final bytes = await _loadPhotoBytes(item.photo);
-      if (bytes == null) continue;
-      final fileName = _photoExportName(item.photo, item.row, i);
-      final pathInZip = 'photos/$fileName';
-      archive.addFile(ArchiveFile(pathInZip, bytes.length, bytes));
-
-      final lat = item.lat;
-      final lng = item.lng;
-      final acc = item.accuracy;
-      final source = item.sourceLabel;
-      manifestLines.add(
-          '${item.row + 1},${item.col + 1},$fileName,${item.photo.addedAt.toIso8601String()},${lat ?? ''},${lng ?? ''},${acc ?? ''},$source,$pathInZip');
+    for (final item in photoItems) {
+      final bytes = await _loadPhotoBytesFromAttachment(item.photo);
+      if (bytes == null || bytes.isEmpty) continue;
+      archive.addFile(
+        ArchiveFile(item.pathInZip, bytes.length, bytes),
+      );
     }
 
-    final manifest = manifestLines.join('\\n');
-    final manifestBytes = Uint8List.fromList(utf8.encode(manifest));
+    for (final item in audioItems) {
+      final bytes = await _loadAudioBytesFromAttachment(item.audio);
+      if (bytes == null || bytes.isEmpty) continue;
+      archive.addFile(
+        ArchiveFile(item.pathInZip, bytes.length, bytes),
+      );
+    }
+
+    final manifestBytes =
+        Uint8List.fromList(utf8.encode(jsonEncode(manifest)));
     archive.addFile(
-        ArchiveFile('manifest.csv', manifestBytes.length, manifestBytes));
+        ArchiveFile('manifest.json', manifestBytes.length, manifestBytes));
 
     final encoder = ZipEncoder();
     final zipData = encoder.encode(archive);
     return Uint8List.fromList(zipData);
   }
 
-  Future<Uint8List?> _loadPhotoBytes(_RowPhoto photo) async {
-    return PhotoBytesResolver.resolve(
-      path: photo.path,
-      dataB64: photo.dataB64,
-      thumbB64: photo.thumbB64,
-      readFromPath: _photoStore.readPhotoBytes,
-      debugTag: 'row_photo',
-    );
+  String _exportPhotoFileName(
+    String cellRef,
+    PhotoAttachment photo, {
+    required int index,
+  }) {
+    final base = _safeFile(photo.filename.isNotEmpty ? photo.filename : 'foto');
+    final ext = _extForName(base, photo.mime, fallback: '.jpg');
+    final stem = _stripExt(base);
+    return '${cellRef}_p${index}_$stem$ext';
+  }
+
+  String _exportAudioFileName(
+    String cellRef,
+    AudioAttachment audio, {
+    required int index,
+  }) {
+    final base =
+        _safeFile(audio.filename.isNotEmpty ? audio.filename : 'audio');
+    final ext = _extForName(base, audio.mime, fallback: '.m4a');
+    final stem = _stripExt(base);
+    return '${cellRef}_a${index}_$stem$ext';
+  }
+
+  String _stripExt(String name) {
+    final idx = name.lastIndexOf('.');
+    if (idx <= 0) return name;
+    return name.substring(0, idx);
+  }
+
+  String _extForName(String name, String mime, {required String fallback}) {
+    final lower = name.toLowerCase();
+    final idx = lower.lastIndexOf('.');
+    if (idx >= 0 && idx < lower.length - 1) {
+      return lower.substring(idx);
+    }
+    final m = mime.toLowerCase();
+    if (m.contains('png')) return '.png';
+    if (m.contains('webp')) return '.webp';
+    if (m.contains('jpeg') || m.contains('jpg')) return '.jpg';
+    if (m.contains('wav')) return '.wav';
+    if (m.contains('mp3') || m.contains('mpeg')) return '.mp3';
+    if (m.contains('ogg')) return '.ogg';
+    if (m.contains('m4a')) return '.m4a';
+    return fallback;
+  }
+
+  String _gpsNotes(GpsMeta gps) {
+    return 'lat=${gps.lat.toStringAsFixed(6)}; '
+        'lon=${gps.lng.toStringAsFixed(6)}; '
+        'acc=${gps.accuracyM.toStringAsFixed(0)}m; '
+        'ts=${gps.timestamp.toIso8601String()}; '
+        'source=${gps.source}; '
+        'provider=${gps.provider}';
+  }
+
+  String _photoNotes(PhotoAttachment photo) {
+    final parts = <String>[
+      'addedAt=${photo.addedAt.toIso8601String()}',
+      'size=${_formatBytes(photo.size)}',
+    ];
+    if (photo.lat != null && photo.lon != null) {
+      parts.add(
+          'lat=${photo.lat!.toStringAsFixed(6)} lon=${photo.lon!.toStringAsFixed(6)}');
+    }
+    if (photo.accuracyM != null) {
+      parts.add('acc=${photo.accuracyM!.toStringAsFixed(0)}m');
+    }
+    return parts.join('; ');
+  }
+
+  String _audioNotes(AudioAttachment audio) {
+    return 'addedAt=${audio.addedAt.toIso8601String()}; '
+        'duration=${_formatDuration(Duration(milliseconds: audio.durationMs))}; '
+        'size=${_formatBytes(audio.size)}';
+  }
+
+  Future<Uint8List?> _loadAudioBytesFromAttachment(AudioAttachment audio) async {
+    final key = _audioKeyFromRef(audio.storedRef);
+    if (key.trim().isEmpty) return null;
+    return _audioStore.readAudioBytes(key);
+  }
+
+  Uint8List _resizeForExport(Uint8List bytes) {
+    const maxSide = 1280;
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return bytes;
+      final oriented = img.bakeOrientation(decoded);
+      if (oriented.width <= maxSide && oriented.height <= maxSide) {
+        return bytes;
+      }
+      final resized = img.copyResize(
+        oriented,
+        width: oriented.width > oriented.height ? maxSide : null,
+        height: oriented.height >= oriented.width ? maxSide : null,
+        interpolation: img.Interpolation.average,
+      );
+      final jpg = img.encodeJpg(resized, quality: 86);
+      return Uint8List.fromList(jpg);
+    } catch (_) {
+      return bytes;
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    const kb = 1024;
+    const mb = 1024 * 1024;
+    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(1)} MB';
+    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    return '$bytes B';
   }
 
   Future<void> _saveExportBytes({
     required String name,
     required String mime,
     required Uint8List bytes,
+    required bool share,
   }) async {
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
 
@@ -3744,10 +5264,17 @@ class _EditorScreenState extends State<EditorScreen>
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS)) {
-      try {
-        await Share.shareXFiles([xf], subject: 'BitFlow Export');
-        return;
-      } catch (_) {}
+      if (share) {
+        try {
+          await Share.shareXFiles([xf], subject: 'BitFlow Export');
+          return;
+        } catch (_) {}
+      } else {
+        try {
+          await Share.shareXFiles([xf], subject: 'BitFlow Export');
+          return;
+        } catch (_) {}
+      }
     }
 
     final typeGroup = XTypeGroup(
@@ -3766,7 +5293,6 @@ class _EditorScreenState extends State<EditorScreen>
     final t = s.trim().isEmpty ? 'Sheet' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
-
 // ------------------------------ Engine compute (opcional) ----------------
 
   Future<void> _initEngineConnection() async {
@@ -3792,6 +5318,9 @@ class _EditorScreenState extends State<EditorScreen>
             _engineStatus = null;
             _engineStatusIsError = false;
           }
+          _engineLastOk = false;
+          _engineLastError = 'URL invalida o vacia';
+          _engineLastCheckAt = DateTime.now();
         });
       }
       return false;
@@ -3801,21 +5330,44 @@ class _EditorScreenState extends State<EditorScreen>
       debugPrint('[engine] base url: $base');
     }
 
-    final ok = await _checkEngineHealth(base);
-    if (!mounted) return ok;
-    setState(() {
-      if (!ok) {
-        _engineStatus = showErrors
-            ? 'Engine offline o URL invalida. Revisa tunel/IP.'
-            : null;
-        _engineStatusIsError = showErrors;
-      } else {
-        _engineStatus = null;
+    try {
+      await _engineApi.ensureHealthyBase(
+        base,
+        paths: const ['/health', '/healthz', '/readyz', '/openapi.json', '/'],
+        timeout: const Duration(seconds: 8),
+      );
+      if (!mounted) return true;
+      setState(() {
+        _engineStatus = showErrors ? 'Engine OK' : null;
         _engineStatusIsError = false;
+        _engineLastOk = true;
+        _engineLastError = null;
+        _engineLastCheckAt = DateTime.now();
+      });
+      if (showErrors) {
+        _showSnack('Engine listo', isError: false);
       }
-    });
-
-    return ok;
+      return true;
+    } catch (e) {
+      final details = _engineErrorDetails(e);
+      if (kDebugMode) {
+        debugPrint('[engine] health fail: $details');
+      }
+      if (mounted) {
+        setState(() {
+          _engineStatus =
+              showErrors ? _engineErrorMessage(e) : null;
+          _engineStatusIsError = showErrors;
+          _engineLastOk = false;
+          _engineLastError = _engineErrorMessage(e);
+          _engineLastCheckAt = DateTime.now();
+        });
+        if (showErrors) {
+          _showSnack(_engineStatus ?? 'Engine no disponible', isError: true);
+        }
+      }
+      return false;
+    }
   }
 
   Future<_EngineConfig> _resolveEngineConfig() async {
@@ -4010,6 +5562,73 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  bool _looksLikeExpression(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return false;
+    if (t.startsWith('=')) return true;
+    return RegExp(r'[-+*/()%]').hasMatch(t);
+  }
+
+  Future<_EngineComputeOutcome> _computeLocal() async {
+    _syncActiveDrafts();
+
+    final updatedRefs = <_CellRef>[];
+    for (int r = 0; r < _rows.length; r++) {
+      for (int c = 0; c < _headers.length - 1; c++) {
+        final raw = _effectiveCell(r, c);
+        if (!_looksLikeExpression(raw)) continue;
+        final expr = raw.trim().startsWith('=')
+            ? raw.trim().substring(1)
+            : raw.trim();
+        final res = evalExpression(expr);
+        if (res == null) continue;
+        final out = _formatNumber(res);
+        if (out != raw) {
+          _rows[r].cells[c] = out;
+          updatedRefs.add(_CellRef(r, c));
+        }
+      }
+    }
+
+    if (!mounted) {
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(message: 'Widget unmounted'),
+      );
+    }
+
+    if (updatedRefs.isNotEmpty) {
+      setState(() {
+        _engineStatus = 'Calculado localmente';
+        _engineStatusIsError = false;
+        _isDirty = true;
+        _rev++;
+      });
+
+      _clearCellDrafts(updatedRefs);
+      _bumpGridVersion();
+      _pushUndoSnapshot();
+      _queueSave();
+
+      Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() => _engineStatus = null);
+      });
+      return const _EngineComputeOutcome(ok: true, hadUpdates: true);
+    }
+
+    setState(() {
+      _engineStatus = 'Sin cambios';
+      _engineStatusIsError = false;
+    });
+    Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _engineStatus = null);
+    });
+    return const _EngineComputeOutcome(ok: true, hadUpdates: false);
+  }
+
   Future<_EngineComputeOutcome> _computeEngine() async {
     _syncActiveDrafts();
 
@@ -4028,6 +5647,21 @@ class _EditorScreenState extends State<EditorScreen>
         hadUpdates: false,
         errorDetails: _EngineErrorDetails(message: 'Engine ocupado'),
       );
+    }
+
+    final resolved = await _resolveEngineConfig();
+    if (!mounted) {
+      return const _EngineComputeOutcome(
+        ok: false,
+        hadUpdates: false,
+        errorDetails: _EngineErrorDetails(message: 'Widget unmounted'),
+      );
+    }
+    _engineBaseResolved = resolved.baseUrl;
+    _engineKeyResolved = resolved.apiKey;
+    final baseResolved = _engineBaseResolved?.trim() ?? '';
+    if (baseResolved.isEmpty) {
+      return _computeLocal();
     }
 
     final ready = await _ensureEngineReady(showErrors: true);
@@ -4722,6 +6356,10 @@ class _GridView extends StatelessWidget {
     required this.headers,
     required this.rowModels,
     required this.cellTextAt,
+    required this.cellHasGps,
+    required this.cellHasAudios,
+    required this.cellPhotoThumb,
+    required this.cellPhotoCount,
     required this.isInvalid,
     required this.vScroll,
     required this.hScroll,
@@ -4743,6 +6381,10 @@ class _GridView extends StatelessWidget {
   final List<String> headers;
   final List<_RowModel> rowModels;
   final String Function(int r, int c) cellTextAt;
+  final bool Function(int r, int c) cellHasGps;
+  final bool Function(int r, int c) cellHasAudios;
+  final String Function(int r, int c) cellPhotoThumb;
+  final int Function(int r, int c) cellPhotoCount;
   final bool Function(int r, int c) isInvalid;
 
   final ScrollController vScroll;
@@ -4853,25 +6495,26 @@ class _GridView extends StatelessWidget {
                                               final ref = _CellRef(r, col);
                                               final invalid =
                                                   isInvalid(r, col);
+                                              final isPhotos =
+                                                  col == headers.length - 1;
+                                              final photosCount =
+                                                  cellPhotoCount(r, col);
+                                              final thumbB64 =
+                                                  cellPhotoThumb(r, col);
                                               return _DataCell(
                                                 palette: palette,
                                                 width: col == headers.length - 1
                                                     ? photosW
                                                     : colW,
                                                 text: cellTextAt(r, col),
-                                                photosCount:
-                                                rowModels[r].photos.length,
-                                                thumbB64: rowModels[r]
-                                                    .photos
-                                                    .isNotEmpty
-                                                    ? rowModels[r]
-                                                        .photos
-                                                        .last
-                                                        .thumbB64
-                                                    : '',
+                                                hasGps: cellHasGps(r, col),
+                                                hasAudio: cellHasAudios(r, col),
+                                                photoThumbB64: thumbB64,
+                                                photosCount: photosCount,
+                                                thumbB64: thumbB64,
                                                 selected:
                                                 r == selRow && col == selCol,
-                                                isPhotos: col == headers.length - 1,
+                                                isPhotos: isPhotos,
                                                 blinkRef: blinkRef,
                                                 cellRef: ref,
                                                 invalid: invalid,
@@ -5105,6 +6748,9 @@ class _DataCell extends StatelessWidget {
     required this.palette,
     required this.width,
     required this.text,
+    required this.hasGps,
+    required this.hasAudio,
+    required this.photoThumbB64,
     required this.photosCount,
     required this.thumbB64,
     required this.selected,
@@ -5124,6 +6770,9 @@ class _DataCell extends StatelessWidget {
   final _SheetPalette palette;
   final double width;
   final String text;
+  final bool hasGps;
+  final bool hasAudio;
+  final String photoThumbB64;
   final int photosCount;
   final String thumbB64;
   final bool selected;
@@ -5171,34 +6820,95 @@ class _DataCell extends StatelessWidget {
             bottom: BorderSide(color: borderColor, width: palette.hairline),
           ),
         ),
-        child: isPhotos
-            ? _PhotosCell(
-          palette: palette,
-          count: photosCount,
-          thumbB64: thumbB64,
-          onAdd: onPickPhoto,
-          onDeleteRow: onDeleteRow,
-        )
-            : Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  text.trim().isEmpty ? ' ' : text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fg,
-                    fontSize: 13.5,
-                    height: 1.1,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w600,
-                  ),
-                ),
-              ),
+        child: _buildCellBody(context),
       ),
     );
 
     if (!isOverlayTarget) return cellBody;
     return CompositedTransformTarget(link: editorLink, child: cellBody);
+  }
+
+  Widget _buildCellBody(BuildContext context) {
+    final content = isPhotos
+        ? _PhotosCell(
+            palette: palette,
+            count: photosCount,
+            thumbB64: thumbB64,
+            onAdd: onPickPhoto,
+            onDeleteRow: onDeleteRow,
+          )
+        : Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              text.trim().isEmpty ? ' ' : text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.fg,
+                fontSize: 13.5,
+                height: 1.1,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          );
+
+    final badges = <Widget>[];
+    if (!isPhotos && photoThumbB64.trim().isNotEmpty) {
+      final bytes = _tryDecodeB64(photoThumbB64);
+      if (bytes != null) {
+        badges.add(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Image.memory(
+              bytes,
+              width: 14,
+              height: 14,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+          ),
+        );
+      }
+    }
+    if (hasAudio) {
+      badges.add(
+        Icon(
+          Icons.graphic_eq_rounded,
+          size: 12,
+          color: palette.accent.withOpacity(0.6),
+        ),
+      );
+    }
+    if (hasGps) {
+      badges.add(
+        Icon(
+          Icons.my_location_rounded,
+          size: 12,
+          color: palette.accent.withOpacity(0.55),
+        ),
+      );
+    }
+
+    if (badges.isEmpty) return content;
+
+    return Stack(
+      children: [
+        content,
+        Positioned(
+          top: 2,
+          right: 2,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < badges.length; i++) ...[
+                if (i > 0) const SizedBox(width: 3),
+                badges[i],
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -5219,7 +6929,8 @@ class _PhotosCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasThumb = thumbB64.trim().isNotEmpty;
+    final thumbBytes = _tryDecodeB64(thumbB64);
+    final hasThumb = thumbBytes != null;
     return Row(
       children: [
         InkWell(
@@ -5236,7 +6947,7 @@ class _PhotosCell extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Image.memory(
-              base64Decode(thumbB64),
+              thumbBytes!,
               width: 26,
               height: 26,
               fit: BoxFit.cover,
@@ -5246,7 +6957,7 @@ class _PhotosCell extends StatelessWidget {
         if (hasThumb) const SizedBox(width: 6),
         Expanded(
           child: Text(
-            count == 0 ? '???' : '$count',
+            count == 0 ? '0' : '$count',
             style: TextStyle(
                 color: palette.fg, fontWeight: FontWeight.w900, height: 1.05),
           ),
@@ -5630,18 +7341,24 @@ class _SheetModel {
     required this.rows,
     this.name,
     this.savedAt,
+    this.cellMeta = const <String, CellMeta>{},
   });
 
   final String? name;
   final DateTime? savedAt;
   final List<String> headers;
   final List<_RowModel> rows;
+  final Map<String, CellMeta> cellMeta;
 
   Map<String, dynamic> toJson() => {
     'name': name,
     'savedAt': savedAt?.toIso8601String(),
     'headers': headers,
     'rows': rows.map((r) => r.toJson()).toList(),
+    if (cellMeta.isNotEmpty)
+      'cellMeta': cellMeta.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
   };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
@@ -5664,8 +7381,24 @@ class _SheetModel {
       }
     }
 
+    final metaRaw = map['cellMeta'];
+    final cellMeta = <String, CellMeta>{};
+    if (metaRaw is Map) {
+      metaRaw.forEach((key, value) {
+        final meta = CellMeta.fromJson(value);
+        if (meta != null) {
+          cellMeta[key.toString()] = meta;
+        }
+      });
+    }
+
     return _SheetModel(
-        name: name, savedAt: savedAt, headers: headers, rows: rowModels);
+      name: name,
+      savedAt: savedAt,
+      headers: headers,
+      rows: rowModels,
+      cellMeta: cellMeta,
+    );
   }
 }
 
@@ -5869,38 +7602,48 @@ class _RowPhoto {
   }
 }
 
-class _PhotoExportItem {
-  _PhotoExportItem({
-    required this.row,
-    required this.col,
-    required this.indexInRow,
+class _ZipPhotoItem {
+  _ZipPhotoItem({
+    required this.cell,
     required this.photo,
-    this.rowLat,
-    this.rowLng,
-    this.rowAccuracy,
-    this.rowIsLastKnown = false,
+    required this.fileName,
+    required this.pathInZip,
   });
 
-  final int row;
-  final int col;
-  final int indexInRow;
-  final _RowPhoto photo;
-  final double? rowLat;
-  final double? rowLng;
-  final double? rowAccuracy;
-  final bool rowIsLastKnown;
+  final CellKey cell;
+  final PhotoAttachment photo;
+  final String fileName;
+  final String pathInZip;
+}
 
-  double? get lat => photo.lat ?? rowLat;
-  double? get lng => photo.lng ?? rowLng;
-  double? get accuracy => photo.accuracyM ?? rowAccuracy;
+class _ZipAudioItem {
+  _ZipAudioItem({
+    required this.cell,
+    required this.audio,
+    required this.fileName,
+    required this.pathInZip,
+  });
 
-  String get sourceLabel {
-    if (lat == null && lng == null) return '';
-    if (photo.lat != null || photo.lng != null) {
-      return photo.isLastKnown ? 'lastKnown' : 'current';
-    }
-    return rowIsLastKnown ? 'lastKnown' : 'current';
-  }
+  final CellKey cell;
+  final AudioAttachment audio;
+  final String fileName;
+  final String pathInZip;
+}
+
+class _ExportPrep {
+  const _ExportPrep({
+    required this.attachments,
+    required this.embeddedPhotos,
+    required this.photoItems,
+    required this.audioItems,
+    required this.manifest,
+  });
+
+  final List<AttachmentRow> attachments;
+  final List<EmbeddedPhoto> embeddedPhotos;
+  final List<_ZipPhotoItem> photoItems;
+  final List<_ZipAudioItem> audioItems;
+  final Map<String, dynamic> manifest;
 }
 
 class _SheetSnapshot {
@@ -5908,6 +7651,7 @@ class _SheetSnapshot {
     required this.name,
     required this.headers,
     required this.rowModels,
+    required this.cellMeta,
     required this.selRow,
     required this.selCol,
   });
@@ -5915,6 +7659,7 @@ class _SheetSnapshot {
   final String name;
   final List<String> headers;
   final List<_RowModel> rowModels;
+  final Map<String, CellMeta> cellMeta;
   final int selRow;
   final int selCol;
 }
@@ -5934,20 +7679,40 @@ class _CellRef {
 
 enum _ColType { text, number, date, photos }
 
+Uint8List? _tryDecodeB64(String raw) {
+  try {
+    if (raw.trim().isEmpty) return null;
+    return base64Decode(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
 class _GpsFix {
   const _GpsFix({
     required this.lat,
     required this.lng,
     required this.accuracyM,
     required this.ts,
-    required this.isLastKnown,
+    required this.source,
+    required this.provider,
   });
 
   final double lat;
   final double lng;
   final double accuracyM;
   final DateTime ts;
-  final bool isLastKnown;
+  final String source;
+  final String provider;
+}
+
+class _GpsOutcome {
+  const _GpsOutcome({this.fix, this.error, this.code});
+  final _GpsFix? fix;
+  final String? error;
+  final String? code;
+
+  bool get ok => fix != null;
 }
 
 // ============================== Paleta =====================================

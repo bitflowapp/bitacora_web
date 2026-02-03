@@ -1,19 +1,18 @@
 // lib/services/location_web_service.dart
-// Web helper: usa el LocationService “industrial” (común) y agrega utilidades
-// específicas para Web (Maps URL / abrir / compartir / clipboard / API no-throw).
-//
-// Ventajas:
-// - Un solo motor de precisión/velocidad (LocationService).
-// - Sin duplicación de lógica ni colisión de modelos.
-// - Consistencia entre Web/Android/iOS.
+// Web helper: expone utilidades de Maps/Clipboard y un request web directo
+// usando navigator.geolocation (para user-activation en iOS Safari).
+// En plataformas no-web delega en LocationService "industrial".
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'location_service.dart'; // <- LocationService + LocationFix + LocationResult
+import 'location_web_impl_stub.dart'
+    if (dart.library.html) 'location_web_impl_web.dart' as web_impl;
 
 enum MapsProvider { google, osm }
 
@@ -33,7 +32,7 @@ class LocationWebConfig {
       LocationWebConfig(
         provider: provider ?? this.provider,
         fallbackToOsmIfGoogleFails:
-        fallbackToOsmIfGoogleFails ?? this.fallbackToOsmIfGoogleFails,
+            fallbackToOsmIfGoogleFails ?? this.fallbackToOsmIfGoogleFails,
       );
 }
 
@@ -46,26 +45,49 @@ class LocationWebService {
   LocationWebConfig get config => _config;
   set config(LocationWebConfig v) => _config = v;
 
-  /// Fix “simple”: una sola lectura con timeout.
-  /// Usa el motor común para permisos/validación/errores.
+  /// Fix simple: una sola lectura con timeout.
+  /// - Web: navigator.geolocation directo (user-activation friendly).
+  /// - No Web: delega en LocationService (geolocator).
   Future<LocationFix> getCurrent({
     Duration timeout = const Duration(seconds: 10),
     LocationAccuracy desiredAccuracy = LocationAccuracy.high,
+    bool enableHighAccuracy = true,
+    Duration maximumAge = Duration.zero,
   }) {
+    if (kIsWeb) {
+      return web_impl.browserCurrentPosition(
+        timeout: timeout,
+        enableHighAccuracy: enableHighAccuracy,
+        maximumAge: maximumAge,
+      );
+    }
     return LocationService.I.getCurrentFix(
       desiredAccuracy: desiredAccuracy,
       timeout: timeout,
     );
   }
 
-  /// Fix “avanzado”: rápido + preciso + confiable.
-  ///
-  /// En Web suele convenir:
-  /// - primer fix rápido (quickTimeout)
-  /// - refinamiento corto por stream (refineWindow) para mejorar precisión real
-  ///
-  /// `samples/betweenSamples` se usan solo para estimar la ventana de refinamiento
-  /// (en vez de hacer N getCurrentPosition que en Web suele ser más lento).
+  /// Variante no-throw para flows corporativos / UI silenciosa.
+  Future<LocationResult> tryGetCurrent({
+    Duration timeout = const Duration(seconds: 10),
+    LocationAccuracy desiredAccuracy = LocationAccuracy.high,
+    bool enableHighAccuracy = true,
+    Duration maximumAge = Duration.zero,
+  }) async {
+    try {
+      final fix = await getCurrent(
+        timeout: timeout,
+        desiredAccuracy: desiredAccuracy,
+        enableHighAccuracy: enableHighAccuracy,
+        maximumAge: maximumAge,
+      );
+      return LocationResult.success(fix);
+    } catch (e) {
+      return LocationResult.fail(_errorCode(e), _friendlyMessage(e));
+    }
+  }
+
+  /// Fix avanzado (usa LocationService industrial). En Web queda como fallback.
   Future<LocationFix> getBestFix({
     int samples = 4,
     Duration perSampleTimeout = const Duration(seconds: 4),
@@ -94,7 +116,7 @@ class LocationWebService {
     );
   }
 
-  /// Versión no-throw (ideal para flows corporativos).
+  /// Versión no-throw del avanzado (sigue delegando en LocationService).
   Future<LocationResult> tryGetBestFix({
     int samples = 4,
     Duration perSampleTimeout = const Duration(seconds: 4),
@@ -138,7 +160,7 @@ class LocationWebService {
           <String, String>{'api': '1', 'query': '$lat,$lng'},
         );
       case MapsProvider.osm:
-      // OpenStreetMap con marcador (simple y robusto)
+        // OpenStreetMap con marcador (simple y robusto)
         return Uri.https(
           'www.openstreetmap.org',
           '/search',
@@ -156,7 +178,7 @@ class LocationWebService {
     // 1) Intento principal
     final primary = mapsUri(lat, lng, provider: p);
     final okPrimary =
-    await launchUrl(primary, mode: LaunchMode.platformDefault);
+        await launchUrl(primary, mode: LaunchMode.platformDefault);
     if (okPrimary) return true;
 
     // 2) Fallback: si es Google y está habilitado, caemos a OSM
@@ -172,7 +194,8 @@ class LocationWebService {
       openInMaps(f.latitude, f.longitude, provider: provider);
 
   /// Texto para compartir/copy (incluye precisión si existe).
-  String shareText(LocationFix f, {bool includeAccuracy = true, bool includeSource = false}) {
+  String shareText(LocationFix f,
+      {bool includeAccuracy = true, bool includeSource = false}) {
     final acc = (includeAccuracy && f.accuracyMeters != null)
         ? ' ±${f.accuracyMeters!.toStringAsFixed(0)} m'
         : '';
@@ -200,5 +223,26 @@ class LocationWebService {
     final extraMs = (s - 1) * (betweenSamples.inMilliseconds.clamp(250, 900));
     final ms = (baseMs + extraMs).clamp(1800, 5000);
     return Duration(milliseconds: ms);
+  }
+
+  String _errorCode(Object e) {
+    final text = e.toString().toLowerCase();
+    if (text.contains('permanente')) return 'permission_denied_forever';
+    if (text.contains('denegado')) return 'permission_denied';
+    if (text.contains('servicio')) return 'service_disabled';
+    if (e is TimeoutException) return 'timeout';
+    return 'unknown';
+  }
+
+  String _friendlyMessage(Object e) {
+    if (e is LocationException) return e.message;
+    if (e is TimeoutException) {
+      return 'Timeout obteniendo ubicación.';
+    }
+    final text = e.toString();
+    if (text.toLowerCase().contains('denied')) {
+      return 'Permiso de ubicación denegado. Ajustes > Safari > Ubicación.';
+    }
+    return text;
   }
 }

@@ -1,4 +1,4 @@
-﻿// lib/screens/start_page.dart
+﻿// lib/start_page.dart
 // StartPage (BitFlow) â€” Home â€œ100% Appleâ€ (Cupertino-first), robusto y vendible.
 //
 // âœ… UPDATE (menÃº estilo Reminders iOS):
@@ -33,12 +33,12 @@ import 'package:flutter/material.dart'
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../workers/json_worker.dart';
-import '../services/engine_api.dart';
-import '../services/engine_config.dart';
-import '../services/sheet_store.dart';
-import '../services/export_xlsx_service.dart';
-import 'editor_screen.dart';
+import 'workers/json_worker.dart';
+import 'services/engine_api.dart';
+import 'services/engine_config.dart';
+import 'services/sheet_store.dart';
+import 'services/export_xlsx_service.dart';
+import 'screens/editor_screen.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -3710,6 +3710,9 @@ extension _ColorWithValuesCompat on Color {
     return withAlpha(a);
   }
 }
+
+
+
 
 
 

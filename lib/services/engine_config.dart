@@ -36,7 +36,7 @@ class EngineConfig {
 
     final hasScheme = u.contains('://');
     if (!hasScheme) {
-      u = 'http://$u';
+      u = 'https://$u';
     }
 
     while (u.endsWith('/')) {
@@ -52,7 +52,10 @@ class EngineConfig {
     final uri = Uri.tryParse(u);
     if (uri == null) return false;
     if (uri.host.isEmpty) return false;
-    if (uri.scheme != 'http' && uri.scheme != 'https') return false;
+    if (kIsWeb && uri.scheme != 'https') return false;
+    if (!kIsWeb && uri.scheme != 'http' && uri.scheme != 'https') {
+      return false;
+    }
     if (uri.host.trim().isEmpty) return false;
     return true;
   }

@@ -1,11 +1,11 @@
-Ôªø// lib/app.dart
+// lib/app.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/auth_gate.dart';
-import 'screens/start_page.dart';
+import 'start_page.dart';
 import 'theme/gridnote_theme.dart';
 
 class MyApp extends StatefulWidget {
@@ -15,7 +15,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-/// Scroll ‚ÄúApple-like‚Äù:
+/// Scroll ìApple-likeî:
 /// - sin glow de Android
 /// - drag con mouse/trackpad/stylus (web/desktop)
 class _AppleScrollBehavior extends MaterialScrollBehavior {
@@ -51,7 +51,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.system;
   bool _prefsReady = false;
 
-  // Controller (por si lo us√°s en widgets legacy; mantiene API compatible).
+  // Controller (por si lo us·s en widgets legacy; mantiene API compatible).
   final GridnoteThemeController _controller = GridnoteThemeController(light: true);
 
   @override
@@ -74,7 +74,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangePlatformBrightness() {
-    // Si est√°s en system, el OS cambi√≥: reconstruimos para reflejarlo.
+    // Si est·s en system, el OS cambiÛ: reconstruimos para reflejarlo.
     if (_themeMode == ThemeMode.system && mounted) setState(() {});
   }
 
@@ -130,12 +130,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       };
       await sp.setInt(_kThemeModeKey, v);
     } catch (_) {
-      // No es cr√≠tico; no bloqueamos UX.
+      // No es crÌtico; no bloqueamos UX.
     }
   }
 
   void _toggleTheme() {
-    // Apple premium: si el usuario est√° en "system", el primer toggle ‚Äúfija‚Äù
+    // Apple premium: si el usuario est· en "system", el primer toggle ìfijaî
     // el modo opuesto al actual. Luego alterna light/dark normalmente.
     final effectiveLight = _effectiveIsLight(_themeMode);
 
@@ -151,7 +151,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Evita el ‚Äúflash‚Äù al arrancar (web/desktop) mostrando fondo correcto.
+    // Evita el ìflashî al arrancar (web/desktop) mostrando fondo correcto.
     final effectiveLight = _effectiveIsLight(_themeMode);
     final g = GridnoteTheme.build(effectiveLight);
 
@@ -160,7 +160,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       child: AnimatedBuilder(
         animation: _controller,
         builder: (_, __) {
-          // Preferimos ThemeMode real para que system sea ‚Äúpremium‚Äù.
+          // Preferimos ThemeMode real para que system sea ìpremiumî.
           final mode = _prefsReady ? _themeMode : ThemeMode.system;
           final isLight = _effectiveIsLight(mode);
 
@@ -175,11 +175,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             darkTheme: _darkTheme,
             themeMode: mode,
 
-            // Cambio de tema con sensaci√≥n premium.
+            // Cambio de tema con sensaciÛn premium.
             themeAnimationDuration: const Duration(milliseconds: 220),
             themeAnimationCurve: Curves.easeOutCubic,
 
-            // Fondo correcto durante el build (reduce ‚Äúpantallazo blanco‚Äù).
+            // Fondo correcto durante el build (reduce ìpantallazo blancoî).
             builder: (context, child) {
               final c = child ?? const SizedBox.shrink();
               return ColoredBox(color: gg.scaffold, child: c);
@@ -197,3 +197,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
+
+
+

@@ -58,6 +58,34 @@ class PhotoMeta {
   final double? accuracy;
 }
 
+class EmbeddedPhoto {
+  const EmbeddedPhoto({
+    required this.rowIndex,
+    required this.colIndex,
+    required this.bytes,
+  });
+
+  final int rowIndex;
+  final int colIndex;
+  final Uint8List bytes;
+}
+
+class AttachmentRow {
+  const AttachmentRow({
+    required this.cellRef,
+    required this.type,
+    required this.fileName,
+    required this.notes,
+    required this.relativePath,
+  });
+
+  final String cellRef;
+  final String type;
+  final String fileName;
+  final String notes;
+  final String relativePath;
+}
+
 /// Genera un XLSX con datos + fotos embebidas.
 ///
 /// - [columns]: encabezados de la grilla (sin la columna "#").
@@ -75,6 +103,8 @@ Future<Uint8List> buildXlsxWithPhotos({
   Map<int, List<Uint8List>>? photosByRow,
   List<GpsExport?>? gpsByRow,
   List<PhotoMeta>? photoMeta,
+  List<EmbeddedPhoto>? embeddedPhotos,
+  List<AttachmentRow>? attachments,
   String sheetName = 'PLANILLA',
   bool includeIndexColumn = true,
   bool includeCoverSheet = false,
@@ -102,15 +132,20 @@ Future<Uint8List> buildXlsxWithPhotos({
     final int baseColumnsCount =
         (includeIndexColumn ? 1 : 0) + textCols + gpsCols;
 
-    // Max fotos por fila (para crear columnas "Foto 1..N").
-    final int maxPhotosPerRow = (photosByRow == null || photosByRow.isEmpty)
-        ? 0
-        : photosByRow.values.fold<int>(
-            0,
-            (prev, list) => math.max(prev, list.length),
-          );
+    final bool useEmbedded =
+        embeddedPhotos != null && embeddedPhotos.isNotEmpty;
 
-    // Fotos empiezan despues del bloque de texto+gps (solo si hay fotos).
+    // Max fotos por fila (para crear columnas "Foto 1..N") cuando se usa modo legacy.
+    final int maxPhotosPerRow = useEmbedded
+        ? 0
+        : (photosByRow == null || photosByRow.isEmpty)
+            ? 0
+            : photosByRow.values.fold<int>(
+                0,
+                (prev, list) => math.max(prev, list.length),
+              );
+
+    // Fotos empiezan despues del bloque de texto+gps (solo si hay fotos legacy).
     final int firstPhotoCol = baseColumnsCount + 1;
     final int lastCol = (maxPhotosPerRow > 0)
         ? (baseColumnsCount + maxPhotosPerRow)
@@ -178,10 +213,23 @@ Future<Uint8List> buildXlsxWithPhotos({
     const int photoColWidthPx = 112;
     const double photoRowHeightPx = 90.0;
 
-    // Ajuste de columnas de fotos si existen.
+    // Ajuste de columnas de fotos legacy si existen.
     if (maxPhotosPerRow > 0) {
       for (int p = 0; p < maxPhotosPerRow; p++) {
         sheet.setColumnWidthInPixels(firstPhotoCol + p, photoColWidthPx);
+      }
+    }
+
+    final Map<int, List<EmbeddedPhoto>> embeddedByRow = {};
+    final Set<int> embeddedCols = <int>{};
+    if (useEmbedded) {
+      for (final item in embeddedPhotos!) {
+        if (item.bytes.isEmpty) continue;
+        if (item.rowIndex < 0 || item.colIndex < 0) continue;
+        embeddedByRow
+            .putIfAbsent(item.rowIndex, () => <EmbeddedPhoto>[])
+            .add(item);
+        embeddedCols.add(item.colIndex);
       }
     }
 
@@ -226,8 +274,31 @@ Future<Uint8List> buildXlsxWithPhotos({
         }
       }
 
-      // Fotos de esta fila
-      if (maxPhotosPerRow > 0 &&
+      // Fotos embebidas por celda (nuevo).
+      if (useEmbedded) {
+        final picsForRow = embeddedByRow[r];
+        if (picsForRow != null && picsForRow.isNotEmpty) {
+          sheet.setRowHeightInPixels(excelRow, photoRowHeightPx);
+          for (final pic in picsForRow) {
+            if (pic.colIndex < 0 || pic.colIndex >= textCols) continue;
+            final col = textStartCol + pic.colIndex;
+            try {
+              final picture = sheet.pictures.addBase64(
+                excelRow,
+                col,
+                base64Encode(pic.bytes),
+              );
+              picture.width = photoThumbW;
+              picture.height = photoThumbH;
+              embeddedCount++;
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Fotos legacy por fila.
+      if (!useEmbedded &&
+          maxPhotosPerRow > 0 &&
           photosByRow != null &&
           photosByRow.isNotEmpty) {
         final picsForRow = photosByRow[r];
@@ -290,6 +361,14 @@ Future<Uint8List> buildXlsxWithPhotos({
       }
     }
 
+    if (useEmbedded && embeddedCols.isNotEmpty) {
+      for (final idx in embeddedCols) {
+        if (idx < 0 || idx >= textCols) continue;
+        final col = textStartCol + idx;
+        sheet.setColumnWidthInPixels(col, photoColWidthPx);
+      }
+    }
+
     // --------------------------
     // 5) Hoja "Fotos" (opcional)
     // --------------------------
@@ -301,6 +380,13 @@ Future<Uint8List> buildXlsxWithPhotos({
       );
     }
 
+    if (attachments != null && attachments.isNotEmpty) {
+      _buildAttachmentsSheet(
+        workbook,
+        attachments: attachments,
+      );
+    }
+
     if (includeCoverSheet) {
       _buildCoverSheet(workbook);
     }
@@ -309,10 +395,11 @@ Future<Uint8List> buildXlsxWithPhotos({
       _buildSummarySheet(
         workbook,
         rowsCount: rows.length,
-        photosCount: (photosByRow ?? const <int, List<Uint8List>>{})
-            .values
-            .fold<int>(0, (prev, list) => prev + list.length),
-        gpsCount: _gpsCount(gpsByRow),
+        photosCount: _photosCount(
+          photosByRow: photosByRow,
+          attachments: attachments,
+        ),
+        gpsCount: _gpsCount(gpsByRow, attachments: attachments),
       );
     }
 
@@ -472,6 +559,54 @@ int _buildFotosSheet(
   return embeddedCount;
 }
 
+void _buildAttachmentsSheet(
+  xlsio.Workbook workbook, {
+  required List<AttachmentRow> attachments,
+}) {
+  final sheet = workbook.worksheets.addWithName('Attachments');
+  sheet.showGridlines = false;
+
+  const headers = ['CellRef', 'Type', 'FileName', 'Notes', 'Path'];
+
+  for (int c = 0; c < headers.length; c++) {
+    sheet.getRangeByIndex(1, c + 1).setText(headers[c]);
+  }
+
+  final headerRange = sheet.getRangeByIndex(1, 1, 1, headers.length);
+  headerRange.cellStyle.bold = true;
+  headerRange.cellStyle.backColor = '#F4F0E6';
+  headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
+  headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
+  headerRange.cellStyle.fontSize = 11;
+
+  for (int i = 0; i < attachments.length; i++) {
+    final row = i + 2;
+    final item = attachments[i];
+    sheet.getRangeByIndex(row, 1).setText(item.cellRef);
+    sheet.getRangeByIndex(row, 2).setText(item.type);
+    sheet.getRangeByIndex(row, 3).setText(item.fileName);
+    sheet.getRangeByIndex(row, 4).setText(item.notes);
+    sheet.getRangeByIndex(row, 5).setText(item.relativePath);
+  }
+
+  final lastRow = attachments.length + 1;
+  if (attachments.isNotEmpty) {
+    final bodyRange = sheet.getRangeByIndex(
+      1,
+      1,
+      lastRow,
+      headers.length,
+    );
+    bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+  }
+
+  for (int c = 1; c <= headers.length; c++) {
+    try {
+      sheet.autoFitColumn(c);
+    } catch (_) {}
+  }
+}
+
 bool _hasGps(List<GpsExport?>? gpsByRow) {
   if (gpsByRow == null || gpsByRow.isEmpty) return false;
   for (final g in gpsByRow) {
@@ -480,13 +615,28 @@ bool _hasGps(List<GpsExport?>? gpsByRow) {
   return false;
 }
 
-int _gpsCount(List<GpsExport?>? gpsByRow) {
+int _gpsCount(List<GpsExport?>? gpsByRow,
+    {List<AttachmentRow>? attachments}) {
+  if (attachments != null && attachments.isNotEmpty) {
+    return attachments.where((a) => a.type == 'gps').length;
+  }
   if (gpsByRow == null || gpsByRow.isEmpty) return 0;
   int count = 0;
   for (final g in gpsByRow) {
     if (g != null && g.hasFix) count++;
   }
   return count;
+}
+
+int _photosCount({
+  required Map<int, List<Uint8List>>? photosByRow,
+  required List<AttachmentRow>? attachments,
+}) {
+  if (attachments != null && attachments.isNotEmpty) {
+    return attachments.where((a) => a.type == 'photo').length;
+  }
+  if (photosByRow == null || photosByRow.isEmpty) return 0;
+  return photosByRow.values.fold<int>(0, (prev, list) => prev + list.length);
 }
 
 void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {

@@ -24,6 +24,10 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.headers,
     required this.rowModels,
     required this.cellTextAt,
+    required this.cellHasGps,
+    required this.cellHasAudios,
+    required this.cellPhotoThumb,
+    required this.cellPhotoCount,
     required this.verticalController,
     required this.headerScrollController,
     required this.rowScrollControllers,
@@ -47,6 +51,10 @@ class _MobileNotesGrid extends StatelessWidget {
   final List<String> headers;
   final List<_RowModel> rowModels;
   final String Function(int r, int c) cellTextAt;
+  final bool Function(int r, int c) cellHasGps;
+  final bool Function(int r, int c) cellHasAudios;
+  final String Function(int r, int c) cellPhotoThumb;
+  final int Function(int r, int c) cellPhotoCount;
 
   final ScrollController verticalController;
   final ScrollController headerScrollController;
@@ -121,6 +129,9 @@ class _MobileNotesGrid extends StatelessWidget {
               isHeader: true,
               isActive: isActive,
               isSelected: false,
+              hasGps: false,
+              hasAudio: false,
+              photoThumbB64: '',
               onTap: () => onHeaderTap(ctx, col),
               onLongPress: (pos) =>
                   onContextMenu(pos, -1, col, true),
@@ -163,20 +174,25 @@ class _MobileNotesGrid extends StatelessWidget {
             final isSelected = row == selectedRow && col == selectedCol;
 
             if (isPhotos) {
-              final photos = rowModels[row].photos;
-              final thumb = photos.isNotEmpty ? photos.last.thumbB64 : '';
+              final thumb = cellPhotoThumb(row, col);
+              final count = cellPhotoCount(row, col);
+              final hasAudio = cellHasAudios(row, col);
+              final hasGps = cellHasGps(row, col);
               return _buildCard(
                 context: ctx,
                 width: cardW,
                 isHeader: false,
                 isActive: false,
                 isSelected: isSelected,
+                hasGps: hasGps,
+                hasAudio: hasAudio,
+                photoThumbB64: '',
                 onTap: () => onCellTap(ctx, row, col),
                 onLongPress: (pos) =>
                     onContextMenu(pos, row, col, false),
                 child: _PhotosCell(
                   palette: palette,
-                  count: photos.length,
+                  count: count,
                   thumbB64: thumb,
                   onAdd: () => onPickPhoto(row),
                   onDeleteRow: () => onDeleteRow(row),
@@ -185,12 +201,18 @@ class _MobileNotesGrid extends StatelessWidget {
             }
 
             final text = cellTextAt(row, col);
+            final hasGps = cellHasGps(row, col);
+            final hasAudio = cellHasAudios(row, col);
+            final thumbB64 = cellPhotoThumb(row, col);
             return _buildCard(
               context: ctx,
               width: cardW,
               isHeader: false,
               isActive: isActive,
               isSelected: isSelected,
+              hasGps: hasGps,
+              hasAudio: hasAudio,
+              photoThumbB64: thumbB64,
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
               child: isActive
@@ -214,6 +236,9 @@ class _MobileNotesGrid extends StatelessWidget {
     required bool isHeader,
     required bool isActive,
     required bool isSelected,
+    required bool hasGps,
+    required bool hasAudio,
+    required String photoThumbB64,
     required VoidCallback onTap,
     required ValueChanged<Offset> onLongPress,
     required Widget child,
@@ -237,6 +262,64 @@ class _MobileNotesGrid extends StatelessWidget {
 
     Offset? lastTapPos;
 
+    final badges = <Widget>[];
+    if (photoThumbB64.trim().isNotEmpty) {
+      final bytes = _tryDecodeB64(photoThumbB64);
+      if (bytes != null) {
+        badges.add(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Image.memory(
+              bytes,
+              width: 14,
+              height: 14,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+          ),
+        );
+      }
+    }
+    if (hasAudio) {
+      badges.add(
+        Icon(
+          Icons.graphic_eq_rounded,
+          size: 12,
+          color: palette.accent.withOpacity(0.6),
+        ),
+      );
+    }
+    if (hasGps) {
+      badges.add(
+        Icon(
+          Icons.my_location_rounded,
+          size: 12,
+          color: palette.accent.withOpacity(0.55),
+        ),
+      );
+    }
+
+    final decoratedChild = badges.isEmpty
+        ? child
+        : Stack(
+            children: [
+              child,
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (int i = 0; i < badges.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 3),
+                      badges[i],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+
     return SizedBox(
       width: width,
       height: _kMobileCardH,
@@ -257,7 +340,7 @@ class _MobileNotesGrid extends StatelessWidget {
               borderRadius: BorderRadius.circular(1),
               border: Border.all(color: borderColor, width: 1),
             ),
-            child: child,
+            child: decoratedChild,
           ),
         ),
       ),
