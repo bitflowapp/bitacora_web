@@ -77,6 +77,8 @@ const String _kPrefEngineApiKey = 'bitflow.engine_api_key';
 const String _kPrefEngineApiKeyAlt = 'bitflow_engine_api_key';
 
 enum _OverlayMove { none, next, prev, down, up }
+enum _GridDensity { compact, normal, roomy }
+enum _PhotoSource { camera, gallery }
 
 enum _MobileEditPhase { closed, opening, open, switching, closing }
 enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
@@ -139,6 +141,11 @@ class _EditorScreenState extends State<EditorScreen>
   _GpsFix? _pendingGpsFix;
   bool _gpsPickingTarget = false;
   static const String _prefGpsMode = 'bitflow:gps_mode';
+  static const String _prefGridDensity = 'bitflow:grid_density';
+
+  _GridDensity _gridDensity = _GridDensity.normal;
+  bool _gridDensityExplicit = false;
+  bool _inAppModalShown = false;
 
 // ??? Guardado robusto
   int _rev = 0;
@@ -295,6 +302,12 @@ class _EditorScreenState extends State<EditorScreen>
     _isSecureContext = !kIsWeb || WebCapabilities.isSecureContext;
     unawaited(_loadStorageStatus());
 
+    if (_isInAppBrowser) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_showInAppBlockingModal());
+      });
+    }
+
     final initial = _buildInitialState();
     _headers = initial.headers;
     _rows = initial.rows;
@@ -313,6 +326,7 @@ class _EditorScreenState extends State<EditorScreen>
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
     unawaited(_loadGpsMode());
+    unawaited(_loadGridDensity());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection().whenComplete(() => unawaited(_maybeRunSmoke())));
   }
@@ -877,6 +891,123 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() => _isLight = !_isLight);
   }
 
+  String _densityLabel(_GridDensity density) {
+    switch (density) {
+      case _GridDensity.compact:
+        return 'Compacto';
+      case _GridDensity.normal:
+        return 'Normal';
+      case _GridDensity.roomy:
+        return 'Amplio';
+    }
+  }
+
+  _GridDensity? _densityFromPref(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    for (final v in _GridDensity.values) {
+      if (v.name == raw) return v;
+    }
+    return null;
+  }
+
+  Future<void> _loadGridDensity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefGridDensity);
+      final parsed = _densityFromPref(raw);
+      if (!mounted) return;
+      if (parsed != null) {
+        setState(() {
+          _gridDensity = parsed;
+          _gridDensityExplicit = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _setGridDensity(_GridDensity density) async {
+    if (_gridDensity == density && _gridDensityExplicit) return;
+    if (mounted) {
+      setState(() {
+        _gridDensity = density;
+        _gridDensityExplicit = true;
+      });
+    } else {
+      _gridDensity = density;
+      _gridDensityExplicit = true;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefGridDensity, density.name);
+    } catch (_) {}
+  }
+
+  Future<void> _showDensityPicker() async {
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<_GridDensity>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pal.border, width: pal.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.format_line_spacing_rounded),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Densidad',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                for (final d in _GridDensity.values)
+                  RadioListTile<_GridDensity>(
+                    value: d,
+                    groupValue: _gridDensity,
+                    onChanged: (v) => Navigator.of(ctx).pop(v),
+                    activeColor: pal.accent,
+                    title: Text(
+                      _densityLabel(d),
+                      style: TextStyle(color: pal.fg, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      await _setGridDensity(picked);
+    }
+  }
+
+  void _ensureDefaultDensity(bool isDesktop) {
+    if (_gridDensityExplicit) return;
+    final target = isDesktop ? _GridDensity.normal : _GridDensity.compact;
+    if (_gridDensity == target) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _gridDensityExplicit) return;
+      setState(() => _gridDensity = target);
+    });
+  }
+
 // ------------------------------ Utilidades UI ---------------------------
 
   bool _isMobileWeb() {
@@ -884,6 +1015,11 @@ class _EditorScreenState extends State<EditorScreen>
     return defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.android;
   }
+
+  bool get _isAndroidWeb =>
+      kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  bool get _isIosWeb => kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   bool get _isAndroidDevice =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -1353,6 +1489,149 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted || message.trim().isEmpty) return;
     AppleToast.show(context, message: message, isError: isError, icon: icon);
   }
+
+  bool _guardInAppBrowser(DiagnosticActionType type, {String? actionLabel}) {
+    if (!_isInAppBrowser) return false;
+    final label = actionLabel ?? _actionLabelForType(type);
+    DiagnosticsLog.I.record(
+      type: type,
+      ok: false,
+      message: 'blocked_in_app action=$label',
+    );
+    _showActionSnack(
+      'Bloqueado en navegador embebido. Abri en Safari/Chrome.',
+      isError: true,
+      icon: Icons.lock_outline_rounded,
+    );
+    unawaited(_showInAppBlockingModal());
+    return true;
+  }
+
+  bool _guardInsecureContext(DiagnosticActionType type, {String? actionLabel}) {
+    if (_isSecureContext) return false;
+    final label = actionLabel ?? _actionLabelForType(type);
+    DiagnosticsLog.I.record(
+      type: type,
+      ok: false,
+      message: 'blocked_insecure_context action=$label',
+    );
+    _showActionSnack(
+      'Necesitas HTTPS para $label. Abri en Safari/Chrome.',
+      isError: true,
+      icon: Icons.lock_outline_rounded,
+    );
+    return true;
+  }
+
+  String _actionLabelForType(DiagnosticActionType type) {
+    switch (type) {
+      case DiagnosticActionType.gps:
+        return 'GPS';
+      case DiagnosticActionType.photo:
+        return 'Camara/Fotos';
+      case DiagnosticActionType.audio:
+        return 'Microfono';
+    }
+  }
+
+  Future<void> _showInAppBlockingModal() async {
+    if (!_isInAppBrowser || _inAppModalShown || !mounted) return;
+    _inAppModalShown = true;
+    final url = kIsWeb ? Uri.base.toString() : '';
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Abrir en Safari/Chrome'),
+          content: const Text(
+            'Para usar Camara/Mic/GPS abri en Safari/Chrome.\n\n'
+            'Los navegadores embebidos (WhatsApp/Instagram) bloquean permisos y guardado.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                if (url.trim().isEmpty) return;
+                try {
+                  await Clipboard.setData(ClipboardData(text: url));
+                } catch (_) {}
+                if (mounted) {
+                  _showActionSnack('Link copiado.', isError: false, icon: Icons.link_rounded);
+                }
+              },
+              child: const Text('Copiar link'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                unawaited(_showInAppInstructions());
+              },
+              child: const Text('Instrucciones'),
+            ),
+            if (_isAndroidWeb)
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await _tryOpenInChrome(url);
+                },
+                child: const Text('Abrir en Chrome'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showInAppInstructions() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Como abrir en navegador'),
+          content: const Text(
+            'WhatsApp/Instagram:\n\n'
+            '1) Toca el menu (tres puntos) o Compartir.\n'
+            '2) Elegi "Abrir en navegador".\n'
+            '3) Volve a intentar Camara/Mic/GPS.\n\n'
+            'iOS: preferi Safari.\n'
+            'Android: preferi Chrome.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _tryOpenInChrome(String url) async {
+    if (url.trim().isEmpty) return;
+    final uri = Uri.parse(url);
+    final query = uri.query.isEmpty ? '' : '?${uri.query}';
+    final intent = 'intent://${uri.host}${uri.path}$query#Intent;scheme=${uri.scheme};package=com.android.chrome;end';
+    try {
+      final ok = await launchUrl(
+        Uri.parse(intent),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
+  }
+
   void _warnStorageFallbackOnce(String kindLabel) {
     if (_storageWarned) return;
     _storageWarned = true;
@@ -1427,6 +1706,9 @@ class _EditorScreenState extends State<EditorScreen>
         final mqInset = MediaQuery.viewInsetsOf(ctx).bottom;
         final effectiveInset = mqInset > 0 ? mqInset : kbInset;
         final isDesktop = _isDesktopUi(ctx, effectiveInset);
+        final sensorsEnabled = !_isInAppBrowser;
+        _ensureDefaultDensity(isDesktop);
+        final metrics = _gridMetricsFor(_gridDensity);
 
         if (!isDesktop) {
           _scheduleMobileBarMeasure();
@@ -1517,11 +1799,9 @@ class _EditorScreenState extends State<EditorScreen>
                                     : () => unawaited(_computeEngine()),
                                 onGps: () => unawaited(
                                     _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
-                                onPhoto: () => unawaited(_pickPhotoForCell(
-                                  _selRow,
-                                  _selCol,
-                                  fromCamera: _isAndroidDevice,
-                                )),
+                                onPhoto: () => unawaited(
+                                  _showPhotoSourcePickerForCell(_selRow, _selCol),
+                                ),
                                 onAudio: () {
                                   if (_audioRecording) {
                                     unawaited(_stopAudioRecording());
@@ -1536,6 +1816,9 @@ class _EditorScreenState extends State<EditorScreen>
                                     unawaited(_openCommandPalette()),
                                 onGpsMode: () =>
                                     unawaited(_showGpsModePicker()),
+                                onDensity: () =>
+                                    unawaited(_showDensityPicker()),
+                                sensorsEnabled: sensorsEnabled,
                               )
                             else
                               _MobileCompactHeader(
@@ -1553,11 +1836,11 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             if (_isInAppBrowser)
                               _warningBanner(pal,
-                                  text: 'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS y microfono.',
+                                  text: 'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
                                   icon: Icons.open_in_new_rounded),
                             if (!_isSecureContext)
                               _warningBanner(pal,
-                                  text: 'Para GPS y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
+                                  text: 'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
                                   icon: Icons.lock_outline_rounded),
                             if (_storageOk == false)
                               _warningBanner(pal,
@@ -1592,6 +1875,7 @@ class _EditorScreenState extends State<EditorScreen>
                                           builder: (ctx, _, __) {
                                             return _GridView(
                                               palette: pal,
+                                              metrics: metrics,
                                               headers: List<String>.generate(
                                                   _headers.length,
                                                   _effectiveHeader),
@@ -1634,10 +1918,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                           pal, pos, r, c, isHeader),
                                               onDeleteRow: (r) => _deleteRow(r),
                                               onPickPhoto: (r) =>
-                                                  _pickPhotoForCell(
+                                                  _showPhotoSourcePickerForCell(
                                                     r,
                                                     _headers.length - 1,
-                                                    fromCamera: _isAndroidDevice,
                                                   ),
                                             );
                                           },
@@ -1656,6 +1939,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                       .width);
                                           return _MobileNotesGrid(
                                             palette: pal,
+                                            density: _gridDensity,
                                             headers: List<String>.generate(
                                                 _headers.length,
                                                 _effectiveHeader),
@@ -1699,10 +1983,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                         pos, r, c, isHeader),
                                             onDeleteRow: (r) => _deleteRow(r),
                                             onPickPhoto: (r) =>
-                                                _pickPhotoForCell(
+                                                _showPhotoSourcePickerForCell(
                                                   r,
                                                   _headers.length - 1,
-                                                  fromCamera: _isAndroidDevice,
                                                 ),
                                           );
                                         },
@@ -1720,13 +2003,12 @@ class _EditorScreenState extends State<EditorScreen>
                           bottom: 12 + bottomSafe,
                           child: _MobileQuickActionsBar(
                             palette: pal,
+                            sensorsEnabled: sensorsEnabled,
                             onGps: () => unawaited(
                                 _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
-                            onPhoto: () => unawaited(_pickPhotoForCell(
-                              _selRow,
-                              _selCol,
-                              fromCamera: _isAndroidDevice,
-                            )),
+                            onPhoto: () => unawaited(
+                              _showPhotoSourcePickerForCell(_selRow, _selCol),
+                            ),
                             onAudio: () {
                               if (_audioRecording) {
                                 unawaited(_stopAudioRecording());
@@ -1738,12 +2020,14 @@ class _EditorScreenState extends State<EditorScreen>
                             onExport: () => unawaited(_openExportMenu()),
                             onShare: () =>
                                 unawaited(_exportZipBundle(share: true)),
+                            onDensity: () => unawaited(_showDensityPicker()),
                           ),
                         ),
 // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
                       if (!isDesktop)
                         _MobileInlineEditorBar(
                           palette: pal,
+                          density: _gridDensity,
                           barKey: _mobileBarKey,
                           fieldKey: _mobileFieldKey,
                           isOpen: _mobileEditorOpen,
@@ -1876,11 +2160,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyP) {
-      unawaited(_pickPhotoForCell(
-        _selRow,
-        _selCol,
-        fromCamera: _isAndroidDevice,
-      ));
+      unawaited(_showPhotoSourcePickerForCell(_selRow, _selCol));
       return KeyEventResult.handled;
     }
 
@@ -1890,11 +2170,7 @@ class _EditorScreenState extends State<EditorScreen>
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.keyP) {
-        unawaited(_pickPhotoForCell(
-          _selRow,
-          _selCol,
-          fromCamera: _isAndroidDevice,
-        ));
+        unawaited(_showPhotoSourcePickerForCell(_selRow, _selCol));
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.keyA) {
@@ -1969,11 +2245,9 @@ class _EditorScreenState extends State<EditorScreen>
           label: 'Foto en celda',
           shortcut: 'P',
           icon: Icons.photo_camera_outlined,
-          onSelected: () => unawaited(_pickPhotoForCell(
-            _selRow,
-            _selCol,
-            fromCamera: _isAndroidDevice,
-          )),
+          onSelected: () => unawaited(
+            _showPhotoSourcePickerForCell(_selRow, _selCol),
+          ),
         ),
         CommandAction(
           id: 'audio',
@@ -2373,11 +2647,7 @@ class _EditorScreenState extends State<EditorScreen>
       _MobileAction(
         icon: Icons.photo_camera_outlined,
         label: 'Foto',
-        onTap: () => _pickPhotoForCell(
-          r,
-          c,
-          fromCamera: _isAndroidDevice,
-        ),
+        onTap: () => _showPhotoSourcePickerForCell(r, c),
       ),
       _MobileAction(
         icon: _audioRecording
@@ -2671,7 +2941,8 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   double _mobileRowOffsetFor(int row) {
-    return _kMobileHeaderRowH + (row * _kMobileRowH);
+    return _mobileHeaderRowH(_gridDensity) +
+        (row * _mobileRowH(_gridDensity));
   }
 
   void _ensureColumnVisibleForMobile() {
@@ -2686,9 +2957,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (controller == null || !controller.hasClients) return;
 
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
-    final stride = cardW + _kMobileCardGap;
+    final stride = cardW + _mobileCardGap(_gridDensity);
     final col = _mobileCol;
-    final cardLeft = _kMobileRowPadH + (col * stride);
+    final cardLeft = _mobileRowPadH(_gridDensity) + (col * stride);
     final cardRight = cardLeft + cardW;
 
     final viewport = controller.position.viewportDimension;
@@ -3008,6 +3279,8 @@ class _EditorScreenState extends State<EditorScreen>
     _attachCellDraftListener();
     _cellDraftListener?.call();
 
+    final metrics = _gridMetricsFor(_gridDensity);
+    final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
     final overlay = Overlay.of(context, rootOverlay: true);
 
     _cellEditorEntry = OverlayEntry(
@@ -3086,8 +3359,7 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                       child: Container(
                         width: width,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
+                        padding: metrics.cellPadding,
                         decoration: BoxDecoration(
 // ??? Dark: glass m??s visible (sin quedar ???bloque??? opaco).
                           color: pal.isLight
@@ -3126,7 +3398,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 maxLines: 1,
                                 style: TextStyle(
                                   color: pal.fg,
-                                  fontSize: 16,
+                                  fontSize: metrics.cellFontSize,
                                   height: 1.08,
                                   fontWeight: FontWeight.w800, // ??? nitidez
                                   letterSpacing: -0.2,
@@ -3286,8 +3558,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         actions.add(_CtxAction(
             'Agregar foto a esta celda', Icons.add_photo_alternate_outlined,
-            () => unawaited(_pickPhotoForCell(r, c,
-                fromCamera: _isAndroidDevice)),
+            () => unawaited(_showPhotoSourcePickerForCell(r, c)),
             runOnTap: true));
         if (_cellHasPhotos(r, c)) {
           actions.add(_CtxAction('Ver fotos de esta celda',
@@ -3295,7 +3566,6 @@ class _EditorScreenState extends State<EditorScreen>
               () => _openPhotosSheetForCell(r, c)));
         }
       } else {
-        final isAndroid = _isAndroidDevice;
         if (_audioRecording) {
           actions.add(_CtxAction(
             'Detener grabación',
@@ -3317,20 +3587,11 @@ class _EditorScreenState extends State<EditorScreen>
               () => _openAudiosSheetForCell(r, c)));
         }
         actions.add(_CtxAction(
-          isAndroid ? 'Camara' : 'Agregar foto',
+          'Agregar foto',
           Icons.add_photo_alternate_outlined,
-          () => unawaited(_pickPhotoForCell(r, c,
-              fromCamera: _isAndroidDevice)),
+          () => unawaited(_showPhotoSourcePickerForCell(r, c)),
           runOnTap: true,
         ));
-        if (isAndroid) {
-          actions.add(_CtxAction(
-            'Elegir de galeria',
-            Icons.photo_library_outlined,
-            () => unawaited(_pickPhotoForCell(r, c)),
-            runOnTap: true,
-          ));
-        }
         if (_cellHasPhotos(r, c)) {
           actions.add(_CtxAction('Ver fotos de esta celda',
               Icons.photo_library_outlined,
@@ -3980,6 +4241,19 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
 
+    if (_guardInAppBrowser(DiagnosticActionType.gps)) return;
+    if (_guardInsecureContext(DiagnosticActionType.gps)) return;
+    if (kIsWeb && !WebCapabilities.geolocationAvailable) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.gps,
+        ok: false,
+        message: 'gps_unavailable',
+      );
+      _showActionSnack('GPS no disponible en este navegador.',
+          isError: true, icon: Icons.gps_off_rounded);
+      return;
+    }
+
     final outcome = await _getGpsFixWithFallback(
       timeout: const Duration(seconds: 12),
     );
@@ -3995,9 +4269,9 @@ class _EditorScreenState extends State<EditorScreen>
         _gpsPickingTarget = true;
         _pendingGpsFix = fix;
       });
-      _engineStatus = 'Tocá la celda destino para pegar GPS.';
+      _engineStatus = 'Toca la celda destino para pegar GPS.';
       _engineStatusIsError = false;
-      _showSnack('Tocá la celda destino para pegar GPS.', isError: false);
+      _showSnack('Toca la celda destino para pegar GPS.', isError: false);
       return;
     }
 
@@ -4259,14 +4533,91 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (lat == null || lng == null) return;
 
-    final uri =
-    Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+    );
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
   }
 
 // ------------------------------ Fotos -----------------------------------
+
+  Future<void> _showPhotoSourcePickerForCell(int r, int c) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pal.border, width: pal.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.photo_camera_outlined, color: pal.fg),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Agregar foto',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: Icon(Icons.photo_camera_outlined, color: pal.fg),
+                  title: const Text('Tomar foto'),
+                  subtitle: const Text('Usar camara'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    if (_guardInsecureContext(
+                      DiagnosticActionType.photo,
+                      actionLabel: 'Camara',
+                    )) {
+                      return;
+                    }
+                    unawaited(_pickPhotoForCell(r, c, fromCamera: true));
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.photo_library_outlined, color: pal.fg),
+                  title: const Text('Elegir de galeria'),
+                  subtitle: const Text('Seleccionar archivo'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    unawaited(_pickPhotoForCell(r, c, fromCamera: false));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   void _handlePhotosCellTap(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
@@ -4277,14 +4628,13 @@ class _EditorScreenState extends State<EditorScreen>
       _openPhotosSheetForCell(r, c);
       return;
     }
-    unawaited(_pickPhotoForCell(r, c, fromCamera: _isAndroidDevice));
+    unawaited(_showPhotoSourcePickerForCell(r, c));
   }
 
   void _startCellPhotoPickFromSheet(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
-    unawaited(_pickPhotoForCell(r, c, fromCamera: _isAndroidDevice)
-        .whenComplete(() {
+    unawaited(_showPhotoSourcePickerForCell(r, c).whenComplete(() {
       if (!mounted) return;
       Navigator.of(context).maybePop();
     }));
@@ -4382,19 +4732,34 @@ class _EditorScreenState extends State<EditorScreen>
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
 
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+    if (fromCamera && _guardInsecureContext(
+      DiagnosticActionType.photo,
+      actionLabel: 'Camara',
+    )) {
+      return;
+    }
+
     try {
       final result = fromCamera
           ? await PhotoAcquireService.I.captureFromCamera()
           : await PhotoAcquireService.I.pickFromGallery();
       if (!mounted) return;
       if (result == null) {
+        final blocked = _isInAppBrowser || (fromCamera && !_isSecureContext);
+        final reason = blocked ? 'photo_blocked' : 'photo_cancelled';
         DiagnosticsLog.I.record(
           type: DiagnosticActionType.photo,
           ok: false,
-          message: 'photo_cancelled_or_blocked',
+          message: reason,
         );
-        _showActionSnack('No se guardo la foto (cancelado).',
-            isError: true, icon: Icons.photo_outlined);
+        if (blocked) {
+          _showActionSnack('No se pudo abrir la camara/fotos. Abri en Safari/Chrome.',
+              isError: true, icon: Icons.photo_outlined);
+        } else {
+          _showActionSnack('No se guardo la foto (cancelado).',
+              isError: true, icon: Icons.photo_outlined);
+        }
         return;
       }
 
@@ -4792,6 +5157,26 @@ class _EditorScreenState extends State<EditorScreen>
     return '$min:$sec';
   }
 
+  String _audioStartErrorMessage(Object e) {
+    final raw = e.toString();
+    final lower = raw.toLowerCase();
+    if (lower.contains('notallowed') ||
+        lower.contains('permission') ||
+        lower.contains('denied')) {
+      return 'Permiso de microfono denegado.';
+    }
+    if (lower.contains('notsupported') || lower.contains('not supported')) {
+      return 'Grabacion de audio no disponible en este navegador.';
+    }
+    if (lower.contains('insecure') || lower.contains('secure')) {
+      return 'Necesitas HTTPS para grabar audio.';
+    }
+    if (lower.contains('media') && lower.contains('devices')) {
+      return 'MediaDevices no disponible.';
+    }
+    return 'No se pudo iniciar la grabacion de audio.';
+  }
+
   Future<void> _startAudioRecordingForCell(int r, int c) async {
     if (_audioRecording) {
       final cell = _recordingAudioCell;
@@ -4806,18 +5191,8 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final supported = await _audioService.isSupported();
-    if (!mounted) return;
-    if (!supported) {
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.audio,
-        ok: false,
-        message: 'audio_not_supported',
-      );
-      _showActionSnack('Grabacion de audio no disponible en este navegador.',
-          isError: true, icon: Icons.mic_off_rounded);
-      return;
-    }
+    if (_guardInAppBrowser(DiagnosticActionType.audio)) return;
+    if (_guardInsecureContext(DiagnosticActionType.audio)) return;
 
     try {
       await _audioService.startRecording(sheetId: widget.sheetId);
@@ -6494,9 +6869,12 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onShare,
     required this.onPalette,
     required this.onGpsMode,
+    required this.onDensity,
+    required this.sensorsEnabled,
   });
 
   final _SheetPalette palette;
+  final bool sensorsEnabled;
 
   final TextEditingController titleController;
   final FocusNode titleFocus;
@@ -6521,6 +6899,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback onPalette;
   final VoidCallback onGpsMode;
+  final VoidCallback onDensity;
 
   @override
   Widget build(BuildContext context) {
@@ -6733,6 +7112,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                             label: 'GPS',
                             shortcut: 'G',
                             onTap: onGps,
+                            enabled: sensorsEnabled,
+                            onDisabledTap: onGps,
                           ),
                           AppleToolbarItem(
                             icon: Icons.tune_rounded,
@@ -6740,16 +7121,25 @@ class _PremiumAppleHeader extends StatelessWidget {
                             onTap: onGpsMode,
                           ),
                           AppleToolbarItem(
+                            icon: Icons.format_line_spacing_rounded,
+                            label: 'Densidad',
+                            onTap: onDensity,
+                          ),
+                          AppleToolbarItem(
                             icon: Icons.photo_camera_outlined,
                             label: 'Camara',
                             shortcut: 'P',
                             onTap: onPhoto,
+                            enabled: sensorsEnabled,
+                            onDisabledTap: onPhoto,
                           ),
                           AppleToolbarItem(
                             icon: Icons.mic_none_rounded,
                             label: 'Audio',
                             shortcut: 'A',
                             onTap: onAudio,
+                            enabled: sensorsEnabled,
+                            onDisabledTap: onAudio,
                           ),
                           AppleToolbarItem(
                             icon: Icons.download_rounded,
@@ -6827,7 +7217,7 @@ class _MobileCompactHeader extends StatelessWidget {
     final label = title.trim().isEmpty ? 'Sheet' : title.trim();
     return Container(
       height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: palette.appBarBg,
         border: Border(
@@ -7035,9 +7425,66 @@ typedef _EditCell = void Function(int r, int c, double cellWidth);
 typedef _EditHeader = void Function(int c, double headerWidth);
 typedef _ContextMenu = void Function(Offset pos, int r, int c, bool isHeader);
 
+class _GridMetrics {
+  const _GridMetrics({
+    required this.rowH,
+    required this.headerH,
+    required this.cellPadding,
+    required this.headerPadding,
+    required this.cellFontSize,
+    required this.headerFontSize,
+    required this.indexFontSize,
+  });
+
+  final double rowH;
+  final double headerH;
+  final EdgeInsets cellPadding;
+  final EdgeInsets headerPadding;
+  final double cellFontSize;
+  final double headerFontSize;
+  final double indexFontSize;
+}
+
+_GridMetrics _gridMetricsFor(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return const _GridMetrics(
+        rowH: 34,
+        headerH: 34,
+        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        cellFontSize: 12.5,
+        headerFontSize: 12.0,
+        indexFontSize: 11.5,
+      );
+    case _GridDensity.roomy:
+      return const _GridMetrics(
+        rowH: 52,
+        headerH: 56,
+        cellPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        headerPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        cellFontSize: 14.5,
+        headerFontSize: 13.5,
+        indexFontSize: 13.0,
+      );
+    case _GridDensity.normal:
+    default:
+      return const _GridMetrics(
+        rowH: 44,
+        headerH: 48,
+        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        cellFontSize: 13.5,
+        headerFontSize: 12.5,
+        indexFontSize: 12.0,
+      );
+  }
+}
+
 class _GridView extends StatelessWidget {
   const _GridView({
     required this.palette,
+    required this.metrics,
     required this.headers,
     required this.rowModels,
     required this.cellTextAt,
@@ -7063,6 +7510,7 @@ class _GridView extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridMetrics metrics;
   final List<String> headers;
   final List<_RowModel> rowModels;
   final String Function(int r, int c) cellTextAt;
@@ -7093,8 +7541,6 @@ class _GridView extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
 
 // ??? Apple-ish sizing
-  static const double rowH = 44;
-  static const double headerH = 48;
   static const double indexW = 54;
 
   @override
@@ -7127,13 +7573,14 @@ class _GridView extends StatelessWidget {
                   child: Column(
                     children: [
                       SizedBox(
-                        height: headerH,
+                        height: metrics.headerH,
                         child: Row(
                           children: [
                             _rowIndexHeader(width: indexW),
                             for (int col = 0; col < headers.length; col++)
                               _HeaderCell(
                                 palette: palette,
+                                metrics: metrics,
                                 width:
                                 col == headers.length - 1 ? photosW : colW,
                                 text: _labelHeader(headers, col),
@@ -7160,11 +7607,12 @@ class _GridView extends StatelessWidget {
                             itemCount: rowModels.length,
                             itemBuilder: (ctx3, r) {
                               return SizedBox(
-                                height: rowH,
+                                height: metrics.rowH,
                                 child: Row(
                                   children: [
                                     _RowIndexCell(
                                       palette: palette,
+                                      metrics: metrics,
                                       width: indexW,
                                       index: r + 1,
                                       selected: r == selRow,
@@ -7188,6 +7636,7 @@ class _GridView extends StatelessWidget {
                                                   cellPhotoThumb(r, col);
                                               return _DataCell(
                                                 palette: palette,
+                                                metrics: metrics,
                                                 width: col == headers.length - 1
                                                     ? photosW
                                                     : colW,
@@ -7274,7 +7723,7 @@ class _GridView extends StatelessWidget {
   Widget _rowIndexHeader({required double width}) {
     return Container(
       width: width,
-      height: headerH,
+      height: metrics.headerH,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: palette.headerBg,
@@ -7286,8 +7735,11 @@ class _GridView extends StatelessWidget {
         ),
       ),
       child: Text('#',
-          style:
-          TextStyle(color: palette.fgMuted, fontWeight: FontWeight.w900)),
+          style: TextStyle(
+            color: palette.fgMuted,
+            fontWeight: FontWeight.w900,
+            fontSize: metrics.indexFontSize,
+          )),
     );
   }
 }
@@ -7295,6 +7747,7 @@ class _GridView extends StatelessWidget {
 class _HeaderCell extends StatelessWidget {
   const _HeaderCell({
     required this.palette,
+    required this.metrics,
     required this.width,
     required this.text,
     required this.isPhotos,
@@ -7305,6 +7758,7 @@ class _HeaderCell extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridMetrics metrics;
   final double width;
   final String text;
   final bool isPhotos;
@@ -7341,8 +7795,8 @@ class _HeaderCell extends StatelessWidget {
             splashColor: palette.pressedBg,
             child: Container(
               width: width,
-              height: _GridView.headerH,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              height: metrics.headerH,
+              padding: metrics.headerPadding,
               alignment: Alignment.centerLeft,
               child: Text(
                 t.isEmpty ? ' ' : t,
@@ -7351,7 +7805,7 @@ class _HeaderCell extends StatelessWidget {
                 style: TextStyle(
                   color: palette.fg,
                   fontWeight: FontWeight.w800,
-                  fontSize: 12.5,
+                  fontSize: metrics.headerFontSize,
                   height: 1.05,
                   letterSpacing: 0.1,
                 ),
@@ -7369,6 +7823,7 @@ class _HeaderCell extends StatelessWidget {
 class _RowIndexCell extends StatelessWidget {
   const _RowIndexCell({
     required this.palette,
+    required this.metrics,
     required this.width,
     required this.index,
     required this.selected,
@@ -7377,6 +7832,7 @@ class _RowIndexCell extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridMetrics metrics;
   final double width;
   final int index;
   final bool selected;
@@ -7423,7 +7879,7 @@ class _RowIndexCell extends StatelessWidget {
             splashColor: palette.pressedBg,
             child: Container(
               width: width,
-              height: _GridView.rowH,
+              height: metrics.rowH,
               alignment: Alignment.center,
               foregroundDecoration: selected
                   ? BoxDecoration(
@@ -7437,7 +7893,7 @@ class _RowIndexCell extends StatelessWidget {
                 style: TextStyle(
                   color: selected ? palette.fg : palette.fgMuted,
                   fontWeight: FontWeight.w800,
-                  fontSize: 12,
+                  fontSize: metrics.indexFontSize,
                   height: 1.05,
                 ),
               ),
@@ -7451,6 +7907,7 @@ class _RowIndexCell extends StatelessWidget {
 class _DataCell extends StatelessWidget {
   const _DataCell({
     required this.palette,
+    required this.metrics,
     required this.width,
     required this.text,
     required this.hasGps,
@@ -7474,6 +7931,7 @@ class _DataCell extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridMetrics metrics;
   final double width;
   final String text;
   final bool hasGps;
@@ -7543,8 +8001,8 @@ class _DataCell extends StatelessWidget {
             splashColor: palette.pressedBg,
             child: Container(
               width: width,
-              height: _GridView.rowH,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              height: metrics.rowH,
+              padding: metrics.cellPadding,
               child: _buildCellBody(context),
             ),
           ),
@@ -7588,7 +8046,7 @@ class _DataCell extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: palette.fg,
-                fontSize: 13.5,
+                fontSize: metrics.cellFontSize,
                 height: 1.1,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
               ),
@@ -7749,19 +8207,23 @@ class _StatusBar extends StatelessWidget {
 class _MobileQuickActionsBar extends StatelessWidget {
   const _MobileQuickActionsBar({
     required this.palette,
+    required this.sensorsEnabled,
     required this.onGps,
     required this.onPhoto,
     required this.onAudio,
     required this.onExport,
     required this.onShare,
+    required this.onDensity,
   });
 
   final _SheetPalette palette;
+  final bool sensorsEnabled;
   final VoidCallback onGps;
   final VoidCallback onPhoto;
   final VoidCallback onAudio;
   final VoidCallback onExport;
   final VoidCallback onShare;
+  final VoidCallback onDensity;
 
   @override
   Widget build(BuildContext context) {
@@ -7786,6 +8248,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 label: 'GPS',
                 dense: true,
                 onPressed: onGps,
+                enabled: sensorsEnabled,
                 variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
@@ -7794,6 +8257,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 label: 'Camara',
                 dense: true,
                 onPressed: onPhoto,
+                enabled: sensorsEnabled,
                 variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
@@ -7802,6 +8266,15 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 label: 'Audio',
                 dense: true,
                 onPressed: onAudio,
+                enabled: sensorsEnabled,
+                variant: AppleButtonVariant.tonal,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.format_line_spacing_rounded,
+                label: 'Densidad',
+                dense: true,
+                onPressed: onDensity,
                 variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
@@ -7832,6 +8305,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
 class _MobileInlineEditorBar extends StatelessWidget {
   const _MobileInlineEditorBar({
     required this.palette,
+    required this.density,
     required this.barKey,
     required this.fieldKey,
     required this.isOpen,
@@ -7853,6 +8327,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridDensity density;
   final Key barKey;
   final Key fieldKey;
   final bool isOpen;
@@ -7892,6 +8367,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final opacity = isOpen ? 1.0 : 0.01;
 
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
+    final metrics = _gridMetricsFor(density);
+    final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
+    final hPad = math.max(10.0, metrics.cellPadding.horizontal / 2);
+    final vPad = math.max(10.0, metrics.cellPadding.vertical / 2);
+    final editorPadding = EdgeInsets.symmetric(horizontal: hPad, vertical: vPad);
 
     return Positioned(
       left: 0,
@@ -7954,7 +8434,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     style: TextStyle(
                                       color: palette.fgMuted,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 12.5,
+                                      fontSize: metrics.headerFontSize,
                                       height: 1.05,
                                       letterSpacing: 0.1,
                                     ),
@@ -8009,6 +8489,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                   palette: palette,
                                   onNext: onNext,
                                   onDone: onDone,
+                                  fontSize: editorFont,
+                                  contentPadding: editorPadding,
                                 ),
                               ),
                             ),
@@ -8069,6 +8551,8 @@ class _MobileEditorField extends StatelessWidget {
     required this.palette,
     required this.onNext,
     required this.onDone,
+    required this.fontSize,
+    required this.contentPadding,
   });
 
   final TextEditingController controller;
@@ -8076,6 +8560,8 @@ class _MobileEditorField extends StatelessWidget {
   final _SheetPalette palette;
   final VoidCallback? onNext;
   final VoidCallback onDone;
+  final double fontSize;
+  final EdgeInsets contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -8096,7 +8582,7 @@ class _MobileEditorField extends StatelessWidget {
       textCapitalization: TextCapitalization.none,
       style: TextStyle(
         color: palette.fg,
-        fontSize: 16,
+        fontSize: fontSize,
         height: 1.08,
         fontWeight: FontWeight.w800, // ??? nitidez
         letterSpacing: -0.15,
@@ -8107,8 +8593,7 @@ class _MobileEditorField extends StatelessWidget {
         filled: true,
 // ??? dark: vidrio visible
         fillColor: palette.mobileInputBg,
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: contentPadding,
         hintText: 'Escribir???',
         hintStyle: TextStyle(color: palette.fgMuted),
         border: InputBorder.none,

@@ -74,6 +74,7 @@ class AppleButton extends StatelessWidget {
     this.label,
     this.icon,
     this.onPressed,
+    this.enabled,
     this.variant = AppleButtonVariant.tonal,
     this.dense = false,
     this.tooltip,
@@ -84,6 +85,7 @@ class AppleButton extends StatelessWidget {
   final String? label;
   final IconData? icon;
   final VoidCallback? onPressed;
+  final bool? enabled;
   final AppleButtonVariant variant;
   final bool dense;
   final String? tooltip;
@@ -93,7 +95,7 @@ class AppleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppTheme.of(context);
-    final enabled = onPressed != null;
+    final effectiveEnabled = enabled ?? onPressed != null;
 
     Color bg;
     Color fg;
@@ -117,7 +119,7 @@ class AppleButton extends StatelessWidget {
         break;
     }
 
-    if (!enabled) {
+    if (!effectiveEnabled) {
       fg = t.colors.textSecondary.withOpacity(0.5);
     }
 
@@ -153,8 +155,10 @@ class AppleButton extends StatelessWidget {
     final button = InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(t.radii.pill),
-      hoverColor: t.colors.hover,
-      splashColor: t.colors.pressed,
+      mouseCursor:
+          effectiveEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      hoverColor: effectiveEnabled ? t.colors.hover : Colors.transparent,
+      splashColor: effectiveEnabled ? t.colors.pressed : Colors.transparent,
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
@@ -183,6 +187,7 @@ class AppleToolbarItem {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.onDisabledTap,
     this.shortcut,
     this.enabled = true,
   });
@@ -190,6 +195,7 @@ class AppleToolbarItem {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onDisabledTap;
   final String? shortcut;
   final bool enabled;
 }
@@ -232,7 +238,8 @@ class AppleToolbar extends StatelessWidget {
               label: item.label,
               dense: dense,
               variant: AppleButtonVariant.tonal,
-              onPressed: item.enabled ? item.onTap : null,
+              onPressed: item.enabled ? item.onTap : item.onDisabledTap,
+              enabled: item.enabled,
               tooltip: item.label,
               shortcut: item.shortcut,
               iconColor: t.colors.accent,

@@ -35,23 +35,27 @@ class AudioStorageServiceImpl implements AudioStorageService {
     required String attachmentId,
     required RecordedAudio recording,
   }) async {
-    final bytes = recording.bytes;
-    if (bytes == null || bytes.isEmpty) return null;
-    await _ensureBox();
+    try {
+      final bytes = recording.bytes;
+      if (bytes == null || bytes.isEmpty) return null;
+      await _ensureBox();
 
-    final key = _makeKey(sheetId, cellKey, attachmentId);
-    await _box!.put(key, <String, dynamic>{
-      'name': recording.fileName,
-      'mime': recording.mime,
-      'bytes': bytes,
-    });
+      final key = _makeKey(sheetId, cellKey, attachmentId);
+      await _box!.put(key, <String, dynamic>{
+        'name': recording.fileName,
+        'mime': recording.mime,
+        'bytes': bytes,
+      });
 
-    return StoredAudio(
-      storageKey: key,
-      fileName: recording.fileName,
-      mime: recording.mime,
-      bytesLength: bytes.lengthInBytes,
-    );
+      return StoredAudio(
+        storageKey: key,
+        fileName: recording.fileName,
+        mime: recording.mime,
+        bytesLength: bytes.lengthInBytes,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

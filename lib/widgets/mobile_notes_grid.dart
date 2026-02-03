@@ -2,13 +2,131 @@ part of '../screens/editor_screen.dart';
 
 const double _kMobileCardMinW = 120.0;
 const double _kMobileCardMaxW = 170.0;
-const double _kMobileCardH = 60.0;
-const double _kMobileCardGap = 8.0;
-const double _kMobileRowPadH = 12.0;
-const double _kMobileRowPadV = 6.0;
-const double _kMobileRowSpacing = 8.0;
-const double _kMobileRowH = _kMobileCardH + (_kMobileRowPadV * 2);
-const double _kMobileHeaderRowH = _kMobileRowH;
+
+double _mobileCardH(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 44.0;
+    case _GridDensity.roomy:
+      return 72.0;
+    case _GridDensity.normal:
+    default:
+      return 60.0;
+  }
+}
+
+double _mobileRowPadH(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 10.0;
+    case _GridDensity.roomy:
+      return 14.0;
+    case _GridDensity.normal:
+    default:
+      return 12.0;
+  }
+}
+
+double _mobileRowPadV(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 4.0;
+    case _GridDensity.roomy:
+      return 8.0;
+    case _GridDensity.normal:
+    default:
+      return 6.0;
+  }
+}
+
+double _mobileRowSpacing(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 6.0;
+    case _GridDensity.roomy:
+      return 10.0;
+    case _GridDensity.normal:
+    default:
+      return 8.0;
+  }
+}
+
+double _mobileCardGap(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 6.0;
+    case _GridDensity.roomy:
+      return 10.0;
+    case _GridDensity.normal:
+    default:
+      return 8.0;
+  }
+}
+
+double _mobileCardPadH(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 8.0;
+    case _GridDensity.roomy:
+      return 12.0;
+    case _GridDensity.normal:
+    default:
+      return 10.0;
+  }
+}
+
+double _mobileCardPadV(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 4.0;
+    case _GridDensity.roomy:
+      return 8.0;
+    case _GridDensity.normal:
+    default:
+      return 6.0;
+  }
+}
+
+double _mobileRowH(_GridDensity density) =>
+    _mobileCardH(density) + (_mobileRowPadV(density) * 2);
+
+double _mobileHeaderRowH(_GridDensity density) => _mobileRowH(density);
+
+
+double _mobileListPadTop(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 4.0;
+    case _GridDensity.roomy:
+      return 8.0;
+    case _GridDensity.normal:
+    default:
+      return 6.0;
+  }
+}
+
+double _mobileListPadBottom(_GridDensity density) {
+  switch (density) {
+    case _GridDensity.compact:
+      return 8.0;
+    case _GridDensity.roomy:
+      return 14.0;
+    case _GridDensity.normal:
+    default:
+      return 12.0;
+  }
+}
+double _mobileTextSize(_GridDensity density, {required bool isHeader}) {
+  switch (density) {
+    case _GridDensity.compact:
+      return isHeader ? 12.0 : 12.0;
+    case _GridDensity.roomy:
+      return isHeader ? 14.0 : 14.0;
+    case _GridDensity.normal:
+    default:
+      return isHeader ? 13.0 : 13.0;
+  }
+}
 
 double _mobileCardWidthForScreen(double screenW) {
   final raw = screenW * 0.34;
@@ -21,6 +139,7 @@ int _alphaFor(double opacity) => (opacity * 255).round();
 class _MobileNotesGrid extends StatelessWidget {
   const _MobileNotesGrid({
     required this.palette,
+    required this.density,
     required this.headers,
     required this.rowModels,
     required this.cellTextAt,
@@ -48,6 +167,7 @@ class _MobileNotesGrid extends StatelessWidget {
   });
 
   final _SheetPalette palette;
+  final _GridDensity density;
   final List<String> headers;
   final List<_RowModel> rowModels;
   final String Function(int r, int c) cellTextAt;
@@ -84,9 +204,9 @@ class _MobileNotesGrid extends StatelessWidget {
     return ListView.separated(
       controller: verticalController,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(0, 6, 0, 12),
+      padding: EdgeInsets.fromLTRB(0, _mobileListPadTop(density), 0, _mobileListPadBottom(density)),
       itemCount: rowModels.length + 1,
-      separatorBuilder: (_, __) => const SizedBox(height: _kMobileRowSpacing),
+      separatorBuilder: (_, __) => SizedBox(height: _mobileRowSpacing(density)),
       itemBuilder: (ctx, index) {
         if (index == 0) {
           return KeyedSubtree(
@@ -106,7 +226,7 @@ class _MobileNotesGrid extends StatelessWidget {
   Widget _buildHeaderRow(BuildContext context) {
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
     return SizedBox(
-      height: _kMobileHeaderRowH,
+      height: _mobileHeaderRowH(density),
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: (n) {
           onHorizontalScroll(headerScrollController.offset, true, -1);
@@ -116,10 +236,10 @@ class _MobileNotesGrid extends StatelessWidget {
           controller: headerScrollController,
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-              horizontal: _kMobileRowPadH, vertical: _kMobileRowPadV),
+          padding: EdgeInsets.symmetric(
+              horizontal: _mobileRowPadH(density), vertical: _mobileRowPadV(density)),
           itemCount: headers.length,
-          separatorBuilder: (_, __) => const SizedBox(width: _kMobileCardGap),
+          separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
           itemBuilder: (ctx, col) {
             final label = _labelHeader(headers, col);
             final isActive = activeIsHeader && activeCol == col;
@@ -153,7 +273,7 @@ class _MobileNotesGrid extends StatelessWidget {
   Widget _buildDataRow(BuildContext context, int row) {
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
     return SizedBox(
-      height: _kMobileRowH,
+      height: _mobileRowH(density),
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: (n) {
           onHorizontalScroll(rowScrollControllers[row].offset, false, row);
@@ -163,10 +283,10 @@ class _MobileNotesGrid extends StatelessWidget {
           controller: rowScrollControllers[row],
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-              horizontal: _kMobileRowPadH, vertical: _kMobileRowPadV),
+          padding: EdgeInsets.symmetric(
+              horizontal: _mobileRowPadH(density), vertical: _mobileRowPadV(density)),
           itemCount: headers.length,
-          separatorBuilder: (_, __) => const SizedBox(width: _kMobileCardGap),
+          separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
           itemBuilder: (ctx, col) {
             final isPhotos = col == headers.length - 1;
             final isActive =
@@ -339,7 +459,7 @@ class _MobileNotesGrid extends StatelessWidget {
 
     return SizedBox(
       width: width,
-      height: _kMobileCardH,
+      height: _mobileCardH(density),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -360,7 +480,7 @@ class _MobileNotesGrid extends StatelessWidget {
               boxShadow: isSelected ? t.shadows.soft : null,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: EdgeInsets.symmetric(horizontal: _mobileCardPadH(density), vertical: _mobileCardPadV(density)),
               child: decoratedChild,
             ),
           ),
@@ -379,7 +499,7 @@ class _MobileNotesGrid extends StatelessWidget {
       style: TextStyle(
         color: palette.fg,
         fontWeight: isHeader ? FontWeight.w800 : FontWeight.w600,
-        fontSize: isHeader ? 13.0 : 13.0,
+        fontSize: _mobileTextSize(density, isHeader: isHeader),
         height: 1.05,
         letterSpacing: 0.0,
       ),

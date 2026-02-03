@@ -166,6 +166,9 @@ class AudioServiceImpl implements AudioService {
   Future<void> _startWebAudioFallback(html.MediaStream stream) async {
     final ctx = wa.AudioContext();
     _audioContext = ctx;
+    try {
+      await ctx.resume();
+    } catch (_) {}
     final rate = ctx.sampleRate ?? 44100;
     _sampleRate = rate.toInt();
 
