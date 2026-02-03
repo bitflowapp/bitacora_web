@@ -1,44 +1,41 @@
-# QA Checklist
+﻿# QA Checklist
 
-## Build
-- flutter analyze (0 errors)
-- flutter test
-- flutter build web --release --base-href "/bitacora_web/"
-- flutter build apk --release
-- iOS: build and run, permisos correctos (GPS/microfono/camara/fotos)
+## Build Stamp & Version
+- Abrir la app y verificar el Build Stamp (esquina inferior izquierda).
+- Abrir `/version.json` en el navegador y comprobar que `gitSha` coincide con el último commit.
+- En **Diagnósticos**, confirmar `version.json` y `ENGINE_BASE_URL`.
 
-## Funcionalidad critica
-- Guardar / cargar planillas
-- Exportar XLSX y abrir en Excel sin reparaciones
-- Exportar ZIP (XLSX + attachments + manifest.json)
-- Share: XLSX y ZIP via share sheet
-- GPS:
-  - Permisos denegados -> dialogo claro
-  - Insertar texto en celda
-  - Guardar metadata solamente
-  - Elegir celda destino
-- Fotos:
-  - Adjuntar / ver / renombrar / borrar
-  - Export: primera foto embebida por celda
-- Audio:
-  - Grabar / reproducir / renombrar / borrar (Android/iOS)
-  - Web: grabacion habilitada si el navegador lo soporta
-- Calculadora: expresiones offline (+-*/%^, paréntesis)
-- Atajos desktop/web:
-  - Ctrl+S guardar
-  - Ctrl+E exportar XLSX
-  - Ctrl+Shift+E exportar ZIP
-  - Ctrl+G GPS en celda
-  - Ctrl+Shift+A audio en celda
-  - Ctrl+P fotos en celda
+## Forzar Actualización
+- En **Diagnósticos** tocar **Forzar actualización**.
+- Si iOS Safari sigue mostrando lo viejo: Ajustes → Safari → Avanzado → Datos de sitios web → borrar el dominio.
 
-## Known limitations
-- Audio no reproduce dentro de Excel (solo se exporta como archivo adjunto en ZIP).
-- Grabacion web puede estar limitada por el navegador (Safari/iOS web).
+## Smoke Test (rápido)
+- Desde **Más** → **Smoke Test (GPS/Fotos/Audio)**, abrir la planilla y ejecutar los tres pasos.
 
-## Build stamp
-- Verificar que se vea "Build: <sha> � <YYYY-MM-DD HH:mm>" en pantalla principal.
+## GPS Por Celda
+- Seleccionar una celda y usar **GPS → Pegar en esta celda**.
+- Confirmar texto visible y badge GPS en la celda.
+- Probar modos **Elegir celda destino** y **Solo metadata**.
+- Recargar la app y validar persistencia.
 
-## Cache / actualizacion
-- Chrome: DevTools ? Application ? Service Workers ? Unregister + Clear site data + hard reload.
-- iOS Safari: Ajustes ? Safari ? Avanzado ? Datos de sitios web ? borrar para el dominio.
+## Fotos Por Celda
+- Adjuntar foto a una celda, confirmar miniatura/badge.
+- Abrir galería, renombrar y borrar.
+- Recargar y confirmar persistencia.
+- Exportar ZIP y verificar `attachments/photos/` + hoja **Attachments**.
+
+## Audio Por Celda
+- Grabar audio en una celda y detener.
+- Reproducir, renombrar y borrar.
+- Recargar y confirmar persistencia.
+- En iOS Safari: verificar fallback WAV o mensaje claro si no soporta grabación.
+- Exportar ZIP y verificar `attachments/audio/` + hoja **Attachments**.
+
+## Exportar / Compartir
+- Exportar XLSX y abrir en Excel sin advertencias de reparación.
+- Exportar ZIP: debe contener `Sheet.xlsx`, `manifest.json` y carpeta `attachments/`.
+- Compartir: abrir el selector (WhatsApp/Gmail/Outlook según plataforma).
+
+## Diagnósticos
+- Verificar `Geolocation disponible`, `Micrófono soportado`, `Storage writable`.
+- Verificar `MediaRecorder soportado` en web.
