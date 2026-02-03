@@ -12,6 +12,12 @@
 ## Smoke Test (rápido)
 - Desde **Más** → **Smoke Test (GPS/Fotos/Audio)**, abrir la planilla y ejecutar los tres pasos.
 
+## UI & Atajos
+- Desktop: verificar toolbar superior con botones **GPS/Cámara/Mic/Exportar/Compartir** visibles y tooltips.
+- Mobile: verificar barra inferior de quick actions con **GPS/Cámara/Mic/Exportar/Compartir**.
+- Atajos: `G` (GPS), `P` (Foto), `A` (Audio), `Ctrl/Cmd+K` (Command Palette/ayuda).
+- Command Palette: abrir y ejecutar acciones GPS/Foto/Audio/Exportar/Compartir.
+
 ## GPS Por Celda
 - Seleccionar una celda y usar **GPS → Pegar en esta celda**.
 - Confirmar texto visible y badge GPS en la celda.
@@ -30,6 +36,12 @@
 - Recargar y confirmar persistencia.
 - En iOS Safari: verificar fallback WAV o mensaje claro si no soporta grabación.
 - Exportar ZIP y verificar `attachments/audio/` + hoja **Attachments**.
+
+## Contexto In-App / Inseguro
+- En navegador in-app (Instagram/WhatsApp) o sin HTTPS: validar banner “Abrir en Safari/Chrome”.
+
+## Storage Limitado
+- Forzar falta de storage (si aplica) y confirmar banner con acción **Exportar ZIP**.
 
 ## Exportar / Compartir
 - Exportar XLSX y abrir en Excel sin advertencias de reparación.

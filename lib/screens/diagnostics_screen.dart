@@ -47,6 +47,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     final serviceWorkerSupported =
         kIsWeb ? WebCapabilities.serviceWorkerSupported : false;
     final indexedDbAvailable = kIsWeb ? WebCapabilities.indexedDbAvailable : false;
+    final inAppBrowser = kIsWeb ? WebCapabilities.isInAppBrowser : false;
 
     return _DiagnosticsSnapshot(
       isSecureContext: isSecure,
@@ -59,6 +60,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       storageMessage: storage.message,
       serviceWorkerSupported: serviceWorkerSupported,
       indexedDbAvailable: indexedDbAvailable,
+      inAppBrowser: inAppBrowser,
       versionJson: versionJson,
     );
   }
@@ -96,6 +98,62 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     }
   }
 
+  void _recheckPermissions() {
+    setState(() {
+      _future = _load();
+    });
+  }
+
+  Future<void> _showPermissionHelp() async {
+    if (!mounted) return;
+    if (kIsWeb) {
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Abrir ajustes del navegador'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Para GPS/Microfono, abrí los ajustes del navegador y habilitá permisos para este sitio.',
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    try {
+      final opened = await Geolocator.openAppSettings();
+      if (!opened) {
+        await Geolocator.openLocationSettings();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Abrir ajustes'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('No se pudieron abrir los ajustes en este dispositivo.'),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   String _permLabel(LocationPermission p) {
     switch (p) {
       case LocationPermission.always:
@@ -124,7 +182,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     await showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Forzar actualización'),
+        title: const Text('Forzar actualizacion'),
         content: Text(res.message.trim().isEmpty
             ? 'Operación completada.'
             : res.message),
@@ -161,23 +219,23 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     _infoRow('Stamp', BuildInfo.stamp),
                     _infoRow('GIT_SHA', BuildInfo.gitSha.isEmpty ? 'dev' : BuildInfo.gitSha),
                     _infoRow('BUILD_TIME', BuildInfo.buildTime.isEmpty ? 'dev' : BuildInfo.buildTime),
-                    _infoRow('ENGINE_BASE_URL', BuildInfo.engineBaseUrl.isEmpty ? 'vacío' : BuildInfo.engineBaseUrl),
+                    _infoRow('ENGINE_BASE_URL', BuildInfo.engineBaseUrl.isEmpty ? 'vacio' : BuildInfo.engineBaseUrl),
                     const SizedBox(height: 8),
                     CupertinoButton.filled(
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
                       onPressed: _forceUpdate,
-                      child: const Text('Forzar actualización'),
+                      child: const Text('Forzar actualizacion'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Checks'),
+                _sectionTitle('Permisos/Capacidades'),
                 _infoCard(
                   children: [
                     _checkRow('Secure context (HTTPS)', data.isSecureContext),
                     _checkRow('Geolocation disponible', data.geolocationAvailable),
                     _infoRow('Geo permiso', _permLabel(data.geolocationPermission)),
-                    _checkRow('Micrófono soportado', data.micSupported),
+                    _checkRow('Microfono soportado', data.micSupported),
                     _infoRow('Mic permiso', data.micPermission ? 'granted' : 'denied'),
                     if (kIsWeb)
                       _checkRow('MediaRecorder soportado', data.mediaRecorderSupported),
@@ -187,10 +245,33 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                       _checkRow('IndexedDB disponible', data.indexedDbAvailable),
                     _checkRow('Storage writable', data.storageOk,
                         message: data.storageMessage),
+                    if (kIsWeb)
+                      _checkRow('Navegador embebido', !data.inAppBrowser,
+                          message: data.inAppBrowser ? 'Detectado' : 'OK'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CupertinoButton.filled(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            onPressed: _recheckPermissions,
+                            child: const Text('Re-chequear permisos'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            onPressed: _showPermissionHelp,
+                            child: const Text('Abrir ajustes'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Última acción'),
+                _sectionTitle('Ultima accion'),
                 _infoCard(
                   children: [
                     ValueListenableBuilder<DiagnosticEvent?>(
@@ -205,7 +286,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _infoRow('Acción', '$type  $status  $time'),
+                            _infoRow('Accion', '$type - $status - $time'),
                             if (ev.message.trim().isNotEmpty)
                               _infoRow('Detalle', ev.message),
                           ],
@@ -215,7 +296,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Versión JSON (asset)'),
+                _sectionTitle('Version JSON (asset)'),
                 _infoCard(
                   children: [
                     _infoRow('version.json', data.versionJson),
@@ -232,7 +313,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                _sectionTitle('Si ves versión vieja'),
+                _sectionTitle('Si ves version vieja'),
                 _infoCard(
                   children: const [
                     Text(
@@ -314,7 +395,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '$label  $text',
+              '$label - $text',
               style: const TextStyle(fontSize: 12),
             ),
           ),
@@ -336,6 +417,7 @@ class _DiagnosticsSnapshot {
     required this.storageMessage,
     required this.serviceWorkerSupported,
     required this.indexedDbAvailable,
+    required this.inAppBrowser,
     required this.versionJson,
   });
 
@@ -349,6 +431,7 @@ class _DiagnosticsSnapshot {
   final String storageMessage;
   final bool serviceWorkerSupported;
   final bool indexedDbAvailable;
+  final bool inAppBrowser;
   final String versionJson;
 
   factory _DiagnosticsSnapshot.empty() => _DiagnosticsSnapshot(
@@ -362,6 +445,14 @@ class _DiagnosticsSnapshot {
         storageMessage: 'Sin datos',
         serviceWorkerSupported: false,
         indexedDbAvailable: false,
+        inAppBrowser: false,
         versionJson: 'Sin datos',
       );
 }
+
+
+
+
+
+
+
