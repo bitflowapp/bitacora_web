@@ -100,7 +100,7 @@ Future<WebImageCaptureResult> captureWebImage({
     final filesLen = input.files?.length ?? 0;
     final valueLen = input.value?.length ?? 0;
     final vis = html.document.visibilityState ?? 'unknown';
-    final focus = html.document.hasFocus();
+    final focus = html.document.activeElement != null;
     return 'vis=$vis focus=$focus valueLen=$valueLen files=$filesLen';
   }
 
