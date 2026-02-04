@@ -26,7 +26,6 @@
 import 'dart:async'
     hide unawaited; // ??? FIX: evita colisi??n con unawaited de dart:async
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, TileMode;
 
@@ -60,6 +59,7 @@ import 'package:bitacora_web/services/web_capabilities.dart';
 import 'package:bitacora_web/theme/app_theme.dart';
 import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:bitacora_web/widgets/command_palette.dart';
+import 'package:bitacora_web/widgets/web_blob_image.dart';
 import 'package:bitacora_web/utils/location_format.dart';
 import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 
@@ -4662,8 +4662,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _showPhotoSourcePickerForCell(int r, int c) async {
-    if (r < 0 || r >= _rows.length) return;
-    if (c < 0 || c >= _headers.length) return;
+    if (_rows.isEmpty || _headers.isEmpty) return;
 
     final target = await _ensurePhotoTargetCell(r, c);
     if (target == null) return;
@@ -4970,7 +4969,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  Future<void> _handlePhotoOutcomeResult(
+    Future<void> _handlePhotoOutcomeResult(
     PhotoAcquireOutcome outcome,
     int r,
     int c,
@@ -5018,37 +5017,53 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final result = outcome.result!;
-
-    final attachmentId = _genAttachmentId('ph_');
-    final cellKey = CellKey(r, c).toKey();
-    final stored = await _photoStore.savePhoto(
-      sheetId: widget.sheetId,
-      cellKey: cellKey,
-      attachmentId: attachmentId,
-      bytes: result.bytes,
-      originalName: result.name,
-      mime: result.mime,
-    );
-    if (!mounted) return;
-    if (stored == null) {
+    if (result.bytes.isEmpty) {
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
-        message: 'photo_save_failed (storage returned null)',
+        message: 'photo_error empty_bytes',
       );
-      _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
-          isError: true, icon: Icons.photo_outlined);
+      _showActionSnack(
+        'No se capturo la foto. Toca Capturar.',
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
       return;
     }
 
-    final storedRef = _photoStoredRefFrom(stored);
-    if (storedRef.startsWith('mem:')) {
+    final attachmentId = _genAttachmentId('ph_');
+    final cellKey = CellKey(r, c).toKey();
+    StoredPhoto? stored;
+    try {
+      stored = await _photoStore.savePhoto(
+        sheetId: widget.sheetId,
+        cellKey: cellKey,
+        attachmentId: attachmentId,
+        bytes: result.bytes,
+        originalName: result.name,
+        mime: result.mime,
+      );
+    } catch (_) {
+      stored = null;
+    }
+    if (!mounted) return;
+
+    var storedRef = '';
+    if (stored != null) {
+      storedRef = _photoStoredRefFrom(stored);
+    }
+    if (storedRef.trim().isEmpty) {
+      storedRef = 'b64:${base64Encode(result.bytes)}';
+    }
+    if (storedRef.startsWith('mem:') || stored == null || storedRef.startsWith('b64:')) {
       _warnStorageFallbackOnce('foto');
     }
 
-    final thumbBytes =
-        _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
-    final thumbB64 = base64Encode(thumbBytes);
+    final thumbBytes = _compressThumb(result.bytes,
+        maxW: 560, maxH: 560, quality: 78);
+    final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
+        ? ''
+        : base64Encode(thumbBytes);
 
     final fixOutcome =
         await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
@@ -5083,6 +5098,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: Icons.photo_outlined,
     );
   }
+
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
     final key = CellKey(r, c).toKey();
@@ -5193,7 +5209,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Future<void> _openPhotoPreview(
+    Future<void> _openPhotoPreview(
     BuildContext context,
     PhotoAttachment photo,
   ) async {
@@ -5207,19 +5223,29 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       builder: (ctx) {
         final pal = _palette(ctx);
-        return Dialog(
-          backgroundColor: pal.menuBg,
-          insetPadding: const EdgeInsets.all(16),
-          child: Stack(
-            children: [
-              InteractiveViewer(
+        final preview = kIsWeb
+            ? Center(
+                child: WebBlobImage(
+                  bytes: bytes,
+                  mime: photo.mime,
+                  fit: BoxFit.contain,
+                ),
+              )
+            : InteractiveViewer(
                 minScale: 0.8,
                 maxScale: 4,
                 child: Image.memory(
                   bytes,
                   fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
-              ),
+              );
+        return Dialog(
+          backgroundColor: pal.menuBg,
+          insetPadding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              preview,
               Positioned(
                 right: 8,
                 top: 8,
@@ -5234,6 +5260,7 @@ class _EditorScreenState extends State<EditorScreen>
       },
     );
   }
+
 
   void _openPhotosSheetForCell(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
@@ -5865,11 +5892,11 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Uint8List _compressThumb(Uint8List bytes,
+    Uint8List? _compressThumb(Uint8List bytes,
       {required int maxW, required int maxH, required int quality}) {
     try {
       final decoded = img.decodeImage(bytes);
-      if (decoded == null) return bytes;
+      if (decoded == null) return null;
 
       final oriented = img.bakeOrientation(decoded);
       final resized = img.copyResize(
@@ -5882,7 +5909,7 @@ class _EditorScreenState extends State<EditorScreen>
       final jpg = img.encodeJpg(resized, quality: quality);
       return Uint8List.fromList(jpg);
     } catch (_) {
-      return bytes;
+      return null;
     }
   }
 
@@ -6747,7 +6774,7 @@ class _EditorScreenState extends State<EditorScreen>
       photoOk = true;
     }
 
-    final thumbBytes = _compressThumb(pngBytes, maxW: 320, maxH: 320, quality: 70);
+    final thumbBytes = _compressThumb(pngBytes, maxW: 320, maxH: 320, quality: 70) ?? pngBytes;
     final photoAttachment = PhotoAttachment(
       id: phId,
       filename: 'smoke.png',
@@ -8305,7 +8332,7 @@ class _DataCell extends StatelessWidget {
           );
 
     final badges = <Widget>[];
-    if (!isPhotos && photoThumbB64.trim().isNotEmpty) {
+    if (!isPhotos && (photoThumbB64.trim().isNotEmpty || photosCount > 0)) {
       final bytes = _tryDecodeB64(photoThumbB64);
       if (bytes != null) {
         badges.add(
@@ -8319,6 +8346,16 @@ class _DataCell extends StatelessWidget {
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.low,
               ),
+            ),
+          ),
+        );
+      } else if (photosCount > 0) {
+        badges.add(
+          _badge(
+            Icon(
+              Icons.photo_rounded,
+              size: 12,
+              color: palette.accent.withOpacity(0.8),
             ),
           ),
         );

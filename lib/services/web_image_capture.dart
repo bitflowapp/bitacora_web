@@ -1,8 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 
 import 'diagnostics_log.dart';
+import 'web_capabilities.dart';
 
 enum WebImageCaptureStatus { success, cancelled, blocked, error }
 
@@ -54,6 +55,7 @@ Future<WebImageCaptureResult> captureWebImage({
   required bool capture,
   double jpegQuality = 0.85,
 }) {
+  final _ = jpegQuality;
   final input = html.FileUploadInputElement()
     ..accept = 'image/*'
     ..multiple = false;
@@ -69,7 +71,6 @@ Future<WebImageCaptureResult> captureWebImage({
   StreamSubscription<html.Event>? changeSub;
   StreamSubscription<html.Event>? focusSub;
   StreamSubscription<html.Event>? visibilitySub;
-  String? objectUrl;
   Timer? timeoutTimer;
   Timer? pollTimer;
   var finished = false;
@@ -124,11 +125,6 @@ Future<WebImageCaptureResult> captureWebImage({
     try {
       pollTimer?.cancel();
     } catch (_) {}
-    if (objectUrl != null) {
-      try {
-        html.Url.revokeObjectUrl(objectUrl!);
-      } catch (_) {}
-    }
     try {
       input.remove();
     } catch (_) {}
@@ -137,62 +133,76 @@ Future<WebImageCaptureResult> captureWebImage({
     }
   }
 
-  Future<Uint8List?> _blobToBytes(html.Blob blob) async {
+  Future<Uint8List?> _readFileBytes(html.File file) async {
     final reader = html.FileReader();
-    reader.readAsArrayBuffer(blob);
-    await reader.onLoadEnd.first;
-    final result = reader.result;
-    if (result is! ByteBuffer) return null;
-    return Uint8List.view(result);
+    final done = Completer<Uint8List?>();
+
+    reader.onError.first.then((_) {
+      if (!done.isCompleted) done.complete(null);
+    });
+
+    reader.onLoadEnd.first.then((_) {
+      if (done.isCompleted) return;
+      final result = reader.result;
+      if (result is ByteBuffer) {
+        done.complete(Uint8List.view(result));
+        return;
+      }
+      done.complete(null);
+    });
+
+    try {
+      reader.readAsArrayBuffer(file);
+    } catch (_) {
+      if (!done.isCompleted) done.complete(null);
+    }
+
+    return done.future;
+  }
+
+  String _guessMimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
+  }
+
+  String _fallbackName(String mime) {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    String ext = 'jpg';
+    if (mime.contains('png')) ext = 'png';
+    if (mime.contains('webp')) ext = 'webp';
+    if (mime.contains('heic')) ext = 'heic';
+    if (mime.contains('heif')) ext = 'heif';
+    if (mime.contains('gif')) ext = 'gif';
+    return 'photo_$ts.$ext';
   }
 
   Future<void> processFile(html.File file, {required String source}) async {
     if (finished) return;
+
+    final fileType = file.type.trim();
+    final fileMime = fileType.isNotEmpty ? fileType : _guessMimeFromName(file.name);
+    final name = file.name.trim().isNotEmpty ? file.name.trim() : _fallbackName(fileMime);
+
     logStep(
-      'photo:web files=1 source=$source size=${file.size} name=${file.name} ${_snapshot()}',
+      'photo:web files=1 source=$source name=$name type=$fileType size=${file.size} ${_snapshot()}',
     );
-    objectUrl = html.Url.createObjectUrl(file);
 
-    try {
-      final img = html.ImageElement();
-      final loadFuture = img.onLoad.first;
-      final errFuture = img.onError.first;
-      img.src = objectUrl!;
-      await Future.any([loadFuture, errFuture]);
-
-      if (img.naturalWidth == 0 || img.naturalHeight == 0) {
-        finish(WebImageCaptureResult.error('No se pudo decodificar la imagen.'));
-        return;
-      }
-
-      final canvas = html.CanvasElement(
-        width: img.naturalWidth,
-        height: img.naturalHeight,
-      );
-      final ctx = canvas.context2D;
-      ctx.drawImageScaled(img, 0, 0, canvas.width!, canvas.height!);
-
-      final blob = await canvas.toBlob('image/jpeg', jpegQuality);
-      if (blob == null) {
-        finish(WebImageCaptureResult.error('No se pudo convertir la imagen a JPEG.'));
-        return;
-      }
-
-      final bytes = await _blobToBytes(blob);
-      if (bytes == null || bytes.isEmpty) {
-        finish(WebImageCaptureResult.error('No se pudo leer la imagen.'));
-        return;
-      }
-
-      final name = _ensureJpgName(file.name);
-      finish(WebImageCaptureResult.success(
-        bytes: bytes,
-        name: name,
-        mime: 'image/jpeg',
-      ));
-    } catch (e) {
-      finish(WebImageCaptureResult.error('Error al procesar la imagen: $e'));
+    final bytes = await _readFileBytes(file);
+    if (bytes == null || bytes.isEmpty) {
+      finish(WebImageCaptureResult.error('No se pudo leer la imagen.'));
+      return;
     }
+
+    finish(WebImageCaptureResult.success(
+      bytes: bytes,
+      name: name,
+      mime: fileMime.isEmpty ? 'image/jpeg' : fileMime,
+    ));
   }
 
   void startPolling(String reason) {
@@ -200,7 +210,7 @@ Future<WebImageCaptureResult> captureWebImage({
     polling = true;
     pollTick = 0;
     logStep('photo:web poll_start reason=$reason ${_snapshot()}');
-    pollTimer = Timer.periodic(const Duration(milliseconds: 80), (t) {
+    pollTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
       if (finished) {
         t.cancel();
         return;
@@ -215,7 +225,7 @@ Future<WebImageCaptureResult> captureWebImage({
         unawaited(processFile(files.first, source: 'poll'));
         return;
       }
-      if (pollTick * 80 >= 2000) {
+      if (pollTick * 100 >= 2000) {
         t.cancel();
         polling = false;
         logStep('photo:web poll_timeout ${_snapshot()}', ok: false);
@@ -267,7 +277,7 @@ Future<WebImageCaptureResult> captureWebImage({
   });
 
   logStep(
-    'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari capture=$capture ${_snapshot()}',
+    'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari secure=${html.window.isSecureContext == true} inApp=${WebCapabilities.isInAppBrowser} gUM=${WebCapabilities.cameraAvailable} capture=$capture ${_snapshot()}',
   );
   try {
     logStep('photo:web click capture=$capture ${_snapshot()}');
@@ -277,16 +287,4 @@ Future<WebImageCaptureResult> captureWebImage({
     finish(WebImageCaptureResult.blocked('El navegador bloqueo el selector.'));
   }
   return completer.future;
-}
-
-String _ensureJpgName(String raw) {
-  var name = raw.trim().isEmpty ? 'photo' : raw.trim();
-  final lower = name.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return name;
-  final dot = name.lastIndexOf('.');
-  if (dot > 0) {
-    name = name.substring(0, dot);
-  }
-  final ts = DateTime.now().millisecondsSinceEpoch;
-  return '${name}_$ts.jpg';
 }

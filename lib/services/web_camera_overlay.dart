@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
@@ -24,6 +24,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
   html.MediaStream? _stream;
   Uint8List? _captured;
   bool _starting = true;
+  bool _ready = false;
   bool _capturing = false;
   String? _error;
   WebCameraCaptureStatus? _errorStatus;
@@ -32,7 +33,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
   @override
   void initState() {
     super.initState();
-    _viewType = 'webcam--';
+    _viewType = 'webcam--${DateTime.now().microsecondsSinceEpoch}';
     _video = html.VideoElement()
       ..autoplay = true
       ..muted = true
@@ -63,9 +64,15 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
     );
   }
 
+  String _errorName(Object e) {
+    if (e is html.DomException) return e.name;
+    return e.runtimeType.toString();
+  }
+
   String _describeError(Object e) {
     if (e is html.DomException) {
-      return ' '.trim();
+      final msg = e.message ?? '';
+      return msg.isNotEmpty ? '${e.name}: $msg' : e.name;
     }
     return e.toString();
   }
@@ -82,9 +89,33 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
     return WebCameraCaptureStatus.error;
   }
 
+  Future<void> _waitForVideoReady() async {
+    if (_video.videoWidth > 0 && _video.videoHeight > 0) return;
+    final completer = Completer<void>();
+    StreamSubscription<html.Event>? metaSub;
+    StreamSubscription<html.Event>? canPlaySub;
+
+    void done() {
+      metaSub?.cancel();
+      canPlaySub?.cancel();
+      if (!completer.isCompleted) completer.complete();
+    }
+
+    metaSub = _video.onLoadedMetadata.listen((_) => done());
+    canPlaySub = _video.onCanPlay.listen((_) => done());
+
+    try {
+      await completer.future.timeout(const Duration(seconds: 2));
+    } catch (_) {
+      metaSub?.cancel();
+      canPlaySub?.cancel();
+    }
+  }
+
   Future<void> _startCamera() async {
     setState(() {
       _starting = true;
+      _ready = false;
       _error = null;
       _errorStatus = null;
     });
@@ -105,16 +136,26 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
       _stream = stream;
       _video.srcObject = stream;
       await _video.play();
-      if (!mounted) return;
-      setState(() => _starting = false);
-      _log('photo:webcam ready');
-    } catch (e) {
-      final details = _describeError(e);
-      final status = _mapErrorStatus(e);
-      _log('photo:webcam error ', ok: false);
+      await _waitForVideoReady();
       if (!mounted) return;
       setState(() {
         _starting = false;
+        _ready = _video.videoWidth > 0 && _video.videoHeight > 0;
+      });
+      _log(
+        'photo:webcam ready size=${_video.videoWidth}x${_video.videoHeight}',
+      );
+    } catch (e) {
+      final details = _describeError(e);
+      final status = _mapErrorStatus(e);
+      _log(
+        'photo:webcam error name=${_errorName(e)} detail=$details',
+        ok: false,
+      );
+      if (!mounted) return;
+      setState(() {
+        _starting = false;
+        _ready = false;
         _error = details;
         _errorStatus = status;
       });
@@ -158,6 +199,10 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
 
     setState(() => _capturing = true);
     try {
+      if (!_ready) {
+        await _waitForVideoReady();
+      }
+
       final width = _video.videoWidth;
       final height = _video.videoHeight;
       if (width == 0 || height == 0) {
@@ -183,13 +228,16 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
       _video.pause();
       if (!mounted) return;
       setState(() => _captured = bytes);
-      _log('photo:webcam captured bytes=');
+      _log('photo:webcam captured bytes=${bytes.length}');
     } catch (e) {
       final details = _describeError(e);
-      _log('photo:webcam capture_error ', ok: false);
+      _log(
+        'photo:webcam capture_error name=${_errorName(e)} detail=$details',
+        ok: false,
+      );
       if (!mounted) return;
       setState(() {
-        _error = 'No se pudo capturar la foto: ';
+        _error = 'No se pudo capturar la foto: $details';
         _errorStatus = WebCameraCaptureStatus.error;
       });
     } finally {
@@ -218,7 +266,6 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
   void _confirm() {
     final bytes = _captured;
     if (bytes == null || bytes.isEmpty) return;
-    final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
     _finish(WebCameraCaptureResult.success(
       bytes: bytes,
       name: 'camera_.jpg',
@@ -239,6 +286,8 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canCapture = !_starting && !_capturing && _error == null;
+    final canShot = canCapture && (_captured != null || _ready);
     return Material(
       color: Colors.black.withOpacity(0.88),
       child: SafeArea(
@@ -338,7 +387,9 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _captured == null ? _captureFrame : _confirm,
+                      onPressed: !canShot
+                          ? null
+                          : (_captured == null ? _captureFrame : _confirm),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,
                         foregroundColor: Colors.white,

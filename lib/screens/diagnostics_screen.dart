@@ -1,6 +1,8 @@
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:geolocator/geolocator.dart';
 
 import '../services/audio_service.dart';
@@ -8,7 +10,6 @@ import '../services/audio_storage_service.dart';
 import '../services/build_info.dart';
 import '../services/diagnostics_log.dart';
 import '../services/force_update_service.dart';
-import '../services/photo_acquire_service.dart';
 import '../services/photo_storage_service.dart';
 import '../services/storage_diagnostics.dart';
 import '../services/web_capabilities.dart';
@@ -217,7 +218,17 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     return '$bytes B';
   }
 
-  Future<void> _runPhotoSelfTest() async {
+  Uint8List _selfTestPngBytes() {
+    try {
+      final image = img.Image(width: 16, height: 16);
+      img.fill(image, color: img.ColorRgb8(0, 122, 255));
+      return Uint8List.fromList(img.encodePng(image));
+    } catch (_) {
+      return Uint8List.fromList(<int>[137, 80, 78, 71]);
+    }
+  }
+
+    Future<void> _runPhotoSelfTest() async {
     if (_photoTestBusy) return;
     if (!kIsWeb) {
       setState(() => _photoTestResult = 'Solo disponible en Web.');
@@ -225,33 +236,19 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     }
     setState(() {
       _photoTestBusy = true;
-      _photoTestResult = 'Abriendo camara...';
+      _photoTestResult = 'Generando imagen...';
     });
 
     try {
-      final outcome = await PhotoAcquireService.I.captureFromCamera(context: context);
-      if (!mounted) return;
-      if (outcome.cancelled) {
-        setState(() => _photoTestResult = 'cancelled');
-        return;
-      }
-      if (outcome.blocked) {
-        setState(() => _photoTestResult = 'blocked: ${outcome.error}');
-        return;
-      }
-      if (!outcome.ok) {
-        setState(() => _photoTestResult = 'error: ${outcome.error}');
-        return;
-      }
-      final result = outcome.result!;
-      final sizeLabel = _fmtBytes(result.bytes.lengthInBytes);
+      final bytes = _selfTestPngBytes();
+      final sizeLabel = _fmtBytes(bytes.lengthInBytes);
       final stored = await PhotoStorageService.I.savePhoto(
         sheetId: 'diagnostics',
         cellKey: 'selftest',
         attachmentId: 'photo_${DateTime.now().microsecondsSinceEpoch}',
-        bytes: result.bytes,
-        originalName: result.name,
-        mime: result.mime,
+        bytes: bytes,
+        originalName: 'selftest.png',
+        mime: 'image/png',
       );
       final storageLabel = stored == null
           ? 'FAIL'
@@ -260,9 +257,15 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           ? null
           : await PhotoStorageService.I.readPhotoBytes(stored.path);
       final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: readOk == 'OK',
+        message:
+            'photo_selftest bytes=${bytes.lengthInBytes} storage=$storageLabel read=$readOk',
+      );
       setState(() {
         _photoTestResult =
-            'picked $sizeLabel · storage $storageLabel · read $readOk';
+            'generated $sizeLabel · storage $storageLabel · read $readOk';
       });
     } catch (e) {
       if (!mounted) return;

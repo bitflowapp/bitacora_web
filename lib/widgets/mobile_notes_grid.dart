@@ -251,6 +251,7 @@ class _MobileNotesGrid extends StatelessWidget {
               isSelected: false,
               hasGps: false,
               hasAudio: false,
+              hasPhoto: false,
               photoThumbB64: '',
               onTap: () => onHeaderTap(ctx, col),
               onLongPress: (pos) =>
@@ -306,6 +307,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 isSelected: isSelected,
                 hasGps: hasGps,
                 hasAudio: hasAudio,
+                hasPhoto: false,
                 photoThumbB64: '',
                 onTap: () => onCellTap(ctx, row, col),
                 onLongPress: (pos) =>
@@ -324,6 +326,7 @@ class _MobileNotesGrid extends StatelessWidget {
             final hasGps = cellHasGps(row, col);
             final hasAudio = cellHasAudios(row, col);
             final thumbB64 = cellPhotoThumb(row, col);
+            final hasPhoto = cellPhotoCount(row, col) > 0;
             return _buildCard(
               context: ctx,
               width: cardW,
@@ -332,6 +335,7 @@ class _MobileNotesGrid extends StatelessWidget {
               isSelected: isSelected,
               hasGps: hasGps,
               hasAudio: hasAudio,
+              hasPhoto: hasPhoto,
               photoThumbB64: thumbB64,
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
@@ -358,6 +362,7 @@ class _MobileNotesGrid extends StatelessWidget {
     required bool isSelected,
     required bool hasGps,
     required bool hasAudio,
+    required bool hasPhoto,
     required String photoThumbB64,
     required VoidCallback onTap,
     required ValueChanged<Offset> onLongPress,
@@ -394,7 +399,7 @@ class _MobileNotesGrid extends StatelessWidget {
     }
 
     final badges = <Widget>[];
-    if (photoThumbB64.trim().isNotEmpty) {
+    if (photoThumbB64.trim().isNotEmpty || hasPhoto) {
       final bytes = _tryDecodeB64(photoThumbB64);
       if (bytes != null) {
         badges.add(
@@ -408,6 +413,16 @@ class _MobileNotesGrid extends StatelessWidget {
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.low,
               ),
+            ),
+          ),
+        );
+      } else if (hasPhoto) {
+        badges.add(
+          badge(
+            Icon(
+              Icons.photo_rounded,
+              size: 12,
+              color: palette.accent.withOpacity(0.8),
             ),
           ),
         );
