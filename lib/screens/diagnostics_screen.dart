@@ -51,6 +51,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
     final mediaRecorderSupported =
         kIsWeb ? WebCapabilities.mediaRecorderSupported : false;
+    final cameraAvailable =
+        kIsWeb ? WebCapabilities.cameraAvailable : false;
+    final imageCaptureSupported =
+        kIsWeb ? WebCapabilities.imageCaptureSupported : false;
     final serviceWorkerSupported =
         kIsWeb ? WebCapabilities.serviceWorkerSupported : false;
     final indexedDbAvailable = kIsWeb ? WebCapabilities.indexedDbAvailable : false;
@@ -63,6 +67,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       micSupported: micSupported,
       micPermission: micPerm,
       mediaRecorderSupported: mediaRecorderSupported,
+      cameraAvailable: cameraAvailable,
+      imageCaptureSupported: imageCaptureSupported,
       storageOk: storage.ok,
       storageMessage: storage.message,
       serviceWorkerSupported: serviceWorkerSupported,
@@ -219,22 +225,22 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     }
     setState(() {
       _photoTestBusy = true;
-      _photoTestResult = 'Abriendo selector...';
+      _photoTestResult = 'Abriendo camara...';
     });
 
     try {
-      final outcome = await PhotoAcquireService.I.pickFromGallery();
+      final outcome = await PhotoAcquireService.I.captureFromCamera(context: context);
       if (!mounted) return;
       if (outcome.cancelled) {
-        setState(() => _photoTestResult = 'Cancelado por el usuario.');
+        setState(() => _photoTestResult = 'cancelled');
         return;
       }
       if (outcome.blocked) {
-        setState(() => _photoTestResult = 'Bloqueado: ${outcome.error}');
+        setState(() => _photoTestResult = 'blocked: ${outcome.error}');
         return;
       }
       if (!outcome.ok) {
-        setState(() => _photoTestResult = 'Error: ${outcome.error}');
+        setState(() => _photoTestResult = 'error: ${outcome.error}');
         return;
       }
       final result = outcome.result!;
@@ -256,11 +262,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
       setState(() {
         _photoTestResult =
-            'OK $sizeLabel · storage $storageLabel · read $readOk';
+            'picked $sizeLabel · storage $storageLabel · read $readOk';
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _photoTestResult = 'Error: $e');
+      setState(() => _photoTestResult = 'error: $e');
     } finally {
       if (mounted) setState(() => _photoTestBusy = false);
     }
@@ -283,7 +289,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       await Future.delayed(const Duration(seconds: 2));
       final recording = await audio.stopRecording();
       if (recording == null || recording.bytes == null) {
-        setState(() => _audioTestResult = 'Error: audio vacio.');
+        setState(() => _audioTestResult = 'error: audio vacio.');
         return;
       }
       final sizeLabel = _fmtBytes(recording.bytes!.lengthInBytes);
@@ -302,11 +308,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
       setState(() {
         _audioTestResult =
-            'OK $sizeLabel · storage $storageLabel · read $readOk';
+            'picked $sizeLabel · storage $storageLabel · read $readOk';
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _audioTestResult = 'Error: $e');
+      setState(() => _audioTestResult = 'error: $e');
     } finally {
       try {
         await audio.dispose();
@@ -358,6 +364,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     _infoRow('Mic permiso', data.micPermission ? 'granted' : 'denied'),
                     if (kIsWeb)
                       _checkRow('MediaRecorder soportado', data.mediaRecorderSupported),
+                    if (kIsWeb)
+                      _checkRow('getUserMedia disponible', data.cameraAvailable),
+                    if (kIsWeb)
+                      _checkRow('ImageCapture soportado', data.imageCaptureSupported),
                     if (kIsWeb)
                       _checkRow('Service Worker soportado', data.serviceWorkerSupported),
                     if (kIsWeb)
@@ -426,7 +436,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                       child: Text(
                         _photoTestBusy
                             ? 'Probando...'
-                            : 'Self-test Foto (iOS)',
+                            : 'Self-test Foto (web)',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -557,6 +567,8 @@ class _DiagnosticsSnapshot {
     required this.micSupported,
     required this.micPermission,
     required this.mediaRecorderSupported,
+    required this.cameraAvailable,
+    required this.imageCaptureSupported,
     required this.storageOk,
     required this.storageMessage,
     required this.serviceWorkerSupported,
@@ -571,6 +583,8 @@ class _DiagnosticsSnapshot {
   final bool micSupported;
   final bool micPermission;
   final bool mediaRecorderSupported;
+  final bool cameraAvailable;
+  final bool imageCaptureSupported;
   final bool storageOk;
   final String storageMessage;
   final bool serviceWorkerSupported;
@@ -585,6 +599,8 @@ class _DiagnosticsSnapshot {
         micSupported: false,
         micPermission: false,
         mediaRecorderSupported: false,
+        cameraAvailable: false,
+        imageCaptureSupported: false,
         storageOk: false,
         storageMessage: 'Sin datos',
         serviceWorkerSupported: false,

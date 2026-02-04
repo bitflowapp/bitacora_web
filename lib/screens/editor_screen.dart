@@ -83,6 +83,12 @@ enum _PhotoSource { camera, gallery }
 enum _MobileEditPhase { closed, opening, open, switching, closing }
 enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
 
+class _CellTarget {
+  const _CellTarget(this.row, this.col);
+  final int row;
+  final int col;
+}
+
 // ============================== Pantalla principal =========================
 
 class EditorScreen extends StatefulWidget {
@@ -1635,6 +1641,15 @@ class _EditorScreenState extends State<EditorScreen>
   void _warnStorageFallbackOnce(String kindLabel) {
     if (_storageWarned) return;
     _storageWarned = true;
+    if (mounted) {
+      setState(() {
+        _storageOk = false;
+        _storageMessage = 'Fallback RAM';
+      });
+    } else {
+      _storageOk = false;
+      _storageMessage = 'Fallback RAM';
+    }
     _showActionSnack(
       'Storage no disponible: $kindLabel guardado temporal (RAM). Exporta ZIP para conservar.',
       isError: false,
@@ -4543,9 +4558,117 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ Fotos -----------------------------------
 
+  bool _isValidPhotoTarget(int r, int c) {
+    if (r < 0 || c < 0) return false;
+    if (r >= _rows.length) return false;
+    if (c >= _headers.length) return false;
+    return true;
+  }
+
+  Future<_CellTarget?> _ensurePhotoTargetCell(int r, int c) async {
+    if (_isValidPhotoTarget(r, c)) return _CellTarget(r, c);
+    final picked = await _pickPhotoTargetDialog();
+    if (!mounted) return picked;
+    if (picked != null) {
+      setState(() {
+        _selRow = picked.row;
+        _selCol = picked.col;
+      });
+    }
+    return picked;
+  }
+
+  Future<_CellTarget?> _pickPhotoTargetDialog() async {
+    if (!mounted) return null;
+    final rowCtrl = TextEditingController(text: (_selRow + 1).toString());
+    final colCtrl = TextEditingController(text: (_selCol + 1).toString());
+    String? error;
+
+    final picked = await showDialog<_CellTarget>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              backgroundColor: pal.menuBg,
+              title: const Text('Elegir celda destino'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ingresa fila y columna (1-based).'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: rowCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Fila'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: colCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Col'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        error!,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final r = int.tryParse(rowCtrl.text.trim());
+                    final c = int.tryParse(colCtrl.text.trim());
+                    if (r == null || c == null) {
+                      setState(() => error = 'Fila/Col invalidas.');
+                      return;
+                    }
+                    final rr = r - 1;
+                    final cc = c - 1;
+                    if (!_isValidPhotoTarget(rr, cc)) {
+                      setState(() => error = 'Fuera de rango.');
+                      return;
+                    }
+                    Navigator.of(ctx).pop(_CellTarget(rr, cc));
+                  },
+                  child: const Text('Continuar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return picked;
+  }
+
   Future<void> _showPhotoSourcePickerForCell(int r, int c) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
+
+    final target = await _ensurePhotoTargetCell(r, c);
+    if (target == null) return;
+    r = target.row;
+    c = target.col;
 
     if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
 
@@ -4753,7 +4876,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final future = fromCamera
-        ? PhotoAcquireService.I.captureFromCamera()
+        ? PhotoAcquireService.I.captureFromCamera(context: context)
         : PhotoAcquireService.I.pickFromGallery();
 
     Future.microtask(() => Navigator.of(sheetContext).pop());
@@ -4771,7 +4894,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (fromCamera &&
         _isIosWeb &&
-        (outcome.cancelled || outcome.blocked)) {
+        (outcome.cancelled || outcome.blocked || outcome.isError)) {
       final fallbackOutcome = await _offerGalleryFallback();
       if (!mounted) return;
       if (fallbackOutcome != null) {
@@ -4831,7 +4954,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     try {
       final future = fromCamera
-          ? PhotoAcquireService.I.captureFromCamera()
+          ? PhotoAcquireService.I.captureFromCamera(context: context)
           : PhotoAcquireService.I.pickFromGallery();
       await _handlePhotoOutcome(future, r, c, fromCamera: fromCamera);
       return;
