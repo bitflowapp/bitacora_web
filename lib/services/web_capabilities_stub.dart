@@ -5,4 +5,6 @@ class WebCapabilitiesImpl {
   static bool get mediaRecorderSupported => false;
   static bool get serviceWorkerSupported => false;
   static bool get indexedDbAvailable => false;
+  static bool get cameraAvailable => false;
+  static bool get imageCaptureSupported => false;
 }

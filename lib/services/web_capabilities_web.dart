@@ -1,4 +1,5 @@
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'dart:js_util' as js_util;
 
 class WebCapabilitiesImpl {
   static bool get isSecureContext => html.window.isSecureContext == true;
@@ -53,4 +54,20 @@ class WebCapabilitiesImpl {
       html.window.navigator.serviceWorker != null;
 
   static bool get indexedDbAvailable => html.window.indexedDB != null;
+
+  static bool get cameraAvailable {
+    try {
+      return html.window.navigator.mediaDevices?.getUserMedia != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool get imageCaptureSupported {
+    try {
+      return js_util.hasProperty(html.window, 'ImageCapture');
+    } catch (_) {
+      return false;
+    }
+  }
 }

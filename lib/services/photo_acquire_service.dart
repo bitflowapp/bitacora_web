@@ -5,8 +5,10 @@ import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'web_camera_capture.dart';
 import 'web_image_capture_stub.dart'
     if (dart.library.html) 'web_image_capture.dart';
 
@@ -75,10 +77,14 @@ class PhotoAcquireService {
         defaultTargetPlatform == TargetPlatform.android;
   }
 
-  Future<PhotoAcquireOutcome> captureFromCamera() async {
+  Future<PhotoAcquireOutcome> captureFromCamera({BuildContext? context}) async {
     if (kIsWeb) {
-      final web = await captureWebImage(capture: true);
-      return _mapWebOutcome(web);
+      if (context == null) {
+        return PhotoAcquireOutcome.blocked(
+            'Contexto no disponible para camara web.');
+      }
+      final web = await captureFromWebCamera(context: context);
+      return _mapWebCameraOutcome(web);
     }
 
     if (_isMobilePlatform) {
@@ -97,7 +103,7 @@ class PhotoAcquireService {
           PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
         );
       } catch (e) {
-        return PhotoAcquireOutcome.error('No se pudo abrir la camara: $e');
+        return PhotoAcquireOutcome.error('No se pudo abrir la camara: ');
       }
     }
 
@@ -123,7 +129,7 @@ class PhotoAcquireService {
           PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
         );
       } catch (e) {
-        return PhotoAcquireOutcome.error('No se pudo abrir la galeria: $e');
+        return PhotoAcquireOutcome.error('No se pudo abrir la galeria: ');
       }
     }
 
@@ -150,18 +156,18 @@ class PhotoAcquireService {
         PhotoAcquireResult(bytes: bytes, name: xf.name, mime: mime),
       );
     } catch (e) {
-      return PhotoAcquireOutcome.error('No se pudo abrir el archivo: $e');
+      return PhotoAcquireOutcome.error('No se pudo abrir el archivo: ');
     }
   }
 
   String _cameraNameFallback() {
     final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
-    return 'camera_$ts.jpg';
+    return 'camera_.jpg';
   }
 
   String _galleryNameFallback() {
     final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
-    return 'gallery_$ts.jpg';
+    return 'gallery_.jpg';
   }
 
   String _guessMime(String name) {
@@ -185,6 +191,23 @@ class PhotoAcquireService {
         );
       case WebImageCaptureStatus.error:
         return PhotoAcquireOutcome.error(web.error ?? 'No se pudo leer la imagen.');
+    }
+  }
+
+  PhotoAcquireOutcome _mapWebCameraOutcome(WebCameraCaptureResult web) {
+    switch (web.status) {
+      case WebCameraCaptureStatus.success:
+        return PhotoAcquireOutcome.success(
+          PhotoAcquireResult(bytes: web.bytes!, name: web.name, mime: web.mime),
+        );
+      case WebCameraCaptureStatus.cancelled:
+        return PhotoAcquireOutcome.cancelled();
+      case WebCameraCaptureStatus.blocked:
+        return PhotoAcquireOutcome.blocked(
+          web.error ?? 'Bloqueado por el navegador.',
+        );
+      case WebCameraCaptureStatus.error:
+        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo abrir la camara.');
     }
   }
 }
