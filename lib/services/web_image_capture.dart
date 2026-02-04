@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 
-enum WebImageCaptureStatus { success, cancelled, error }
+import 'diagnostics_log.dart';
+import 'dart:async' show unawaited;
+
+enum WebImageCaptureStatus { success, cancelled, blocked, error }
 
 class WebImageCaptureResult {
   const WebImageCaptureResult._({
@@ -35,6 +38,12 @@ class WebImageCaptureResult {
   factory WebImageCaptureResult.cancelled() =>
       const WebImageCaptureResult._(status: WebImageCaptureStatus.cancelled);
 
+  factory WebImageCaptureResult.blocked(String message) =>
+      WebImageCaptureResult._(
+        status: WebImageCaptureStatus.blocked,
+        error: message.trim().isEmpty ? 'Bloqueado' : message.trim(),
+      );
+
   factory WebImageCaptureResult.error(String message) =>
       WebImageCaptureResult._(
         status: WebImageCaptureStatus.error,
@@ -60,8 +69,20 @@ Future<WebImageCaptureResult> captureWebImage({
   final completer = Completer<WebImageCaptureResult>();
   StreamSubscription<html.Event>? changeSub;
   StreamSubscription<html.Event>? focusSub;
+  StreamSubscription<html.Event>? visibilitySub;
   String? objectUrl;
+  Timer? timeoutTimer;
   var finished = false;
+  var sawChange = false;
+  var pendingEmpty = false;
+
+  void logStep(String message, {bool ok = true}) {
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.photo,
+      ok: ok,
+      message: message,
+    );
+  }
 
   void finish(WebImageCaptureResult result) {
     if (finished) return;
@@ -69,6 +90,10 @@ Future<WebImageCaptureResult> captureWebImage({
     try {
       changeSub?.cancel();
       focusSub?.cancel();
+      visibilitySub?.cancel();
+    } catch (_) {}
+    try {
+      timeoutTimer?.cancel();
     } catch (_) {}
     if (objectUrl != null) {
       try {
@@ -92,14 +117,11 @@ Future<WebImageCaptureResult> captureWebImage({
     return Uint8List.view(result);
   }
 
-  changeSub = input.onChange.listen((_) async {
-    final files = input.files;
-    if (files == null || files.isEmpty) {
-      finish(WebImageCaptureResult.cancelled());
-      return;
-    }
-
-    final file = files.first;
+  Future<void> processFile(html.File file, {required String source}) async {
+    if (finished) return;
+    logStep(
+      'photo:web files=1 source=$source size=${file.size} name=${file.name}',
+    );
     objectUrl = html.Url.createObjectUrl(file);
 
     try {
@@ -142,19 +164,65 @@ Future<WebImageCaptureResult> captureWebImage({
     } catch (e) {
       finish(WebImageCaptureResult.error('Error al procesar la imagen: $e'));
     }
+  }
+
+  Future<void> recheckFiles({
+    required String source,
+    required bool allowCancel,
+  }) async {
+    if (finished) return;
+    final files = input.files;
+    if (files != null && files.isNotEmpty) {
+      await processFile(files.first, source: source);
+      return;
+    }
+    logStep('photo:web recheck files=0 source=$source');
+    if (allowCancel && (pendingEmpty || sawChange)) {
+      finish(WebImageCaptureResult.cancelled());
+    }
+  }
+
+  changeSub = input.onChange.listen((_) async {
+    sawChange = true;
+    final files = input.files;
+    if (files == null || files.isEmpty) {
+      pendingEmpty = true;
+      logStep('photo:web change files=0 (pending)');
+      // give iOS a moment; do not cancel yet
+      Future.delayed(const Duration(milliseconds: 120), () {
+        unawaited(recheckFiles(source: 'delay', allowCancel: false));
+      });
+      return;
+    }
+    await processFile(files.first, source: 'change');
   });
 
   focusSub = html.window.onFocus.listen((_) {
     if (finished) return;
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (finished) return;
-      final files = input.files;
-      if (files == null || files.isEmpty) {
-        finish(WebImageCaptureResult.cancelled());
-      }
+    logStep('photo:web focus');
+    Future.delayed(const Duration(milliseconds: 120), () {
+      unawaited(recheckFiles(source: 'focus', allowCancel: true));
     });
   });
 
+  visibilitySub = html.document.onVisibilityChange.listen((_) {
+    if (finished) return;
+    final state = html.document.visibilityState;
+    if (state == 'visible') {
+      logStep('photo:web visible');
+      Future.delayed(const Duration(milliseconds: 120), () {
+        unawaited(recheckFiles(source: 'visible', allowCancel: true));
+      });
+    }
+  });
+
+  timeoutTimer = Timer(const Duration(seconds: 90), () {
+    if (finished) return;
+    logStep('photo:web timeout', ok: false);
+    finish(WebImageCaptureResult.blocked('Tiempo de espera agotado.'));
+  });
+
+  logStep('photo:web click capture=$capture');
   input.click();
   return completer.future;
 }

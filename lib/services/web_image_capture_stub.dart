@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-enum WebImageCaptureStatus { success, cancelled, error }
+enum WebImageCaptureStatus { success, cancelled, blocked, error }
 
 class WebImageCaptureResult {
   const WebImageCaptureResult._({
@@ -32,6 +32,12 @@ class WebImageCaptureResult {
 
   factory WebImageCaptureResult.cancelled() =>
       const WebImageCaptureResult._(status: WebImageCaptureStatus.cancelled);
+
+  factory WebImageCaptureResult.blocked(String message) =>
+      WebImageCaptureResult._(
+        status: WebImageCaptureStatus.blocked,
+        error: message.trim().isEmpty ? 'Bloqueado' : message.trim(),
+      );
 
   factory WebImageCaptureResult.error(String message) =>
       WebImageCaptureResult._(

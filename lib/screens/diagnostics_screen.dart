@@ -419,7 +419,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     CupertinoButton.filled(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       onPressed: _photoTestBusy ? null : _runPhotoSelfTest,
-                      child: Text(_photoTestBusy ? 'Probando...' : 'Test Foto'),
+                      child: Text(
+                        _photoTestBusy
+                            ? 'Probando...'
+                            : 'Self-test Foto (iOS)',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _infoRow('Audio', _audioTestResult ?? 'Sin ejecutar'),

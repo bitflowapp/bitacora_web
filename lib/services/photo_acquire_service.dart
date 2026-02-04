@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'web_image_capture_stub.dart'
     if (dart.library.html) 'web_image_capture.dart';
 
-enum PhotoAcquireStatus { success, cancelled, error }
+enum PhotoAcquireStatus { success, cancelled, blocked, error }
 
 class PhotoAcquireResult {
   const PhotoAcquireResult({
@@ -37,6 +37,7 @@ class PhotoAcquireOutcome {
 
   bool get ok => status == PhotoAcquireStatus.success && result != null;
   bool get cancelled => status == PhotoAcquireStatus.cancelled;
+  bool get blocked => status == PhotoAcquireStatus.blocked;
   bool get isError => status == PhotoAcquireStatus.error;
 
   factory PhotoAcquireOutcome.success(PhotoAcquireResult result) =>
@@ -44,6 +45,11 @@ class PhotoAcquireOutcome {
 
   factory PhotoAcquireOutcome.cancelled() =>
       const PhotoAcquireOutcome._(status: PhotoAcquireStatus.cancelled);
+
+  factory PhotoAcquireOutcome.blocked(String message) => PhotoAcquireOutcome._(
+        status: PhotoAcquireStatus.blocked,
+        error: message.trim().isEmpty ? 'Bloqueado' : message.trim(),
+      );
 
   factory PhotoAcquireOutcome.error(String message) => PhotoAcquireOutcome._(
         status: PhotoAcquireStatus.error,
@@ -173,6 +179,10 @@ class PhotoAcquireService {
         );
       case WebImageCaptureStatus.cancelled:
         return PhotoAcquireOutcome.cancelled();
+      case WebImageCaptureStatus.blocked:
+        return PhotoAcquireOutcome.blocked(
+          web.error ?? 'Bloqueado por el navegador.',
+        );
       case WebImageCaptureStatus.error:
         return PhotoAcquireOutcome.error(web.error ?? 'No se pudo leer la imagen.');
     }
