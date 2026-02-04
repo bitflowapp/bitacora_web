@@ -894,11 +894,11 @@ class _EditorScreenState extends State<EditorScreen>
   String _densityLabel(_GridDensity density) {
     switch (density) {
       case _GridDensity.compact:
-        return 'Compacto';
+        return 'Ultra-Compacto';
       case _GridDensity.normal:
-        return 'Normal';
+        return 'Compacto';
       case _GridDensity.roomy:
-        return 'Amplio';
+        return 'Normal';
     }
   }
 
@@ -7479,34 +7479,34 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 34,
-        headerH: 34,
-        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        cellFontSize: 12.5,
-        headerFontSize: 12.0,
-        indexFontSize: 11.5,
+        rowH: 33,
+        headerH: 32,
+        cellPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        headerPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        cellFontSize: 12.0,
+        headerFontSize: 11.5,
+        indexFontSize: 11.0,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
-        rowH: 52,
-        headerH: 56,
-        cellPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        headerPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        cellFontSize: 14.5,
-        headerFontSize: 13.5,
-        indexFontSize: 13.0,
+        rowH: 50,
+        headerH: 48,
+        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        cellFontSize: 14.0,
+        headerFontSize: 13.0,
+        indexFontSize: 12.5,
       );
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 44,
-        headerH: 48,
-        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        cellFontSize: 13.5,
-        headerFontSize: 12.5,
-        indexFontSize: 12.0,
+        rowH: 39,
+        headerH: 36,
+        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        cellFontSize: 12.8,
+        headerFontSize: 12.0,
+        indexFontSize: 11.5,
       );
   }
 }
