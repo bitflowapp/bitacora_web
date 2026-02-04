@@ -238,6 +238,9 @@ class _EditorScreenState extends State<EditorScreen>
   bool _engineBusy = false;
   String? _engineStatus;
   bool _engineStatusIsError = false;
+  String? _photoFlowStatus;
+  _CellTarget? _photoFlowTarget;
+  Timer? _photoFlowClearT;
   String? _engineBaseResolved;
   String? _engineKeyResolved;
   DateTime? _engineLastCheckAt;
@@ -379,6 +382,7 @@ class _EditorScreenState extends State<EditorScreen>
     _kbEnsureDebounceT?.cancel();
     _mobileEnsureLateT?.cancel();
     _mobileFocusRetryT?.cancel();
+    _photoFlowClearT?.cancel();
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
@@ -1875,6 +1879,56 @@ class _EditorScreenState extends State<EditorScreen>
                                 actionLabel: 'Exportar ZIP',
                                 onAction: () =>
                                     unawaited(_exportZipBundle(share: false))),
+                          if (_photoFlowStatus != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: pal.statusBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: pal.border, width: pal.hairline),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: pal.border.withOpacity(0.22),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _photoFlowStatus!,
+                                      style: TextStyle(
+                                        color: pal.statusFg,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_photoFlowTarget != null)
+                                    TextButton(
+                                      onPressed: () async {
+                                        final picked =
+                                            await _pickPhotoTargetDialog();
+                                        if (picked != null && mounted) {
+                                          setState(() {
+                                            _selRow = picked.row;
+                                            _selCol = picked.col;
+                                          });
+                                          _updatePhotoFlowStatus(
+                                            'Destino R${picked.row + 1}C${picked.col + 1} · listo',
+                                            target: picked,
+                                          );
+                                        }
+                                      },
+                                      child: const Text('Cambiar'),
+                                    ),
+                                ],
+                              ),
+                            ),
                           if (isDesktop && _smokeStatus != null)
                             _StatusBar(
                               text: _smokeStatus!,
@@ -4880,6 +4934,23 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  void _updatePhotoFlowStatus(String? text, {_CellTarget? target}) {
+    _photoFlowClearT?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _photoFlowStatus = text;
+      _photoFlowTarget = text == null ? null : (target ?? _photoFlowTarget);
+    });
+  }
+
+  void _clearPhotoFlowStatusSoon(
+      {Duration delay = const Duration(seconds: 3)}) {
+    _photoFlowClearT?.cancel();
+    _photoFlowClearT = Timer(delay, () {
+      _updatePhotoFlowStatus(null);
+    });
+  }
+
   void _startPhotoPickFromGesture({
     required int r,
     required int c,
@@ -4897,12 +4968,18 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
+    final target = _CellTarget(r, c);
+    _updatePhotoFlowStatus(
+      'Destino R${r + 1}C${c + 1} \u00b7 esperando seleccion',
+      target: target,
+    );
+
     final future = fromCamera
         ? PhotoAcquireService.I.captureFromCamera(context: context)
         : PhotoAcquireService.I.pickFromGallery();
 
-    Future.microtask(() => Navigator.of(sheetContext).pop());
-    unawaited(_handlePhotoOutcome(future, r, c, fromCamera: fromCamera));
+    unawaited(_handlePhotoOutcome(future, r, c,
+        fromCamera: fromCamera, sheetContext: sheetContext));
   }
 
   Future<void> _handlePhotoOutcome(
@@ -4910,6 +4987,7 @@ class _EditorScreenState extends State<EditorScreen>
     int r,
     int c, {
     required bool fromCamera,
+    BuildContext? sheetContext,
   }) async {
     final outcome = await future;
     if (!mounted) return;
@@ -4921,11 +4999,21 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       if (fallbackOutcome != null) {
         await _handlePhotoOutcomeResult(fallbackOutcome, r, c);
+        if (sheetContext != null && mounted && sheetContext.mounted) {
+          if (Navigator.of(sheetContext).canPop()) {
+            Navigator.of(sheetContext).pop();
+          }
+        }
         return;
       }
     }
 
     await _handlePhotoOutcomeResult(outcome, r, c);
+    if (sheetContext != null && mounted && sheetContext.mounted) {
+      if (Navigator.of(sheetContext).canPop()) {
+        Navigator.of(sheetContext).pop();
+      }
+    }
   }
 
   Future<PhotoAcquireOutcome?> _offerGalleryFallback() async {
@@ -5004,6 +5092,11 @@ class _EditorScreenState extends State<EditorScreen>
     int c,
   ) async {
     if (outcome.cancelled) {
+      _updatePhotoFlowStatus(
+        'Destino ${_cellLabelRc(r, c)} · cancelado',
+        target: _CellTarget(r, c),
+      );
+      _clearPhotoFlowStatusSoon();
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
@@ -5022,6 +5115,11 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (outcome.blocked) {
       final msg = outcome.error ?? 'Bloqueado por el navegador.';
+      _updatePhotoFlowStatus(
+        'Destino ${_cellLabelRc(r, c)} · bloqueado',
+        target: _CellTarget(r, c),
+      );
+      _clearPhotoFlowStatusSoon();
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
@@ -5044,10 +5142,14 @@ class _EditorScreenState extends State<EditorScreen>
       final readFail = lower.contains('empty_bytes') ||
           lower.contains('leer la imagen') ||
           lower.contains('leer los bytes');
-      final userMsg = readFail
-          ? 'No se pudo leer la imagen. Reintenta o probá con otro archivo.'
-          : rawMsg;
+      final userMsg =
+          readFail ? 'No se pudo LEER bytes (FileReader/arrayBuffer).' : rawMsg;
 
+      _updatePhotoFlowStatus(
+        'Destino ${_cellLabelRc(r, c)} · ${readFail ? 'error lectura' : 'error foto'}',
+        target: _CellTarget(r, c),
+      );
+      _clearPhotoFlowStatusSoon();
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
@@ -5067,6 +5169,11 @@ class _EditorScreenState extends State<EditorScreen>
 
     final result = outcome.result!;
     if (result.bytes.isEmpty) {
+      _updatePhotoFlowStatus(
+        'Destino ${_cellLabelRc(r, c)} · bytes vacíos',
+        target: _CellTarget(r, c),
+      );
+      _clearPhotoFlowStatusSoon();
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
@@ -5096,6 +5203,10 @@ class _EditorScreenState extends State<EditorScreen>
       sniffedMime: sniffedMime.isNotEmpty ? sniffedMime : null,
       reportedMime: reportedMime.isNotEmpty ? reportedMime : null,
       bytes: result.bytes.lengthInBytes,
+    );
+    _updatePhotoFlowStatus(
+      'Destino ${_cellLabelRc(r, c)} · bytes listos (${_formatBytes(result.bytes.lengthInBytes)})',
+      target: _CellTarget(r, c),
     );
 
     final attachmentId = _genAttachmentId('ph_');
@@ -5148,6 +5259,10 @@ class _EditorScreenState extends State<EditorScreen>
       storageMode: storageLabel,
       bytes: result.bytes.lengthInBytes,
     );
+    _updatePhotoFlowStatus(
+      'Destino ${_cellLabelRc(r, c)} · guardado (${storageLabel.toUpperCase()})',
+      target: _CellTarget(r, c),
+    );
 
     final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
         ? ''
@@ -5195,6 +5310,11 @@ class _EditorScreenState extends State<EditorScreen>
       isError: false,
       icon: Icons.photo_outlined,
     );
+    _updatePhotoFlowStatus(
+      'Destino $cellLabel · guardada',
+      target: _CellTarget(r, c),
+    );
+    _clearPhotoFlowStatusSoon();
   }
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
