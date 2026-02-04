@@ -33,6 +33,11 @@ class WebCapabilitiesImpl {
 
   static bool get mediaRecorderSupported {
     try {
+      if (html.MediaRecorder
+          .isTypeSupported('audio/mp4;codecs=mp4a.40.2')) {
+        return true;
+      }
+      if (html.MediaRecorder.isTypeSupported('audio/mp4')) return true;
       if (html.MediaRecorder.isTypeSupported('audio/webm')) return true;
       if (html.MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         return true;

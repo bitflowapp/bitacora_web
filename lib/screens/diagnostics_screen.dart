@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../services/audio_service.dart';
+import '../services/audio_storage_service.dart';
 import '../services/build_info.dart';
 import '../services/diagnostics_log.dart';
 import '../services/force_update_service.dart';
+import '../services/photo_acquire_service.dart';
+import '../services/photo_storage_service.dart';
 import '../services/storage_diagnostics.dart';
 import '../services/web_capabilities.dart';
 
@@ -19,6 +22,10 @@ class DiagnosticsScreen extends StatefulWidget {
 
 class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   late Future<_DiagnosticsSnapshot> _future;
+  String? _photoTestResult;
+  String? _audioTestResult;
+  bool _photoTestBusy = false;
+  bool _audioTestBusy = false;
 
   @override
   void initState() {
@@ -196,6 +203,114 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     );
   }
 
+  String _fmtBytes(int bytes) {
+    const kb = 1024;
+    const mb = 1024 * 1024;
+    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(1)} MB';
+    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    return '$bytes B';
+  }
+
+  Future<void> _runPhotoSelfTest() async {
+    if (_photoTestBusy) return;
+    if (!kIsWeb) {
+      setState(() => _photoTestResult = 'Solo disponible en Web.');
+      return;
+    }
+    setState(() {
+      _photoTestBusy = true;
+      _photoTestResult = 'Abriendo selector...';
+    });
+
+    try {
+      final outcome = await PhotoAcquireService.I.pickFromGallery();
+      if (!mounted) return;
+      if (outcome.cancelled) {
+        setState(() => _photoTestResult = 'Cancelado por el usuario.');
+        return;
+      }
+      if (!outcome.ok) {
+        setState(() => _photoTestResult = 'Error: ${outcome.error}');
+        return;
+      }
+      final result = outcome.result!;
+      final sizeLabel = _fmtBytes(result.bytes.lengthInBytes);
+      final stored = await PhotoStorageService.I.savePhoto(
+        sheetId: 'diagnostics',
+        cellKey: 'selftest',
+        attachmentId: 'photo_${DateTime.now().microsecondsSinceEpoch}',
+        bytes: result.bytes,
+        originalName: result.name,
+        mime: result.mime,
+      );
+      final storageLabel = stored == null
+          ? 'FAIL'
+          : (stored.path.startsWith('mem:') ? 'RAM' : 'OK');
+      final read = stored == null
+          ? null
+          : await PhotoStorageService.I.readPhotoBytes(stored.path);
+      final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
+      setState(() {
+        _photoTestResult =
+            'OK $sizeLabel · storage $storageLabel · read $readOk';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _photoTestResult = 'Error: $e');
+    } finally {
+      if (mounted) setState(() => _photoTestBusy = false);
+    }
+  }
+
+  Future<void> _runAudioSelfTest() async {
+    if (_audioTestBusy) return;
+    if (!kIsWeb) {
+      setState(() => _audioTestResult = 'Solo disponible en Web.');
+      return;
+    }
+    setState(() {
+      _audioTestBusy = true;
+      _audioTestResult = 'Grabando 2s...';
+    });
+
+    final audio = AudioService.I;
+    try {
+      await audio.startRecording(sheetId: 'diagnostics');
+      await Future.delayed(const Duration(seconds: 2));
+      final recording = await audio.stopRecording();
+      if (recording == null || recording.bytes == null) {
+        setState(() => _audioTestResult = 'Error: audio vacio.');
+        return;
+      }
+      final sizeLabel = _fmtBytes(recording.bytes!.lengthInBytes);
+      final stored = await AudioStorageService.I.saveRecording(
+        sheetId: 'diagnostics',
+        cellKey: 'selftest',
+        attachmentId: 'audio_${DateTime.now().microsecondsSinceEpoch}',
+        recording: recording,
+      );
+      final storageLabel = stored == null
+          ? 'FAIL'
+          : (stored.storageKey.startsWith('mem:') ? 'RAM' : 'OK');
+      final read = stored == null
+          ? null
+          : await AudioStorageService.I.readAudioBytes(stored.storageKey);
+      final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
+      setState(() {
+        _audioTestResult =
+            'OK $sizeLabel · storage $storageLabel · read $readOk';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _audioTestResult = 'Error: $e');
+    } finally {
+      try {
+        await audio.dispose();
+      } catch (_) {}
+      if (mounted) setState(() => _audioTestBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -292,6 +407,27 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                           ],
                         );
                       },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _sectionTitle('Self test (Web)'),
+                _infoCard(
+                  children: [
+                    _infoRow('Foto', _photoTestResult ?? 'Sin ejecutar'),
+                    const SizedBox(height: 6),
+                    CupertinoButton.filled(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      onPressed: _photoTestBusy ? null : _runPhotoSelfTest,
+                      child: Text(_photoTestBusy ? 'Probando...' : 'Test Foto'),
+                    ),
+                    const SizedBox(height: 10),
+                    _infoRow('Audio', _audioTestResult ?? 'Sin ejecutar'),
+                    const SizedBox(height: 6),
+                    CupertinoButton.filled(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      onPressed: _audioTestBusy ? null : _runAudioSelfTest,
+                      child: Text(_audioTestBusy ? 'Probando...' : 'Test Audio'),
                     ),
                   ],
                 ),

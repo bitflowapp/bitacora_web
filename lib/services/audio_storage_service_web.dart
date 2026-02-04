@@ -7,6 +7,8 @@ import 'audio_storage_service.dart';
 
 class AudioStorageServiceImpl implements AudioStorageService {
   static const String _boxName = 'audio_store_v1';
+  static final Map<String, Map<String, dynamic>> _memStore =
+      <String, Map<String, dynamic>>{};
   Box<dynamic>? _box;
 
   Future<void> _ensureBox() async {
@@ -54,12 +56,31 @@ class AudioStorageServiceImpl implements AudioStorageService {
         bytesLength: bytes.lengthInBytes,
       );
     } catch (_) {
-      return null;
+      final bytes = recording.bytes;
+      if (bytes == null || bytes.isEmpty) return null;
+      final key = _makeKey(sheetId, cellKey, attachmentId);
+      _memStore[key] = <String, dynamic>{
+        'name': recording.fileName,
+        'mime': recording.mime,
+        'bytes': bytes,
+      };
+      return StoredAudio(
+        storageKey: 'mem:$key',
+        fileName: recording.fileName,
+        mime: recording.mime,
+        bytesLength: bytes.lengthInBytes,
+      );
     }
   }
 
   @override
   Future<Uint8List?> readAudioBytes(String storageKey) async {
+    if (storageKey.startsWith('mem:')) {
+      final key = storageKey.substring(4);
+      final raw = _memStore[key];
+      final bytes = raw?['bytes'];
+      return bytes is Uint8List ? bytes : null;
+    }
     await _ensureBox();
     final raw = _box!.get(storageKey);
     if (raw is Map) {
@@ -71,6 +92,10 @@ class AudioStorageServiceImpl implements AudioStorageService {
 
   @override
   Future<void> deleteAudio(String storageKey) async {
+    if (storageKey.startsWith('mem:')) {
+      _memStore.remove(storageKey.substring(4));
+      return;
+    }
     await _ensureBox();
     await _box!.delete(storageKey);
   }

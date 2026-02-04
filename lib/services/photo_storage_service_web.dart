@@ -6,6 +6,8 @@ import 'photo_storage_service.dart';
 
 class PhotoStorageServiceImpl implements PhotoStorageService {
   static const String _boxName = 'photo_store_v2';
+  static final Map<String, Map<String, dynamic>> _memStore =
+      <String, Map<String, dynamic>>{};
   Box<dynamic>? _box;
 
   Future<void> _ensureBox() async {
@@ -36,9 +38,9 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     required String originalName,
     required String mime,
   }) async {
+    final key = _makeKey(sheetId, cellKey, attachmentId);
     try {
       await _ensureBox();
-      final key = _makeKey(sheetId, cellKey, attachmentId);
       await _box!.put(key, <String, dynamic>{
         'name': originalName,
         'mime': mime,
@@ -46,7 +48,12 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
       });
       return StoredPhoto(path: 'key:$key', fileName: originalName, mime: mime);
     } catch (_) {
-      return null;
+      _memStore[key] = <String, dynamic>{
+        'name': originalName,
+        'mime': mime,
+        'bytes': bytes,
+      };
+      return StoredPhoto(path: 'mem:$key', fileName: originalName, mime: mime);
     }
   }
 
@@ -55,6 +62,11 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     try {
       final key = _normalizeKey(path);
       if (key.isEmpty) return null;
+      if (path.startsWith('mem:')) {
+        final raw = _memStore[key];
+        final bytes = raw?['bytes'];
+        return bytes is Uint8List ? bytes : null;
+      }
       await _ensureBox();
       final raw = _box!.get(key);
       if (raw is Map) {
@@ -72,6 +84,10 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     try {
       final key = _normalizeKey(path);
       if (key.isEmpty) return;
+      if (path.startsWith('mem:')) {
+        _memStore.remove(key);
+        return;
+      }
       await _ensureBox();
       await _box!.delete(key);
     } catch (_) {}
@@ -80,6 +96,7 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
   String _normalizeKey(String raw) {
     final t = raw.trim();
     if (t.startsWith('key:')) return t.substring(4);
+    if (t.startsWith('mem:')) return t.substring(4);
     return t;
   }
 

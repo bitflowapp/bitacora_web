@@ -65,17 +65,22 @@ class AudioServiceImpl implements AudioService {
     _pcmChunks.clear();
 
     if (mime != null) {
-      _useWebAudio = false;
-      final recorder = html.MediaRecorder(_stream!, {'mimeType': mime});
-      _mediaRecorder = recorder;
-      await _dataSub?.cancel();
-      _dataSub = _dataAvailableEvent.forTarget(recorder).listen((event) {
-        final data = event.data;
-        if (data != null && data.size > 0) {
-          _chunks.add(data);
-        }
-      });
-      recorder.start();
+      try {
+        _useWebAudio = false;
+        final recorder = html.MediaRecorder(_stream!, {'mimeType': mime});
+        _mediaRecorder = recorder;
+        await _dataSub?.cancel();
+        _dataSub = _dataAvailableEvent.forTarget(recorder).listen((event) {
+          final data = event.data;
+          if (data != null && data.size > 0) {
+            _chunks.add(data);
+          }
+        });
+        recorder.start();
+      } catch (_) {
+        _useWebAudio = true;
+        await _startWebAudioFallback(_stream!);
+      }
     } else {
       _useWebAudio = true;
       await _startWebAudioFallback(_stream!);
@@ -139,6 +144,13 @@ class AudioServiceImpl implements AudioService {
 
   String? _supportedMimeType() {
     try {
+      if (html.MediaRecorder
+          .isTypeSupported('audio/mp4;codecs=mp4a.40.2')) {
+        return 'audio/mp4;codecs=mp4a.40.2';
+      }
+      if (html.MediaRecorder.isTypeSupported('audio/mp4')) {
+        return 'audio/mp4';
+      }
       if (html.MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         return 'audio/webm;codecs=opus';
       }

@@ -7,8 +7,10 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'photo_acquire_web_stub.dart'
-    if (dart.library.html) 'photo_acquire_web.dart';
+import 'web_image_capture_stub.dart'
+    if (dart.library.html) 'web_image_capture.dart';
+
+enum PhotoAcquireStatus { success, cancelled, error }
 
 class PhotoAcquireResult {
   const PhotoAcquireResult({
@@ -20,6 +22,33 @@ class PhotoAcquireResult {
   final Uint8List bytes;
   final String name;
   final String mime;
+}
+
+class PhotoAcquireOutcome {
+  const PhotoAcquireOutcome._({
+    required this.status,
+    this.result,
+    this.error,
+  });
+
+  final PhotoAcquireStatus status;
+  final PhotoAcquireResult? result;
+  final String? error;
+
+  bool get ok => status == PhotoAcquireStatus.success && result != null;
+  bool get cancelled => status == PhotoAcquireStatus.cancelled;
+  bool get isError => status == PhotoAcquireStatus.error;
+
+  factory PhotoAcquireOutcome.success(PhotoAcquireResult result) =>
+      PhotoAcquireOutcome._(status: PhotoAcquireStatus.success, result: result);
+
+  factory PhotoAcquireOutcome.cancelled() =>
+      const PhotoAcquireOutcome._(status: PhotoAcquireStatus.cancelled);
+
+  factory PhotoAcquireOutcome.error(String message) => PhotoAcquireOutcome._(
+        status: PhotoAcquireStatus.error,
+        error: message.trim().isEmpty ? 'Error desconocido' : message.trim(),
+      );
 }
 
 class PhotoAcquireService {
@@ -40,74 +69,83 @@ class PhotoAcquireService {
         defaultTargetPlatform == TargetPlatform.android;
   }
 
-  Future<PhotoAcquireResult?> captureFromCamera() async {
+  Future<PhotoAcquireOutcome> captureFromCamera() async {
     if (kIsWeb) {
-      final web = await pickImageFromWeb(capture: true);
-      if (web == null) return null;
-
-      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
-      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
+      final web = await captureWebImage(capture: true);
+      return _mapWebOutcome(web);
     }
 
     if (_isMobilePlatform) {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
+      try {
+        final file = await _picker.pickImage(
+          source: ImageSource.camera,
+          preferredCameraDevice: CameraDevice.rear,
+        );
+        if (file == null) return PhotoAcquireOutcome.cancelled();
+
+        final bytes = await file.readAsBytes();
+        final name = file.name.isNotEmpty ? file.name : _cameraNameFallback();
+        final mime = file.mimeType ?? _guessMime(name);
+
+        return PhotoAcquireOutcome.success(
+          PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
+        );
+      } catch (e) {
+        return PhotoAcquireOutcome.error('No se pudo abrir la camara: $e');
+      }
+    }
+
+    return _pickWithFileSelector();
+  }
+
+  Future<PhotoAcquireOutcome> pickFromGallery() async {
+    if (kIsWeb) {
+      final web = await captureWebImage(capture: false);
+      return _mapWebOutcome(web);
+    }
+
+    if (_isMobilePlatform) {
+      try {
+        final file = await _picker.pickImage(source: ImageSource.gallery);
+        if (file == null) return PhotoAcquireOutcome.cancelled();
+
+        final bytes = await file.readAsBytes();
+        final name = file.name.isNotEmpty ? file.name : _galleryNameFallback();
+        final mime = file.mimeType ?? _guessMime(name);
+
+        return PhotoAcquireOutcome.success(
+          PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
+        );
+      } catch (e) {
+        return PhotoAcquireOutcome.error('No se pudo abrir la galeria: $e');
+      }
+    }
+
+    return _pickWithFileSelector();
+  }
+
+  Future<PhotoAcquireOutcome> pickFromFilesWeb() async {
+    if (kIsWeb) {
+      final web = await captureWebImage(capture: false);
+      return _mapWebOutcome(web);
+    }
+
+    return _pickWithFileSelector();
+  }
+
+  Future<PhotoAcquireOutcome> _pickWithFileSelector() async {
+    try {
+      final xf = await openFile(acceptedTypeGroups: const [_imageTypeGroup]);
+      if (xf == null) return PhotoAcquireOutcome.cancelled();
+
+      final bytes = await xf.readAsBytes();
+      final mime = xf.mimeType ?? _guessMime(xf.name);
+      return PhotoAcquireOutcome.success(
+        PhotoAcquireResult(bytes: bytes, name: xf.name, mime: mime),
       );
-      if (file == null) return null;
-
-      final bytes = await file.readAsBytes();
-      final name = file.name.isNotEmpty ? file.name : _cameraNameFallback();
-      final mime = file.mimeType ?? _guessMime(name);
-
-      return PhotoAcquireResult(bytes: bytes, name: name, mime: mime);
+    } catch (e) {
+      return PhotoAcquireOutcome.error('No se pudo abrir el archivo: $e');
     }
-
-    return _pickWithFileSelector();
-  }
-
-  Future<PhotoAcquireResult?> pickFromGallery() async {
-    if (kIsWeb) {
-      final web = await pickImageFromWeb(capture: false);
-      if (web == null) return null;
-
-      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
-      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
-    }
-
-    if (_isMobilePlatform) {
-      final file = await _picker.pickImage(source: ImageSource.gallery);
-      if (file == null) return null;
-
-      final bytes = await file.readAsBytes();
-      final name = file.name.isNotEmpty ? file.name : _galleryNameFallback();
-      final mime = file.mimeType ?? _guessMime(name);
-
-      return PhotoAcquireResult(bytes: bytes, name: name, mime: mime);
-    }
-
-    return _pickWithFileSelector();
-  }
-
-  Future<PhotoAcquireResult?> pickFromFilesWeb() async {
-    if (kIsWeb) {
-      final web = await pickImageFromWeb(capture: false);
-      if (web == null) return null;
-
-      final mime = web.mime.isNotEmpty ? web.mime : _guessMime(web.name);
-      return PhotoAcquireResult(bytes: web.bytes, name: web.name, mime: mime);
-    }
-
-    return _pickWithFileSelector();
-  }
-
-  Future<PhotoAcquireResult?> _pickWithFileSelector() async {
-    final xf = await openFile(acceptedTypeGroups: const [_imageTypeGroup]);
-    if (xf == null) return null;
-
-    final bytes = await xf.readAsBytes();
-    final mime = xf.mimeType ?? _guessMime(xf.name);
-    return PhotoAcquireResult(bytes: bytes, name: xf.name, mime: mime);
   }
 
   String _cameraNameFallback() {
@@ -125,5 +163,18 @@ class PhotoAcquireService {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     return 'image/jpeg';
+  }
+
+  PhotoAcquireOutcome _mapWebOutcome(WebImageCaptureResult web) {
+    switch (web.status) {
+      case WebImageCaptureStatus.success:
+        return PhotoAcquireOutcome.success(
+          PhotoAcquireResult(bytes: web.bytes!, name: web.name, mime: web.mime),
+        );
+      case WebImageCaptureStatus.cancelled:
+        return PhotoAcquireOutcome.cancelled();
+      case WebImageCaptureStatus.error:
+        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo leer la imagen.');
+    }
   }
 }
