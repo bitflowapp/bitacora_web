@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
+import 'photo_bytes.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'web_camera_capture.dart';
@@ -15,15 +17,15 @@ import 'web_image_capture_stub.dart'
 enum PhotoAcquireStatus { success, cancelled, blocked, error }
 
 class PhotoAcquireResult {
-  const PhotoAcquireResult({
-    required this.bytes,
-    required this.name,
-    required this.mime,
-  });
+  const PhotoAcquireResult(this.photo);
 
-  final Uint8List bytes;
-  final String name;
-  final String mime;
+  final PhotoBytes photo;
+
+  Uint8List get bytes => photo.bytes;
+  String get name => photo.name;
+  String get mime => photo.mime;
+  int? get width => photo.width;
+  int? get height => photo.height;
 }
 
 class PhotoAcquireOutcome {
@@ -100,7 +102,7 @@ class PhotoAcquireService {
         final mime = file.mimeType ?? _guessMime(name);
 
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
+          PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
         );
       } catch (e) {
         return PhotoAcquireOutcome.error('No se pudo abrir la camara: ');
@@ -126,7 +128,7 @@ class PhotoAcquireService {
         final mime = file.mimeType ?? _guessMime(name);
 
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(bytes: bytes, name: name, mime: mime),
+          PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
         );
       } catch (e) {
         return PhotoAcquireOutcome.error('No se pudo abrir la galeria: ');
@@ -153,7 +155,7 @@ class PhotoAcquireService {
       final bytes = await xf.readAsBytes();
       final mime = xf.mimeType ?? _guessMime(xf.name);
       return PhotoAcquireOutcome.success(
-        PhotoAcquireResult(bytes: bytes, name: xf.name, mime: mime),
+        PhotoAcquireResult(PhotoBytes(bytes: bytes, name: xf.name, mime: mime)),
       );
     } catch (e) {
       return PhotoAcquireOutcome.error('No se pudo abrir el archivo: ');
@@ -181,7 +183,7 @@ class PhotoAcquireService {
     switch (web.status) {
       case WebImageCaptureStatus.success:
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(bytes: web.bytes!, name: web.name, mime: web.mime),
+          PhotoAcquireResult(PhotoBytes(bytes: web.bytes!, name: web.name, mime: web.mime)),
         );
       case WebImageCaptureStatus.cancelled:
         return PhotoAcquireOutcome.cancelled();
@@ -198,7 +200,7 @@ class PhotoAcquireService {
     switch (web.status) {
       case WebCameraCaptureStatus.success:
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(bytes: web.bytes!, name: web.name, mime: web.mime),
+          PhotoAcquireResult(PhotoBytes(bytes: web.bytes!, name: web.name, mime: web.mime)),
         );
       case WebCameraCaptureStatus.cancelled:
         return PhotoAcquireOutcome.cancelled();

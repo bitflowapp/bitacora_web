@@ -224,6 +224,9 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
       if (bytes == null || bytes.isEmpty) {
         throw Exception('empty bytes');
       }
+      if (bytes.length < 1024) {
+        throw Exception('bytes too small');
+      }
 
       _video.pause();
       if (!mounted) return;

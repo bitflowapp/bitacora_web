@@ -4794,12 +4794,15 @@ class _EditorScreenState extends State<EditorScreen>
     final raw = storedRef.trim();
     if (raw.startsWith('key:')) return raw;
     if (raw.startsWith('mem:')) return raw;
-    if (raw.startsWith('file:')) return raw.substring(5);
+    if (raw.startsWith('file:')) return kIsWeb ? '' : raw.substring(5);
     if (raw.startsWith('b64:')) return '';
     if (raw.startsWith('data:')) return '';
     final looksLikePath =
         raw.contains('\\') || raw.contains('/') || raw.contains(':');
-    return looksLikePath ? raw : '';
+    if (looksLikePath) {
+      return kIsWeb ? '' : raw;
+    }
+    return '';
   }
 
   String _photoDataFromRef(String storedRef) {
@@ -5061,6 +5064,12 @@ class _EditorScreenState extends State<EditorScreen>
 
     final thumbBytes = _compressThumb(result.bytes,
         maxW: 560, maxH: 560, quality: 78);
+    final storageLabel = storedRef.startsWith('key:')
+        ? 'indexeddb'
+        : (storedRef.startsWith('mem:')
+            ? 'ram'
+            : (storedRef.startsWith('b64:') ? 'b64' : 'unknown'));
+
     final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
         ? ''
         : base64Encode(thumbBytes);
@@ -5089,7 +5098,7 @@ class _EditorScreenState extends State<EditorScreen>
       type: DiagnosticActionType.photo,
       ok: true,
       message:
-          'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef',
+          'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef storage=$storageLabel',
     );
     final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
     _showActionSnack(
@@ -5209,7 +5218,38 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-    Future<void> _openPhotoPreview(
+  bool _canPreviewPhoto(PhotoAttachment photo) {
+    final mime = photo.mime.toLowerCase();
+    if (mime.contains('png') ||
+        mime.contains('jpeg') ||
+        mime.contains('jpg') ||
+        mime.contains('webp') ||
+        mime.contains('gif')) {
+      return true;
+    }
+    final name = photo.filename.toLowerCase();
+    return name.endsWith('.png') ||
+        name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.webp') ||
+        name.endsWith('.gif');
+  }
+
+  Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
+    final bytes = await _loadPhotoBytesFromAttachment(photo);
+    if (!mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      _showSnack('No se pudo descargar la foto.', isError: true);
+      return;
+    }
+    final name = photo.filename.trim().isEmpty ? 'foto' : photo.filename.trim();
+    final mime = photo.mime.trim().isEmpty
+        ? 'application/octet-stream'
+        : photo.mime.trim();
+    await _saveExportBytes(name: name, mime: mime, bytes: bytes, share: false);
+  }
+
+  Future<void> _openPhotoPreview(
     BuildContext context,
     PhotoAttachment photo,
   ) async {
@@ -5219,10 +5259,31 @@ class _EditorScreenState extends State<EditorScreen>
       _showSnack('No se pudo cargar la foto.', isError: true);
       return;
     }
+    final previewable = _canPreviewPhoto(photo);
     await showDialog<void>(
       context: context,
       builder: (ctx) {
         final pal = _palette(ctx);
+        if (!previewable) {
+          final mimeLabel = photo.mime.trim().isEmpty
+              ? 'mime desconocido'
+              : photo.mime.trim();
+          return AlertDialog(
+            backgroundColor: pal.menuBg,
+            title: const Text('Adjunto guardado'),
+            content: Text('No previsualizable ($mimeLabel).'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cerrar'),
+              ),
+              TextButton(
+                onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+                child: const Text('Descargar'),
+              ),
+            ],
+          );
+        }
         final preview = kIsWeb
             ? Center(
                 child: WebBlobImage(
@@ -5260,7 +5321,6 @@ class _EditorScreenState extends State<EditorScreen>
       },
     );
   }
-
 
   void _openPhotosSheetForCell(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
@@ -5309,6 +5369,69 @@ class _EditorScreenState extends State<EditorScreen>
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (ctx2, idx) {
                       final p = photos[idx];
+                      final previewable = _canPreviewPhoto(p);
+                      final mimeLabel = p.mime.trim().isEmpty
+                          ? 'mime desconocido'
+                          : p.mime.trim();
+
+                      Widget placeholderIcon() {
+                        return Container(
+                          width: 48,
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: pal.cellBg,
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: pal.border, width: pal.hairline),
+                          ),
+                          child: Icon(
+                            previewable
+                                ? Icons.photo_outlined
+                                : Icons.insert_drive_file_outlined,
+                            color: pal.fgMuted,
+                          ),
+                        );
+                      }
+
+                      Widget thumbWidget() {
+                        if (!previewable) return placeholderIcon();
+                        return FutureBuilder<Uint8List?>(
+                          future: _loadPhotoBytesFromAttachment(p),
+                          builder: (ctx3, snap) {
+                            final bytes = snap.data;
+                            if (bytes == null || bytes.isEmpty) {
+                              return placeholderIcon();
+                            }
+                            final child = kIsWeb
+                                ? WebBlobImage(
+                                    bytes: bytes,
+                                    mime: p.mime,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.memory(
+                                    bytes,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.low,
+                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  );
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(width: 48, height: 48, child: child),
+                            );
+                          },
+                        );
+                      }
+
+                      final title = p.filename.trim().isEmpty
+                          ? 'Adjunto'
+                          : p.filename.trim();
+                      final subtitle = previewable
+                          ? p.addedAt.toIso8601String()
+                          : 'Adjunto guardado ($mimeLabel)';
+
                       return InkWell(
                         onTap: () => unawaited(_openPhotoPreview(ctx2, p)),
                         child: Container(
@@ -5321,40 +5444,14 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                           child: Row(
                             children: [
-                              if (p.thumbRef.isNotEmpty &&
-                                  _tryDecodeB64(p.thumbRef) != null)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.memory(
-                                    _tryDecodeB64(p.thumbRef)!,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.low,
-                                  ),
-                                )
-                              else
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: pal.cellBg,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: pal.border,
-                                        width: pal.hairline),
-                                  ),
-                                  child:
-                                      Icon(Icons.photo, color: pal.fgMuted),
-                                ),
+                              thumbWidget(),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      p.filename,
+                                      title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -5364,7 +5461,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      p.addedAt.toIso8601String(),
+                                      subtitle,
                                       style: TextStyle(
                                         color: pal.fgMuted,
                                         fontSize: 12,
@@ -5372,6 +5469,12 @@ class _EditorScreenState extends State<EditorScreen>
                                     ),
                                   ],
                                 ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    unawaited(_downloadPhotoAttachment(p)),
+                                icon: Icon(Icons.download_rounded,
+                                    color: pal.fgMuted),
                               ),
                               IconButton(
                                 onPressed: () => unawaited(

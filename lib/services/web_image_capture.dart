@@ -198,6 +198,8 @@ Future<WebImageCaptureResult> captureWebImage({
       return;
     }
 
+    logStep('photo:web bytes=${bytes.length} mime=$fileMime name=$name ${_snapshot()}');
+
     finish(WebImageCaptureResult.success(
       bytes: bytes,
       name: name,
