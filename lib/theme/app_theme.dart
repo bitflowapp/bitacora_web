@@ -200,30 +200,30 @@ class AppTheme {
     final spacing = const AppSpacing();
 
     final shadowColor =
-        Colors.black.withOpacity(isLight ? 0.12 : 0.55);
+        Colors.black.withOpacity(isLight ? 0.10 : 0.60);
     final softShadow =
-        Colors.black.withOpacity(isLight ? 0.08 : 0.35);
+        Colors.black.withOpacity(isLight ? 0.06 : 0.40);
 
     final shadows = AppShadows(
       card: [
         BoxShadow(
           color: shadowColor,
-          blurRadius: isLight ? 18 : 26,
-          offset: const Offset(0, 10),
+          blurRadius: isLight ? 14 : 22,
+          offset: const Offset(0, 8),
         ),
       ],
       soft: [
         BoxShadow(
           color: softShadow,
-          blurRadius: isLight ? 12 : 18,
-          offset: const Offset(0, 6),
+          blurRadius: isLight ? 10 : 16,
+          offset: const Offset(0, 5),
         ),
       ],
       floating: [
         BoxShadow(
           color: shadowColor,
-          blurRadius: isLight ? 26 : 36,
-          offset: const Offset(0, 18),
+          blurRadius: isLight ? 20 : 30,
+          offset: const Offset(0, 12),
         ),
       ],
     );

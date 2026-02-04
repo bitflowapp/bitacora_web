@@ -7700,34 +7700,34 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 32,
-        headerH: 30,
-        cellPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        headerPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        cellFontSize: 11.8,
-        headerFontSize: 11.2,
-        indexFontSize: 10.8,
+        rowH: 35,
+        headerH: 32,
+        cellPadding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        headerPadding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        cellFontSize: 12.2,
+        headerFontSize: 11.6,
+        indexFontSize: 11.0,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
-        rowH: 48,
-        headerH: 46,
-        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        cellFontSize: 13.8,
-        headerFontSize: 12.8,
-        indexFontSize: 12.2,
+        rowH: 52,
+        headerH: 48,
+        cellPadding: EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        headerPadding: EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        cellFontSize: 14.2,
+        headerFontSize: 13.2,
+        indexFontSize: 12.6,
       );
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 38,
-        headerH: 36,
-        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        cellFontSize: 12.6,
-        headerFontSize: 11.8,
-        indexFontSize: 11.2,
+        rowH: 41,
+        headerH: 38,
+        cellPadding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        headerPadding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        cellFontSize: 13.0,
+        headerFontSize: 12.0,
+        indexFontSize: 11.4,
       );
   }
 }
