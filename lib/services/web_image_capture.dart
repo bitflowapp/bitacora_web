@@ -3,7 +3,6 @@ import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 
 import 'diagnostics_log.dart';
-import 'dart:async' show unawaited;
 
 enum WebImageCaptureStatus { success, cancelled, blocked, error }
 
@@ -72,9 +71,22 @@ Future<WebImageCaptureResult> captureWebImage({
   StreamSubscription<html.Event>? visibilitySub;
   String? objectUrl;
   Timer? timeoutTimer;
+  Timer? pollTimer;
   var finished = false;
-  var sawChange = false;
-  var pendingEmpty = false;
+  var polling = false;
+  var pollTick = 0;
+
+  final ua = html.window.navigator.userAgent;
+  final uaLower = ua.toLowerCase();
+  final isIOS = uaLower.contains('iphone') ||
+      uaLower.contains('ipad') ||
+      uaLower.contains('ipod');
+  final isSafari = uaLower.contains('safari') &&
+      !uaLower.contains('crios') &&
+      !uaLower.contains('fxios') &&
+      !uaLower.contains('edg') &&
+      !uaLower.contains('chrome') &&
+      !uaLower.contains('chromium');
 
   void logStep(String message, {bool ok = true}) {
     DiagnosticsLog.I.record(
@@ -84,8 +96,22 @@ Future<WebImageCaptureResult> captureWebImage({
     );
   }
 
+  String _snapshot() {
+    final filesLen = input.files?.length ?? 0;
+    final valueLen = input.value?.length ?? 0;
+    final vis = html.document.visibilityState ?? 'unknown';
+    final focus = html.document.hasFocus();
+    return 'vis=$vis focus=$focus valueLen=$valueLen files=$filesLen';
+  }
+
   void finish(WebImageCaptureResult result) {
     if (finished) return;
+    final outcomeOk = result.status == WebImageCaptureStatus.success;
+    final bytesLen = result.bytes?.length ?? 0;
+    logStep(
+      'photo:web outcome=${result.status.name} bytes=$bytesLen ${_snapshot()}',
+      ok: outcomeOk,
+    );
     finished = true;
     try {
       changeSub?.cancel();
@@ -94,6 +120,9 @@ Future<WebImageCaptureResult> captureWebImage({
     } catch (_) {}
     try {
       timeoutTimer?.cancel();
+    } catch (_) {}
+    try {
+      pollTimer?.cancel();
     } catch (_) {}
     if (objectUrl != null) {
       try {
@@ -120,7 +149,7 @@ Future<WebImageCaptureResult> captureWebImage({
   Future<void> processFile(html.File file, {required String source}) async {
     if (finished) return;
     logStep(
-      'photo:web files=1 source=$source size=${file.size} name=${file.name}',
+      'photo:web files=1 source=$source size=${file.size} name=${file.name} ${_snapshot()}',
     );
     objectUrl = html.Url.createObjectUrl(file);
 
@@ -166,32 +195,41 @@ Future<WebImageCaptureResult> captureWebImage({
     }
   }
 
-  Future<void> recheckFiles({
-    required String source,
-    required bool allowCancel,
-  }) async {
-    if (finished) return;
-    final files = input.files;
-    if (files != null && files.isNotEmpty) {
-      await processFile(files.first, source: source);
-      return;
-    }
-    logStep('photo:web recheck files=0 source=$source');
-    if (allowCancel && (pendingEmpty || sawChange)) {
-      finish(WebImageCaptureResult.cancelled());
-    }
+  void startPolling(String reason) {
+    if (finished || polling) return;
+    polling = true;
+    pollTick = 0;
+    logStep('photo:web poll_start reason=$reason ${_snapshot()}');
+    pollTimer = Timer.periodic(const Duration(milliseconds: 80), (t) {
+      if (finished) {
+        t.cancel();
+        return;
+      }
+      pollTick += 1;
+      final files = input.files;
+      final len = files?.length ?? 0;
+      logStep('photo:web poll[$pollTick] files=$len ${_snapshot()}');
+      if (len > 0 && files != null) {
+        t.cancel();
+        polling = false;
+        unawaited(processFile(files.first, source: 'poll'));
+        return;
+      }
+      if (pollTick * 80 >= 2000) {
+        t.cancel();
+        polling = false;
+        logStep('photo:web poll_timeout ${_snapshot()}', ok: false);
+        finish(WebImageCaptureResult.cancelled());
+      }
+    });
   }
 
   changeSub = input.onChange.listen((_) async {
-    sawChange = true;
     final files = input.files;
+    final len = files?.length ?? 0;
+    logStep('photo:web change files=$len ${_snapshot()}');
     if (files == null || files.isEmpty) {
-      pendingEmpty = true;
-      logStep('photo:web change files=0 (pending)');
-      // give iOS a moment; do not cancel yet
-      Future.delayed(const Duration(milliseconds: 120), () {
-        unawaited(recheckFiles(source: 'delay', allowCancel: false));
-      });
+      startPolling('change-empty');
       return;
     }
     await processFile(files.first, source: 'change');
@@ -199,20 +237,26 @@ Future<WebImageCaptureResult> captureWebImage({
 
   focusSub = html.window.onFocus.listen((_) {
     if (finished) return;
-    logStep('photo:web focus');
-    Future.delayed(const Duration(milliseconds: 120), () {
-      unawaited(recheckFiles(source: 'focus', allowCancel: true));
-    });
+    logStep('photo:web focus ${_snapshot()}');
+    final files = input.files;
+    if (files != null && files.isNotEmpty) {
+      unawaited(processFile(files.first, source: 'focus'));
+      return;
+    }
+    startPolling('focus');
   });
 
   visibilitySub = html.document.onVisibilityChange.listen((_) {
     if (finished) return;
     final state = html.document.visibilityState;
     if (state == 'visible') {
-      logStep('photo:web visible');
-      Future.delayed(const Duration(milliseconds: 120), () {
-        unawaited(recheckFiles(source: 'visible', allowCancel: true));
-      });
+      logStep('photo:web visible ${_snapshot()}');
+      final files = input.files;
+      if (files != null && files.isNotEmpty) {
+        unawaited(processFile(files.first, source: 'visible'));
+        return;
+      }
+      startPolling('visible');
     }
   });
 
@@ -222,8 +266,16 @@ Future<WebImageCaptureResult> captureWebImage({
     finish(WebImageCaptureResult.blocked('Tiempo de espera agotado.'));
   });
 
-  logStep('photo:web click capture=$capture');
-  input.click();
+  logStep(
+    'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari capture=$capture ${_snapshot()}',
+  );
+  try {
+    logStep('photo:web click capture=$capture ${_snapshot()}');
+    input.click();
+  } catch (e) {
+    logStep('photo:web click_error $e ${_snapshot()}', ok: false);
+    finish(WebImageCaptureResult.blocked('El navegador bloqueo el selector.'));
+  }
   return completer.future;
 }
 

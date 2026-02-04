@@ -229,6 +229,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         setState(() => _photoTestResult = 'Cancelado por el usuario.');
         return;
       }
+      if (outcome.blocked) {
+        setState(() => _photoTestResult = 'Bloqueado: ${outcome.error}');
+        return;
+      }
       if (!outcome.ok) {
         setState(() => _photoTestResult = 'Error: ${outcome.error}');
         return;

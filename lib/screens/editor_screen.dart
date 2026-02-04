@@ -4592,14 +4592,18 @@ class _EditorScreenState extends State<EditorScreen>
                   title: const Text('Tomar foto'),
                   subtitle: const Text('Usar camara'),
                   onTap: () {
-                    Navigator.of(ctx).pop();
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
                       actionLabel: 'Camara',
                     )) {
                       return;
                     }
-                    unawaited(_pickPhotoForCell(r, c, fromCamera: true));
+                    _startPhotoPickFromGesture(
+                      r: r,
+                      c: c,
+                      fromCamera: true,
+                      sheetContext: ctx,
+                    );
                   },
                 ),
                 ListTile(
@@ -4607,8 +4611,12 @@ class _EditorScreenState extends State<EditorScreen>
                   title: const Text('Elegir de galeria'),
                   subtitle: const Text('Seleccionar archivo'),
                   onTap: () {
-                    Navigator.of(ctx).pop();
-                    unawaited(_pickPhotoForCell(r, c, fromCamera: false));
+                    _startPhotoPickFromGesture(
+                      r: r,
+                      c: c,
+                      fromCamera: false,
+                      sheetContext: ctx,
+                    );
                   },
                 ),
               ],
@@ -4727,6 +4735,87 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  void _startPhotoPickFromGesture({
+    required int r,
+    required int c,
+    required bool fromCamera,
+    required BuildContext sheetContext,
+  }) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+    if (fromCamera &&
+        _guardInsecureContext(
+          DiagnosticActionType.photo,
+          actionLabel: 'Camara',
+        )) {
+      return;
+    }
+
+    final future = fromCamera
+        ? PhotoAcquireService.I.captureFromCamera()
+        : PhotoAcquireService.I.pickFromGallery();
+
+    Future.microtask(() => Navigator.of(sheetContext).pop());
+    unawaited(_handlePhotoOutcome(future, r, c, fromCamera: fromCamera));
+  }
+
+  Future<void> _handlePhotoOutcome(
+    Future<PhotoAcquireOutcome> future,
+    int r,
+    int c, {
+    required bool fromCamera,
+  }) async {
+    final outcome = await future;
+    if (!mounted) return;
+
+    if (fromCamera &&
+        _isIosWeb &&
+        (outcome.cancelled || outcome.blocked)) {
+      final fallbackOutcome = await _offerGalleryFallback();
+      if (!mounted) return;
+      if (fallbackOutcome != null) {
+        await _handlePhotoOutcomeResult(fallbackOutcome, r, c);
+        return;
+      }
+    }
+
+    await _handlePhotoOutcomeResult(outcome, r, c);
+  }
+
+  Future<PhotoAcquireOutcome?> _offerGalleryFallback() async {
+    if (!mounted) return null;
+    final future = await showDialog<Future<PhotoAcquireOutcome>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('No se pudo abrir la camara'),
+          content: const Text(
+            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                final future = PhotoAcquireService.I.pickFromGallery();
+                Navigator.of(ctx).pop(future);
+              },
+              child: const Text('Elegir galeria'),
+            ),
+          ],
+        );
+      },
+    );
+    if (future == null) return null;
+    return await future;
+  }
+
   Future<void> _pickPhotoForCell(int r, int c,
       {bool fromCamera = false}) async {
     if (r < 0 || r >= _rows.length) return;
@@ -4741,117 +4830,11 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     try {
-      final outcome = fromCamera
-          ? await PhotoAcquireService.I.captureFromCamera()
-          : await PhotoAcquireService.I.pickFromGallery();
-      if (!mounted) return;
-      if (outcome.cancelled) {
-        DiagnosticsLog.I.record(
-          type: DiagnosticActionType.photo,
-          ok: false,
-          message: 'photo_cancelled',
-        );
-        _showActionSnack(
-          'Cancelado por el usuario.',
-          isError: true,
-          icon: Icons.photo_outlined,
-        );
-        return;
-      }
-      if (outcome.blocked) {
-        final msg = outcome.error ?? 'Bloqueado por el navegador.';
-        DiagnosticsLog.I.record(
-          type: DiagnosticActionType.photo,
-          ok: false,
-          message: 'photo_blocked $msg',
-        );
-        _showActionSnack(
-          msg,
-          isError: true,
-          icon: Icons.photo_outlined,
-        );
-        return;
-      }
-      if (!outcome.ok) {
-        final msg = outcome.error ?? 'No se pudo leer la imagen.';
-        DiagnosticsLog.I.record(
-          type: DiagnosticActionType.photo,
-          ok: false,
-          message: 'photo_error $msg',
-        );
-        _showActionSnack(
-          msg,
-          isError: true,
-          icon: Icons.photo_outlined,
-        );
-        return;
-      }
-
-      final result = outcome.result!;
-
-      final attachmentId = _genAttachmentId('ph_');
-      final cellKey = CellKey(r, c).toKey();
-      final stored = await _photoStore.savePhoto(
-        sheetId: widget.sheetId,
-        cellKey: cellKey,
-        attachmentId: attachmentId,
-        bytes: result.bytes,
-        originalName: result.name,
-        mime: result.mime,
-      );
-      if (!mounted) return;
-      if (stored == null) {
-        DiagnosticsLog.I.record(
-          type: DiagnosticActionType.photo,
-          ok: false,
-          message: 'photo_save_failed (storage returned null)',
-        );
-        _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
-            isError: true, icon: Icons.photo_outlined);
-        return;
-      }
-
-      final storedRef = _photoStoredRefFrom(stored);
-      if (storedRef.startsWith('mem:')) {
-        _warnStorageFallbackOnce('foto');
-      }
-
-      final thumbBytes =
-          _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
-      final thumbB64 = base64Encode(thumbBytes);
-
-      final fixOutcome =
-          await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
-      if (!mounted) return;
-
-      final attachment = PhotoAttachment(
-        id: attachmentId,
-        filename: result.name,
-        mime: result.mime,
-        size: result.bytes.lengthInBytes,
-        storedRef: storedRef,
-        thumbRef: thumbB64,
-        addedAt: DateTime.now(),
-        lat: fixOutcome.fix?.lat,
-        lon: fixOutcome.fix?.lng,
-        accuracyM: fixOutcome.fix?.accuracyM,
-        isLastKnown: fixOutcome.fix?.source == 'lastKnown',
-      );
-
-      _addPhotoToCell(r, c, attachment);
-      final cellLabel = _cellLabelRc(r, c);
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: true,
-        message:
-            'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef',
-      );
-      final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
-      _showActionSnack(
-        'Foto guardada en celda $cellLabel ($sizeLabel).',
-        isError: false,
-        icon: Icons.photo_outlined,
-      );
+      final future = fromCamera
+          ? PhotoAcquireService.I.captureFromCamera()
+          : PhotoAcquireService.I.pickFromGallery();
+      await _handlePhotoOutcome(future, r, c, fromCamera: fromCamera);
+      return;
     } catch (e) {
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
@@ -4860,7 +4843,122 @@ class _EditorScreenState extends State<EditorScreen>
       );
       _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
           isError: true, icon: Icons.photo_outlined);
+      return;
     }
+  }
+
+  Future<void> _handlePhotoOutcomeResult(
+    PhotoAcquireOutcome outcome,
+    int r,
+    int c,
+  ) async {
+    if (outcome.cancelled) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: false,
+        message: 'photo_cancelled',
+      );
+      _showActionSnack(
+        'Cancelado por el usuario.',
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
+      return;
+    }
+    if (outcome.blocked) {
+      final msg = outcome.error ?? 'Bloqueado por el navegador.';
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: false,
+        message: 'photo_blocked $msg',
+      );
+      _showActionSnack(
+        msg,
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
+      return;
+    }
+    if (!outcome.ok) {
+      final msg = outcome.error ?? 'No se pudo leer la imagen.';
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: false,
+        message: 'photo_error $msg',
+      );
+      _showActionSnack(
+        msg,
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
+      return;
+    }
+
+    final result = outcome.result!;
+
+    final attachmentId = _genAttachmentId('ph_');
+    final cellKey = CellKey(r, c).toKey();
+    final stored = await _photoStore.savePhoto(
+      sheetId: widget.sheetId,
+      cellKey: cellKey,
+      attachmentId: attachmentId,
+      bytes: result.bytes,
+      originalName: result.name,
+      mime: result.mime,
+    );
+    if (!mounted) return;
+    if (stored == null) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: false,
+        message: 'photo_save_failed (storage returned null)',
+      );
+      _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
+          isError: true, icon: Icons.photo_outlined);
+      return;
+    }
+
+    final storedRef = _photoStoredRefFrom(stored);
+    if (storedRef.startsWith('mem:')) {
+      _warnStorageFallbackOnce('foto');
+    }
+
+    final thumbBytes =
+        _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78);
+    final thumbB64 = base64Encode(thumbBytes);
+
+    final fixOutcome =
+        await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
+    if (!mounted) return;
+
+    final attachment = PhotoAttachment(
+      id: attachmentId,
+      filename: result.name,
+      mime: result.mime,
+      size: result.bytes.lengthInBytes,
+      storedRef: storedRef,
+      thumbRef: thumbB64,
+      addedAt: DateTime.now(),
+      lat: fixOutcome.fix?.lat,
+      lon: fixOutcome.fix?.lng,
+      accuracyM: fixOutcome.fix?.accuracyM,
+      isLastKnown: fixOutcome.fix?.source == 'lastKnown',
+    );
+
+    _addPhotoToCell(r, c, attachment);
+    final cellLabel = _cellLabelRc(r, c);
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.photo,
+      ok: true,
+      message:
+          'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef',
+    );
+    final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
+    _showActionSnack(
+      'Foto guardada en celda $cellLabel ($sizeLabel).',
+      isError: false,
+      icon: Icons.photo_outlined,
+    );
   }
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
