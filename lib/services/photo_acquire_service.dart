@@ -71,7 +71,7 @@ class PhotoAcquireService {
 
   static const XTypeGroup _imageTypeGroup = XTypeGroup(
     label: 'Images',
-    extensions: <String>['jpg', 'jpeg', 'png', 'webp'],
+    extensions: <String>['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
   );
 
   bool get _isMobilePlatform {

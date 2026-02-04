@@ -42,6 +42,7 @@ import 'package:bitacora_web/models/cell_meta.dart';
 import 'package:bitacora_web/services/export_xlsx_with_photos.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bitacora_web/services/photo_acquire_service.dart';
+import 'package:bitacora_web/services/photo_mime_sniffer.dart';
 import 'package:bitacora_web/services/keyboard_insets_controller.dart';
 import 'package:bitacora_web/services/photo_storage_service.dart';
 import 'package:bitacora_web/services/audio_service.dart';
@@ -77,10 +78,13 @@ const String _kPrefEngineApiKey = 'bitflow.engine_api_key';
 const String _kPrefEngineApiKeyAlt = 'bitflow_engine_api_key';
 
 enum _OverlayMove { none, next, prev, down, up }
+
 enum _GridDensity { compact, normal, roomy }
+
 enum _PhotoSource { camera, gallery }
 
 enum _MobileEditPhase { closed, opening, open, switching, closing }
+
 enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
 
 class _CellTarget {
@@ -165,7 +169,7 @@ class _EditorScreenState extends State<EditorScreen>
 // Nombre (header Apple)
   late final TextEditingController _nameEC = TextEditingController();
   late final FocusNode _nameFocus =
-  FocusNode(debugLabel: 'SheetNameAppleFocus');
+      FocusNode(debugLabel: 'SheetNameAppleFocus');
   Timer? _nameDebounceT;
 
 // Overlay editor (desktop)
@@ -213,7 +217,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ??? Teclado m??vil: controlador robusto de insets
   late final KeyboardInsetsController _kbController =
-  KeyboardInsetsController(onLog: kDebugMode ? debugPrint : null);
+      KeyboardInsetsController(onLog: kDebugMode ? debugPrint : null);
   late final PhotoStorageService _photoStore = PhotoStorageService.I;
   late final AudioService _audioService = AudioService.I;
   late final AudioStorageService _audioStore = AudioStorageService.I;
@@ -262,7 +266,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   final TextEditingController _mobileEC = TextEditingController();
   final FocusNode _mobileFocus =
-  FocusNode(debugLabel: 'MobileInlineEditorFocus');
+      FocusNode(debugLabel: 'MobileInlineEditorFocus');
 
   List<_MobileAction> _mobileActions = const [];
   final GlobalKey _mobileBarKey = GlobalKey();
@@ -334,8 +338,10 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGpsMode());
     unawaited(_loadGridDensity());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
-    unawaited(_initEngineConnection().whenComplete(() => unawaited(_maybeRunSmoke())));
+    unawaited(_initEngineConnection()
+        .whenComplete(() => unawaited(_maybeRunSmoke())));
   }
+
   Future<void> _loadStorageStatus() async {
     final result = await StorageDiagnostics.check();
     if (!mounted) return;
@@ -344,6 +350,7 @@ class _EditorScreenState extends State<EditorScreen>
       _storageMessage = result.message;
     });
   }
+
   @override
   void didUpdateWidget(covariant EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -437,9 +444,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   _SheetModel _buildInitialState() {
     final headers =
-    (widget.initialHeaders != null && widget.initialHeaders!.isNotEmpty)
-        ? _normalizeHeaders(widget.initialHeaders!)
-        : _defaultHeaders();
+        (widget.initialHeaders != null && widget.initialHeaders!.isNotEmpty)
+            ? _normalizeHeaders(widget.initialHeaders!)
+            : _defaultHeaders();
 
     final rowModels = <_RowModel>[];
 
@@ -516,8 +523,7 @@ class _EditorScreenState extends State<EditorScreen>
     final out = <String, CellMeta>{};
     if (colCount <= 0) return out;
     final lastDataCol = math.max(0, colCount - 1);
-    final gpsPattern =
-        RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)');
+    final gpsPattern = RegExp(r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)');
 
     for (int r = 0; r < rows.length; r++) {
       final row = rows[r];
@@ -587,7 +593,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   String get _prefsKey => 'bitflow:sheet:${widget.sheetId}';
   String get _backupListKey => '$_prefsKey:bk:list';
-  String _backupKey(DateTime ts) => '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
+  String _backupKey(DateTime ts) =>
+      '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
 
   Future<void> _loadLocal() async {
     try {
@@ -715,8 +722,9 @@ class _EditorScreenState extends State<EditorScreen>
       final backupKey = _backupKey(now);
       final list = prefs.getStringList(_backupListKey) ?? const <String>[];
       final updated = <String>[backupKey, ...list];
-      final trimmed =
-          updated.length > _maxBackups ? updated.sublist(0, _maxBackups) : updated;
+      final trimmed = updated.length > _maxBackups
+          ? updated.sublist(0, _maxBackups)
+          : updated;
 
       await prefs.setString(backupKey, json.encode(model.toJson()));
       await prefs.setStringList(_backupListKey, trimmed);
@@ -805,15 +813,15 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   _SheetSnapshot _snapshot() => _SheetSnapshot(
-    name: _sheetName,
-    headers: List<String>.from(_headers),
+        name: _sheetName,
+        headers: List<String>.from(_headers),
 // ??? Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
-    rowModels:
-    _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
-    cellMeta: _cloneCellMeta(_cellMeta),
-    selRow: _selRow,
-    selCol: _selCol,
-  );
+        rowModels:
+            _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
+        cellMeta: _cloneCellMeta(_cellMeta),
+        selRow: _selRow,
+        selCol: _selCol,
+      );
 
   void _pushUndoSnapshot() {
     _undo.add(_snapshot());
@@ -990,7 +998,8 @@ class _EditorScreenState extends State<EditorScreen>
                     activeColor: pal.accent,
                     title: Text(
                       _densityLabel(d),
-                      style: TextStyle(color: pal.fg, fontWeight: FontWeight.w700),
+                      style:
+                          TextStyle(color: pal.fg, fontWeight: FontWeight.w700),
                     ),
                   ),
               ],
@@ -1473,9 +1482,8 @@ class _EditorScreenState extends State<EditorScreen>
         context,
         message: message,
         isError: isError,
-        icon: isError
-            ? Icons.error_outline_rounded
-            : Icons.info_outline_rounded,
+        icon:
+            isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
       );
     });
   }
@@ -1564,7 +1572,8 @@ class _EditorScreenState extends State<EditorScreen>
                   await Clipboard.setData(ClipboardData(text: url));
                 } catch (_) {}
                 if (mounted) {
-                  _showActionSnack('Link copiado.', isError: false, icon: Icons.link_rounded);
+                  _showActionSnack('Link copiado.',
+                      isError: false, icon: Icons.link_rounded);
                 }
               },
               child: const Text('Copiar link'),
@@ -1622,7 +1631,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (url.trim().isEmpty) return;
     final uri = Uri.parse(url);
     final query = uri.query.isEmpty ? '' : '?${uri.query}';
-    final intent = 'intent://${uri.host}${uri.path}$query#Intent;scheme=${uri.scheme};package=com.android.chrome;end';
+    final intent =
+        'intent://${uri.host}${uri.path}$query#Intent;scheme=${uri.scheme};package=com.android.chrome;end';
     try {
       final ok = await launchUrl(
         Uri.parse(intent),
@@ -1670,7 +1680,8 @@ class _EditorScreenState extends State<EditorScreen>
     VoidCallback? onAction,
   }) {
     final t = AppTheme.of(context);
-    final borderColor = t.colors.warningFg.withOpacity(pal.isLight ? 0.35 : 0.5);
+    final borderColor =
+        t.colors.warningFg.withOpacity(pal.isLight ? 0.35 : 0.5);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1743,8 +1754,7 @@ class _EditorScreenState extends State<EditorScreen>
         final panelH = isDesktop
             ? 0.0
             : (editorActive
-                ? (_mobileBarH > 0 &&
-                        (_mobileBarH - desiredPanelH).abs() < 8)
+                ? (_mobileBarH > 0 && (_mobileBarH - desiredPanelH).abs() < 8)
                     ? _mobileBarH
                     : desiredPanelH
                 : 0.0);
@@ -1783,178 +1793,116 @@ class _EditorScreenState extends State<EditorScreen>
               appBar: null,
               body: SafeArea(
                 bottom: true,
-                  child: Stack(
-                    children: [
-                      if (pal.isLight)
-                        Positioned.fill(child: _WarmBackdrop(palette: pal)),
-                      AnimatedPadding(
-                        duration: const Duration(milliseconds: 140),
-                        curve: Curves.easeOut,
-                        padding: EdgeInsets.only(bottom: bodyBottomPad),
-                        child: Column(
-                          children: [
-                            if (isDesktop)
-                              _PremiumAppleHeader(
-                                palette: pal,
-                                titleController: _nameEC,
-                                titleFocus: _nameFocus,
-                                savedText: _savedLabel(pal),
-                                isDirty: _isDirty,
-                                onTitleChanged: _onTitleChangedDebounced,
-                                onToggleTheme: _toggleTheme,
-                                onUndo: _undoOnce,
-                                onRedo: _redoOnce,
-                                onAddRow: () => _insertRow(_rows.length),
-                                onSave: () => unawaited(_saveLocalNow()),
-                                onExport: () => unawaited(_openExportMenu()),
-                                onSmokeTest: () =>
-                                    unawaited(_runAttachmentSmokeTest()),
-                                onCompute: _engineBusy
-                                    ? null
-                                    : () => unawaited(_computeEngine()),
-                                onGps: () => unawaited(
-                                    _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
-                                onPhoto: () => unawaited(
-                                  _showPhotoSourcePickerForCell(_selRow, _selCol),
-                                ),
-                                onAudio: () {
-                                  if (_audioRecording) {
-                                    unawaited(_stopAudioRecording());
-                                  } else {
-                                    unawaited(_startAudioRecordingForCell(
-                                        _selRow, _selCol));
-                                  }
-                                },
-                                onShare: () =>
-                                    unawaited(_exportZipBundle(share: true)),
-                                onPalette: () =>
-                                    unawaited(_openCommandPalette()),
-                                onGpsMode: () =>
-                                    unawaited(_showGpsModePicker()),
-                                onDensity: () =>
-                                    unawaited(_showDensityPicker()),
-                                sensorsEnabled: sensorsEnabled,
-                              )
-                            else
-                              _MobileCompactHeader(
-                                palette: pal,
-                                title: _sheetName,
-                                savedText: _savedLabel(pal),
-                                isDirty: _isDirty,
-                                pendingRequired: _pendingRequired,
-                                onSave: () => unawaited(_saveLocalNow()),
-                                onExport: () => unawaited(_openExportMenu()),
-                                onMenu: () => _openMobileHeaderMenu(
-                                  context,
-                                  pal,
-                                ),
+                child: Stack(
+                  children: [
+                    if (pal.isLight)
+                      Positioned.fill(child: _WarmBackdrop(palette: pal)),
+                    AnimatedPadding(
+                      duration: const Duration(milliseconds: 140),
+                      curve: Curves.easeOut,
+                      padding: EdgeInsets.only(bottom: bodyBottomPad),
+                      child: Column(
+                        children: [
+                          if (isDesktop)
+                            _PremiumAppleHeader(
+                              palette: pal,
+                              titleController: _nameEC,
+                              titleFocus: _nameFocus,
+                              savedText: _savedLabel(pal),
+                              isDirty: _isDirty,
+                              onTitleChanged: _onTitleChangedDebounced,
+                              onToggleTheme: _toggleTheme,
+                              onUndo: _undoOnce,
+                              onRedo: _redoOnce,
+                              onAddRow: () => _insertRow(_rows.length),
+                              onSave: () => unawaited(_saveLocalNow()),
+                              onExport: () => unawaited(_openExportMenu()),
+                              onSmokeTest: () =>
+                                  unawaited(_runAttachmentSmokeTest()),
+                              onCompute: _engineBusy
+                                  ? null
+                                  : () => unawaited(_computeEngine()),
+                              onGps: () => unawaited(_requestGpsForCell(
+                                  _selRow, _selCol,
+                                  forceWriteText: true)),
+                              onPhoto: () => unawaited(
+                                _showPhotoSourcePickerForCell(_selRow, _selCol),
                               ),
-                            if (_isInAppBrowser)
-                              _warningBanner(pal,
-                                  text: 'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
-                                  icon: Icons.open_in_new_rounded),
-                            if (!_isSecureContext)
-                              _warningBanner(pal,
-                                  text: 'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
-                                  icon: Icons.lock_outline_rounded),
-                            if (_storageOk == false)
-                              _warningBanner(pal,
-                                  text: "Storage limitado: ${_storageMessage ?? 'no disponible'}. Guardado temporal. Exporta ZIP.",
-                                  icon: Icons.warning_amber_rounded,
-                                  actionLabel: 'Exportar ZIP',
-                                  onAction: () => unawaited(_exportZipBundle(share: false))),
-                            if (isDesktop && _smokeStatus != null)
-                              _StatusBar(
-                                text: _smokeStatus!,
-                                bg: _smokeBg(pal),
-                                fg: _smokeFg(pal),
+                              onAudio: () {
+                                if (_audioRecording) {
+                                  unawaited(_stopAudioRecording());
+                                } else {
+                                  unawaited(_startAudioRecordingForCell(
+                                      _selRow, _selCol));
+                                }
+                              },
+                              onShare: () =>
+                                  unawaited(_exportZipBundle(share: true)),
+                              onPalette: () => unawaited(_openCommandPalette()),
+                              onGpsMode: () => unawaited(_showGpsModePicker()),
+                              onDensity: () => unawaited(_showDensityPicker()),
+                              sensorsEnabled: sensorsEnabled,
+                            )
+                          else
+                            _MobileCompactHeader(
+                              palette: pal,
+                              title: _sheetName,
+                              savedText: _savedLabel(pal),
+                              isDirty: _isDirty,
+                              pendingRequired: _pendingRequired,
+                              onSave: () => unawaited(_saveLocalNow()),
+                              onExport: () => unawaited(_openExportMenu()),
+                              onMenu: () => _openMobileHeaderMenu(
+                                context,
+                                pal,
                               ),
-                            if (isDesktop && _engineStatus != null)
-                              _StatusBar(
-                                text: _engineStatus!,
-                                bg: _engineStatusIsError
-                                    ? _errorBg(pal)
-                                    : pal.statusBg,
-                                fg: _engineStatusIsError
-                                    ? _errorFg(pal)
-                                    : pal.statusFg,
-                              ),
-                            Expanded(
-                              child: isDesktop
-                                  ? Focus(
-                                      autofocus: true,
-                                      onKeyEvent: _onKeyEvent,
-                                      child: RepaintBoundary(
-                                        child: ValueListenableBuilder<int>(
-                                          valueListenable: _gridVersion,
-                                          builder: (ctx, _, __) {
-                                            return _GridView(
-                                              palette: pal,
-                                              metrics: metrics,
-                                              headers: List<String>.generate(
-                                                  _headers.length,
-                                                  _effectiveHeader),
-                                              rowModels: _rows,
-                                              cellTextAt: (r, c) =>
-                                                  _effectiveCell(r, c),
-                                              cellHasGps: _cellHasGps,
-                                              cellHasAudios: _cellHasAudios,
-                                              cellPhotoThumb: _cellPhotoThumb,
-                                              cellPhotoCount: _cellPhotoCount,
-                                              isInvalid: (r, c) =>
-                                                  _invalidCells
-                                                      .contains(_CellRef(r, c)),
-                                              vScroll: _vScroll,
-                                              hScroll: _hScroll,
-                                              selRow: _selRow,
-                                              selCol: _selCol,
-                                              blink: _blinkCell,
-                                              editorLink: _editorLink,
-                                              overlayTargetCell:
-                                                  _overlayTargetCell,
-                                              overlayTargetHeaderCol:
-                                                  _overlayTargetHeaderCol,
-                                              onSelect: (r, c) {
-                                                setState(() {
-                                                  _selRow = r;
-                                                  _selCol = c;
-                                                });
-                                                _blink(r, c);
-                                              },
-                                              onEditRequested: (r, c, w) =>
-                                                  _beginEditCell(
-                                                      context, pal, r, c, w),
-                                              onHeaderEditRequested: (c, w) =>
-                                                  _beginEditHeader(
-                                                      context, pal, c, w),
-                                              onContextMenu:
-                                                  (pos, r, c, isHeader) =>
-                                                      _openContextMenu(context,
-                                                          pal, pos, r, c, isHeader),
-                                              onDeleteRow: (r) => _deleteRow(r),
-                                              onPickPhoto: (r) =>
-                                                  _showPhotoSourcePickerForCell(
-                                                    r,
-                                                    _headers.length - 1,
-                                                  ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    )
-                                  : RepaintBoundary(
+                            ),
+                          if (_isInAppBrowser)
+                            _warningBanner(pal,
+                                text:
+                                    'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
+                                icon: Icons.open_in_new_rounded),
+                          if (!_isSecureContext)
+                            _warningBanner(pal,
+                                text:
+                                    'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
+                                icon: Icons.lock_outline_rounded),
+                          if (_storageOk == false)
+                            _warningBanner(pal,
+                                text:
+                                    "Storage limitado: ${_storageMessage ?? 'no disponible'}. Guardado temporal. Exporta ZIP.",
+                                icon: Icons.warning_amber_rounded,
+                                actionLabel: 'Exportar ZIP',
+                                onAction: () =>
+                                    unawaited(_exportZipBundle(share: false))),
+                          if (isDesktop && _smokeStatus != null)
+                            _StatusBar(
+                              text: _smokeStatus!,
+                              bg: _smokeBg(pal),
+                              fg: _smokeFg(pal),
+                            ),
+                          if (isDesktop && _engineStatus != null)
+                            _StatusBar(
+                              text: _engineStatus!,
+                              bg: _engineStatusIsError
+                                  ? _errorBg(pal)
+                                  : pal.statusBg,
+                              fg: _engineStatusIsError
+                                  ? _errorFg(pal)
+                                  : pal.statusFg,
+                            ),
+                          Expanded(
+                            child: isDesktop
+                                ? Focus(
+                                    autofocus: true,
+                                    onKeyEvent: _onKeyEvent,
+                                    child: RepaintBoundary(
                                       child: ValueListenableBuilder<int>(
                                         valueListenable: _gridVersion,
                                         builder: (ctx, _, __) {
-                                          _ensureMobileRowCachesLength();
-                                          final cardW =
-                                              _mobileCardWidthForScreen(
-                                                  MediaQuery.of(ctx)
-                                                      .size
-                                                      .width);
-                                          return _MobileNotesGrid(
+                                          return _GridView(
                                             palette: pal,
-                                            density: _gridDensity,
+                                            metrics: metrics,
                                             headers: List<String>.generate(
                                                 _headers.length,
                                                 _effectiveHeader),
@@ -1965,112 +1913,178 @@ class _EditorScreenState extends State<EditorScreen>
                                             cellHasAudios: _cellHasAudios,
                                             cellPhotoThumb: _cellPhotoThumb,
                                             cellPhotoCount: _cellPhotoCount,
-                                            verticalController: _vScroll,
-                                            headerScrollController:
-                                                _mobileHeaderScroll,
-                                            rowScrollControllers:
-                                                _mobileRowScrolls,
-                                            headerKey: _mobileHeaderKey,
-                                            rowKeys: _mobileRowKeys,
-                                            selectedRow: _selRow,
-                                            selectedCol: _selCol,
-                                            activeRow: _mobileEditorOpen &&
-                                                    !_mobileEditingHeader
-                                                ? _mobileRow
-                                                : -1,
-                                            activeCol: _mobileEditorOpen
-                                                ? _mobileCol
-                                                : -1,
-                                            activeIsHeader: _mobileEditorOpen &&
-                                                _mobileEditingHeader,
-                                            activeController: _mobileEC,
-                                            onHorizontalScroll:
-                                                _syncMobileHorizontal,
-                                            onCellTap: (cellCtx, r, c) =>
+                                            isInvalid: (r, c) => _invalidCells
+                                                .contains(_CellRef(r, c)),
+                                            vScroll: _vScroll,
+                                            hScroll: _hScroll,
+                                            selRow: _selRow,
+                                            selCol: _selCol,
+                                            blink: _blinkCell,
+                                            editorLink: _editorLink,
+                                            overlayTargetCell:
+                                                _overlayTargetCell,
+                                            overlayTargetHeaderCol:
+                                                _overlayTargetHeaderCol,
+                                            onSelect: (r, c) {
+                                              setState(() {
+                                                _selRow = r;
+                                                _selCol = c;
+                                              });
+                                              _blink(r, c);
+                                            },
+                                            onEditRequested: (r, c, w) =>
                                                 _beginEditCell(
-                                                    cellCtx, pal, r, c, cardW),
-                                            onHeaderTap: (cellCtx, c) =>
+                                                    context, pal, r, c, w),
+                                            onHeaderEditRequested: (c, w) =>
                                                 _beginEditHeader(
-                                                    cellCtx, pal, c, cardW),
+                                                    context, pal, c, w),
                                             onContextMenu:
                                                 (pos, r, c, isHeader) =>
-                                                    _openContextMenu(ctx, pal,
-                                                        pos, r, c, isHeader),
+                                                    _openContextMenu(
+                                                        context,
+                                                        pal,
+                                                        pos,
+                                                        r,
+                                                        c,
+                                                        isHeader),
                                             onDeleteRow: (r) => _deleteRow(r),
                                             onPickPhoto: (r) =>
                                                 _showPhotoSourcePickerForCell(
-                                                  r,
-                                                  _headers.length - 1,
-                                                ),
+                                              r,
+                                              _headers.length - 1,
+                                            ),
                                           );
                                         },
                                       ),
                                     ),
-                            ),
-                          ],
+                                  )
+                                : RepaintBoundary(
+                                    child: ValueListenableBuilder<int>(
+                                      valueListenable: _gridVersion,
+                                      builder: (ctx, _, __) {
+                                        _ensureMobileRowCachesLength();
+                                        final cardW = _mobileCardWidthForScreen(
+                                            MediaQuery.of(ctx).size.width);
+                                        return _MobileNotesGrid(
+                                          palette: pal,
+                                          density: _gridDensity,
+                                          headers: List<String>.generate(
+                                              _headers.length,
+                                              _effectiveHeader),
+                                          rowModels: _rows,
+                                          cellTextAt: (r, c) =>
+                                              _effectiveCell(r, c),
+                                          cellHasGps: _cellHasGps,
+                                          cellHasAudios: _cellHasAudios,
+                                          cellPhotoThumb: _cellPhotoThumb,
+                                          cellPhotoCount: _cellPhotoCount,
+                                          verticalController: _vScroll,
+                                          headerScrollController:
+                                              _mobileHeaderScroll,
+                                          rowScrollControllers:
+                                              _mobileRowScrolls,
+                                          headerKey: _mobileHeaderKey,
+                                          rowKeys: _mobileRowKeys,
+                                          selectedRow: _selRow,
+                                          selectedCol: _selCol,
+                                          activeRow: _mobileEditorOpen &&
+                                                  !_mobileEditingHeader
+                                              ? _mobileRow
+                                              : -1,
+                                          activeCol: _mobileEditorOpen
+                                              ? _mobileCol
+                                              : -1,
+                                          activeIsHeader: _mobileEditorOpen &&
+                                              _mobileEditingHeader,
+                                          activeController: _mobileEC,
+                                          onHorizontalScroll:
+                                              _syncMobileHorizontal,
+                                          onCellTap: (cellCtx, r, c) =>
+                                              _beginEditCell(
+                                                  cellCtx, pal, r, c, cardW),
+                                          onHeaderTap: (cellCtx, c) =>
+                                              _beginEditHeader(
+                                                  cellCtx, pal, c, cardW),
+                                          onContextMenu:
+                                              (pos, r, c, isHeader) =>
+                                                  _openContextMenu(ctx, pal,
+                                                      pos, r, c, isHeader),
+                                          onDeleteRow: (r) => _deleteRow(r),
+                                          onPickPhoto: (r) =>
+                                              _showPhotoSourcePickerForCell(
+                                            r,
+                                            _headers.length - 1,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (!isDesktop && !_mobileEditorOpen)
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 12 + bottomSafe,
+                        child: _MobileQuickActionsBar(
+                          palette: pal,
+                          sensorsEnabled: sensorsEnabled,
+                          onGps: () => unawaited(_requestGpsForCell(
+                              _selRow, _selCol,
+                              forceWriteText: true)),
+                          onPhoto: () => unawaited(
+                            _showPhotoSourcePickerForCell(_selRow, _selCol),
+                          ),
+                          onAudio: () {
+                            if (_audioRecording) {
+                              unawaited(_stopAudioRecording());
+                            } else {
+                              unawaited(_startAudioRecordingForCell(
+                                  _selRow, _selCol));
+                            }
+                          },
+                          onExport: () => unawaited(_openExportMenu()),
+                          onShare: () =>
+                              unawaited(_exportZipBundle(share: true)),
+                          onDensity: () => unawaited(_showDensityPicker()),
                         ),
                       ),
-
-                      if (!isDesktop && !_mobileEditorOpen)
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 12 + bottomSafe,
-                          child: _MobileQuickActionsBar(
-                            palette: pal,
-                            sensorsEnabled: sensorsEnabled,
-                            onGps: () => unawaited(
-                                _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
-                            onPhoto: () => unawaited(
-                              _showPhotoSourcePickerForCell(_selRow, _selCol),
-                            ),
-                            onAudio: () {
-                              if (_audioRecording) {
-                                unawaited(_stopAudioRecording());
-                              } else {
-                                unawaited(_startAudioRecordingForCell(
-                                    _selRow, _selCol));
-                              }
-                            },
-                            onExport: () => unawaited(_openExportMenu()),
-                            onShare: () =>
-                                unawaited(_exportZipBundle(share: true)),
-                            onDensity: () => unawaited(_showDensityPicker()),
-                          ),
-                        ),
 // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
-                      if (!isDesktop)
-                        _MobileInlineEditorBar(
-                          palette: pal,
-                          density: _gridDensity,
-                          barKey: _mobileBarKey,
-                          fieldKey: _mobileFieldKey,
-                          isOpen: _mobileEditorOpen,
-                          title: _mobileTitle,
-                          controller: _mobileEC,
-                          focusNode: _mobileFocus,
-                          actions: _mobileActions,
-                          keyboardInset: keyboardInset,
-                          panelHeight: panelH,
-                          canCopyPaste:
-                              _mobileEditorOpen && !_mobileEditingHeader,
-                          onGpsRow: _canMobileGps
-                              ? () => unawaited(_captureGpsForRow(_mobileRow))
-                              : null,
-                          onPrev: _canMobileNav ? _mobileMovePrev : null,
-                          onNext: _canMobileNav ? _mobileMoveNext : null,
-                          onCopy: _copyActiveMobileCell,
-                          onPaste: _pasteIntoActiveMobileCell,
-                          onOverflow: _openMobileOverflowSheet,
-                          onCancel: _cancelMobileEdit,
-                          onDone: _commitMobileEdit,
-                        ),
-                    ],
-                  ),
+                    if (!isDesktop)
+                      _MobileInlineEditorBar(
+                        palette: pal,
+                        density: _gridDensity,
+                        barKey: _mobileBarKey,
+                        fieldKey: _mobileFieldKey,
+                        isOpen: _mobileEditorOpen,
+                        title: _mobileTitle,
+                        controller: _mobileEC,
+                        focusNode: _mobileFocus,
+                        actions: _mobileActions,
+                        keyboardInset: keyboardInset,
+                        panelHeight: panelH,
+                        canCopyPaste:
+                            _mobileEditorOpen && !_mobileEditingHeader,
+                        onGpsRow: _canMobileGps
+                            ? () => unawaited(_captureGpsForRow(_mobileRow))
+                            : null,
+                        onPrev: _canMobileNav ? _mobileMovePrev : null,
+                        onNext: _canMobileNav ? _mobileMoveNext : null,
+                        onCopy: _copyActiveMobileCell,
+                        onPaste: _pasteIntoActiveMobileCell,
+                        onOverflow: _openMobileOverflowSheet,
+                        onCancel: _cancelMobileEdit,
+                        onDone: _commitMobileEdit,
+                      ),
+                  ],
                 ),
               ),
             ),
-          );
+          ),
+        );
       },
     );
   }
@@ -2314,6 +2328,7 @@ class _EditorScreenState extends State<EditorScreen>
       ],
     );
   }
+
   Future<void> _openShortcutsHelp() async {
     if (!mounted) return;
     await showDialog<void>(
@@ -2864,8 +2879,8 @@ class _EditorScreenState extends State<EditorScreen>
                   leading: const Icon(Icons.my_location_outlined),
                   title: const Text('GPS -> Pegar en esta celda'),
                   onTap: () {
-                    unawaited(
-                        _requestGpsForCell(row, _mobileCol, forceWriteText: true));
+                    unawaited(_requestGpsForCell(row, _mobileCol,
+                        forceWriteText: true));
                     Navigator.pop(ctx);
                   },
                 ),
@@ -2956,8 +2971,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   double _mobileRowOffsetFor(int row) {
-    return _mobileHeaderRowH(_gridDensity) +
-        (row * _mobileRowH(_gridDensity));
+    return _mobileHeaderRowH(_gridDensity) + (row * _mobileRowH(_gridDensity));
   }
 
   void _ensureColumnVisibleForMobile() {
@@ -2991,8 +3005,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (target == null) return;
 
-    final clamped = target.clamp(
-        controller.position.minScrollExtent,
+    final clamped = target.clamp(controller.position.minScrollExtent,
         controller.position.maxScrollExtent);
     if ((clamped - controller.offset).abs() < 6.0) return;
     controller.animateTo(
@@ -3504,13 +3517,13 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ Context Menu ----------------------------
 
   Future<void> _openContextMenu(
-      BuildContext context,
-      _SheetPalette pal,
-      Offset globalPos,
-      int r,
-      int c,
-      bool isHeader,
-      ) async {
+    BuildContext context,
+    _SheetPalette pal,
+    Offset globalPos,
+    int r,
+    int c,
+    bool isHeader,
+  ) async {
     _removeCellEditor();
 
     final actions = <_CtxAction>[];
@@ -3518,7 +3531,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (isHeader) {
       if (c >= 0 && c < _headers.length - 1) {
         actions.add(_CtxAction('Editar encabezado', Icons.edit_outlined,
-                () => _beginEditHeader(context, pal, c, 220)));
+            () => _beginEditHeader(context, pal, c, 220)));
         actions.add(_CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
           if (_headers[c].isEmpty) return;
           _headers[c] = '';
@@ -3527,24 +3540,27 @@ class _EditorScreenState extends State<EditorScreen>
       }
     } else {
       actions.add(_CtxAction('Editar', Icons.edit_outlined,
-              () => _beginEditCell(context, pal, r, c, 320)));
+          () => _beginEditCell(context, pal, r, c, 320)));
       actions.add(_CtxAction('Copiar', Icons.copy_rounded,
-              () => unawaited(_copySelectionToClipboard())));
+          () => unawaited(_copySelectionToClipboard())));
       actions.add(_CtxAction('Pegar', Icons.paste_rounded,
-              () => unawaited(_pasteFromClipboard())));
+          () => unawaited(_pasteFromClipboard())));
       actions.add(_CtxAction('Pegar resultado', Icons.calculate_outlined,
-              () => _applyCalcToCell(r, c)));
+          () => _applyCalcToCell(r, c)));
       actions.add(_CtxAction('Fecha/Hora ahora', Icons.schedule_rounded,
-              () => _insertNowInCell(r, c)));
-      actions.add(_CtxAction('Rellenar abajo...', Icons.vertical_align_bottom_rounded,
-              () => unawaited(_promptFillDown(context, r, c))));
+          () => _insertNowInCell(r, c)));
+      actions.add(_CtxAction(
+          'Rellenar abajo...',
+          Icons.vertical_align_bottom_rounded,
+          () => unawaited(_promptFillDown(context, r, c))));
       actions.add(_CtxAction('Incrementar...', Icons.exposure_plus_1_rounded,
-              () => unawaited(_promptIncrement(context, r, c))));
+          () => unawaited(_promptIncrement(context, r, c))));
       actions.add(_CtxAction(
           'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
 
       if (c != _headers.length - 1) {
-        actions.add(_CtxAction('GPS -> Pegar en esta celda',
+        actions.add(_CtxAction(
+            'GPS -> Pegar en esta celda',
             Icons.my_location_outlined,
             () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
             runOnTap: true));
@@ -3556,27 +3572,30 @@ class _EditorScreenState extends State<EditorScreen>
 
         if (_audioRecording) {
           actions.add(_CtxAction(
-              'Detener grabación', Icons.stop_circle_outlined,
+              'Detener grabación',
+              Icons.stop_circle_outlined,
               () => unawaited(_stopAudioRecording()),
               runOnTap: true));
         } else {
           actions.add(_CtxAction(
-              'Grabar audio en esta celda', Icons.mic_none_rounded,
+              'Grabar audio en esta celda',
+              Icons.mic_none_rounded,
               () => unawaited(_startAudioRecordingForCell(r, c)),
               runOnTap: true));
         }
         if (_cellHasAudios(r, c)) {
           actions.add(_CtxAction('Audios de esta celda',
-              Icons.graphic_eq_rounded,
-              () => _openAudiosSheetForCell(r, c)));
+              Icons.graphic_eq_rounded, () => _openAudiosSheetForCell(r, c)));
         }
 
         actions.add(_CtxAction(
-            'Agregar foto a esta celda', Icons.add_photo_alternate_outlined,
+            'Agregar foto a esta celda',
+            Icons.add_photo_alternate_outlined,
             () => unawaited(_showPhotoSourcePickerForCell(r, c)),
             runOnTap: true));
         if (_cellHasPhotos(r, c)) {
-          actions.add(_CtxAction('Ver fotos de esta celda',
+          actions.add(_CtxAction(
+              'Ver fotos de esta celda',
               Icons.photo_library_outlined,
               () => _openPhotosSheetForCell(r, c)));
         }
@@ -3598,8 +3617,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
         if (_cellHasAudios(r, c)) {
           actions.add(_CtxAction('Audios de esta celda',
-              Icons.graphic_eq_rounded,
-              () => _openAudiosSheetForCell(r, c)));
+              Icons.graphic_eq_rounded, () => _openAudiosSheetForCell(r, c)));
         }
         actions.add(_CtxAction(
           'Agregar foto',
@@ -3608,14 +3626,15 @@ class _EditorScreenState extends State<EditorScreen>
           runOnTap: true,
         ));
         if (_cellHasPhotos(r, c)) {
-          actions.add(_CtxAction('Ver fotos de esta celda',
+          actions.add(_CtxAction(
+              'Ver fotos de esta celda',
               Icons.photo_library_outlined,
               () => _openPhotosSheetForCell(r, c)));
         }
       }
 
       actions.add(_CtxAction('Insertar fila arriba', Icons.arrow_upward_rounded,
-              () => _insertRow(r)));
+          () => _insertRow(r)));
       actions.add(_CtxAction('Insertar fila abajo',
           Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
       actions.add(_CtxAction(
@@ -3654,7 +3673,7 @@ class _EditorScreenState extends State<EditorScreen>
                   child: Text(
                     actions[i].label,
                     style:
-                    TextStyle(color: pal.fg, fontWeight: FontWeight.w800),
+                        TextStyle(color: pal.fg, fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -3716,8 +3735,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _promptFillDown(BuildContext context, int r, int c) async {
     if (c < 0 || c >= _headers.length - 1) return;
-    final controller =
-        TextEditingController(text: _fillDownCount.toString());
+    final controller = TextEditingController(text: _fillDownCount.toString());
     final count = await showDialog<int>(
       context: context,
       builder: (ctx) {
@@ -3754,10 +3772,12 @@ class _EditorScreenState extends State<EditorScreen>
   void _fillDownColumn(int r, int c, {required int count}) {
     if (c < 0 || c >= _headers.length - 1) return;
     if (r < 0 || r >= _rows.length) return;
-    final value =
-        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
-            ? _mobileEC.text
-            : _effectiveCell(r, c);
+    final value = (_mobileEditorOpen &&
+            _mobileRow == r &&
+            _mobileCol == c &&
+            !_mobileEditingHeader)
+        ? _mobileEC.text
+        : _effectiveCell(r, c);
     if (count <= 0) return;
 
     final targetRows = r + count;
@@ -3779,8 +3799,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _promptIncrement(BuildContext context, int r, int c) async {
     if (c < 0 || c >= _headers.length - 1) return;
-    final countCtrl =
-        TextEditingController(text: _incrementCount.toString());
+    final countCtrl = TextEditingController(text: _incrementCount.toString());
     final stepCtrl = TextEditingController(text: _incrementStep.toString());
     final res = await showDialog<List<int>>(
       context: context,
@@ -3839,10 +3858,12 @@ class _EditorScreenState extends State<EditorScreen>
       {required int count, required int step}) {
     if (c < 0 || c >= _headers.length - 1) return;
     if (r < 0 || r >= _rows.length) return;
-    final baseRaw =
-        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
-            ? _mobileEC.text
-            : _effectiveCell(r, c);
+    final baseRaw = (_mobileEditorOpen &&
+            _mobileRow == r &&
+            _mobileCol == c &&
+            !_mobileEditingHeader)
+        ? _mobileEC.text
+        : _effectiveCell(r, c);
     final base = double.tryParse(baseRaw.trim());
     if (base == null) return;
     if (count <= 0) return;
@@ -3867,10 +3888,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _applyCalcToCell(int r, int c) {
     if (c < 0 || c >= _headers.length - 1) return;
-    final raw =
-        (_mobileEditorOpen && _mobileRow == r && _mobileCol == c && !_mobileEditingHeader)
-            ? _mobileEC.text
-            : _effectiveCell(r, c);
+    final raw = (_mobileEditorOpen &&
+            _mobileRow == r &&
+            _mobileCol == c &&
+            !_mobileEditingHeader)
+        ? _mobileEC.text
+        : _effectiveCell(r, c);
     final res = _evalExpression(raw);
     if (res == null) return;
     final out = _formatNumber(res);
@@ -4103,8 +4126,7 @@ class _EditorScreenState extends State<EditorScreen>
 
 // ------------------------------ GPS / Maps ------------------------------
 
-  CellMeta? _cellMetaAt(int r, int c) =>
-      _cellMeta[CellKey(r, c).toKey()];
+  CellMeta? _cellMetaAt(int r, int c) => _cellMeta[CellKey(r, c).toKey()];
 
   bool _cellHasGps(int r, int c) => _cellMetaAt(r, c)?.hasGps ?? false;
   bool _cellHasPhotos(int r, int c) => _cellMetaAt(r, c)?.hasPhotos ?? false;
@@ -4122,8 +4144,7 @@ class _EditorScreenState extends State<EditorScreen>
     return meta.photos.last.thumbRef;
   }
 
-  int _cellPhotoCount(int r, int c) =>
-      _cellMetaAt(r, c)?.photos.length ?? 0;
+  int _cellPhotoCount(int r, int c) => _cellMetaAt(r, c)?.photos.length ?? 0;
 
   String _gpsModeLabel(_GpsWriteMode mode) {
     switch (mode) {
@@ -4438,8 +4459,7 @@ class _EditorScreenState extends State<EditorScreen>
   @visibleForTesting
   bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
 
-  void _setCellGpsMeta(int r, int c, _GpsFix fix,
-      {required bool markDirty}) {
+  void _setCellGpsMeta(int r, int c, _GpsFix fix, {required bool markDirty}) {
     final key = CellKey(r, c).toKey();
     final current = _cellMeta[key];
     final gps = GpsMeta(
@@ -4511,7 +4531,8 @@ class _EditorScreenState extends State<EditorScreen>
       userMsg = 'Permiso de ubicacion denegado. Habilitalo en Ajustes.';
     } else if (lower.contains('timeout')) {
       userMsg = 'Timeout obteniendo GPS.';
-    } else if (lower.contains('no disponible') || lower.contains('unavailable')) {
+    } else if (lower.contains('no disponible') ||
+        lower.contains('unavailable')) {
       userMsg = 'Ubicacion no disponible.';
     } else {
       userMsg = 'No se pudo obtener GPS. Revisa permisos y conexion.';
@@ -4842,9 +4863,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   PhotoAttachment _photoAttachmentFromRowPhoto(_RowPhoto photo) {
     final storedRef = _photoStoredRefFromRowPhoto(photo);
-    final size = photo.dataB64.trim().isNotEmpty
-        ? _estimateB64Size(photo.dataB64)
-        : 0;
+    final size =
+        photo.dataB64.trim().isNotEmpty ? _estimateB64Size(photo.dataB64) : 0;
     return PhotoAttachment(
       id: _genAttachmentId('ph_legacy_'),
       filename: photo.name,
@@ -4947,10 +4967,11 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
 
     if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
-    if (fromCamera && _guardInsecureContext(
-      DiagnosticActionType.photo,
-      actionLabel: 'Camara',
-    )) {
+    if (fromCamera &&
+        _guardInsecureContext(
+          DiagnosticActionType.photo,
+          actionLabel: 'Camara',
+        )) {
       return;
     }
 
@@ -4960,11 +4981,16 @@ class _EditorScreenState extends State<EditorScreen>
           : PhotoAcquireService.I.pickFromGallery();
       await _handlePhotoOutcome(future, r, c, fromCamera: fromCamera);
       return;
-    } catch (e) {
+    } catch (e, st) {
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
         message: 'photo_error $e',
+      );
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'error',
+        error: e.toString(),
+        stack: st.toString(),
       );
       _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
           isError: true, icon: Icons.photo_outlined);
@@ -4972,7 +4998,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-    Future<void> _handlePhotoOutcomeResult(
+  Future<void> _handlePhotoOutcomeResult(
     PhotoAcquireOutcome outcome,
     int r,
     int c,
@@ -5013,18 +5039,26 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     if (!outcome.ok) {
-      final msg = outcome.error ?? 'No se pudo obtener la foto.';
+      final rawMsg = outcome.error ?? 'No se pudo obtener la foto.';
+      final lower = rawMsg.toLowerCase();
+      final readFail = lower.contains('empty_bytes') ||
+          lower.contains('leer la imagen') ||
+          lower.contains('leer los bytes');
+      final userMsg = readFail
+          ? 'No se pudo leer la imagen. Reintenta o probá con otro archivo.'
+          : rawMsg;
+
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
-        message: 'photo_error $msg',
+        message: 'photo_error $rawMsg',
       );
       DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'error',
-        error: msg,
+        stage: readFail ? 'error_bytes' : 'error',
+        error: rawMsg,
       );
       _showActionSnack(
-        msg,
+        userMsg,
         isError: true,
         icon: Icons.photo_outlined,
       );
@@ -5039,11 +5073,11 @@ class _EditorScreenState extends State<EditorScreen>
         message: 'photo_error empty_bytes',
       );
       DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'error',
+        stage: 'error_bytes',
         error: 'empty_bytes',
       );
       _showActionSnack(
-        'No se capturo la foto. Toca Capturar.',
+        'No se pudo leer la imagen (bytes vacíos).',
         isError: true,
         icon: Icons.photo_outlined,
       );
@@ -5053,6 +5087,16 @@ class _EditorScreenState extends State<EditorScreen>
     final safeMime = result.mime.trim().isEmpty
         ? 'application/octet-stream'
         : result.mime.trim();
+
+    final sniffedMime = sniffMime(result.bytes, name: result.name);
+    final reportedMime = result.mime.trim();
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'bytes_ready',
+      fileName: result.name,
+      sniffedMime: sniffedMime.isNotEmpty ? sniffedMime : null,
+      reportedMime: reportedMime.isNotEmpty ? reportedMime : null,
+      bytes: result.bytes.lengthInBytes,
+    );
 
     final attachmentId = _genAttachmentId('ph_');
     final cellKey = CellKey(r, c).toKey();
@@ -5066,7 +5110,12 @@ class _EditorScreenState extends State<EditorScreen>
         originalName: result.name,
         mime: safeMime,
       );
-    } catch (_) {
+    } catch (e, st) {
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'store_error',
+        error: e.toString(),
+        stack: st.toString(),
+      );
       stored = null;
     }
     if (!mounted) return;
@@ -5078,7 +5127,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (storedRef.trim().isEmpty) {
       storedRef = 'b64:${base64Encode(result.bytes)}';
     }
-    if (storedRef.startsWith('mem:') || stored == null || storedRef.startsWith('b64:')) {
+    if (storedRef.startsWith('mem:') ||
+        stored == null ||
+        storedRef.startsWith('b64:')) {
       _warnStorageFallbackOnce('foto');
     }
 
@@ -5091,6 +5142,12 @@ class _EditorScreenState extends State<EditorScreen>
         : (storedRef.startsWith('mem:')
             ? 'ram'
             : (storedRef.startsWith('b64:') ? 'b64' : 'unknown'));
+
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'stored',
+      storageMode: storageLabel,
+      bytes: result.bytes.lengthInBytes,
+    );
 
     final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
         ? ''
@@ -5116,7 +5173,12 @@ class _EditorScreenState extends State<EditorScreen>
 
     _addPhotoToCell(r, c, attachment);
     DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'saved',
+      stage: 'meta_attached',
+      storageMode: storageLabel,
+      previewable: previewable,
+    );
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'ui_refresh',
       storageMode: storageLabel,
       previewable: previewable,
     );
@@ -5134,7 +5196,6 @@ class _EditorScreenState extends State<EditorScreen>
       icon: Icons.photo_outlined,
     );
   }
-
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
     final key = CellKey(r, c).toKey();
@@ -5205,8 +5266,7 @@ class _EditorScreenState extends State<EditorScreen>
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.of(ctx).pop(controller.text.trim()),
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
               child: const Text('Guardar'),
             ),
           ],
@@ -5266,7 +5326,6 @@ class _EditorScreenState extends State<EditorScreen>
     return _isPreviewableMime(photo.mime, photo.filename);
   }
 
-
   Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
     final bytes = await _loadPhotoBytesFromAttachment(photo);
     if (!mounted) return;
@@ -5303,7 +5362,7 @@ class _EditorScreenState extends State<EditorScreen>
           return AlertDialog(
             backgroundColor: pal.menuBg,
             title: const Text('Adjunto guardado'),
-            content: Text('Adjunto guardado (sin preview) - $mimeLabel.'),
+            content: Text('Guardado sin vista previa - $mimeLabel.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -5414,8 +5473,8 @@ class _EditorScreenState extends State<EditorScreen>
                           decoration: BoxDecoration(
                             color: pal.cellBg,
                             borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: pal.border, width: pal.hairline),
+                            border: Border.all(
+                                color: pal.border, width: pal.hairline),
                           ),
                           child: Icon(
                             previewable
@@ -5447,11 +5506,13 @@ class _EditorScreenState extends State<EditorScreen>
                                     height: 48,
                                     fit: BoxFit.cover,
                                     filterQuality: FilterQuality.low,
-                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox.shrink(),
                                   );
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(width: 48, height: 48, child: child),
+                              child:
+                                  SizedBox(width: 48, height: 48, child: child),
                             );
                           },
                         );
@@ -5462,7 +5523,7 @@ class _EditorScreenState extends State<EditorScreen>
                           : p.filename.trim();
                       final subtitle = previewable
                           ? p.addedAt.toIso8601String()
-                          : 'Adjunto guardado (sin preview) - $mimeLabel';
+                          : 'Guardado sin vista previa - $mimeLabel';
 
                       return InkWell(
                         onTap: () => unawaited(_openPhotoPreview(ctx2, p)),
@@ -5542,7 +5603,9 @@ class _EditorScreenState extends State<EditorScreen>
   String _audioStoredRefFrom(StoredAudio stored) {
     final key = stored.storageKey.trim();
     if (key.isEmpty) return '';
-    if (key.startsWith('file:') || key.startsWith('key:') || key.startsWith('mem:')) return key;
+    if (key.startsWith('file:') ||
+        key.startsWith('key:') ||
+        key.startsWith('mem:')) return key;
     final hasSlash = key.contains('\\') || key.contains('/');
     if (key.contains(':') && !hasSlash) return 'key:$key';
     return hasSlash ? 'file:$key' : 'key:$key';
@@ -5773,8 +5836,7 @@ class _EditorScreenState extends State<EditorScreen>
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.of(ctx).pop(controller.text.trim()),
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
               child: const Text('Guardar'),
             ),
           ],
@@ -5886,7 +5948,8 @@ class _EditorScreenState extends State<EditorScreen>
                         child: Row(
                           children: [
                             IconButton(
-                              onPressed: () => unawaited(_playAudioAttachment(a)),
+                              onPressed: () =>
+                                  unawaited(_playAudioAttachment(a)),
                               icon: Icon(
                                 playing
                                     ? Icons.stop_circle_rounded
@@ -5924,8 +5987,8 @@ class _EditorScreenState extends State<EditorScreen>
                             IconButton(
                               onPressed: () => unawaited(
                                   _renameAudioOnCell(ctx2, r, c, idx)),
-                              icon: Icon(Icons.edit_rounded,
-                                  color: pal.fgMuted),
+                              icon:
+                                  Icon(Icons.edit_rounded, color: pal.fgMuted),
                             ),
                             IconButton(
                               onPressed: () {
@@ -6010,13 +6073,12 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               ListTile(
                 leading: const Icon(Icons.functions_rounded),
-                title:
-                    Text(_engineHasBase ? 'Calcular' : 'Calcular (local)'),
+                title: Text(_engineHasBase ? 'Calcular' : 'Calcular (local)'),
                 enabled: !_engineBusy,
                 onTap: !_engineBusy
                     ? () => runAndClose(
-                        () => unawaited(_computeEngine()),
-                      )
+                          () => unawaited(_computeEngine()),
+                        )
                     : null,
               ),
               const SizedBox(height: 8),
@@ -6027,7 +6089,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-    Uint8List? _compressThumb(Uint8List bytes,
+  Uint8List? _compressThumb(Uint8List bytes,
       {required int maxW, required int maxH, required int quality}) {
     try {
       final decoded = img.decodeImage(bytes);
@@ -6159,8 +6221,7 @@ class _EditorScreenState extends State<EditorScreen>
     required List<AttachmentRow> attachments,
   }) async {
     final dataCols = math.max(0, _headers.length - 1); // sin Photos
-    final columns =
-        List<String>.generate(dataCols, (i) => _headerLabel(i));
+    final columns = List<String>.generate(dataCols, (i) => _headerLabel(i));
     final rows = <List<String>>[];
     for (final row in _rows) {
       final values = List<String>.filled(dataCols, '');
@@ -6230,8 +6291,7 @@ class _EditorScreenState extends State<EditorScreen>
         final manifestPhotos = <Map<String, dynamic>>[];
         for (int i = 0; i < meta.photos.length; i++) {
           final photo = meta.photos[i];
-          final fileName =
-              _exportPhotoFileName(cellRef, photo, index: i + 1);
+          final fileName = _exportPhotoFileName(cellRef, photo, index: i + 1);
           final relPath = 'attachments/photos/$fileName';
 
           attachments.add(
@@ -6283,8 +6343,7 @@ class _EditorScreenState extends State<EditorScreen>
         final manifestAudios = <Map<String, dynamic>>[];
         for (int i = 0; i < meta.audios.length; i++) {
           final audio = meta.audios[i];
-          final fileName =
-              _exportAudioFileName(cellRef, audio, index: i + 1);
+          final fileName = _exportAudioFileName(cellRef, audio, index: i + 1);
           final relPath = 'attachments/audio/$fileName';
 
           attachments.add(
@@ -6369,8 +6428,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
 
-    final manifestBytes =
-        Uint8List.fromList(utf8.encode(jsonEncode(manifest)));
+    final manifestBytes = Uint8List.fromList(utf8.encode(jsonEncode(manifest)));
     archive.addFile(
         ArchiveFile('manifest.json', manifestBytes.length, manifestBytes));
 
@@ -6455,7 +6513,8 @@ class _EditorScreenState extends State<EditorScreen>
         'size=${_formatBytes(audio.size)}';
   }
 
-  Future<Uint8List?> _loadAudioBytesFromAttachment(AudioAttachment audio) async {
+  Future<Uint8List?> _loadAudioBytesFromAttachment(
+      AudioAttachment audio) async {
     final key = _audioKeyFromRef(audio.storedRef);
     if (key.trim().isEmpty) return null;
     return _audioStore.readAudioBytes(key);
@@ -6600,8 +6659,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       if (mounted) {
         setState(() {
-          _engineStatus =
-              showErrors ? _engineErrorMessage(e) : null;
+          _engineStatus = showErrors ? _engineErrorMessage(e) : null;
           _engineStatusIsError = showErrors;
           _engineLastOk = false;
           _engineLastError = _engineErrorMessage(e);
@@ -6655,8 +6713,8 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = (prefs.getString(_kPrefEngineApiKey) ??
-          prefs.getString(_kPrefEngineApiKeyAlt) ??
-          '')
+              prefs.getString(_kPrefEngineApiKeyAlt) ??
+              '')
           .trim();
       return key.isEmpty ? null : key;
     } catch (_) {
@@ -6909,7 +6967,8 @@ class _EditorScreenState extends State<EditorScreen>
       photoOk = true;
     }
 
-    final thumbBytes = _compressThumb(pngBytes, maxW: 320, maxH: 320, quality: 70) ?? pngBytes;
+    final thumbBytes =
+        _compressThumb(pngBytes, maxW: 320, maxH: 320, quality: 70) ?? pngBytes;
     final photoAttachment = PhotoAttachment(
       id: phId,
       filename: 'smoke.png',
@@ -6967,6 +7026,7 @@ class _EditorScreenState extends State<EditorScreen>
         isError: !ok,
         icon: ok ? Icons.science_rounded : Icons.report_problem_rounded);
   }
+
   bool _looksLikeExpression(String raw) {
     final t = raw.trim();
     if (t.isEmpty) return false;
@@ -6982,9 +7042,8 @@ class _EditorScreenState extends State<EditorScreen>
       for (int c = 0; c < _headers.length - 1; c++) {
         final raw = _effectiveCell(r, c);
         if (!_looksLikeExpression(raw)) continue;
-        final expr = raw.trim().startsWith('=')
-            ? raw.trim().substring(1)
-            : raw.trim();
+        final expr =
+            raw.trim().startsWith('=') ? raw.trim().substring(1) : raw.trim();
         final res = evalExpression(expr);
         if (res == null) continue;
         final out = _formatNumber(res);
@@ -7326,13 +7385,13 @@ class _PremiumAppleHeader extends StatelessWidget {
       end: Alignment.bottomRight,
       colors: palette.isLight
           ? [
-        const Color(0xFFFFFFFF).withOpacity(0.88),
-        const Color(0xFFF5F5F7).withOpacity(0.74),
-      ]
+              const Color(0xFFFFFFFF).withOpacity(0.88),
+              const Color(0xFFF5F5F7).withOpacity(0.74),
+            ]
           : [
-        Colors.white.withOpacity(0.12),
-        Colors.white.withOpacity(0.06),
-      ],
+              Colors.white.withOpacity(0.12),
+              Colors.white.withOpacity(0.06),
+            ],
     );
 
     return Padding(
@@ -7359,7 +7418,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color:
-                    Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
+                        Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
                     blurRadius: 30,
                     offset: const Offset(0, 14),
                   ),
@@ -7639,16 +7698,16 @@ class _MobileCompactHeader extends StatelessWidget {
         ),
       ),
       child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: palette.fg,
                     fontWeight: FontWeight.w900,
@@ -7656,11 +7715,11 @@ class _MobileCompactHeader extends StatelessWidget {
                     height: 1.05,
                   ),
                 ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Text(
-                        savedText,
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      savedText,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -7669,50 +7728,49 @@ class _MobileCompactHeader extends StatelessWidget {
                         fontSize: 11,
                         height: 1.05,
                       ),
+                    ),
+                    if (isDirty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: palette.accent.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                      if (isDirty) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: palette.accent.withOpacity(0.9),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                      if (pendingRequired > 0) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: Colors.red.withOpacity(0.4), width: 1),
-                          ),
-                          child: Text(
-                            'Pend: $pendingRequired',
-                            style: TextStyle(
-                              color: Colors.red.withOpacity(0.85),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                              height: 1.05,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
-                ],
-              ),
+                    if (pendingRequired > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: Colors.red.withOpacity(0.4), width: 1),
+                        ),
+                        child: Text(
+                          'Pend: $pendingRequired',
+                          style: TextStyle(
+                            color: Colors.red.withOpacity(0.85),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                            height: 1.05,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
+          ),
           IconButton(
             tooltip: 'Guardar',
             onPressed: onSave,
-            icon: Icon(Icons.check_circle_outline_rounded,
-                color: palette.fg),
+            icon: Icon(Icons.check_circle_outline_rounded, color: palette.fg),
             splashRadius: 18,
           ),
           IconButton(
@@ -7995,7 +8053,7 @@ class _GridView extends StatelessWidget {
                                 palette: palette,
                                 metrics: metrics,
                                 width:
-                                col == headers.length - 1 ? photosW : colW,
+                                    col == headers.length - 1 ? photosW : colW,
                                 text: _labelHeader(headers, col),
                                 isPhotos: col == headers.length - 1,
                                 isOverlayTarget: overlayTargetHeaderCol == col,
@@ -8034,43 +8092,42 @@ class _GridView extends StatelessWidget {
                                           d.globalPosition, r, selCol, false),
                                     ),
                                     for (int col = 0;
-                                    col < headers.length;
-                                    col++)
-                                          Builder(
-                                            builder: (_) {
-                                              final ref = _CellRef(r, col);
-                                              final invalid =
-                                                  isInvalid(r, col);
-                                              final isPhotos =
-                                                  col == headers.length - 1;
-                                              final photosCount =
-                                                  cellPhotoCount(r, col);
-                                              final thumbB64 =
-                                                  cellPhotoThumb(r, col);
-                                              return _DataCell(
-                                                palette: palette,
-                                                metrics: metrics,
-                                                width: col == headers.length - 1
-                                                    ? photosW
-                                                    : colW,
-                                                text: cellTextAt(r, col),
-                                                hasGps: cellHasGps(r, col),
-                                                hasAudio: cellHasAudios(r, col),
-                                                photoThumbB64: thumbB64,
-                                                photosCount: photosCount,
-                                                zebra: r.isEven,
-                                                thumbB64: thumbB64,
-                                                selected:
+                                        col < headers.length;
+                                        col++)
+                                      Builder(
+                                        builder: (_) {
+                                          final ref = _CellRef(r, col);
+                                          final invalid = isInvalid(r, col);
+                                          final isPhotos =
+                                              col == headers.length - 1;
+                                          final photosCount =
+                                              cellPhotoCount(r, col);
+                                          final thumbB64 =
+                                              cellPhotoThumb(r, col);
+                                          return _DataCell(
+                                            palette: palette,
+                                            metrics: metrics,
+                                            width: col == headers.length - 1
+                                                ? photosW
+                                                : colW,
+                                            text: cellTextAt(r, col),
+                                            hasGps: cellHasGps(r, col),
+                                            hasAudio: cellHasAudios(r, col),
+                                            photoThumbB64: thumbB64,
+                                            photosCount: photosCount,
+                                            zebra: r.isEven,
+                                            thumbB64: thumbB64,
+                                            selected:
                                                 r == selRow && col == selCol,
-                                                isPhotos: isPhotos,
-                                                blinkRef: blinkRef,
-                                                cellRef: ref,
-                                                invalid: invalid,
-                                                isOverlayTarget:
+                                            isPhotos: isPhotos,
+                                            blinkRef: blinkRef,
+                                            cellRef: ref,
+                                            invalid: invalid,
+                                            isOverlayTarget:
                                                 overlayTargetCell == ref,
-                                                editorLink: editorLink,
-                                                onTap: () => onEditRequested(
-                                                  r,
+                                            editorLink: editorLink,
+                                            onTap: () => onEditRequested(
+                                              r,
                                               col,
                                               col == headers.length - 1
                                                   ? photosW
@@ -8079,7 +8136,7 @@ class _GridView extends StatelessWidget {
                                             onLongPress: () {
                                               onSelect(r, col);
                                               final box =
-                                              ctx3.findRenderObject();
+                                                  ctx3.findRenderObject();
                                               if (box is RenderBox) {
                                                 final pos = box
                                                     .localToGlobal(Offset.zero);
@@ -8142,9 +8199,9 @@ class _GridView extends StatelessWidget {
         color: palette.headerBg,
         border: Border(
           right:
-          BorderSide(color: palette.borderStrong, width: palette.hairline),
+              BorderSide(color: palette.borderStrong, width: palette.hairline),
           bottom:
-          BorderSide(color: palette.borderStrong, width: palette.hairline),
+              BorderSide(color: palette.borderStrong, width: palette.hairline),
         ),
       ),
       child: Text('#',
@@ -8233,6 +8290,7 @@ class _HeaderCell extends StatelessWidget {
     return CompositedTransformTarget(link: editorLink, child: cell);
   }
 }
+
 class _RowIndexCell extends StatelessWidget {
   const _RowIndexCell({
     required this.palette,
@@ -8274,7 +8332,8 @@ class _RowIndexCell extends StatelessWidget {
             border: Border(
               right: BorderSide(
                   color: palette.borderStrong, width: palette.hairline),
-              bottom: BorderSide(color: palette.border, width: palette.hairline),
+              bottom:
+                  BorderSide(color: palette.border, width: palette.hairline),
             ),
             boxShadow: selected
                 ? [
@@ -8317,6 +8376,7 @@ class _RowIndexCell extends StatelessWidget {
     );
   }
 }
+
 class _DataCell extends StatelessWidget {
   const _DataCell({
     required this.palette,
@@ -8391,8 +8451,8 @@ class _DataCell extends StatelessWidget {
       boxShadow: focus
           ? [
               BoxShadow(
-                color: palette.accent
-                    .withOpacity(palette.isLight ? 0.12 : 0.18),
+                color:
+                    palette.accent.withOpacity(palette.isLight ? 0.12 : 0.18),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -8541,6 +8601,7 @@ class _DataCell extends StatelessWidget {
     );
   }
 }
+
 class _PhotosCell extends StatelessWidget {
   const _PhotosCell({
     required this.palette,
@@ -8622,7 +8683,7 @@ class _StatusBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Text(text,
           style:
-          TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
+              TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05)),
     );
   }
 }
@@ -8651,8 +8712,8 @@ class _MobileQuickActionsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppTheme.of(context);
-    final bg = t.colors.surfaceElevated
-        .withOpacity(palette.isLight ? 0.92 : 0.78);
+    final bg =
+        t.colors.surfaceElevated.withOpacity(palette.isLight ? 0.92 : 0.78);
 
     return AppleCard(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -8794,7 +8855,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
     final hPad = math.max(10.0, metrics.cellPadding.horizontal / 2);
     final vPad = math.max(10.0, metrics.cellPadding.vertical / 2);
-    final editorPadding = EdgeInsets.symmetric(horizontal: hPad, vertical: vPad);
+    final editorPadding =
+        EdgeInsets.symmetric(horizontal: hPad, vertical: vPad);
 
     return Positioned(
       left: 0,
@@ -8966,7 +9028,6 @@ class _MobilePanelIconButton extends StatelessWidget {
   }
 }
 
-
 class _MobileEditorField extends StatelessWidget {
   const _MobileEditorField({
     required this.controller,
@@ -8997,7 +9058,7 @@ class _MobileEditorField extends StatelessWidget {
       enabled: true,
       textAlignVertical: TextAlignVertical.center,
       textInputAction:
-      onNext == null ? TextInputAction.done : TextInputAction.next,
+          onNext == null ? TextInputAction.done : TextInputAction.next,
       keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
       scrollPadding: EdgeInsets.zero,
       autocorrect: false,
@@ -9088,15 +9149,15 @@ class _SheetModel {
   final Map<String, CellMeta> cellMeta;
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'savedAt': savedAt?.toIso8601String(),
-    'headers': headers,
-    'rows': rows.map((r) => r.toJson()).toList(),
-    if (cellMeta.isNotEmpty)
-      'cellMeta': cellMeta.map(
-        (key, value) => MapEntry(key, value.toJson()),
-      ),
-  };
+        'name': name,
+        'savedAt': savedAt?.toIso8601String(),
+        'headers': headers,
+        'rows': rows.map((r) => r.toJson()).toList(),
+        if (cellMeta.isNotEmpty)
+          'cellMeta': cellMeta.map(
+            (key, value) => MapEntry(key, value.toJson()),
+          ),
+      };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
     final name = (map['name'] as String?)?.toString();
@@ -9215,20 +9276,20 @@ class _RowModel {
       );
 
   Map<String, dynamic> toJson() => {
-    'cells': cells,
+        'cells': cells,
 // ??? Persistencia segura: sin thumbs base64 (evita overflow prefs/localStorage).
-    'photos': photos
-        .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
-        .toList(),
-    if (gpsLat != null && gpsLng != null)
-      'gps': {
-        'lat': gpsLat,
-        'lng': gpsLng,
-        'accuracyM': gpsAccuracyM,
-        'ts': gpsTs?.toIso8601String(),
-        'lastKnown': gpsIsLastKnown,
-      },
-  };
+        'photos': photos
+            .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
+            .toList(),
+        if (gpsLat != null && gpsLng != null)
+          'gps': {
+            'lat': gpsLat,
+            'lng': gpsLng,
+            'accuracyM': gpsAccuracyM,
+            'ts': gpsTs?.toIso8601String(),
+            'lastKnown': gpsIsLastKnown,
+          },
+      };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
     final cells =
@@ -9293,8 +9354,7 @@ class _RowPhoto {
         dataB64: dataB64,
       );
 
-  _RowPhoto copyWithoutThumb() =>
-      _RowPhoto(
+  _RowPhoto copyWithoutThumb() => _RowPhoto(
         name: name,
         mime: mime,
         thumbB64: '',
@@ -9308,19 +9368,19 @@ class _RowPhoto {
       );
 
   Map<String, dynamic> toJson({required bool persistThumb}) => {
-    ...PhotoJson(
-      name: name,
-      mime: mime,
-      thumbB64: thumbB64,
-      addedAt: addedAt,
-      path: path,
-      dataB64: dataB64,
-      lat: lat,
-      lng: lng,
-      accuracyM: accuracyM,
-      isLastKnown: isLastKnown,
-    ).toJson(persistThumb: persistThumb),
-  };
+        ...PhotoJson(
+          name: name,
+          mime: mime,
+          thumbB64: thumbB64,
+          addedAt: addedAt,
+          path: path,
+          dataB64: dataB64,
+          lat: lat,
+          lng: lng,
+          accuracyM: accuracyM,
+          isLastKnown: isLastKnown,
+        ).toJson(persistThumb: persistThumb),
+      };
 
   static _RowPhoto fromJson(Map<String, dynamic> map) {
     final decoded = PhotoJson.fromJson(map);
@@ -9483,11 +9543,17 @@ class _SheetPalette {
     Color? pressedBg,
     Color? zebraBg,
   })  : hoverBg = hoverBg ??
-            (isLight ? Colors.black.withOpacity(0.04) : Colors.white.withOpacity(0.08)),
+            (isLight
+                ? Colors.black.withOpacity(0.04)
+                : Colors.white.withOpacity(0.08)),
         pressedBg = pressedBg ??
-            (isLight ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.14)),
+            (isLight
+                ? Colors.black.withOpacity(0.08)
+                : Colors.white.withOpacity(0.14)),
         zebraBg = zebraBg ??
-            (isLight ? const Color(0xFFF9F9FB) : Colors.white.withOpacity(0.02));
+            (isLight
+                ? const Color(0xFFF9F9FB)
+                : Colors.white.withOpacity(0.02));
 
   final bool isLight;
   final double hairline;
@@ -9626,82 +9692,3 @@ class _NoGlowScrollBehavior extends ScrollBehavior {
 
 // Compat simple: evita warning de "unawaited" sin depender de SDK.
 void unawaited(Future<void>? f) {}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

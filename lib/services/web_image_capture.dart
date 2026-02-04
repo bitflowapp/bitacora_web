@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:js_util' as js_util; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
@@ -54,9 +54,14 @@ class WebImageCaptureResult {
 }
 
 Uint8List? _bytesFromArrayBuffer(Object? result) {
+  if (result == null) return null;
   if (result is ByteBuffer) return Uint8List.view(result);
   if (result is Uint8List) return result;
   if (result is ByteData) return result.buffer.asUint8List();
+  if (result is List<int>) return Uint8List.fromList(result);
+  if (result is List<num>) {
+    return Uint8List.fromList(result.map((e) => e.toInt()).toList());
+  }
   return null;
 }
 
@@ -153,15 +158,17 @@ Future<WebImageCaptureResult> captureWebImage({
   Future<Uint8List?> _readFileBytes(html.File file) async {
     try {
       if (js_util.hasProperty(file, 'arrayBuffer')) {
-        final promise = js_util.callMethod<Object>(file, 'arrayBuffer', const []);
+        final promise =
+            js_util.callMethod<Object>(file, 'arrayBuffer', const []);
         final ab = await js_util.promiseToFuture<Object>(promise);
         final bytes = _bytesFromArrayBuffer(ab);
         if (bytes != null && bytes.isNotEmpty) return bytes;
       }
-    } catch (e) {
+    } catch (e, st) {
       DiagnosticsLog.I.updatePhotoAttempt(
         stage: 'arrayBuffer_error',
         error: e.toString(),
+        stack: st.toString(),
       );
     }
 
@@ -181,13 +188,17 @@ Future<WebImageCaptureResult> captureWebImage({
 
     try {
       reader.readAsArrayBuffer(file);
-    } catch (_) {
+    } catch (e, st) {
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'read_error',
+        error: e.toString(),
+        stack: st.toString(),
+      );
       if (!done.isCompleted) done.complete(null);
     }
 
     return done.future;
   }
-
 
   String _guessMimeFromName(String name) {
     final lower = name.toLowerCase();
@@ -237,7 +248,8 @@ Future<WebImageCaptureResult> captureWebImage({
         stage: 'bytes_empty',
         error: 'empty_bytes',
       );
-      finish(WebImageCaptureResult.error('No se pudieron leer los bytes.'));
+      finish(WebImageCaptureResult.error(
+          'No se pudo leer la imagen (bytes vacíos).'));
       return;
     }
 
@@ -256,7 +268,8 @@ Future<WebImageCaptureResult> captureWebImage({
       reportedMime: fileType,
     );
 
-    logStep('photo:web bytes=${bytes.length} mime=$finalMime name=$nameFinal ${_snapshot()}');
+    logStep(
+        'photo:web bytes=${bytes.length} mime=$finalMime name=$nameFinal ${_snapshot()}');
 
     finish(WebImageCaptureResult.success(
       bytes: bytes,
@@ -340,7 +353,7 @@ Future<WebImageCaptureResult> captureWebImage({
     'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari secure=${html.window.isSecureContext == true} inApp=${WebCapabilities.isInAppBrowser} gUM=${WebCapabilities.cameraAvailable} capture=$capture ${_snapshot()}',
   );
   DiagnosticsLog.I.updatePhotoAttempt(
-    stage: 'init',
+    stage: 'picker_open',
     ua: ua,
     isIOS: isIOS,
     isSafari: isSafari,

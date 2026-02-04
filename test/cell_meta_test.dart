@@ -37,9 +37,9 @@ void main() {
           id: 'a1',
           filename: 'audio.m4a',
           mime: 'audio/m4a',
-        size: 3200,
-        durationMs: 4200,
-        storedRef: 'mem://a1',
+          size: 3200,
+          durationMs: 4200,
+          storedRef: 'mem://a1',
           addedAt: DateTime(2026, 2, 3, 10, 17, 0),
         ),
       ],
@@ -90,5 +90,50 @@ void main() {
     expect(text, contains('-38.950000'));
     expect(text, contains('-68.060000'));
     expect(state.debugCellHasGps(0, 0), isTrue);
+  });
+
+  test('PhotoAttachment serialization keeps meta', () {
+    final photo = PhotoAttachment(
+      id: 'p_heic',
+      filename: 'image.heic',
+      mime: 'image/heic',
+      size: 2048,
+      storedRef: 'key:sheet:2:3:p_heic',
+      thumbRef: '',
+      addedAt: DateTime(2026, 2, 4, 12, 0),
+    );
+
+    final json = photo.toJson();
+    final decoded = PhotoAttachment.fromJson(json);
+
+    expect(decoded, isNotNull);
+    expect(decoded!.mime, 'image/heic');
+    expect(decoded.size, 2048);
+    expect(decoded.storedRef, 'key:sheet:2:3:p_heic');
+  });
+
+  test('Cell meta attaches photo to target cell key', () {
+    final key = CellKey(1, 2); // R2C3
+    final attachment = PhotoAttachment(
+      id: 'p2',
+      filename: 'nota.png',
+      mime: 'image/png',
+      size: 5120,
+      storedRef: 'mem:p2',
+      thumbRef: '',
+      addedAt: DateTime(2026, 2, 4, 12, 30),
+    );
+
+    final stored = <String, dynamic>{
+      key.toKey(): CellMeta(photos: [attachment]).toJson(),
+    };
+
+    final restored = stored.map((k, v) => MapEntry(k, CellMeta.fromJson(v)));
+    final cellMeta = restored[key.toKey()];
+
+    expect(cellMeta, isNotNull);
+    expect(cellMeta!.photos.length, 1);
+    expect(cellMeta.photos.first.filename, 'nota.png');
+    expect(cellMeta.photos.first.size, 5120);
   });
 }

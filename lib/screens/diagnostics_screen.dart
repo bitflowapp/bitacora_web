@@ -1,3 +1,4 @@
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -14,6 +15,7 @@ import '../services/photo_acquire_service.dart';
 import '../services/photo_mime_sniffer.dart';
 import '../services/storage_diagnostics.dart';
 import '../services/web_capabilities.dart';
+import '../models/cell_meta.dart';
 
 class DiagnosticsScreen extends StatefulWidget {
   const DiagnosticsScreen({super.key});
@@ -37,9 +39,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
   Future<_DiagnosticsSnapshot> _load() async {
     final isSecure = kIsWeb ? WebCapabilities.isSecureContext : true;
-    final geoAvailable = kIsWeb
-        ? WebCapabilities.geolocationAvailable
-        : await _safeGeoEnabled();
+    final geoAvailable =
+        kIsWeb ? WebCapabilities.geolocationAvailable : await _safeGeoEnabled();
 
     final geoPerm = await _safeGeoPermission();
 
@@ -53,13 +54,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
     final mediaRecorderSupported =
         kIsWeb ? WebCapabilities.mediaRecorderSupported : false;
-    final cameraAvailable =
-        kIsWeb ? WebCapabilities.cameraAvailable : false;
+    final cameraAvailable = kIsWeb ? WebCapabilities.cameraAvailable : false;
     final imageCaptureSupported =
         kIsWeb ? WebCapabilities.imageCaptureSupported : false;
     final serviceWorkerSupported =
         kIsWeb ? WebCapabilities.serviceWorkerSupported : false;
-    final indexedDbAvailable = kIsWeb ? WebCapabilities.indexedDbAvailable : false;
+    final indexedDbAvailable =
+        kIsWeb ? WebCapabilities.indexedDbAvailable : false;
     final inAppBrowser = kIsWeb ? WebCapabilities.isInAppBrowser : false;
 
     return _DiagnosticsSnapshot(
@@ -156,7 +157,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           title: const Text('Abrir ajustes'),
           content: const Padding(
             padding: EdgeInsets.only(top: 8),
-            child: Text('No se pudieron abrir los ajustes en este dispositivo.'),
+            child:
+                Text('No se pudieron abrir los ajustes en este dispositivo.'),
           ),
           actions: [
             CupertinoDialogAction(
@@ -198,9 +200,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('Forzar actualizacion'),
-        content: Text(res.message.trim().isEmpty
-            ? 'Operación completada.'
-            : res.message),
+        content: Text(
+            res.message.trim().isEmpty ? 'Operación completada.' : res.message),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -264,20 +265,32 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       );
       final storageLabel = stored == null
           ? 'FAIL'
-          : (stored.path.startsWith('mem:') ? 'RAM' : 'OK');
+          : (stored.path.startsWith('mem:') ? 'RAM' : 'IndexedDB');
       final read = stored == null
           ? null
           : await PhotoStorageService.I.readPhotoBytes(stored.path);
       final readOk = read != null && read.isNotEmpty ? 'OK' : 'FAIL';
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: readOk == 'OK',
-        message:
-            'photo_selftest storage=$storageLabel read=$readOk bytes=${result.bytes.lengthInBytes}',
+
+      final storedRef = stored?.path ?? 'mem:diagnostics';
+      final attachment = PhotoAttachment(
+        id: 'diag_photo',
+        filename: result.name,
+        mime: result.mime,
+        size: result.bytes.lengthInBytes,
+        storedRef: storedRef,
+        thumbRef: '',
+        addedAt: DateTime.now(),
       );
+      final roundtrip =
+          CellMeta.fromJson(CellMeta(photos: [attachment]).toJson());
+      final attachOk = roundtrip != null &&
+          roundtrip.photos.isNotEmpty &&
+          roundtrip.photos.first.filename == attachment.filename;
+
+      final sniffLabel = sniffed.isEmpty ? 'n/a' : sniffed;
       setState(() {
         _photoTestResult =
-            'picked $sizeLabel · storage $storageLabel · read $readOk';
+            'bytes $sizeLabel | mime ${result.mime} | sniff $sniffLabel | storage $storageLabel | read $readOk | attach ${attachOk ? 'OK' : 'FAIL'}';
       });
     } catch (e) {
       if (!mounted) return;
@@ -357,12 +370,22 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 _infoCard(
                   children: [
                     _infoRow('Stamp', BuildInfo.stamp),
-                    _infoRow('GIT_SHA', BuildInfo.gitSha.isEmpty ? 'dev' : BuildInfo.gitSha),
-                    _infoRow('BUILD_TIME', BuildInfo.buildTime.isEmpty ? 'dev' : BuildInfo.buildTime),
-                    _infoRow('ENGINE_BASE_URL', BuildInfo.engineBaseUrl.isEmpty ? 'vacio' : BuildInfo.engineBaseUrl),
+                    _infoRow('GIT_SHA',
+                        BuildInfo.gitSha.isEmpty ? 'dev' : BuildInfo.gitSha),
+                    _infoRow(
+                        'BUILD_TIME',
+                        BuildInfo.buildTime.isEmpty
+                            ? 'dev'
+                            : BuildInfo.buildTime),
+                    _infoRow(
+                        'ENGINE_BASE_URL',
+                        BuildInfo.engineBaseUrl.isEmpty
+                            ? 'vacio'
+                            : BuildInfo.engineBaseUrl),
                     const SizedBox(height: 8),
                     CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 14),
                       onPressed: _forceUpdate,
                       child: const Text('Forzar actualizacion'),
                     ),
@@ -373,20 +396,28 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 _infoCard(
                   children: [
                     _checkRow('Secure context (HTTPS)', data.isSecureContext),
-                    _checkRow('Geolocation disponible', data.geolocationAvailable),
-                    _infoRow('Geo permiso', _permLabel(data.geolocationPermission)),
+                    _checkRow(
+                        'Geolocation disponible', data.geolocationAvailable),
+                    _infoRow(
+                        'Geo permiso', _permLabel(data.geolocationPermission)),
                     _checkRow('Microfono soportado', data.micSupported),
-                    _infoRow('Mic permiso', data.micPermission ? 'granted' : 'denied'),
+                    _infoRow('Mic permiso',
+                        data.micPermission ? 'granted' : 'denied'),
                     if (kIsWeb)
-                      _checkRow('MediaRecorder soportado', data.mediaRecorderSupported),
+                      _checkRow('MediaRecorder soportado',
+                          data.mediaRecorderSupported),
                     if (kIsWeb)
-                      _checkRow('getUserMedia disponible', data.cameraAvailable),
+                      _checkRow(
+                          'getUserMedia disponible', data.cameraAvailable),
                     if (kIsWeb)
-                      _checkRow('ImageCapture soportado', data.imageCaptureSupported),
+                      _checkRow(
+                          'ImageCapture soportado', data.imageCaptureSupported),
                     if (kIsWeb)
-                      _checkRow('Service Worker soportado', data.serviceWorkerSupported),
+                      _checkRow('Service Worker soportado',
+                          data.serviceWorkerSupported),
                     if (kIsWeb)
-                      _checkRow('IndexedDB disponible', data.indexedDbAvailable),
+                      _checkRow(
+                          'IndexedDB disponible', data.indexedDbAvailable),
                     _checkRow('Storage writable', data.storageOk,
                         message: data.storageMessage),
                     if (kIsWeb)
@@ -449,7 +480,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         if (info == null) {
                           return _infoRow('Estado', 'Sin datos');
                         }
-                        final stage = info.stage.trim().isEmpty ? 'n/a' : info.stage;
+                        final stage =
+                            info.stage.trim().isEmpty ? 'n/a' : info.stage;
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -458,7 +490,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             if ((info.fileName ?? '').trim().isNotEmpty)
                               _infoRow('Archivo', info.fileName!.trim()),
                             if ((info.reportedMime ?? '').trim().isNotEmpty)
-                              _infoRow('Mime reportado', info.reportedMime!.trim()),
+                              _infoRow(
+                                  'Mime reportado', info.reportedMime!.trim()),
                             if ((info.sniffedMime ?? '').trim().isNotEmpty)
                               _infoRow('Mime sniff', info.sniffedMime!.trim()),
                             if (info.size != null)
@@ -468,19 +501,24 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             if ((info.storageMode ?? '').trim().isNotEmpty)
                               _infoRow('Storage', info.storageMode!.trim()),
                             if (info.previewable != null)
-                              _infoRow('Preview', info.previewable! ? 'si' : 'no'),
+                              _infoRow(
+                                  'Preview', info.previewable! ? 'si' : 'no'),
                             if (info.secureContext != null)
-                              _infoRow('Secure', info.secureContext! ? 'true' : 'false'),
+                              _infoRow('Secure',
+                                  info.secureContext! ? 'true' : 'false'),
                             if (info.inAppBrowser != null)
-                              _infoRow('InApp', info.inAppBrowser! ? 'true' : 'false'),
+                              _infoRow('InApp',
+                                  info.inAppBrowser! ? 'true' : 'false'),
                             if ((info.visibility ?? '').trim().isNotEmpty)
                               _infoRow('Vis', info.visibility!.trim()),
                             if (info.hasFocus != null)
-                              _infoRow('Focus', info.hasFocus! ? 'true' : 'false'),
+                              _infoRow(
+                                  'Focus', info.hasFocus! ? 'true' : 'false'),
                             if ((info.error ?? '').trim().isNotEmpty)
                               _infoRow('Error', info.error!.trim()),
                             if ((info.stack ?? '').trim().isNotEmpty)
-                              _infoRow('Stack', info.stack!.trim().split('\n').first),
+                              _infoRow('Stack',
+                                  info.stack!.trim().split('\n').first),
                             if ((info.ua ?? '').trim().isNotEmpty)
                               _infoRow('UA', info.ua!.trim()),
                           ],
@@ -491,19 +529,39 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 ),
                 const SizedBox(height: 12),
                 _sectionTitle('Self test (Web)'),
-
                 _infoCard(
                   children: [
                     _infoRow('Foto', _photoTestResult ?? 'Sin ejecutar'),
                     const SizedBox(height: 6),
-                    CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      onPressed: _photoTestBusy ? null : _runPhotoSelfTest,
-                      child: Text(
-                        _photoTestBusy
-                            ? 'Probando...'
-                            : 'Self-test Foto (PNG)',
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CupertinoButton.filled(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            onPressed:
+                                _photoTestBusy ? null : _runPhotoSelfTest,
+                            child: Text(
+                              _photoTestBusy
+                                  ? 'Probando...'
+                                  : 'Self-test Foto (Picker)',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 12),
+                          onPressed: (_photoTestResult ?? '').trim().isEmpty
+                              ? null
+                              : () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(
+                                        text: _photoTestResult!.trim()),
+                                  );
+                                },
+                          child: const Text('Copiar'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                     _infoRow('Audio', _audioTestResult ?? 'Sin ejecutar'),
@@ -511,7 +569,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     CupertinoButton.filled(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       onPressed: _audioTestBusy ? null : _runAudioSelfTest,
-                      child: Text(_audioTestBusy ? 'Probando...' : 'Test Audio'),
+                      child:
+                          Text(_audioTestBusy ? 'Probando...' : 'Test Audio'),
                     ),
                   ],
                 ),
@@ -522,7 +581,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     _infoRow('version.json', data.versionJson),
                     const SizedBox(height: 6),
                     CupertinoButton(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 6, horizontal: 12),
                       onPressed: () async {
                         await Clipboard.setData(
                           ClipboardData(text: data.versionJson),
@@ -611,7 +671,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(ok ? CupertinoIcons.check_mark : CupertinoIcons.xmark, size: 16, color: color),
+          Icon(ok ? CupertinoIcons.check_mark : CupertinoIcons.xmark,
+              size: 16, color: color),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -675,10 +736,3 @@ class _DiagnosticsSnapshot {
         versionJson: 'Sin datos',
       );
 }
-
-
-
-
-
-
-

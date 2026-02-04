@@ -33,15 +33,15 @@ class AttachmentRecord {
   });
 
   Map<String, dynamic> toMap() => {
-    'id': id,
-    'sheetId': sheetId,
-    'row': row,
-    'name': name,
-    'mime': mime,
-    'size': size,
-    'ts': ts.toIso8601String(),
-    'bytes': bytes,
-  };
+        'id': id,
+        'sheetId': sheetId,
+        'row': row,
+        'name': name,
+        'mime': mime,
+        'size': size,
+        'ts': ts.toIso8601String(),
+        'bytes': bytes,
+      };
 
   static AttachmentRecord? from(Object? raw) {
     if (raw is! Map) return null;
@@ -282,14 +282,36 @@ class AttachmentsServiceWeb {
   // -------------------- Privados --------------------
 
   Future<Uint8List> _readAsBytes(html.File f) {
+    Uint8List? _asBytes(Object? result) {
+      if (result == null) return null;
+      if (result is ByteBuffer) return Uint8List.view(result);
+      if (result is Uint8List) return result;
+      if (result is ByteData) return result.buffer.asUint8List();
+      if (result is List<int>) return Uint8List.fromList(result);
+      if (result is List<num>) {
+        return Uint8List.fromList(result.map((e) => e.toInt()).toList());
+      }
+      return null;
+    }
+
     final reader = html.FileReader();
     final c = async.Completer<Uint8List>();
-    reader.onLoad.first.then((_) {
-      final buf = reader.result as ByteBuffer;
-      c.complete(Uint8List.view(buf));
+
+    reader.onLoadEnd.first.then((_) {
+      if (c.isCompleted) return;
+      final bytes = _asBytes(reader.result);
+      c.complete(bytes ?? Uint8List(0));
     });
-    reader.onError.first.then((_) => c.complete(Uint8List(0)));
-    reader.readAsArrayBuffer(f);
+    reader.onError.first.then((_) {
+      if (!c.isCompleted) c.complete(Uint8List(0));
+    });
+
+    try {
+      reader.readAsArrayBuffer(f);
+    } catch (_) {
+      if (!c.isCompleted) c.complete(Uint8List(0));
+    }
+
     return c.future;
   }
 
