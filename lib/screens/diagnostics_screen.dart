@@ -11,6 +11,7 @@ import '../services/diagnostics_log.dart';
 import '../services/force_update_service.dart';
 import '../services/photo_storage_service.dart';
 import '../services/photo_acquire_service.dart';
+import '../services/photo_mime_sniffer.dart';
 import '../services/storage_diagnostics.dart';
 import '../services/web_capabilities.dart';
 
@@ -246,6 +247,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       }
       final result = outcome.result!;
       final sizeLabel = _fmtBytes(result.bytes.lengthInBytes);
+      final sniffed = sniffMime(result.bytes, name: result.name);
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: true,
@@ -438,7 +440,58 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                _sectionTitle('Ultimo intento de Foto'),
+                _infoCard(
+                  children: [
+                    ValueListenableBuilder<PhotoAttemptInfo?>(
+                      valueListenable: DiagnosticsLog.I.lastPhotoAttempt,
+                      builder: (ctx, info, _) {
+                        if (info == null) {
+                          return _infoRow('Estado', 'Sin datos');
+                        }
+                        final stage = info.stage.trim().isEmpty ? 'n/a' : info.stage;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _infoRow('Stage', stage),
+                            _infoRow('Hora', _fmtTime(info.at)),
+                            if ((info.fileName ?? '').trim().isNotEmpty)
+                              _infoRow('Archivo', info.fileName!.trim()),
+                            if ((info.reportedMime ?? '').trim().isNotEmpty)
+                              _infoRow('Mime reportado', info.reportedMime!.trim()),
+                            if ((info.sniffedMime ?? '').trim().isNotEmpty)
+                              _infoRow('Mime sniff', info.sniffedMime!.trim()),
+                            if (info.size != null)
+                              _infoRow('Size', _fmtBytes(info.size!)),
+                            if (info.bytes != null)
+                              _infoRow('Bytes', _fmtBytes(info.bytes!)),
+                            if ((info.storageMode ?? '').trim().isNotEmpty)
+                              _infoRow('Storage', info.storageMode!.trim()),
+                            if (info.previewable != null)
+                              _infoRow('Preview', info.previewable! ? 'si' : 'no'),
+                            if (info.secureContext != null)
+                              _infoRow('Secure', info.secureContext! ? 'true' : 'false'),
+                            if (info.inAppBrowser != null)
+                              _infoRow('InApp', info.inAppBrowser! ? 'true' : 'false'),
+                            if ((info.visibility ?? '').trim().isNotEmpty)
+                              _infoRow('Vis', info.visibility!.trim()),
+                            if (info.hasFocus != null)
+                              _infoRow('Focus', info.hasFocus! ? 'true' : 'false'),
+                            if ((info.error ?? '').trim().isNotEmpty)
+                              _infoRow('Error', info.error!.trim()),
+                            if ((info.stack ?? '').trim().isNotEmpty)
+                              _infoRow('Stack', info.stack!.trim().split('\n').first),
+                            if ((info.ua ?? '').trim().isNotEmpty)
+                              _infoRow('UA', info.ua!.trim()),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 _sectionTitle('Self test (Web)'),
+
                 _infoCard(
                   children: [
                     _infoRow('Foto', _photoTestResult ?? 'Sin ejecutar'),
