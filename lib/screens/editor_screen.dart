@@ -894,11 +894,11 @@ class _EditorScreenState extends State<EditorScreen>
   String _densityLabel(_GridDensity density) {
     switch (density) {
       case _GridDensity.compact:
-        return 'Ultra-Compacto';
-      case _GridDensity.normal:
         return 'Compacto';
-      case _GridDensity.roomy:
+      case _GridDensity.normal:
         return 'Normal';
+      case _GridDensity.roomy:
+        return 'Amplio';
     }
   }
 
@@ -7577,34 +7577,34 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 33,
-        headerH: 32,
-        cellPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        headerPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        cellFontSize: 12.0,
-        headerFontSize: 11.5,
-        indexFontSize: 11.0,
+        rowH: 32,
+        headerH: 30,
+        cellPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        headerPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        cellFontSize: 11.8,
+        headerFontSize: 11.2,
+        indexFontSize: 10.8,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
-        rowH: 50,
-        headerH: 48,
-        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        cellFontSize: 14.0,
-        headerFontSize: 13.0,
-        indexFontSize: 12.5,
+        rowH: 48,
+        headerH: 46,
+        cellPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        headerPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        cellFontSize: 13.8,
+        headerFontSize: 12.8,
+        indexFontSize: 12.2,
       );
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 39,
+        rowH: 38,
         headerH: 36,
-        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        cellFontSize: 12.8,
-        headerFontSize: 12.0,
-        indexFontSize: 11.5,
+        cellPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        headerPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        cellFontSize: 12.6,
+        headerFontSize: 11.8,
+        indexFontSize: 11.2,
       );
   }
 }

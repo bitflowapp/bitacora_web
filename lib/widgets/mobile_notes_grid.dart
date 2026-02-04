@@ -6,84 +6,84 @@ const double _kMobileCardMaxW = 170.0;
 double _mobileCardH(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 28.0;
+      return 26.0;
     case _GridDensity.roomy:
-      return 40.0;
+      return 38.0;
     case _GridDensity.normal:
     default:
-      return 32.0;
+      return 30.0;
   }
 }
 
 double _mobileRowPadH(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 8.0;
+      return 7.0;
     case _GridDensity.roomy:
-      return 12.0;
+      return 11.0;
     case _GridDensity.normal:
     default:
-      return 10.0;
+      return 9.0;
   }
 }
 
 double _mobileRowPadV(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 3.0;
+      return 2.5;
     case _GridDensity.roomy:
-      return 5.0;
+      return 4.5;
     case _GridDensity.normal:
     default:
-      return 4.0;
+      return 3.5;
   }
 }
 
 double _mobileRowSpacing(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 4.0;
+      return 3.0;
     case _GridDensity.roomy:
-      return 8.0;
+      return 7.0;
     case _GridDensity.normal:
     default:
-      return 6.0;
+      return 5.0;
   }
 }
 
 double _mobileCardGap(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 4.0;
+      return 3.0;
     case _GridDensity.roomy:
-      return 8.0;
+      return 7.0;
     case _GridDensity.normal:
     default:
-      return 6.0;
+      return 5.0;
   }
 }
 
 double _mobileCardPadH(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 6.0;
+      return 5.0;
     case _GridDensity.roomy:
-      return 10.0;
+      return 9.0;
     case _GridDensity.normal:
     default:
-      return 8.0;
+      return 7.0;
   }
 }
 
 double _mobileCardPadV(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 3.0;
+      return 2.5;
     case _GridDensity.roomy:
-      return 5.0;
+      return 4.5;
     case _GridDensity.normal:
     default:
-      return 4.0;
+      return 3.5;
   }
 }
 
@@ -98,33 +98,33 @@ double _mobileListPadTop(_GridDensity density) {
     case _GridDensity.compact:
       return 2.0;
     case _GridDensity.roomy:
-      return 6.0;
+      return 5.0;
     case _GridDensity.normal:
     default:
-      return 4.0;
+      return 3.0;
   }
 }
 
 double _mobileListPadBottom(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 6.0;
+      return 5.0;
     case _GridDensity.roomy:
-      return 12.0;
+      return 10.0;
     case _GridDensity.normal:
     default:
-      return 10.0;
+      return 8.0;
   }
 }
 double _mobileTextSize(_GridDensity density, {required bool isHeader}) {
   switch (density) {
     case _GridDensity.compact:
-      return isHeader ? 11.5 : 11.5;
+      return isHeader ? 11.2 : 11.2;
     case _GridDensity.roomy:
-      return isHeader ? 13.5 : 13.5;
+      return isHeader ? 13.2 : 13.2;
     case _GridDensity.normal:
     default:
-      return isHeader ? 12.5 : 12.5;
+      return isHeader ? 12.2 : 12.2;
   }
 }
 
