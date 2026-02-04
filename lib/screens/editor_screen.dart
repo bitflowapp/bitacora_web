@@ -4983,6 +4983,10 @@ class _EditorScreenState extends State<EditorScreen>
         ok: false,
         message: 'photo_cancelled',
       );
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'cancelled',
+        error: 'cancelled',
+      );
       _showActionSnack(
         'Cancelado por el usuario.',
         isError: true,
@@ -4997,6 +5001,10 @@ class _EditorScreenState extends State<EditorScreen>
         ok: false,
         message: 'photo_blocked $msg',
       );
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'blocked',
+        error: msg,
+      );
       _showActionSnack(
         msg,
         isError: true,
@@ -5005,11 +5013,15 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     if (!outcome.ok) {
-      final msg = outcome.error ?? 'No se pudo leer la imagen.';
+      final msg = outcome.error ?? 'No se pudo obtener la foto.';
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
         message: 'photo_error $msg',
+      );
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'error',
+        error: msg,
       );
       _showActionSnack(
         msg,
@@ -5026,6 +5038,10 @@ class _EditorScreenState extends State<EditorScreen>
         ok: false,
         message: 'photo_error empty_bytes',
       );
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'error',
+        error: 'empty_bytes',
+      );
       _showActionSnack(
         'No se capturo la foto. Toca Capturar.',
         isError: true,
@@ -5033,6 +5049,10 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
+
+    final safeMime = result.mime.trim().isEmpty
+        ? 'application/octet-stream'
+        : result.mime.trim();
 
     final attachmentId = _genAttachmentId('ph_');
     final cellKey = CellKey(r, c).toKey();
@@ -5044,7 +5064,7 @@ class _EditorScreenState extends State<EditorScreen>
         attachmentId: attachmentId,
         bytes: result.bytes,
         originalName: result.name,
-        mime: result.mime,
+        mime: safeMime,
       );
     } catch (_) {
       stored = null;
@@ -5062,8 +5082,10 @@ class _EditorScreenState extends State<EditorScreen>
       _warnStorageFallbackOnce('foto');
     }
 
-    final thumbBytes = _compressThumb(result.bytes,
-        maxW: 560, maxH: 560, quality: 78);
+    final previewable = _isPreviewableMime(safeMime, result.name);
+    final thumbBytes = previewable
+        ? _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78)
+        : null;
     final storageLabel = storedRef.startsWith('key:')
         ? 'indexeddb'
         : (storedRef.startsWith('mem:')
@@ -5081,7 +5103,7 @@ class _EditorScreenState extends State<EditorScreen>
     final attachment = PhotoAttachment(
       id: attachmentId,
       filename: result.name,
-      mime: result.mime,
+      mime: safeMime,
       size: result.bytes.lengthInBytes,
       storedRef: storedRef,
       thumbRef: thumbB64,
@@ -5093,6 +5115,11 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     _addPhotoToCell(r, c, attachment);
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'saved',
+      storageMode: storageLabel,
+      previewable: previewable,
+    );
     final cellLabel = _cellLabelRc(r, c);
     DiagnosticsLog.I.record(
       type: DiagnosticActionType.photo,
@@ -5218,22 +5245,27 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  bool _canPreviewPhoto(PhotoAttachment photo) {
-    final mime = photo.mime.toLowerCase();
-    if (mime.contains('png') ||
-        mime.contains('jpeg') ||
-        mime.contains('jpg') ||
-        mime.contains('webp') ||
-        mime.contains('gif')) {
+  bool _isPreviewableMime(String mime, String name) {
+    final m = mime.toLowerCase();
+    if (m.contains('png') ||
+        m.contains('jpeg') ||
+        m.contains('jpg') ||
+        m.contains('webp') ||
+        m.contains('gif')) {
       return true;
     }
-    final name = photo.filename.toLowerCase();
-    return name.endsWith('.png') ||
-        name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.webp') ||
-        name.endsWith('.gif');
+    final n = name.toLowerCase();
+    return n.endsWith('.png') ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.gif');
   }
+
+  bool _canPreviewPhoto(PhotoAttachment photo) {
+    return _isPreviewableMime(photo.mime, photo.filename);
+  }
+
 
   Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
     final bytes = await _loadPhotoBytesFromAttachment(photo);
@@ -5271,7 +5303,7 @@ class _EditorScreenState extends State<EditorScreen>
           return AlertDialog(
             backgroundColor: pal.menuBg,
             title: const Text('Adjunto guardado'),
-            content: Text('No previsualizable ($mimeLabel).'),
+            content: Text('Adjunto guardado (sin preview) - $mimeLabel.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -5430,7 +5462,7 @@ class _EditorScreenState extends State<EditorScreen>
                           : p.filename.trim();
                       final subtitle = previewable
                           ? p.addedAt.toIso8601String()
-                          : 'Adjunto guardado ($mimeLabel)';
+                          : 'Adjunto guardado (sin preview) - $mimeLabel';
 
                       return InkWell(
                         onTap: () => unawaited(_openPhotoPreview(ctx2, p)),

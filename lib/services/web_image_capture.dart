@@ -1,8 +1,10 @@
 ﻿import 'dart:async';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'dart:js_util' as js_util; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 
 import 'diagnostics_log.dart';
+import 'photo_mime_sniffer.dart';
 import 'web_capabilities.dart';
 
 enum WebImageCaptureStatus { success, cancelled, blocked, error }
@@ -49,6 +51,13 @@ class WebImageCaptureResult {
         status: WebImageCaptureStatus.error,
         error: message.trim().isEmpty ? 'Error desconocido' : message.trim(),
       );
+}
+
+Uint8List? _bytesFromArrayBuffer(Object? result) {
+  if (result is ByteBuffer) return Uint8List.view(result);
+  if (result is Uint8List) return result;
+  if (result is ByteData) return result.buffer.asUint8List();
+  return null;
 }
 
 Future<WebImageCaptureResult> captureWebImage({
@@ -113,6 +122,14 @@ Future<WebImageCaptureResult> captureWebImage({
       'photo:web outcome=${result.status.name} bytes=$bytesLen ${_snapshot()}',
       ok: outcomeOk,
     );
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: result.status.name,
+      bytes: bytesLen > 0 ? bytesLen : null,
+      error: result.status == WebImageCaptureStatus.error ||
+              result.status == WebImageCaptureStatus.blocked
+          ? result.error
+          : null,
+    );
     finished = true;
     try {
       changeSub?.cancel();
@@ -134,6 +151,20 @@ Future<WebImageCaptureResult> captureWebImage({
   }
 
   Future<Uint8List?> _readFileBytes(html.File file) async {
+    try {
+      if (js_util.hasProperty(file, 'arrayBuffer')) {
+        final promise = js_util.callMethod<Object>(file, 'arrayBuffer', const []);
+        final ab = await js_util.promiseToFuture<Object>(promise);
+        final bytes = _bytesFromArrayBuffer(ab);
+        if (bytes != null && bytes.isNotEmpty) return bytes;
+      }
+    } catch (e) {
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'arrayBuffer_error',
+        error: e.toString(),
+      );
+    }
+
     final reader = html.FileReader();
     final done = Completer<Uint8List?>();
 
@@ -144,11 +175,8 @@ Future<WebImageCaptureResult> captureWebImage({
     reader.onLoadEnd.first.then((_) {
       if (done.isCompleted) return;
       final result = reader.result;
-      if (result is ByteBuffer) {
-        done.complete(Uint8List.view(result));
-        return;
-      }
-      done.complete(null);
+      final bytes = _bytesFromArrayBuffer(result);
+      done.complete(bytes);
     });
 
     try {
@@ -160,6 +188,7 @@ Future<WebImageCaptureResult> captureWebImage({
     return done.future;
   }
 
+
   String _guessMimeFromName(String name) {
     final lower = name.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';
@@ -167,7 +196,9 @@ Future<WebImageCaptureResult> captureWebImage({
     if (lower.endsWith('.heic')) return 'image/heic';
     if (lower.endsWith('.heif')) return 'image/heif';
     if (lower.endsWith('.gif')) return 'image/gif';
-    return 'image/jpeg';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.avif')) return 'image/avif';
+    return '';
   }
 
   String _fallbackName(String mime) {
@@ -185,25 +216,52 @@ Future<WebImageCaptureResult> captureWebImage({
     if (finished) return;
 
     final fileType = file.type.trim();
-    final fileMime = fileType.isNotEmpty ? fileType : _guessMimeFromName(file.name);
-    final name = file.name.trim().isNotEmpty ? file.name.trim() : _fallbackName(fileMime);
+    final name = file.name.trim().isNotEmpty ? file.name.trim() : '';
 
+    final nameFinal = name.isNotEmpty ? name : _fallbackName(fileType);
     logStep(
-      'photo:web files=1 source=$source name=$name type=$fileType size=${file.size} ${_snapshot()}',
+      'photo:web files=1 source=$source name=$nameFinal type=$fileType size=${file.size} ${_snapshot()}',
+    );
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'file_selected',
+      fileName: nameFinal,
+      reportedMime: fileType,
+      size: file.size,
+      visibility: html.document.visibilityState,
+      hasFocus: html.document.activeElement != null,
     );
 
     final bytes = await _readFileBytes(file);
     if (bytes == null || bytes.isEmpty) {
-      finish(WebImageCaptureResult.error('No se pudo leer la imagen.'));
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'bytes_empty',
+        error: 'empty_bytes',
+      );
+      finish(WebImageCaptureResult.error('No se pudieron leer los bytes.'));
       return;
     }
 
-    logStep('photo:web bytes=${bytes.length} mime=$fileMime name=$name ${_snapshot()}');
+    final sniffed = sniffMime(bytes, name: nameFinal);
+    final guess = _guessMimeFromName(nameFinal);
+    final finalMime = sniffed.isNotEmpty
+        ? sniffed
+        : (fileType.isNotEmpty
+            ? fileType
+            : (guess.isNotEmpty ? guess : 'application/octet-stream'));
+
+    DiagnosticsLog.I.updatePhotoAttempt(
+      stage: 'bytes_read',
+      bytes: bytes.length,
+      sniffedMime: sniffed,
+      reportedMime: fileType,
+    );
+
+    logStep('photo:web bytes=${bytes.length} mime=$finalMime name=$nameFinal ${_snapshot()}');
 
     finish(WebImageCaptureResult.success(
       bytes: bytes,
-      name: name,
-      mime: fileMime.isEmpty ? 'image/jpeg' : fileMime,
+      name: nameFinal,
+      mime: finalMime,
     ));
   }
 
@@ -280,6 +338,19 @@ Future<WebImageCaptureResult> captureWebImage({
 
   logStep(
     'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari secure=${html.window.isSecureContext == true} inApp=${WebCapabilities.isInAppBrowser} gUM=${WebCapabilities.cameraAvailable} capture=$capture ${_snapshot()}',
+  );
+  DiagnosticsLog.I.updatePhotoAttempt(
+    stage: 'init',
+    ua: ua,
+    isIOS: isIOS,
+    isSafari: isSafari,
+    secureContext: html.window.isSecureContext == true,
+    inAppBrowser: WebCapabilities.isInAppBrowser,
+    visibility: html.document.visibilityState,
+    hasFocus: html.document.activeElement != null,
+    reset: true,
+    clearError: true,
+    clearStack: true,
   );
   try {
     logStep('photo:web click capture=$capture ${_snapshot()}');

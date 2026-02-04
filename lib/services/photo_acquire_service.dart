@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'photo_bytes.dart';
+import 'photo_mime_sniffer.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'web_camera_capture.dart';
@@ -99,7 +100,8 @@ class PhotoAcquireService {
 
         final bytes = await file.readAsBytes();
         final name = file.name.isNotEmpty ? file.name : _cameraNameFallback();
-        final mime = file.mimeType ?? _guessMime(name);
+        final sniffed = sniffMime(bytes, name: name);
+        final mime = sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
           PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
@@ -125,7 +127,8 @@ class PhotoAcquireService {
 
         final bytes = await file.readAsBytes();
         final name = file.name.isNotEmpty ? file.name : _galleryNameFallback();
-        final mime = file.mimeType ?? _guessMime(name);
+        final sniffed = sniffMime(bytes, name: name);
+        final mime = sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
           PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
@@ -153,7 +156,8 @@ class PhotoAcquireService {
       if (xf == null) return PhotoAcquireOutcome.cancelled();
 
       final bytes = await xf.readAsBytes();
-      final mime = xf.mimeType ?? _guessMime(xf.name);
+      final sniffed = sniffMime(bytes, name: xf.name);
+      final mime = sniffed.isNotEmpty ? sniffed : (xf.mimeType ?? _guessMime(xf.name));
       return PhotoAcquireOutcome.success(
         PhotoAcquireResult(PhotoBytes(bytes: bytes, name: xf.name, mime: mime)),
       );
@@ -176,7 +180,12 @@ class PhotoAcquireService {
     final lower = name.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    if (lower.endsWith('.avif')) return 'image/avif';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    return '';
   }
 
   PhotoAcquireOutcome _mapWebOutcome(WebImageCaptureResult web) {
@@ -192,7 +201,7 @@ class PhotoAcquireService {
           web.error ?? 'Bloqueado por el navegador.',
         );
       case WebImageCaptureStatus.error:
-        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo leer la imagen.');
+        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo obtener la foto.');
     }
   }
 
