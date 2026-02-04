@@ -8040,10 +8040,10 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 45,
-        headerH: 42,
-        cellPadding: EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        headerPadding: EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        rowH: 50,
+        headerH: 46,
+        cellPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        headerPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         cellFontSize: 13.4,
         headerFontSize: 12.6,
         indexFontSize: 12.0,
@@ -8061,13 +8061,13 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 54,
-        headerH: 50,
-        cellPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        headerPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        cellFontSize: 14.5,
-        headerFontSize: 13.6,
-        indexFontSize: 12.8,
+        rowH: 58,
+        headerH: 53,
+        cellPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        headerPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        cellFontSize: 14.6,
+        headerFontSize: 13.7,
+        indexFontSize: 12.9,
       );
   }
 }
