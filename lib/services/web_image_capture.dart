@@ -70,16 +70,22 @@ Future<WebImageCaptureResult> captureWebImage({
   double jpegQuality = 0.85,
 }) {
   final _ = jpegQuality;
-  final input = html.FileUploadInputElement()
-    ..accept = 'image/*'
-    ..multiple = false;
 
-  if (capture) {
-    input.setAttribute('capture', 'environment');
+  html.FileUploadInputElement _getPersistentInput() {
+    final existing = html.document.getElementById('_bf_photo_input');
+    if (existing is html.FileUploadInputElement) return existing;
+    final el = html.FileUploadInputElement()
+      ..id = '_bf_photo_input'
+      ..accept = 'image/*'
+      ..multiple = false
+      ..style.display = 'none';
+    html.document.body?.append(el);
+    return el;
   }
 
-  input.style.display = 'none';
-  html.document.body?.append(input);
+  final input = _getPersistentInput();
+  input.setAttribute('capture', capture ? 'environment' : '');
+  input.value = '';
 
   final completer = Completer<WebImageCaptureResult>();
   StreamSubscription<html.Event>? changeSub;
@@ -146,9 +152,6 @@ Future<WebImageCaptureResult> captureWebImage({
     } catch (_) {}
     try {
       pollTimer?.cancel();
-    } catch (_) {}
-    try {
-      input.remove();
     } catch (_) {}
     if (!completer.isCompleted) {
       completer.complete(result);
