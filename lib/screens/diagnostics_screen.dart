@@ -220,6 +220,23 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     return '$bytes B';
   }
 
+  String _photoAttemptSummary(PhotoAttemptInfo info) {
+    final parts = <String>[
+      'stage=${info.stage}',
+      if (info.bytes != null) 'bytes=${info.bytes}',
+      if (info.size != null) 'size=${info.size}',
+      if ((info.reportedMime ?? '').trim().isNotEmpty)
+        'mime=${info.reportedMime!.trim()}',
+      if ((info.sniffedMime ?? '').trim().isNotEmpty)
+        'sniff=${info.sniffedMime!.trim()}',
+      if ((info.storageMode ?? '').trim().isNotEmpty)
+        'storage=${info.storageMode!.trim()}',
+      if (info.previewable != null) 'preview=${info.previewable!}',
+      if ((info.error ?? '').trim().isNotEmpty) 'error=${info.error!.trim()}',
+    ];
+    return parts.join(' | ');
+  }
+
   Future<void> _runPhotoSelfTest() async {
     if (_photoTestBusy) return;
     if (!kIsWeb) {
@@ -482,6 +499,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         }
                         final stage =
                             info.stage.trim().isEmpty ? 'n/a' : info.stage;
+                        final summary = _photoAttemptSummary(info);
+                        final canCopy = summary.trim().isNotEmpty;
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -521,6 +540,16 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                                   info.stack!.trim().split('\n').first),
                             if ((info.ua ?? '').trim().isNotEmpty)
                               _infoRow('UA', info.ua!.trim()),
+                            const SizedBox(height: 8),
+                            CupertinoButton(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 6, horizontal: 12),
+                              onPressed: canCopy
+                                  ? () async => Clipboard.setData(
+                                      ClipboardData(text: summary))
+                                  : null,
+                              child: const Text('Copiar reporte'),
+                            ),
                           ],
                         );
                       },

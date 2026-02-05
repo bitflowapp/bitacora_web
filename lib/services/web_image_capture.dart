@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
-import 'dart:js_util' as js_util; // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 
 import 'diagnostics_log.dart';
 import 'photo_mime_sniffer.dart';
 import 'web_capabilities.dart';
+import 'web_file_bytes.dart';
 
 enum WebImageCaptureStatus { success, cancelled, blocked, error }
 
@@ -51,18 +51,6 @@ class WebImageCaptureResult {
         status: WebImageCaptureStatus.error,
         error: message.trim().isEmpty ? 'Error desconocido' : message.trim(),
       );
-}
-
-Uint8List? _bytesFromArrayBuffer(Object? result) {
-  if (result == null) return null;
-  if (result is ByteBuffer) return Uint8List.view(result);
-  if (result is Uint8List) return result;
-  if (result is ByteData) return result.buffer.asUint8List();
-  if (result is List<int>) return Uint8List.fromList(result);
-  if (result is List<num>) {
-    return Uint8List.fromList(result.map((e) => e.toInt()).toList());
-  }
-  return null;
 }
 
 Future<WebImageCaptureResult> captureWebImage({
@@ -159,51 +147,6 @@ Future<WebImageCaptureResult> captureWebImage({
     }
   }
 
-  Future<Uint8List?> _readFileBytes(html.File file) async {
-    try {
-      if (js_util.hasProperty(file, 'arrayBuffer')) {
-        final promise =
-            js_util.callMethod<Object>(file, 'arrayBuffer', const []);
-        final ab = await js_util.promiseToFuture<Object>(promise);
-        final bytes = _bytesFromArrayBuffer(ab);
-        if (bytes != null && bytes.isNotEmpty) return bytes;
-      }
-    } catch (e, st) {
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'arrayBuffer_error',
-        error: e.toString(),
-        stack: st.toString(),
-      );
-    }
-
-    final reader = html.FileReader();
-    final done = Completer<Uint8List?>();
-
-    reader.onError.first.then((_) {
-      if (!done.isCompleted) done.complete(null);
-    });
-
-    reader.onLoadEnd.first.then((_) {
-      if (done.isCompleted) return;
-      final result = reader.result;
-      final bytes = _bytesFromArrayBuffer(result);
-      done.complete(bytes);
-    });
-
-    try {
-      reader.readAsArrayBuffer(file);
-    } catch (e, st) {
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'read_error',
-        error: e.toString(),
-        stack: st.toString(),
-      );
-      if (!done.isCompleted) done.complete(null);
-    }
-
-    return done.future;
-  }
-
   String _guessMimeFromName(String name) {
     final lower = name.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';
@@ -246,14 +189,37 @@ Future<WebImageCaptureResult> captureWebImage({
       hasFocus: html.document.activeElement != null,
     );
 
-    final bytes = await _readFileBytes(file);
+    final readOutcome = await readWebFileBytes(
+      file,
+      onStage: (stage, data) {
+        final bytesLen = (data['bytes'] as num?)?.toInt() ?? 0;
+        final rawType = (data['rawType'] ?? '').toString();
+        final err = data['error'];
+        logStep(
+          'photo:web read_$stage name=$nameFinal type=$fileType size=${file.size} bytes=$bytesLen raw=$rawType ${_snapshot()}',
+          ok: err == null,
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: stage,
+          bytes: bytesLen > 0 ? bytesLen : null,
+          size: file.size,
+          reportedMime: fileType,
+          error: err?.toString(),
+          stack: data['stack'] as String?,
+        );
+      },
+    );
+
+    final bytes = readOutcome.bytes;
     if (bytes == null || bytes.isEmpty) {
       DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'bytes_empty',
-        error: 'empty_bytes',
+        stage: 'bytes_empty_final',
+        error: readOutcome.error?.toString() ?? 'empty_bytes',
+        stack: readOutcome.stack?.toString(),
+        bytes: 0,
+        size: file.size,
       );
-      finish(WebImageCaptureResult.error(
-          'No se pudo leer la imagen (bytes vacíos).'));
+      finish(WebImageCaptureResult.error('empty_bytes'));
       return;
     }
 
@@ -266,10 +232,13 @@ Future<WebImageCaptureResult> captureWebImage({
             : (guess.isNotEmpty ? guess : 'application/octet-stream'));
 
     DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'bytes_read',
+      stage: 'bytes_ready',
       bytes: bytes.length,
-      sniffedMime: sniffed,
+      size: file.size,
+      sniffedMime: sniffed.isNotEmpty ? sniffed : null,
       reportedMime: fileType,
+      clearError: true,
+      clearStack: true,
     );
 
     logStep(

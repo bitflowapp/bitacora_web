@@ -132,6 +132,8 @@ class _EditorScreenState extends State<EditorScreen>
   static const int kMaxUndo = 50;
   static const Duration _blinkDuration = Duration(milliseconds: 110);
   static const Duration _saveDebounce = Duration(milliseconds: 500);
+  static const String _kPhotoReadErrorMsg =
+      'No se pudo leer la imagen (bytes vacíos).';
 // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -5142,8 +5144,7 @@ class _EditorScreenState extends State<EditorScreen>
       final readFail = lower.contains('empty_bytes') ||
           lower.contains('leer la imagen') ||
           lower.contains('leer los bytes');
-      final userMsg =
-          readFail ? 'No se pudo LEER bytes (FileReader/arrayBuffer).' : rawMsg;
+      final userMsg = readFail ? _kPhotoReadErrorMsg : rawMsg;
 
       _updatePhotoFlowStatus(
         'Destino ${_cellLabelRc(r, c)} · ${readFail ? 'error lectura' : 'error foto'}',
@@ -5184,7 +5185,7 @@ class _EditorScreenState extends State<EditorScreen>
         error: 'empty_bytes',
       );
       _showActionSnack(
-        'No se pudo leer la imagen (bytes vacíos).',
+        _kPhotoReadErrorMsg,
         isError: true,
         icon: Icons.photo_outlined,
       );
@@ -5482,7 +5483,7 @@ class _EditorScreenState extends State<EditorScreen>
           return AlertDialog(
             backgroundColor: pal.menuBg,
             title: const Text('Adjunto guardado'),
-            content: Text('Guardado sin vista previa - $mimeLabel.'),
+            content: Text('Guardado sin vista previa (mime=$mimeLabel).'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -5643,7 +5644,7 @@ class _EditorScreenState extends State<EditorScreen>
                           : p.filename.trim();
                       final subtitle = previewable
                           ? p.addedAt.toIso8601String()
-                          : 'Guardado sin vista previa - $mimeLabel';
+                          : 'Guardado sin vista previa (mime=$mimeLabel)';
 
                       return InkWell(
                         onTap: () => unawaited(_openPhotoPreview(ctx2, p)),

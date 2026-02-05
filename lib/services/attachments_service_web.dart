@@ -5,11 +5,13 @@
 import 'dart:async' as async; // <- para Completer/Future
 import 'dart:typed_data';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:html' as html;
+
+import 'web_file_bytes.dart';
 
 class AttachmentRecord {
   final String id;
@@ -281,38 +283,18 @@ class AttachmentsServiceWeb {
 
   // -------------------- Privados --------------------
 
-  Future<Uint8List> _readAsBytes(html.File f) {
-    Uint8List? _asBytes(Object? result) {
-      if (result == null) return null;
-      if (result is ByteBuffer) return Uint8List.view(result);
-      if (result is Uint8List) return result;
-      if (result is ByteData) return result.buffer.asUint8List();
-      if (result is List<int>) return Uint8List.fromList(result);
-      if (result is List<num>) {
-        return Uint8List.fromList(result.map((e) => e.toInt()).toList());
-      }
-      return null;
-    }
-
-    final reader = html.FileReader();
-    final c = async.Completer<Uint8List>();
-
-    reader.onLoadEnd.first.then((_) {
-      if (c.isCompleted) return;
-      final bytes = _asBytes(reader.result);
-      c.complete(bytes ?? Uint8List(0));
-    });
-    reader.onError.first.then((_) {
-      if (!c.isCompleted) c.complete(Uint8List(0));
-    });
-
-    try {
-      reader.readAsArrayBuffer(f);
-    } catch (_) {
-      if (!c.isCompleted) c.complete(Uint8List(0));
-    }
-
-    return c.future;
+  Future<Uint8List> _readAsBytes(html.File f) async {
+    final outcome = await readWebFileBytes(
+      f,
+      onStage: (stage, data) {
+        debugPrint(
+          'att:web read_$stage name=${f.name} type=${f.type} size=${f.size} bytes=${data['bytes']} raw=${data['rawType']} err=${data['error']}',
+        );
+      },
+    );
+    final bytes = outcome.bytes;
+    if (bytes != null && bytes.isNotEmpty) return bytes;
+    return Uint8List(0);
   }
 
   String _cameraNameFallback() {

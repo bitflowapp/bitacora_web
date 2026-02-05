@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
+import 'web_file_bytes.dart';
+
 class WebPhotoPickResult {
   WebPhotoPickResult({
     required this.bytes,
@@ -46,17 +48,12 @@ Future<WebPhotoPickResult?> pickImageFromWeb({required bool capture}) async {
     }
 
     final file = files.first;
-    final reader = html.FileReader();
-    reader.readAsArrayBuffer(file);
-    await reader.onLoadEnd.first;
-
-    final result = reader.result;
-    if (result is! ByteBuffer) {
+    final outcome = await readWebFileBytes(file);
+    final bytes = outcome.bytes;
+    if (bytes == null || bytes.isEmpty) {
       finish(null);
       return;
     }
-
-    final bytes = Uint8List.view(result);
     final name = file.name.trim().isNotEmpty ? file.name : 'image.jpg';
     final mime = file.type;
     finish(WebPhotoPickResult(bytes: bytes, name: name, mime: mime));
