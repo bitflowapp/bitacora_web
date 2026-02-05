@@ -8041,34 +8041,34 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 50,
-        headerH: 46,
-        cellPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        headerPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        cellFontSize: 13.4,
-        headerFontSize: 12.6,
-        indexFontSize: 12.0,
+        rowH: 55,
+        headerH: 50,
+        cellPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        headerPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        cellFontSize: 13.6,
+        headerFontSize: 13.0,
+        indexFontSize: 12.3,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
-        rowH: 57,
-        headerH: 53,
-        cellPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        headerPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        cellFontSize: 14.7,
-        headerFontSize: 13.7,
-        indexFontSize: 13.1,
+        rowH: 68,
+        headerH: 62,
+        cellPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        headerPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        cellFontSize: 15.6,
+        headerFontSize: 14.6,
+        indexFontSize: 13.8,
       );
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 58,
-        headerH: 53,
-        cellPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        headerPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        cellFontSize: 14.6,
-        headerFontSize: 13.7,
-        indexFontSize: 12.9,
+        rowH: 62,
+        headerH: 57,
+        cellPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        headerPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        cellFontSize: 15.0,
+        headerFontSize: 14.2,
+        indexFontSize: 13.4,
       );
   }
 }
@@ -8364,6 +8364,9 @@ class _HeaderCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final t =
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
+    final radius = BorderRadius.circular(12);
+    final borderColor =
+        palette.borderStrong.withOpacity(palette.isLight ? 0.55 : 0.45);
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -8373,17 +8376,17 @@ class _HeaderCell extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             color: palette.headerBg,
+            borderRadius: radius,
             border: Border(
-              right: BorderSide(
-                  color: palette.borderStrong, width: palette.hairline),
-              bottom: BorderSide(
-                  color: palette.borderStrong, width: palette.hairline),
+              right: BorderSide(color: borderColor, width: palette.hairline),
+              bottom: BorderSide(color: borderColor, width: palette.hairline),
             ),
           ),
           child: InkWell(
             onTap: onTap,
             hoverColor: palette.hoverBg,
             splashColor: palette.pressedBg,
+            borderRadius: radius,
             child: Container(
               width: width,
               height: metrics.headerH,
@@ -8441,6 +8444,7 @@ class _RowIndexCell extends StatelessWidget {
     final bg = selected
         ? palette.accent.withOpacity(palette.isLight ? 0.08 : 0.18)
         : palette.indexBg;
+    final radius = BorderRadius.circular(10);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -8450,6 +8454,7 @@ class _RowIndexCell extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             color: bg,
+            borderRadius: radius,
             border: Border(
               right: BorderSide(
                   color: palette.borderStrong, width: palette.hairline),
@@ -8470,12 +8475,14 @@ class _RowIndexCell extends StatelessWidget {
             onTap: onTap,
             hoverColor: palette.hoverBg,
             splashColor: palette.pressedBg,
+            borderRadius: radius,
             child: Container(
               width: width,
               height: metrics.rowH,
               alignment: Alignment.center,
               foregroundDecoration: selected
                   ? BoxDecoration(
+                      borderRadius: radius,
                       border: Border.all(
                           color: neutralRing,
                           width: math.max(palette.hairline, 1.2)),
@@ -8563,22 +8570,32 @@ class _DataCell extends StatelessWidget {
     final borderColor = invalid
         ? Colors.red.withOpacity(palette.isLight ? 0.85 : 0.75)
         : focus
-            ? palette.accent.withOpacity(palette.isLight ? 0.55 : 0.7)
-            : palette.border;
+            ? palette.accent.withOpacity(palette.isLight ? 0.45 : 0.65)
+            : palette.border.withOpacity(palette.isLight ? 0.55 : 0.40);
+
+    final radius = BorderRadius.circular(10);
 
     final decoration = BoxDecoration(
       color: bg,
-      border: Border.all(color: borderColor, width: palette.hairline),
+      borderRadius: radius,
+      border: Border.all(
+          color: borderColor, width: math.max(palette.hairline, 0.8)),
       boxShadow: focus
           ? [
               BoxShadow(
                 color:
-                    palette.accent.withOpacity(palette.isLight ? 0.12 : 0.18),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+                    palette.accent.withOpacity(palette.isLight ? 0.10 : 0.16),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ]
-          : null,
+          : [
+              BoxShadow(
+                color: Colors.black.withOpacity(palette.isLight ? 0.03 : 0.16),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
     );
 
     final cellBody = GestureDetector(
@@ -8593,6 +8610,7 @@ class _DataCell extends StatelessWidget {
             onLongPress: onLongPress,
             hoverColor: palette.hoverBg,
             splashColor: palette.pressedBg,
+            borderRadius: radius,
             child: Container(
               width: width,
               height: metrics.rowH,
