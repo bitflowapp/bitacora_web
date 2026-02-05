@@ -15,6 +15,7 @@ import '../services/photo_acquire_service.dart';
 import '../services/photo_mime_sniffer.dart';
 import '../services/storage_diagnostics.dart';
 import '../services/web_capabilities.dart';
+import '../services/web_blob_store.dart';
 import '../models/cell_meta.dart';
 
 class DiagnosticsScreen extends StatefulWidget {
@@ -28,8 +29,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   late Future<_DiagnosticsSnapshot> _future;
   String? _photoTestResult;
   String? _audioTestResult;
+  String? _photoMockResult;
   bool _photoTestBusy = false;
   bool _audioTestBusy = false;
+  bool _photoMockBusy = false;
 
   @override
   void initState() {
@@ -224,6 +227,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     final parts = <String>[
       'stage=${info.stage}',
       if (info.bytes != null) 'bytes=${info.bytes}',
+      if (info.fileSize != null) 'fileSize=${info.fileSize}',
+      if ((info.fileType ?? '').trim().isNotEmpty) 'fileType=${info.fileType}',
       if (info.size != null) 'size=${info.size}',
       if ((info.reportedMime ?? '').trim().isNotEmpty)
         'mime=${info.reportedMime!.trim()}',
@@ -231,6 +236,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         'sniff=${info.sniffedMime!.trim()}',
       if ((info.storageMode ?? '').trim().isNotEmpty)
         'storage=${info.storageMode!.trim()}',
+      if ((info.storageKey ?? '').trim().isNotEmpty)
+        'key=${info.storageKey!.trim()}',
       if (info.previewable != null) 'preview=${info.previewable!}',
       if ((info.error ?? '').trim().isNotEmpty) 'error=${info.error!.trim()}',
     ];
@@ -314,6 +321,43 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       setState(() => _photoTestResult = 'error: $e');
     } finally {
       if (mounted) setState(() => _photoTestBusy = false);
+    }
+  }
+
+  Future<void> _runPhotoMockTest() async {
+    if (_photoMockBusy) return;
+    if (!kIsWeb) {
+      setState(() => _photoMockResult = 'Solo Web.');
+      return;
+    }
+    setState(() {
+      _photoMockBusy = true;
+      _photoMockResult = 'Guardando blob...';
+    });
+    try {
+      final bytes = Uint8List.fromList(List.generate(64, (i) => i));
+      final key =
+          'diag:${DateTime.now().microsecondsSinceEpoch}:${bytes.length}';
+      final rec = await WebBlobStore.I.save(
+        key: key,
+        source: bytes,
+        name: 'mock.bin',
+        mime: 'application/octet-stream',
+        size: bytes.length,
+      );
+      final read = await WebBlobStore.I.readBytes(key);
+      final ok = read != null && read.length == bytes.length;
+      final storage = rec.storageMode;
+      final sizeLabel = _fmtBytes(rec.size);
+      setState(() {
+        _photoMockResult = ok
+            ? 'OK storage=$storage size=$sizeLabel'
+            : 'FAIL storage=$storage';
+      });
+    } catch (e) {
+      setState(() => _photoMockResult = 'error: $e');
+    } finally {
+      setState(() => _photoMockBusy = false);
     }
   }
 
@@ -508,6 +552,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                             _infoRow('Hora', _fmtTime(info.at)),
                             if ((info.fileName ?? '').trim().isNotEmpty)
                               _infoRow('Archivo', info.fileName!.trim()),
+                            if (info.fileSize != null)
+                              _infoRow(
+                                  'Size archivo', _fmtBytes(info.fileSize!)),
+                            if ((info.fileType ?? '').trim().isNotEmpty)
+                              _infoRow('Tipo archivo', info.fileType!.trim()),
                             if ((info.reportedMime ?? '').trim().isNotEmpty)
                               _infoRow(
                                   'Mime reportado', info.reportedMime!.trim()),
@@ -519,6 +568,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                               _infoRow('Bytes', _fmtBytes(info.bytes!)),
                             if ((info.storageMode ?? '').trim().isNotEmpty)
                               _infoRow('Storage', info.storageMode!.trim()),
+                            if ((info.storageKey ?? '').trim().isNotEmpty)
+                              _infoRow('Key', info.storageKey!.trim()),
                             if (info.previewable != null)
                               _infoRow(
                                   'Preview', info.previewable! ? 'si' : 'no'),
@@ -591,6 +642,17 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                           child: const Text('Copiar'),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    _infoRow('Foto (Mock)', _photoMockResult ?? 'Sin ejecutar'),
+                    const SizedBox(height: 6),
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      onPressed: _photoMockBusy ? null : _runPhotoMockTest,
+                      child: Text(_photoMockBusy
+                          ? 'Probando...'
+                          : 'Adjuntar Foto (Mock)'),
                     ),
                     const SizedBox(height: 10),
                     _infoRow('Audio', _audioTestResult ?? 'Sin ejecutar'),
