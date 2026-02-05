@@ -4738,17 +4738,19 @@ class _EditorScreenState extends State<EditorScreen>
     return picked;
   }
 
-  Future<void> _showPhotoSourcePickerForCell(int r, int c) async {
-    if (_rows.isEmpty || _headers.isEmpty) return;
+  Future<({PhotoAcquireOutcome outcome, bool fromCamera})?>
+      _showPhotoSourcePickerForCell(int r, int c) async {
+    if (_rows.isEmpty || _headers.isEmpty) return null;
 
     final target = await _ensurePhotoTargetCell(r, c);
-    if (target == null) return;
+    if (target == null) return null;
     r = target.row;
     c = target.col;
 
-    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return null;
 
-    await showModalBottomSheet<void>(
+    return showModalBottomSheet<
+        ({PhotoAcquireOutcome outcome, bool fromCamera})?>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: false,
@@ -4790,32 +4792,64 @@ class _EditorScreenState extends State<EditorScreen>
                   leading: Icon(Icons.photo_camera_outlined, color: pal.fg),
                   title: const Text('Tomar foto'),
                   subtitle: const Text('Usar camara'),
-                  onTap: () {
+                  onTap: () async {
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
                       actionLabel: 'Camara',
                     )) {
                       return;
                     }
-                    _startPhotoPickFromGesture(
-                      r: r,
-                      c: c,
-                      fromCamera: true,
-                      sheetContext: ctx,
-                    );
+                    try {
+                      final outcome =
+                          await PhotoAcquireService.I.captureFromCamera(
+                        context: context,
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.of(ctx).pop(
+                        (outcome: outcome, fromCamera: true),
+                      );
+                    } catch (e, st) {
+                      DiagnosticsLog.I.updatePhotoAttempt(
+                        stage: 'picker_error',
+                        error: e.toString(),
+                        stack: st.toString(),
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.of(ctx).pop(
+                        (
+                          outcome: PhotoAcquireOutcome.error(e.toString()),
+                          fromCamera: true
+                        ),
+                      );
+                    }
                   },
                 ),
                 ListTile(
                   leading: Icon(Icons.photo_library_outlined, color: pal.fg),
                   title: const Text('Elegir de galeria'),
                   subtitle: const Text('Seleccionar archivo'),
-                  onTap: () {
-                    _startPhotoPickFromGesture(
-                      r: r,
-                      c: c,
-                      fromCamera: false,
-                      sheetContext: ctx,
-                    );
+                  onTap: () async {
+                    try {
+                      final outcome =
+                          await PhotoAcquireService.I.pickFromGallery();
+                      if (!ctx.mounted) return;
+                      Navigator.of(ctx).pop(
+                        (outcome: outcome, fromCamera: false),
+                      );
+                    } catch (e, st) {
+                      DiagnosticsLog.I.updatePhotoAttempt(
+                        stage: 'picker_error',
+                        error: e.toString(),
+                        stack: st.toString(),
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.of(ctx).pop(
+                        (
+                          outcome: PhotoAcquireOutcome.error(e.toString()),
+                          fromCamera: false
+                        ),
+                      );
+                    }
                   },
                 ),
               ],
@@ -4826,7 +4860,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  void _handlePhotosCellTap(int r, int c) {
+  Future<void> _handlePhotosCellTap(int r, int c) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
 
@@ -4835,16 +4869,51 @@ class _EditorScreenState extends State<EditorScreen>
       _openPhotosSheetForCell(r, c);
       return;
     }
-    unawaited(_showPhotoSourcePickerForCell(r, c));
+    await _startPhotoFlowForCell(r, c);
   }
 
-  void _startCellPhotoPickFromSheet(int r, int c) {
+  Future<void> _startCellPhotoPickFromSheet(int r, int c) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
-    unawaited(_showPhotoSourcePickerForCell(r, c).whenComplete(() {
-      if (!mounted) return;
-      Navigator.of(context).maybePop();
-    }));
+    await _startPhotoFlowForCell(r, c);
+    if (!mounted) return;
+    Navigator.of(context).maybePop();
+  }
+
+  Future<void> _startPhotoFlowForCell(int r, int c) async {
+    if (_rows.isEmpty || _headers.isEmpty) return;
+    final target = await _ensurePhotoTargetCell(r, c);
+    if (target == null) return;
+    r = target.row;
+    c = target.col;
+
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+
+    _updatePhotoFlowStatus(
+      'Destino ${_cellLabelRc(r, c)} · esperando seleccion',
+      target: _CellTarget(r, c),
+    );
+
+    final picked = await _showPhotoSourcePickerForCell(r, c);
+    if (picked == null) {
+      _updatePhotoFlowStatus(
+        'Destino ${_cellLabelRc(r, c)} · cancelado',
+        target: _CellTarget(r, c),
+      );
+      _clearPhotoFlowStatusSoon();
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'cancelled',
+        error: 'sheet_closed',
+      );
+      return;
+    }
+
+    await _processPhotoOutcome(
+      picked.outcome,
+      r,
+      c,
+      fromCamera: picked.fromCamera,
+    );
   }
 
   String _genAttachmentId(String prefix) {
@@ -5091,9 +5160,30 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _handlePhotoOutcomeResult(
     PhotoAcquireOutcome outcome,
     int r,
-    int c,
-  ) async {
-    if (outcome.cancelled) {
+    int c, {
+    bool fromCamera = false,
+  }) {
+    return _processPhotoOutcome(outcome, r, c, fromCamera: fromCamera);
+  }
+
+  Future<void> _processPhotoOutcome(
+    PhotoAcquireOutcome outcome,
+    int r,
+    int c, {
+    bool fromCamera = false,
+  }) async {
+    var currentOutcome = outcome;
+
+    if (fromCamera &&
+        _isIosWeb &&
+        (outcome.cancelled || outcome.blocked || outcome.isError)) {
+      final fallbackOutcome = await _offerGalleryFallback();
+      if (fallbackOutcome != null) {
+        currentOutcome = fallbackOutcome;
+      }
+    }
+
+    if (currentOutcome.cancelled) {
       _updatePhotoFlowStatus(
         'Destino ${_cellLabelRc(r, c)} · cancelado',
         target: _CellTarget(r, c),
@@ -5115,8 +5205,8 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    if (outcome.blocked) {
-      final msg = outcome.error ?? 'Bloqueado por el navegador.';
+    if (currentOutcome.blocked) {
+      final msg = currentOutcome.error ?? 'Bloqueado por el navegador.';
       _updatePhotoFlowStatus(
         'Destino ${_cellLabelRc(r, c)} · bloqueado',
         target: _CellTarget(r, c),
@@ -5138,8 +5228,8 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    if (!outcome.ok) {
-      final rawMsg = outcome.error ?? 'No se pudo obtener la foto.';
+    if (!currentOutcome.ok) {
+      final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
       final lower = rawMsg.toLowerCase();
       final readFail = lower.contains('empty_bytes') ||
           lower.contains('leer la imagen') ||
@@ -5168,7 +5258,7 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final result = outcome.result!;
+    final result = currentOutcome.result!;
     if (result.bytes.isEmpty) {
       _updatePhotoFlowStatus(
         'Destino ${_cellLabelRc(r, c)} · bytes vacíos',
@@ -5210,112 +5300,148 @@ class _EditorScreenState extends State<EditorScreen>
       target: _CellTarget(r, c),
     );
 
-    final attachmentId = _genAttachmentId('ph_');
-    final cellKey = CellKey(r, c).toKey();
-    StoredPhoto? stored;
-    try {
-      stored = await _photoStore.savePhoto(
-        sheetId: widget.sheetId,
-        cellKey: cellKey,
-        attachmentId: attachmentId,
-        bytes: result.bytes,
-        originalName: result.name,
-        mime: safeMime,
-      );
-    } catch (e, st) {
+    bool attached = false;
+    Timer? watchdog;
+
+    Future<void> attach({required bool watchdogFired}) async {
+      if (attached) return;
+      try {
+        final attachmentId = _genAttachmentId('ph_');
+        final cellKey = CellKey(r, c).toKey();
+
+        StoredPhoto? stored;
+        try {
+          stored = await _photoStore.savePhoto(
+            sheetId: widget.sheetId,
+            cellKey: cellKey,
+            attachmentId: attachmentId,
+            bytes: result.bytes,
+            originalName: result.name,
+            mime: safeMime,
+          );
+        } catch (e, st) {
+          DiagnosticsLog.I.updatePhotoAttempt(
+            stage: 'store_error',
+            error: e.toString(),
+            stack: st.toString(),
+          );
+          stored = null;
+        }
+        if (!mounted) return;
+
+        var storedRef = '';
+        if (stored != null) {
+          storedRef = _photoStoredRefFrom(stored);
+        }
+        if (storedRef.trim().isEmpty) {
+          storedRef = 'b64:${base64Encode(result.bytes)}';
+        }
+        if (storedRef.startsWith('mem:') ||
+            stored == null ||
+            storedRef.startsWith('b64:')) {
+          _warnStorageFallbackOnce('foto');
+        }
+
+        final previewable = _isPreviewableMime(safeMime, result.name);
+        final thumbBytes = previewable
+            ? _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78)
+            : null;
+        final storageLabel = storedRef.startsWith('key:')
+            ? 'indexeddb'
+            : (storedRef.startsWith('mem:')
+                ? 'ram'
+                : (storedRef.startsWith('b64:') ? 'b64' : 'unknown'));
+
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'stored',
+          storageMode: storageLabel,
+          bytes: result.bytes.lengthInBytes,
+        );
+        _updatePhotoFlowStatus(
+          'Destino ${_cellLabelRc(r, c)} · guardado (${storageLabel.toUpperCase()})',
+          target: _CellTarget(r, c),
+        );
+
+        final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
+            ? ''
+            : base64Encode(thumbBytes);
+
+        final fixOutcome =
+            await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
+        if (!mounted) return;
+
+        final attachment = PhotoAttachment(
+          id: attachmentId,
+          filename: result.name,
+          mime: safeMime,
+          size: result.bytes.lengthInBytes,
+          storedRef: storedRef,
+          thumbRef: thumbB64,
+          addedAt: DateTime.now(),
+          lat: fixOutcome.fix?.lat,
+          lon: fixOutcome.fix?.lng,
+          accuracyM: fixOutcome.fix?.accuracyM,
+          isLastKnown: fixOutcome.fix?.source == 'lastKnown',
+        );
+
+        _addPhotoToCell(r, c, attachment);
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'meta_attached',
+          storageMode: storageLabel,
+          previewable: previewable,
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'ui_refresh',
+          storageMode: storageLabel,
+          previewable: previewable,
+        );
+        final cellLabel = _cellLabelRc(r, c);
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: true,
+          message:
+              'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef storage=$storageLabel watchdog=$watchdogFired',
+        );
+        final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
+        _showActionSnack(
+          'Foto guardada en celda $cellLabel ($sizeLabel).',
+          isError: false,
+          icon: Icons.photo_outlined,
+        );
+        _updatePhotoFlowStatus(
+          'Destino $cellLabel · guardada',
+          target: _CellTarget(r, c),
+        );
+        _clearPhotoFlowStatusSoon();
+        attached = true;
+      } catch (e, st) {
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'attach_error',
+          error: e.toString(),
+          stack: st.toString(),
+        );
+        _updatePhotoFlowStatus(
+          'Destino ${_cellLabelRc(r, c)} · error adjuntar',
+          target: _CellTarget(r, c),
+        );
+        _showActionSnack('No se pudo guardar la foto. Revisa permisos.',
+            isError: true, icon: Icons.photo_outlined);
+      }
+    }
+
+    watchdog = Timer(const Duration(milliseconds: 1500), () {
+      if (attached) return;
       DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'store_error',
-        error: e.toString(),
-        stack: st.toString(),
+        stage: 'watchdog_attach',
+        error: 'timeout_after_bytes',
       );
-      stored = null;
-    }
-    if (!mounted) return;
+      unawaited(attach(watchdogFired: true));
+    });
 
-    var storedRef = '';
-    if (stored != null) {
-      storedRef = _photoStoredRefFrom(stored);
-    }
-    if (storedRef.trim().isEmpty) {
-      storedRef = 'b64:${base64Encode(result.bytes)}';
-    }
-    if (storedRef.startsWith('mem:') ||
-        stored == null ||
-        storedRef.startsWith('b64:')) {
-      _warnStorageFallbackOnce('foto');
-    }
-
-    final previewable = _isPreviewableMime(safeMime, result.name);
-    final thumbBytes = previewable
-        ? _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78)
-        : null;
-    final storageLabel = storedRef.startsWith('key:')
-        ? 'indexeddb'
-        : (storedRef.startsWith('mem:')
-            ? 'ram'
-            : (storedRef.startsWith('b64:') ? 'b64' : 'unknown'));
-
-    DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'stored',
-      storageMode: storageLabel,
-      bytes: result.bytes.lengthInBytes,
-    );
-    _updatePhotoFlowStatus(
-      'Destino ${_cellLabelRc(r, c)} · guardado (${storageLabel.toUpperCase()})',
-      target: _CellTarget(r, c),
-    );
-
-    final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
-        ? ''
-        : base64Encode(thumbBytes);
-
-    final fixOutcome =
-        await _getGpsFixWithFallback(timeout: const Duration(seconds: 8));
-    if (!mounted) return;
-
-    final attachment = PhotoAttachment(
-      id: attachmentId,
-      filename: result.name,
-      mime: safeMime,
-      size: result.bytes.lengthInBytes,
-      storedRef: storedRef,
-      thumbRef: thumbB64,
-      addedAt: DateTime.now(),
-      lat: fixOutcome.fix?.lat,
-      lon: fixOutcome.fix?.lng,
-      accuracyM: fixOutcome.fix?.accuracyM,
-      isLastKnown: fixOutcome.fix?.source == 'lastKnown',
-    );
-
-    _addPhotoToCell(r, c, attachment);
-    DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'meta_attached',
-      storageMode: storageLabel,
-      previewable: previewable,
-    );
-    DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'ui_refresh',
-      storageMode: storageLabel,
-      previewable: previewable,
-    );
-    final cellLabel = _cellLabelRc(r, c);
-    DiagnosticsLog.I.record(
-      type: DiagnosticActionType.photo,
-      ok: true,
-      message:
-          'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef storage=$storageLabel',
-    );
-    final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
-    _showActionSnack(
-      'Foto guardada en celda $cellLabel ($sizeLabel).',
-      isError: false,
-      icon: Icons.photo_outlined,
-    );
-    _updatePhotoFlowStatus(
-      'Destino $cellLabel · guardada',
-      target: _CellTarget(r, c),
-    );
-    _clearPhotoFlowStatusSoon();
+    await attach(watchdogFired: false);
+    try {
+      watchdog.cancel();
+    } catch (_) {}
   }
 
   void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
