@@ -21,11 +21,14 @@ class PhotoAttemptInfo {
     required this.stage,
     DateTime? at,
     this.fileName,
+    this.fileSize,
+    this.fileType,
     this.reportedMime,
     this.sniffedMime,
     this.size,
     this.bytes,
     this.storageMode,
+    this.storageKey,
     this.previewable,
     this.error,
     this.stack,
@@ -41,11 +44,14 @@ class PhotoAttemptInfo {
   final String stage;
   final DateTime at;
   final String? fileName;
+  final int? fileSize;
+  final String? fileType;
   final String? reportedMime;
   final String? sniffedMime;
   final int? size;
   final int? bytes;
   final String? storageMode;
+  final String? storageKey;
   final bool? previewable;
   final String? error;
   final String? stack;
@@ -85,11 +91,14 @@ class DiagnosticsLog {
   void updatePhotoAttempt({
     String? stage,
     String? fileName,
+    int? fileSize,
+    String? fileType,
     String? reportedMime,
     String? sniffedMime,
     int? size,
     int? bytes,
     String? storageMode,
+    String? storageKey,
     bool? previewable,
     String? error,
     String? stack,
@@ -109,11 +118,14 @@ class DiagnosticsLog {
       stage: stage ?? prev?.stage ?? 'init',
       at: DateTime.now(),
       fileName: fileName ?? prev?.fileName,
+      fileSize: fileSize ?? prev?.fileSize,
+      fileType: fileType ?? prev?.fileType,
       reportedMime: reportedMime ?? prev?.reportedMime,
       sniffedMime: sniffedMime ?? prev?.sniffedMime,
       size: size ?? prev?.size,
       bytes: bytes ?? prev?.bytes,
       storageMode: storageMode ?? prev?.storageMode,
+      storageKey: storageKey ?? prev?.storageKey,
       previewable: previewable ?? prev?.previewable,
       error: clearError ? null : (error ?? prev?.error),
       stack: clearStack ? null : (stack ?? prev?.stack),

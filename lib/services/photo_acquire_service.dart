@@ -18,9 +18,17 @@ import 'web_image_capture_stub.dart'
 enum PhotoAcquireStatus { success, cancelled, blocked, error }
 
 class PhotoAcquireResult {
-  const PhotoAcquireResult(this.photo);
+  const PhotoAcquireResult(
+    this.photo, {
+    this.size,
+    this.reportedMime,
+    this.webFile,
+  });
 
   final PhotoBytes photo;
+  final int? size;
+  final String? reportedMime;
+  final Object? webFile; // html.File en web
 
   Uint8List get bytes => photo.bytes;
   String get name => photo.name;
@@ -71,7 +79,16 @@ class PhotoAcquireService {
 
   static const XTypeGroup _imageTypeGroup = XTypeGroup(
     label: 'Images',
-    extensions: <String>['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
+    extensions: <String>[
+      'jpg',
+      'jpeg',
+      'png',
+      'webp',
+      'heic',
+      'heif',
+      'avif',
+      'gif'
+    ],
   );
 
   bool get _isMobilePlatform {
@@ -101,10 +118,15 @@ class PhotoAcquireService {
         final bytes = await file.readAsBytes();
         final name = file.name.isNotEmpty ? file.name : _cameraNameFallback();
         final sniffed = sniffMime(bytes, name: name);
-        final mime = sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
+        final mime =
+            sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
+          PhotoAcquireResult(
+            PhotoBytes(bytes: bytes, name: name, mime: mime),
+            size: bytes.length,
+            reportedMime: file.mimeType,
+          ),
         );
       } catch (e) {
         return PhotoAcquireOutcome.error('No se pudo abrir la camara: ');
@@ -128,10 +150,15 @@ class PhotoAcquireService {
         final bytes = await file.readAsBytes();
         final name = file.name.isNotEmpty ? file.name : _galleryNameFallback();
         final sniffed = sniffMime(bytes, name: name);
-        final mime = sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
+        final mime =
+            sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(PhotoBytes(bytes: bytes, name: name, mime: mime)),
+          PhotoAcquireResult(
+            PhotoBytes(bytes: bytes, name: name, mime: mime),
+            size: bytes.length,
+            reportedMime: file.mimeType,
+          ),
         );
       } catch (e) {
         return PhotoAcquireOutcome.error('No se pudo abrir la galeria: ');
@@ -157,9 +184,14 @@ class PhotoAcquireService {
 
       final bytes = await xf.readAsBytes();
       final sniffed = sniffMime(bytes, name: xf.name);
-      final mime = sniffed.isNotEmpty ? sniffed : (xf.mimeType ?? _guessMime(xf.name));
+      final mime =
+          sniffed.isNotEmpty ? sniffed : (xf.mimeType ?? _guessMime(xf.name));
       return PhotoAcquireOutcome.success(
-        PhotoAcquireResult(PhotoBytes(bytes: bytes, name: xf.name, mime: mime)),
+        PhotoAcquireResult(
+          PhotoBytes(bytes: bytes, name: xf.name, mime: mime),
+          size: bytes.length,
+          reportedMime: xf.mimeType,
+        ),
       );
     } catch (e) {
       return PhotoAcquireOutcome.error('No se pudo abrir el archivo: ');
@@ -192,7 +224,15 @@ class PhotoAcquireService {
     switch (web.status) {
       case WebImageCaptureStatus.success:
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(PhotoBytes(bytes: web.bytes!, name: web.name, mime: web.mime)),
+          PhotoAcquireResult(
+            PhotoBytes(
+                bytes: web.bytes ?? Uint8List(0),
+                name: web.name,
+                mime: web.mime),
+            size: web.size ?? web.bytes?.lengthInBytes,
+            reportedMime: web.mime,
+            webFile: web.file,
+          ),
         );
       case WebImageCaptureStatus.cancelled:
         return PhotoAcquireOutcome.cancelled();
@@ -201,7 +241,8 @@ class PhotoAcquireService {
           web.error ?? 'Bloqueado por el navegador.',
         );
       case WebImageCaptureStatus.error:
-        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo obtener la foto.');
+        return PhotoAcquireOutcome.error(
+            web.error ?? 'No se pudo obtener la foto.');
     }
   }
 
@@ -209,7 +250,11 @@ class PhotoAcquireService {
     switch (web.status) {
       case WebCameraCaptureStatus.success:
         return PhotoAcquireOutcome.success(
-          PhotoAcquireResult(PhotoBytes(bytes: web.bytes!, name: web.name, mime: web.mime)),
+          PhotoAcquireResult(
+            PhotoBytes(bytes: web.bytes!, name: web.name, mime: web.mime),
+            size: web.bytes?.lengthInBytes,
+            reportedMime: web.mime,
+          ),
         );
       case WebCameraCaptureStatus.cancelled:
         return PhotoAcquireOutcome.cancelled();
@@ -218,7 +263,8 @@ class PhotoAcquireService {
           web.error ?? 'Bloqueado por el navegador.',
         );
       case WebCameraCaptureStatus.error:
-        return PhotoAcquireOutcome.error(web.error ?? 'No se pudo abrir la camara.');
+        return PhotoAcquireOutcome.error(
+            web.error ?? 'No se pudo abrir la camara.');
     }
   }
 }

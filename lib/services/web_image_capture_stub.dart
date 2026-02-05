@@ -8,6 +8,8 @@ class WebImageCaptureResult {
     this.bytes,
     this.name = '',
     this.mime = '',
+    this.size,
+    this.file,
     this.error,
   });
 
@@ -15,18 +17,24 @@ class WebImageCaptureResult {
   final Uint8List? bytes;
   final String name;
   final String mime;
+  final int? size;
+  final Object? file;
   final String? error;
 
   factory WebImageCaptureResult.success({
     required Uint8List bytes,
     required String name,
     required String mime,
+    required int size,
+    required Object file,
   }) {
     return WebImageCaptureResult._(
       status: WebImageCaptureStatus.success,
       bytes: bytes,
       name: name,
       mime: mime,
+      size: size,
+      file: file,
     );
   }
 

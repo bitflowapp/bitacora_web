@@ -15,6 +15,8 @@ class WebImageCaptureResult {
     this.bytes,
     this.name = '',
     this.mime = '',
+    this.size,
+    this.file,
     this.error,
   });
 
@@ -22,18 +24,24 @@ class WebImageCaptureResult {
   final Uint8List? bytes;
   final String name;
   final String mime;
+  final int? size;
+  final Object? file; // html.File en web
   final String? error;
 
   factory WebImageCaptureResult.success({
     required Uint8List bytes,
     required String name,
     required String mime,
+    required int size,
+    required Object file,
   }) {
     return WebImageCaptureResult._(
       status: WebImageCaptureStatus.success,
       bytes: bytes,
       name: name,
       mime: mime,
+      size: size,
+      file: file,
     );
   }
 
@@ -66,7 +74,12 @@ Future<WebImageCaptureResult> captureWebImage({
       ..id = '_bf_photo_input'
       ..accept = 'image/*'
       ..multiple = false
-      ..style.display = 'none';
+      ..style.position = 'fixed'
+      ..style.left = '-2000px'
+      ..style.top = '-2000px'
+      ..style.width = '1px'
+      ..style.height = '1px'
+      ..style.opacity = '0';
     html.document.body?.append(el);
     return el;
   }
@@ -183,6 +196,8 @@ Future<WebImageCaptureResult> captureWebImage({
     DiagnosticsLog.I.updatePhotoAttempt(
       stage: 'file_selected',
       fileName: nameFinal,
+      fileSize: file.size,
+      fileType: fileType,
       reportedMime: fileType,
       size: file.size,
       visibility: html.document.visibilityState,
@@ -210,8 +225,8 @@ Future<WebImageCaptureResult> captureWebImage({
       },
     );
 
-    final bytes = readOutcome.bytes;
-    if (bytes == null || bytes.isEmpty) {
+    var bytes = readOutcome.bytes;
+    if ((bytes == null || bytes.isEmpty) && file.size <= 0) {
       DiagnosticsLog.I.updatePhotoAttempt(
         stage: 'bytes_empty_final',
         error: readOutcome.error?.toString() ?? 'empty_bytes',
@@ -223,7 +238,7 @@ Future<WebImageCaptureResult> captureWebImage({
       return;
     }
 
-    final sniffed = sniffMime(bytes, name: nameFinal);
+    final sniffed = sniffMime(bytes ?? Uint8List(0), name: nameFinal);
     final guess = _guessMimeFromName(nameFinal);
     final finalMime = sniffed.isNotEmpty
         ? sniffed
@@ -233,7 +248,7 @@ Future<WebImageCaptureResult> captureWebImage({
 
     DiagnosticsLog.I.updatePhotoAttempt(
       stage: 'bytes_ready',
-      bytes: bytes.length,
+      bytes: bytes?.length,
       size: file.size,
       sniffedMime: sniffed.isNotEmpty ? sniffed : null,
       reportedMime: fileType,
@@ -242,12 +257,14 @@ Future<WebImageCaptureResult> captureWebImage({
     );
 
     logStep(
-        'photo:web bytes=${bytes.length} mime=$finalMime name=$nameFinal ${_snapshot()}');
+        'photo:web bytes=${bytes?.length ?? 0} mime=$finalMime name=$nameFinal size=${file.size} ${_snapshot()}');
 
     finish(WebImageCaptureResult.success(
-      bytes: bytes,
+      bytes: bytes ?? Uint8List(0),
       name: nameFinal,
       mime: finalMime,
+      size: file.size,
+      file: file,
     ));
   }
 

@@ -45,6 +45,7 @@ import 'package:bitacora_web/services/photo_acquire_service.dart';
 import 'package:bitacora_web/services/photo_mime_sniffer.dart';
 import 'package:bitacora_web/services/keyboard_insets_controller.dart';
 import 'package:bitacora_web/services/photo_storage_service.dart';
+import 'package:bitacora_web/services/web_blob_store.dart';
 import 'package:bitacora_web/services/audio_service.dart';
 import 'package:bitacora_web/services/audio_storage_service.dart';
 import 'package:bitacora_web/services/photo_bytes_resolver.dart';
@@ -5259,7 +5260,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final result = currentOutcome.result!;
-    if (result.bytes.isEmpty) {
+    final fileSize = result.size ?? result.bytes.lengthInBytes;
+    final fileType = result.reportedMime ?? result.mime;
+    if (result.bytes.isEmpty && fileSize <= 0) {
       _updatePhotoFlowStatus(
         'Destino ${_cellLabelRc(r, c)} · bytes vacíos',
         target: _CellTarget(r, c),
@@ -5293,10 +5296,12 @@ class _EditorScreenState extends State<EditorScreen>
       fileName: result.name,
       sniffedMime: sniffedMime.isNotEmpty ? sniffedMime : null,
       reportedMime: reportedMime.isNotEmpty ? reportedMime : null,
-      bytes: result.bytes.lengthInBytes,
+      bytes: result.bytes.lengthInBytes > 0 ? result.bytes.lengthInBytes : null,
+      fileSize: fileSize,
+      fileType: fileType,
     );
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelRc(r, c)} · bytes listos (${_formatBytes(result.bytes.lengthInBytes)})',
+      'Destino ${_cellLabelRc(r, c)} · bytes listos (${_formatBytes(fileSize)})',
       target: _CellTarget(r, c),
     );
 
@@ -5309,36 +5314,66 @@ class _EditorScreenState extends State<EditorScreen>
         final attachmentId = _genAttachmentId('ph_');
         final cellKey = CellKey(r, c).toKey();
 
-        StoredPhoto? stored;
-        try {
-          stored = await _photoStore.savePhoto(
-            sheetId: widget.sheetId,
-            cellKey: cellKey,
-            attachmentId: attachmentId,
-            bytes: result.bytes,
-            originalName: result.name,
-            mime: safeMime,
-          );
-        } catch (e, st) {
-          DiagnosticsLog.I.updatePhotoAttempt(
-            stage: 'store_error',
-            error: e.toString(),
-            stack: st.toString(),
-          );
-          stored = null;
+        String storedRef = '';
+        String storageLabel = 'unknown';
+        String? storageKey;
+
+        if (kIsWeb && result.webFile != null) {
+          try {
+            final key =
+                'photo:${widget.sheetId}:$r:$c:${DateTime.now().microsecondsSinceEpoch}';
+            final rec = await WebBlobStore.I.save(
+              key: key,
+              source: result.webFile!,
+              name: result.name,
+              mime: safeMime,
+              size: fileSize,
+            );
+            storedRef = 'blob:${rec.key}';
+            storageLabel = rec.storageMode;
+            storageKey = rec.key;
+          } catch (e, st) {
+            DiagnosticsLog.I.updatePhotoAttempt(
+              stage: 'store_error',
+              error: e.toString(),
+              stack: st.toString(),
+            );
+          }
+        }
+
+        if (storedRef.isEmpty) {
+          StoredPhoto? stored;
+          try {
+            stored = await _photoStore.savePhoto(
+              sheetId: widget.sheetId,
+              cellKey: cellKey,
+              attachmentId: attachmentId,
+              bytes: result.bytes,
+              originalName: result.name,
+              mime: safeMime,
+            );
+          } catch (e, st) {
+            DiagnosticsLog.I.updatePhotoAttempt(
+              stage: 'store_error',
+              error: e.toString(),
+              stack: st.toString(),
+            );
+            stored = null;
+          }
+          if (stored != null) {
+            storedRef = _photoStoredRefFrom(stored);
+            storageLabel = storedRef.startsWith('mem:') ? 'ram' : 'indexeddb';
+          }
         }
         if (!mounted) return;
 
-        var storedRef = '';
-        if (stored != null) {
-          storedRef = _photoStoredRefFrom(stored);
-        }
         if (storedRef.trim().isEmpty) {
           storedRef = 'b64:${base64Encode(result.bytes)}';
+          storageLabel = 'b64';
         }
         if (storedRef.startsWith('mem:') ||
-            stored == null ||
-            storedRef.startsWith('b64:')) {
+            storedRef.startsWith('b64:') ||
+            storageLabel == 'ram') {
           _warnStorageFallbackOnce('foto');
         }
 
@@ -5346,16 +5381,21 @@ class _EditorScreenState extends State<EditorScreen>
         final thumbBytes = previewable
             ? _compressThumb(result.bytes, maxW: 560, maxH: 560, quality: 78)
             : null;
-        final storageLabel = storedRef.startsWith('key:')
+        storageLabel = storedRef.startsWith('key:')
             ? 'indexeddb'
             : (storedRef.startsWith('mem:')
                 ? 'ram'
-                : (storedRef.startsWith('b64:') ? 'b64' : 'unknown'));
+                : (storedRef.startsWith('b64:')
+                    ? 'b64'
+                    : (storedRef.startsWith('blob:')
+                        ? 'indexeddb'
+                        : storageLabel)));
 
         DiagnosticsLog.I.updatePhotoAttempt(
           stage: 'stored',
           storageMode: storageLabel,
-          bytes: result.bytes.lengthInBytes,
+          storageKey: storageKey ?? storedRef,
+          bytes: fileSize,
         );
         _updatePhotoFlowStatus(
           'Destino ${_cellLabelRc(r, c)} · guardado (${storageLabel.toUpperCase()})',
@@ -5374,7 +5414,7 @@ class _EditorScreenState extends State<EditorScreen>
           id: attachmentId,
           filename: result.name,
           mime: safeMime,
-          size: result.bytes.lengthInBytes,
+          size: fileSize,
           storedRef: storedRef,
           thumbRef: thumbB64,
           addedAt: DateTime.now(),
@@ -5400,9 +5440,9 @@ class _EditorScreenState extends State<EditorScreen>
           type: DiagnosticActionType.photo,
           ok: true,
           message:
-              'photo_saved cell=$cellLabel name=${result.name} size=${result.bytes.lengthInBytes} ref=$storedRef storage=$storageLabel watchdog=$watchdogFired',
+              'photo_saved cell=$cellLabel name=${result.name} size=$fileSize ref=$storedRef storage=$storageLabel watchdog=$watchdogFired',
         );
-        final sizeLabel = _formatBytes(result.bytes.lengthInBytes);
+        final sizeLabel = _formatBytes(fileSize);
         _showActionSnack(
           'Foto guardada en celda $cellLabel ($sizeLabel).',
           isError: false,
@@ -5540,6 +5580,11 @@ class _EditorScreenState extends State<EditorScreen>
     PhotoAttachment photo, {
     bool preferThumb = false,
   }) async {
+    final ref = photo.storedRef.trim();
+    if (kIsWeb && ref.startsWith('blob:')) {
+      final key = ref.substring(5);
+      return await WebBlobStore.I.readBytes(key);
+    }
     final path = _photoPathFromRef(photo.storedRef);
     final data = _photoDataFromRef(photo.storedRef);
     final thumb = photo.thumbRef;
@@ -5574,6 +5619,16 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
+    final ref = photo.storedRef.trim();
+    if (kIsWeb && ref.startsWith('blob:')) {
+      final key = ref.substring(5);
+      await WebBlobStore.I.download(
+        key,
+        name: photo.filename,
+        mime: photo.mime,
+      );
+      return;
+    }
     final bytes = await _loadPhotoBytesFromAttachment(photo);
     if (!mounted) return;
     if (bytes == null || bytes.isEmpty) {
