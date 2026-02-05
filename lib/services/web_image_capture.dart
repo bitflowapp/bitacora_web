@@ -108,6 +108,7 @@ Future<WebImageCaptureResult> captureWebImage({
       !uaLower.contains('edg') &&
       !uaLower.contains('chrome') &&
       !uaLower.contains('chromium');
+  final int pollMaxMs = isIOS ? 5000 : 2000;
 
   void logStep(String message, {bool ok = true}) {
     DiagnosticsLog.I.record(
@@ -301,7 +302,7 @@ Future<WebImageCaptureResult> captureWebImage({
         unawaited(processFile(files.first, source: 'poll'));
         return;
       }
-      if (pollTick * 100 >= 2000) {
+      if (pollTick * 100 >= pollMaxMs) {
         t.cancel();
         polling = false;
         logStep('photo:web poll_timeout ${_snapshot()}', ok: false);
