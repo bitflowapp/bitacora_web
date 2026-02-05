@@ -8222,13 +8222,13 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 55,
-        headerH: 50,
+        rowH: 53,
+        headerH: 49,
         cellPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
         headerPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        cellFontSize: 13.6,
-        headerFontSize: 13.0,
-        indexFontSize: 12.3,
+        cellFontSize: 14.0,
+        headerFontSize: 13.2,
+        indexFontSize: 12.5,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
@@ -8243,13 +8243,13 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 62,
-        headerH: 57,
+        rowH: 61,
+        headerH: 56,
         cellPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         headerPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-        cellFontSize: 15.0,
-        headerFontSize: 14.2,
-        indexFontSize: 13.4,
+        cellFontSize: 15.5,
+        headerFontSize: 14.5,
+        indexFontSize: 13.7,
       );
   }
 }
