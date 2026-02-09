@@ -1,0 +1,95 @@
+import 'package:flutter/material.dart';
+
+import 'app_card.dart';
+import 'app_tokens.dart';
+
+class AppModal extends StatelessWidget {
+  const AppModal({
+    super.key,
+    this.title,
+    required this.child,
+    this.actions,
+    this.showClose = true,
+    this.maxWidth = 560,
+  });
+
+  final String? title;
+  final Widget child;
+  final List<Widget>? actions;
+  final bool showClose;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Dialog(
+      insetPadding: const EdgeInsets.all(18),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: AppCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null || showClose)
+                Row(
+                  children: [
+                    if (title != null)
+                      Expanded(
+                        child: Text(
+                          title!,
+                          style: t.text.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    if (showClose)
+                      IconButton(
+                        tooltip: 'Cerrar',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                ),
+              if (title != null || showClose) const SizedBox(height: 12),
+              child,
+              if (actions != null) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: actions!,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<T?> showAppModal<T>({
+  required BuildContext context,
+  String? title,
+  required Widget child,
+  List<Widget>? actions,
+  bool showClose = true,
+  double maxWidth = 560,
+  bool barrierDismissible = false,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (_) => AppModal(
+      title: title,
+      child: child,
+      actions: actions,
+      showClose: showClose,
+      maxWidth: maxWidth,
+    ),
+  );
+}

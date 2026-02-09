@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <base href="$FLUTTER_BASE_HREF">
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <title>Bit Flow — Planilla tipo Excel para campo</title>
+    <meta name="description" content="Planilla tipo Excel para campo: mediciones, fotos, GPS y exportación XLSX real.">
+    <meta name="robots" content="index,follow">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Bit Flow">
+    <meta name="application-name" content="Bit Flow">
+    <meta name="theme-color" content="#0A84FF">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="shortcut icon" type="image/png" href="favicon.png">
+
+    <style>
+        :root { --app-height: 100vh; }
+
+        html, body {
+          width: 100%;
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          overscroll-behavior: none;
+          background: #FFFFFF;
+          -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+          position: fixed;
+          inset: 0;
+          height: var(--app-height);
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+        input, textarea, select { font-size: 16px !important; }
+
+        flt-glass-pane,
+        flt-text-editing-host,
+        flt-semantics-host,
+        flt-announcement-host {
+          position: fixed !important;
+          inset: 0 !important;
+        }
+
+        #build-badge {
+          position: fixed;
+          right: 10px;
+          bottom: 10px;
+          z-index: 2147483647;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+          font-size: 12px;
+          line-height: 1;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(0,0,0,0.72);
+          color: #fff;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          user-select: none;
+          pointer-events: none;
+        }
+    </style>
+
+    <script>
+        (function () {
+          var raf = 0;
+          function applyViewport() {
+            raf = 0;
+            var vv = window.visualViewport;
+            var h = vv ? vv.height : window.innerHeight;
+            document.documentElement.style.setProperty('--app-height', h + 'px');
+            try { window.scrollTo(0, 0); } catch (_) {}
+            setTimeout(function(){ try { window.scrollTo(0,0); } catch(_){} }, 50);
+          }
+          function scheduleApply() {
+            if (raf) return;
+            raf = requestAnimationFrame(applyViewport);
+          }
+
+          function mountBadge() {
+            try {
+              var el = document.getElementById('build-badge');
+              if (!el) {
+                el = document.createElement('div');
+                el.id = 'build-badge';
+                document.body.appendChild(el);
+              }
+              fetch('version.json?x=' + Date.now())
+                .then(function(r){ return r.ok ? r.json() : null; })
+                .then(function(j){
+                  if (!j) { el.textContent = 'build'; return; }
+                  el.textContent = 'v' + (j.version || '?') + ' (' + (j.build_number || '?') + ')';
+                })
+                .catch(function(){ el.textContent = 'build'; });
+            } catch (_) {}
+          }
+
+          function boot() {
+            scheduleApply();
+            window.addEventListener('resize', scheduleApply, { passive: true });
+            window.addEventListener('orientationchange', scheduleApply, { passive: true });
+            document.addEventListener('focusin', scheduleApply, true);
+            document.addEventListener('focusout', scheduleApply, true);
+
+            if (window.visualViewport) {
+              window.visualViewport.addEventListener('resize', scheduleApply, { passive: true });
+              window.visualViewport.addEventListener('scroll', scheduleApply, { passive: true });
+            }
+
+            mountBadge();
+          }
+
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+          } else {
+            boot();
+          }
+        })();
+    </script>
+</head>
+
+<body>
+<!-- CLAVE: bootstrap estático -->
+<script src="flutter_bootstrap.js" defer></script>
+</body>
+</html>

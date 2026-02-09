@@ -1,0 +1,174 @@
+part of '../editor_screen.dart';
+
+extension _EditorShortcuts on _EditorScreenState {
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus?.context?.widget is EditableText) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape && _gpsPickingTarget) {
+      _cancelGpsPick();
+      return KeyEventResult.handled;
+    }
+
+    if (_cellEditorEntry != null || _mobileEditorOpen) {
+      return KeyEventResult.ignored;
+    }
+
+    final isCmd = HardwareKeyboard.instance.isMetaPressed;
+    final isCtrl = HardwareKeyboard.instance.isControlPressed;
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
+    final isMod = isCmd || isCtrl;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _moveSel(dRow: 1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _moveSel(dRow: -1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _moveSel(dCol: 1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _moveSel(dCol: -1);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      _beginEditCell(context, _palette(context), _selRow, _selCol, 340);
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyZ) {
+      if (isShift) {
+        _redoOnce();
+      } else {
+        _undoOnce();
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyY) {
+      _redoOnce();
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyC) {
+      unawaited(_copySelectionToClipboard());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyV) {
+      unawaited(_pasteFromClipboard());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyS) {
+      unawaited(_saveLocalNow());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyE) {
+      if (isShift) {
+        unawaited(_exportZipBundle(share: false));
+      } else {
+        unawaited(_exportXlsxOnly());
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
+      unawaited(_openCommandPalette());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyG) {
+      unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyA) {
+      if (_audioRecording) {
+        unawaited(_stopAudioRecording());
+      } else {
+        unawaited(_startAudioRecordingForCell(_selRow, _selCol));
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyP) {
+      unawaited(_startPhotoFlowForCell(_selRow, _selCol));
+      return KeyEventResult.handled;
+    }
+
+    if (!isMod && !isAlt) {
+      if (event.logicalKey == LogicalKeyboardKey.keyG) {
+        unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyP) {
+        unawaited(_startPhotoFlowForCell(_selRow, _selCol));
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyA) {
+        if (_audioRecording) {
+          unawaited(_stopAudioRecording());
+        } else {
+          unawaited(_startAudioRecordingForCell(_selRow, _selCol));
+        }
+        return KeyEventResult.handled;
+      }
+    }
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      _setCell(_selRow, _selCol, '');
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _removeCellEditor();
+      return KeyEventResult.handled;
+    }
+
+    final printableChar = _extractPrintableChar(event);
+    if (printableChar != null &&
+        _selRow >= 0 &&
+        _selCol >= 0 &&
+        _selRow < _rows.length &&
+        _selCol < _headers.length) {
+      _beginEditCell(
+        context,
+        _palette(context),
+        _selRow,
+        _selCol,
+        340,
+        initialOverride: printableChar,
+      );
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  String? _extractPrintableChar(KeyDownEvent event) {
+    final char = event.character;
+    if (char == null || char.isEmpty) return null;
+    if (char.codeUnits.any((unit) => unit < 32)) return null;
+
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return null;
+    }
+
+    return char;
+  }
+}

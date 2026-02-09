@@ -1,0 +1,70 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  BASE_HREF: /bitacora_web/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Set build stamp
+        run: echo "BUILD_TIME=$(date -u +'%Y-%m-%d %H:%M')" >> "$GITHUB_ENV"
+
+      - name: Write version.json
+        env:
+          ENGINE_BASE_URL: ${{ vars.ENGINE_BASE_URL }}
+        run: |
+          mkdir -p web/assets
+          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > assets/version.json
+          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/version.json
+          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
+
+      - name: Build web
+        run: >
+          flutter build web --release
+          --base-href "${{ env.BASE_HREF }}"
+          --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }}
+          --dart-define=GIT_SHA=${{ github.sha }}
+          --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+
+

@@ -1,0 +1,560 @@
+﻿// ------------------------------ Audio -----------------------------------
+
+  String _audioStoredRefFrom(StoredAudio stored) {
+    final key = stored.storageKey.trim();
+    if (key.isEmpty) return '';
+    if (key.startsWith('file:') ||
+        key.startsWith('key:') ||
+        key.startsWith('mem:')) return key;
+    final hasSlash = key.contains('\\') || key.contains('/');
+    if (key.contains(':') && !hasSlash) return 'key:$key';
+    return hasSlash ? 'file:$key' : 'key:$key';
+  }
+
+  String _audioKeyFromRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('file:')) return raw.substring(5);
+    if (raw.startsWith('mem:')) return raw;
+    if (raw.startsWith('key:')) return raw.substring(4);
+    return raw;
+  }
+
+  bool _audioIsFileRef(String storedRef) {
+    final raw = storedRef.trim();
+    if (raw.startsWith('file:')) return true;
+    if (raw.startsWith('key:') || raw.startsWith('mem:')) return false;
+    return raw.contains('\\') || raw.contains('/') || raw.contains(':');
+  }
+
+  String _formatDuration(Duration d) {
+    final totalSec = d.inSeconds;
+    final min = (totalSec ~/ 60).toString().padLeft(2, '0');
+    final sec = (totalSec % 60).toString().padLeft(2, '0');
+    return '$min:$sec';
+  }
+
+  String _audioStartErrorMessage(Object e) {
+    final raw = e.toString();
+    final lower = raw.toLowerCase();
+    if (lower.contains('notallowed') ||
+        lower.contains('permission') ||
+        lower.contains('denied')) {
+      return 'Permiso de microfono denegado.';
+    }
+    if (lower.contains('notsupported') || lower.contains('not supported')) {
+      return 'Grabacion de audio no disponible en este navegador.';
+    }
+    if (lower.contains('insecure') || lower.contains('secure')) {
+      return 'Necesitas HTTPS para grabar audio.';
+    }
+    if (lower.contains('media') && lower.contains('devices')) {
+      return 'MediaDevices no disponible.';
+    }
+    return 'No se pudo iniciar la grabacion de audio.';
+  }
+
+  Future<void> _startAudioRecordingForCell(int r, int c) async {
+    if (_audioRecording) {
+      final cell = _recordingAudioCellRef;
+      final label = _cellLabelForRef(cell);
+      _showActionSnack(
+        label.isEmpty
+            ? 'Ya hay una grabacion en curso.'
+            : 'Ya hay una grabacion en curso en celda $label.',
+        isError: false,
+        icon: Icons.mic_rounded,
+      );
+      return;
+    }
+
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    if (_guardInAppBrowser(DiagnosticActionType.audio)) return;
+    if (_guardInsecureContext(DiagnosticActionType.audio)) return;
+
+    try {
+      await _audioService.startRecording(sheetId: widget.sheetId);
+    } catch (e) {
+      if (!mounted) return;
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'audio_start_failed $e',
+      );
+      _showActionSnack('No se pudo iniciar la grabacion de audio.',
+          isError: true, icon: Icons.mic_off_rounded);
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _audioRecording = true;
+      _recordingAudioCellRef = ref;
+    });
+    final cellLabel = _cellLabelForRef(ref);
+    _showActionSnack('Grabando audio en celda $cellLabel...',
+        isError: false, icon: Icons.mic_rounded);
+  }
+
+  Future<void> _stopAudioRecording() async {
+    if (!_audioRecording) return;
+    final target = _recordingAudioCellRef;
+    final recording = await _audioService.stopRecording();
+    if (!mounted) return;
+
+    setState(() {
+      _audioRecording = false;
+      _recordingAudioCellRef = null;
+    });
+
+    if (recording == null || target == null) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'audio_save_empty',
+      );
+      _showActionSnack('No se guardo el audio.',
+          isError: true, icon: Icons.mic_off_rounded);
+      return;
+    }
+
+    final attachmentId = _genAttachmentId('au_');
+    final stored = await _audioStore.saveRecording(
+      sheetId: widget.sheetId,
+      cellKey: target.compactKey,
+      attachmentId: attachmentId,
+      recording: recording,
+    );
+    if (!mounted) return;
+    if (stored == null) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'audio_save_failed (storage returned null)',
+      );
+      _showActionSnack('No se pudo guardar el audio. Revisa permisos.',
+          isError: true, icon: Icons.mic_off_rounded);
+      return;
+    }
+
+    final storedRef = _audioStoredRefFrom(stored);
+    if (storedRef.startsWith('mem:')) {
+      _warnStorageFallbackOnce('audio');
+    }
+
+    final attachment = AudioAttachment(
+      id: attachmentId,
+      filename: recording.fileName,
+      mime: recording.mime,
+      size: stored.bytesLength,
+      durationMs: recording.duration.inMilliseconds,
+      storedRef: storedRef,
+      addedAt: DateTime.now(),
+    );
+
+    final idx = _cellIndexForRef(target);
+    if (idx != null) {
+      _addAudioToCell(idx.r, idx.c, attachment);
+    }
+    final cellLabel = _cellLabelForRef(target);
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.audio,
+      ok: true,
+      message:
+          'audio_saved cell=$cellLabel name=${recording.fileName} size=${stored.bytesLength} ref=$storedRef',
+    );
+    _showActionSnack('Guardado en celda $cellLabel (audio).',
+        isError: false, icon: Icons.mic_rounded);
+  }
+
+  void _addAudioToCell(int r, int c, AudioAttachment attachment) {
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final current = _cellMeta[ref.key];
+    final audios = <AudioAttachment>[
+      ...?current?.audios,
+      attachment,
+    ];
+    final next = CellMeta(
+      gps: current?.gps,
+      photos: current?.photos ?? const <PhotoAttachment>[],
+      audios: audios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+    _refreshCellAfterSave(r, c);
+  }
+
+  Future<void> _deleteAudioFromCell(int r, int c, int index) async {
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final current = _cellMeta[ref.key];
+    if (current == null) return;
+    if (index < 0 || index >= current.audios.length) return;
+    final audio = current.audios[index];
+    final nextAudios = List<AudioAttachment>.from(current.audios)
+      ..removeAt(index);
+    final next = CellMeta(
+      gps: current.gps,
+      photos: current.photos,
+      audios: nextAudios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+    _refreshCellAfterSave(r, c);
+
+    if (_playingAudioId == audio.id) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _playingAudioId = null);
+    }
+
+    final keyRef = _audioKeyFromRef(audio.storedRef);
+    if (keyRef.trim().isNotEmpty) {
+      await _audioStore.deleteAudio(keyRef);
+    }
+  }
+
+  Future<void> _renameAudioOnCell(
+    BuildContext context,
+    int r,
+    int c,
+    int index,
+  ) async {
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final current = _cellMeta[ref.key];
+    if (current == null) return;
+    if (index < 0 || index >= current.audios.length) return;
+
+    final original = current.audios[index];
+    final controller = TextEditingController(text: original.filename);
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return AlertDialog(
+          backgroundColor: pal.menuBg,
+          title: const Text('Renombrar audio'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Nombre'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted) return;
+    final nextName = (picked ?? '').trim();
+    if (nextName.isEmpty || nextName == original.filename) return;
+
+    final updated = original.copyWith(filename: nextName);
+    final nextAudios = List<AudioAttachment>.from(current.audios);
+    nextAudios[index] = updated;
+    final next = CellMeta(
+      gps: current.gps,
+      photos: current.photos,
+      audios: nextAudios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+    _refreshCellAfterSave(r, c);
+  }
+
+  Future<void> _playAudioAttachment(AudioAttachment audio) async {
+    if (_audioRecording) {
+      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
+      return;
+    }
+
+    if (_playingAudioId == audio.id) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _playingAudioId = null);
+      return;
+    }
+
+    await _audioPlayer.stop();
+    if (!mounted) return;
+
+    final keyRef = _audioKeyFromRef(audio.storedRef);
+    if (keyRef.trim().isEmpty) return;
+
+    if (_audioIsFileRef(audio.storedRef) && !kIsWeb) {
+      await _audioPlayer.play(DeviceFileSource(keyRef));
+    } else {
+      final bytes = await _audioStore.readAudioBytes(keyRef);
+      if (bytes == null || bytes.isEmpty) return;
+      await _audioPlayer.play(BytesSource(bytes));
+    }
+
+    if (!mounted) return;
+    setState(() => _playingAudioId = audio.id);
+  }
+
+  void _openAudiosSheetForCell(int r, int c) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    final audios = _cellMetaAt(r, c)?.audios ?? const <AudioAttachment>[];
+    if (audios.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Audios - ${CellKey(r, c).a1}',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: audios.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx2, idx) {
+                      final a = audios[idx];
+                      final playing = _playingAudioId == a.id;
+                      return Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: pal.headerBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: pal.border, width: pal.hairline),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              onPressed: () =>
+                                  unawaited(_playAudioAttachment(a)),
+                              icon: Icon(
+                                playing
+                                    ? Icons.stop_circle_rounded
+                                    : Icons.play_circle_fill_rounded,
+                                color: pal.accent,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    a.filename,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: pal.fg,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatDuration(
+                                      Duration(milliseconds: a.durationMs),
+                                    ),
+                                    style: TextStyle(
+                                      color: pal.fgMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => unawaited(
+                                  _renameAudioOnCell(ctx2, r, c, idx)),
+                              icon:
+                                  Icon(Icons.edit_rounded, color: pal.fgMuted),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.of(ctx2).pop();
+                                unawaited(_deleteAudioFromCell(r, c, idx));
+                              },
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  color: pal.fgMuted),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openMobileHeaderMenu(
+    BuildContext context,
+    _SheetPalette pal,
+  ) async {
+    Future<void> runAndClose(VoidCallback action) async {
+      Navigator.of(context).pop();
+      action();
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: pal.menuBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline_rounded),
+                title: const Text('Guardar'),
+                onTap: () => runAndClose(() => unawaited(_saveLocalNow())),
+              ),
+              ListTile(
+                leading: const Icon(Icons.ios_share_rounded),
+                title: const Text('Exportar / Compartir'),
+                onTap: () => runAndClose(() => unawaited(_openExportMenu())),
+              ),
+              ListTile(
+                leading: const Icon(Icons.science_outlined),
+                title: const Text('Smoke Test (GPS/Foto/Audio)'),
+                onTap: () =>
+                    runAndClose(() => unawaited(_runAttachmentSmokeTest())),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_rounded),
+                title: const Text('Agregar fila'),
+                onTap: () => runAndClose(() => _insertRow(_rows.length)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.undo_rounded),
+                title: const Text('Undo'),
+                onTap: () => runAndClose(_undoOnce),
+              ),
+              ListTile(
+                leading: const Icon(Icons.redo_rounded),
+                title: const Text('Redo'),
+                onTap: () => runAndClose(_redoOnce),
+              ),
+              ListTile(
+                leading: Icon(pal.isLight
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined),
+                title: Text(pal.isLight ? 'Modo noche' : 'Modo blanco'),
+                onTap: () => runAndClose(_toggleTheme),
+              ),
+              ListTile(
+                leading: const Icon(Icons.functions_rounded),
+                title: Text(_engineHasBase ? 'Calcular' : 'Calcular (local)'),
+                enabled: !_engineBusy,
+                onTap: !_engineBusy
+                    ? () => runAndClose(
+                          () => unawaited(_computeEngine()),
+                        )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<_PreparedPhoto> _preparePhotoForStorage(
+    PhotoAcquireResult result,
+  ) async {
+    final rawName = result.name.trim().isEmpty ? 'foto' : result.name.trim();
+    final safeName = _safeFile(rawName);
+    final captionBase = _stripExt(safeName);
+    final originalMime = result.mime.trim().isEmpty
+        ? 'application/octet-stream'
+        : result.mime.trim();
+
+    try {
+      final params = _CompressParams(
+        bytes: result.bytes,
+        maxSide: 1600,
+        quality: 80,
+      );
+      final compressed = await compute(_compressImageIsolate, params);
+      if (compressed.bytes.isNotEmpty) {
+        final jpgName = '${_stripExt(safeName)}.jpg';
+        return _PreparedPhoto(
+          bytes: compressed.bytes,
+          mime: 'image/jpeg',
+          fileName: jpgName,
+          caption: captionBase,
+          originalName: rawName,
+          wasCompressed: true,
+        );
+      }
+    } catch (_) {}
+
+    return _PreparedPhoto(
+      bytes: result.bytes,
+      mime: originalMime,
+      fileName: safeName,
+      caption: captionBase,
+      originalName: rawName,
+      wasCompressed: false,
+    );
+  }
+
+  Uint8List? _compressThumb(Uint8List bytes,
+      {required int maxW, required int maxH, required int quality}) {
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return null;
+
+      final oriented = img.bakeOrientation(decoded);
+      final resized = img.copyResize(
+        oriented,
+        width: oriented.width > oriented.height ? maxW : null,
+        height: oriented.height >= oriented.width ? maxH : null,
+        interpolation: img.Interpolation.average,
+      );
+
+      final jpg = img.encodeJpg(resized, quality: quality);
+      return Uint8List.fromList(jpg);
+    } catch (_) {
+      return null;
+    }
+  }
+

@@ -1,0 +1,58 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter test
+        run: flutter test
+
+      - name: Flutter analyze error gate
+        run: |
+          set -euo pipefail
+          flutter analyze 2>&1 | tee analyze.log
+          if grep -F " error - " analyze.log; then
+            echo "Found analyzer errors."
+            exit 1
+          fi
+
+      - name: Flutter analyze no fatal warnings/infos
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      - name: Build Android appbundle (release)
+        run: flutter build appbundle --release
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

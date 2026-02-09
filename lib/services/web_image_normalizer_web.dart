@@ -1,0 +1,185 @@
+import 'dart:async';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'web_image_normalizer.dart';
+
+class WebImageNormalizerImpl implements WebImageNormalizer {
+  @override
+  Future<WebImageNormalizationResult?> normalize(
+    WebImageNormalizationRequest request,
+  ) async {
+    final blob = _toBlob(request.source, request.bytes, request.mimeType);
+    if (blob == null) return null;
+
+    final decoded = await _decodeBlob(blob);
+    if (decoded == null) {
+      throw const WebImageNormalizationException(
+        code: 'decode_unsupported',
+        message: 'Browser decoder failed.',
+      );
+    }
+
+    final normalizedBlob = await _drawJpeg(
+      decoded.image,
+      maxSide: request.maxSide,
+      quality: request.jpegQuality,
+    );
+    if (normalizedBlob == null) {
+      throw const WebImageNormalizationException(
+        code: 'decode_unsupported',
+        message: 'Canvas toBlob failed for normalized image.',
+      );
+    }
+    final normalizedBytes = await _blobToBytes(normalizedBlob);
+    if (normalizedBytes == null || normalizedBytes.isEmpty) {
+      throw const WebImageNormalizationException(
+        code: 'decode_unsupported',
+        message: 'Normalized image bytes are empty.',
+      );
+    }
+
+    Uint8List? thumbBytes;
+    try {
+      final thumbBlob = await _drawJpeg(
+        decoded.image,
+        maxSide: request.thumbMaxSide,
+        quality: request.thumbJpegQuality,
+      );
+      if (thumbBlob != null) {
+        thumbBytes = await _blobToBytes(thumbBlob);
+      }
+    } catch (_) {}
+
+    return WebImageNormalizationResult(
+      bytes: normalizedBytes,
+      mimeType: 'image/jpeg',
+      fileName: _jpgFileName(request.fileName),
+      thumbBytes: thumbBytes,
+    );
+  }
+
+  html.Blob? _toBlob(Object? source, Uint8List bytes, String mimeType) {
+    if (source is html.Blob) {
+      return source;
+    }
+    if (bytes.isEmpty && source == null) {
+      return null;
+    }
+    final mime =
+        mimeType.trim().isEmpty ? 'application/octet-stream' : mimeType;
+    return html.Blob([bytes], mime);
+  }
+
+  Future<_DecodedImage?> _decodeBlob(html.Blob blob) async {
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final image = html.ImageElement();
+    final completer = Completer<_DecodedImage?>();
+    StreamSubscription<html.Event>? loadSub;
+    StreamSubscription<html.Event>? errorSub;
+
+    void complete(_DecodedImage? value) {
+      if (!completer.isCompleted) completer.complete(value);
+    }
+
+    loadSub = image.onLoad.listen((_) {
+      final width = image.naturalWidth ?? image.width ?? 0;
+      final height = image.naturalHeight ?? image.height ?? 0;
+      if (width <= 0 || height <= 0) {
+        complete(null);
+        return;
+      }
+      complete(_DecodedImage(image: image, width: width, height: height));
+    });
+    errorSub = image.onError.listen((_) => complete(null));
+
+    image.src = url;
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => null,
+      );
+    } finally {
+      await loadSub?.cancel();
+      await errorSub?.cancel();
+      html.Url.revokeObjectUrl(url);
+    }
+  }
+
+  Future<html.Blob?> _drawJpeg(
+    html.ImageElement image, {
+    required int maxSide,
+    required double quality,
+  }) async {
+    final srcW = (image.naturalWidth ?? image.width ?? 0).toDouble();
+    final srcH = (image.naturalHeight ?? image.height ?? 0).toDouble();
+    if (srcW <= 0 || srcH <= 0) return null;
+    final maxSrc = math.max(srcW, srcH);
+    final scale = maxSrc > maxSide ? (maxSide / maxSrc) : 1.0;
+    final outW = math.max(1, (srcW * scale).round());
+    final outH = math.max(1, (srcH * scale).round());
+
+    final canvas = html.CanvasElement(width: outW, height: outH);
+    final ctx = canvas.context2D;
+    ctx
+      ..imageSmoothingEnabled = true
+      ..imageSmoothingQuality = 'high'
+      ..drawImageScaled(image, 0, 0, outW.toDouble(), outH.toDouble());
+
+    return _canvasToBlob(canvas, quality: quality);
+  }
+
+  Future<html.Blob?> _canvasToBlob(
+    html.CanvasElement canvas, {
+    required double quality,
+  }) async {
+    try {
+      return await canvas
+          .toBlob('image/jpeg', quality.clamp(0.0, 1.0))
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Uint8List?> _blobToBytes(html.Blob blob) async {
+    final reader = html.FileReader();
+    final completer = Completer<Uint8List?>();
+    reader.onError.first.then((_) {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+    reader.onLoadEnd.first.then((_) {
+      if (completer.isCompleted) return;
+      final result = reader.result;
+      if (result is ByteBuffer) {
+        completer.complete(Uint8List.view(result));
+      } else {
+        completer.complete(null);
+      }
+    });
+    reader.readAsArrayBuffer(blob);
+    return completer.future;
+  }
+
+  String _jpgFileName(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'foto.jpg';
+    final dot = trimmed.lastIndexOf('.');
+    final base = dot > 0 ? trimmed.substring(0, dot) : trimmed;
+    return '$base.jpg';
+  }
+}
+
+class _DecodedImage {
+  const _DecodedImage({
+    required this.image,
+    required this.width,
+    required this.height,
+  });
+
+  final html.ImageElement image;
+  final int width;
+  final int height;
+}
