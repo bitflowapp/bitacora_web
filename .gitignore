@@ -75,3 +75,41 @@ lib_dart.zip
 
 Bitacora_Release_*.zip
 
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+error.log
+
+# Generated web bundles
+build_web/
+main.dart.js
+**/main.dart.js
+flutter.js
+flutter_bootstrap.js
+flutter_service_worker.js
+canvaskit/
+
+# Generated docs/pages artifacts
+docs/.last_build_id
+docs/.nojekyll
+docs/index.html
+docs/main.dart.js
+docs/flutter.js
+docs/flutter_bootstrap.js
+docs/flutter_service_worker.js
+docs/manifest.json
+docs/version.json
+docs/favicon.png
+docs/assets/
+docs/canvaskit/
+docs/icons/
+docs/bitflow/app/
+
+# Large local artifacts
+_legacy/tmp_20260206/
+docs/bitflow/downloads/BitFlow.apk
+
