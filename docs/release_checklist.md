@@ -211,6 +211,30 @@ Publicar release Android (1 comando):
 - Confirmar input fluido sin lag visible ni pérdida de teclas.
 - Hacer scroll + edición alternada; validar que la UI sigue responsiva y sin jank evidente.
 
+## 3.5) P7 smoke test (Editor Pro + Backup/Restore package)
+1. Editor UX premium:
+- Verificar topbar/toolbar monocroma con acciones clave en 1 tap: `Guardar`, `+ Registro`, `Buscar`, `Exportar`.
+- Confirmar chips de estado: guardado y sync (`Offline / Pendiente sync` cuando aplica).
+- En mobile: abrir `Acciones` y validar accesos a `Adjuntar`, `Exportar`, `Importar paquete`.
+- Atajos: `Ctrl/Cmd+K`, `Ctrl/Cmd+S`, `Ctrl/Cmd+F`, `Ctrl/Cmd+Shift+E`, `Ctrl/Cmd+Shift+I`.
+2. Exportar paquete BitFlow:
+- Desde editor, `Exportar paquete (.bitflow.zip)` y validar archivo generado.
+- Descomprimir y verificar estructura minima:
+  - `sheet.json`
+  - `manifest.json` (con `appVersion`, `buildId`, `exportedAt`, `platform`, `counts`)
+  - `attachments/...`
+  - `export.xlsx`
+- Con adjuntos en celdas (foto/audio), confirmar que los binarios existen en `attachments/`.
+3. Importar paquete (crear/reemplazar):
+- Abrir `Importar paquete` y validar preview (fecha, filas, adjuntos, version/build).
+- Probar `Crear nueva (recomendado)` y confirmar que abre una nueva planilla con datos restaurados.
+- Probar `Reemplazar actual` (con confirmacion fuerte) y validar restauracion atomica.
+- Verificar colisiones de IDs: no crashea y conserva integridad de adjuntos.
+4. Offline + iOS/PWA:
+- Con red off, editar y confirmar estado offline visible sin bloqueos.
+- En iPhone Safari: validar helper de instalacion y que no aparece en standalone.
+- En iPhone Safari: editar celda, background/volver, y validar `Ultimo guardado local`.
+
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`
