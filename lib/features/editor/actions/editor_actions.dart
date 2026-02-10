@@ -59,27 +59,10 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_saveLocalNow()),
         ),
         CommandAction(
-          id: 'gps',
-          label: 'GPS en celda',
-          shortcut: 'G',
-          icon: Icons.my_location_rounded,
-          onSelected: () => unawaited(
-              _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
-        ),
-        CommandAction(
           id: 'gps_mode',
           label: 'Modo GPS',
           icon: Icons.tune_rounded,
           onSelected: () => unawaited(_showGpsModePicker()),
-        ),
-        CommandAction(
-          id: 'photo',
-          label: 'Foto en celda',
-          shortcut: 'P',
-          icon: Icons.photo_camera_outlined,
-          onSelected: () => unawaited(
-            _startPhotoFlowForCell(_selRow, _selCol),
-          ),
         ),
         CommandAction(
           id: 'audio',

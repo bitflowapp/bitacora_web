@@ -2939,6 +2939,16 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Adjuntar en celda activa',
+            icon: Icons.attach_file_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openAttachmentPanelForCell(_selRow, _selCol));
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Guardar',
             icon: Icons.check_circle_outline_rounded,
             variant: AppButtonVariant.secondary,

@@ -183,9 +183,11 @@ class SyncStatusChip extends StatelessWidget {
   String _labelFor(OfflineSyncSnapshot snap) {
     switch (snap.state) {
       case OfflineSyncState.offline:
-        return 'Offline';
+        return 'Offline / Pendiente sync';
       case OfflineSyncState.pending:
-        return 'Pendiente';
+        final pending = snap.pendingCount;
+        if (pending > 1) return 'Pendiente sync ($pending)';
+        return 'Pendiente sync';
       case OfflineSyncState.syncing:
         return 'Sincronizando...';
       case OfflineSyncState.synced:

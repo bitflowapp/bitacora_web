@@ -233,6 +233,14 @@ class _PremiumAppleHeader extends StatelessWidget {
                         children: [
                           _PillButton(
                             palette: palette,
+                            filled: false,
+                            icon: Icons.check_circle_outline_rounded,
+                            label: AppStrings.editorSave,
+                            semanticsLabel: AppStrings.semEditorSave,
+                            onTap: onSave,
+                          ),
+                          _PillButton(
+                            palette: palette,
                             filled: true,
                             icon: Icons.add_box_outlined,
                             label: '+ Registro',
@@ -262,14 +270,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                             label: AppStrings.editorBatchActions,
                             semanticsLabel: 'Abrir acciones por lote',
                             onTap: onBatch,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.check_circle_outline_rounded,
-                            label: AppStrings.editorSave,
-                            semanticsLabel: AppStrings.semEditorSave,
-                            onTap: onSave,
                           ),
                         ],
                       ),

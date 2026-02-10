@@ -4,14 +4,24 @@ extension _EditorShortcuts on _EditorScreenState {
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_gpsPickingTarget) {
+        _cancelGpsPick();
+        return KeyEventResult.handled;
+      }
+      if (_mobileEditorOpen) {
+        _cancelMobileEdit();
+        return KeyEventResult.handled;
+      }
+      if (_cellEditorEntry != null) {
+        _removeCellEditor();
+        return KeyEventResult.handled;
+      }
+    }
+
     final focus = FocusManager.instance.primaryFocus;
     if (focus?.context?.widget is EditableText) {
       return KeyEventResult.ignored;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.escape && _gpsPickingTarget) {
-      _cancelGpsPick();
-      return KeyEventResult.handled;
     }
 
     if (_cellEditorEntry != null || _mobileEditorOpen) {
@@ -139,11 +149,6 @@ extension _EditorShortcuts on _EditorScreenState {
     if (event.logicalKey == LogicalKeyboardKey.delete ||
         event.logicalKey == LogicalKeyboardKey.backspace) {
       _setCell(_selRow, _selCol, '');
-      return KeyEventResult.handled;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      _removeCellEditor();
       return KeyEventResult.handled;
     }
 
