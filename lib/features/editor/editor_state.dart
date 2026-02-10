@@ -6889,7 +6889,10 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ Export/Share -----------------------------
 // _openExportMenu movido a dialogs/export_dialogs.dart
 
-  Future<void> _exportXlsxOnly() async {
+  Future<void> _exportXlsxOnly({
+    bool includeAttachments = true,
+    bool share = false,
+  }) async {
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -6898,6 +6901,7 @@ class _EditorScreenState extends State<EditorScreen>
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
         includeZip: false,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -6922,17 +6926,15 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final now = DateTime.now();
-      final baseName =
-          '${_safeFile(_sheetName)}_bitacora_pro_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
+      final fileName = _buildCommercialExportFileName('xlsx');
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
-        name: '$baseName.xlsx',
+        name: fileName,
         mime:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: xlsxBytes,
-        share: false,
+        share: share,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
@@ -6947,9 +6949,69 @@ class _EditorScreenState extends State<EditorScreen>
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
-        operation: 'export_xlsx',
+        operation: share ? 'share_xlsx' : 'export_xlsx',
         stackTrace: st,
         icon: Icons.table_view_rounded,
+      );
+    } finally {
+      _clearLongOperation();
+    }
+  }
+
+  Future<void> _exportPdf({
+    bool includeAttachments = true,
+    bool share = false,
+  }) async {
+    _beginLongOperation(
+      message: AppStrings.progressPreparingExport,
+      cancellable: true,
+    );
+    try {
+      _throwIfLongOperationCancelled();
+      _setLongOperationMessage(AppStrings.progressGeneratingFile);
+
+      final pdfBytes = await _buildPdfBytesForExport(
+        includeAttachments: includeAttachments,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      if (!mounted) return;
+      _throwIfLongOperationCancelled();
+      if (pdfBytes == null || pdfBytes.isEmpty) {
+        _reportFlowErrorMessage(
+          'pdf_generation_failed',
+          flow: AppErrorFlow.exportData,
+          operation: 'export_pdf_build',
+          fallbackMessage: 'No se pudo generar el archivo PDF.',
+          icon: Icons.picture_as_pdf_outlined,
+        );
+        return;
+      }
+
+      final fileName = _buildCommercialExportFileName('pdf');
+
+      _setLongOperationMessage(AppStrings.progressWritingFile);
+      await _saveExportBytes(
+        name: fileName,
+        mime: 'application/pdf',
+        bytes: pdfBytes,
+        share: share,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      _throwIfLongOperationCancelled();
+      AppHaptics.success();
+    } on _EditorLongOperationCancelled {
+      _showActionSnack(
+        AppStrings.infoExportCancelled,
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.exportData,
+        operation: share ? 'share_pdf' : 'export_pdf',
+        stackTrace: st,
+        icon: Icons.picture_as_pdf_outlined,
       );
     } finally {
       _clearLongOperation();
@@ -7495,8 +7557,139 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Future<Uint8List?> _buildPdfBytesForExport({
+    required bool includeAttachments,
+    bool Function()? shouldCancel,
+  }) async {
+    _throwIfOperationCancelledBy(shouldCancel);
+    final dataCols = math.max(0, _headers.length - 1);
+    final headers = List<String>.generate(dataCols, (i) => _headerLabel(i));
+    final rows = <List<String>>[];
+    for (final row in _rows) {
+      _throwIfOperationCancelledBy(shouldCancel);
+      final values = <String>[];
+      for (int c = 0; c < dataCols && c < row.cells.length; c++) {
+        values.add(row.cells[c]);
+      }
+      rows.add(values);
+    }
+
+    final doc = pw.Document();
+    final now = DateTime.now().toLocal();
+    final exportedAt =
+        '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
+
+    final attachmentRows = <List<String>>[];
+    if (includeAttachments) {
+      final entries = _cellMeta.entries.toList(growable: false);
+      for (final entry in entries) {
+        final meta = entry.value;
+        if (meta.isEmpty) continue;
+        final ref = CellRef.fromKey(entry.key, defaultSheetId: widget.sheetId);
+        final cellLabel =
+            ref?.rowId.trim().isNotEmpty == true ? ref!.rowId : entry.key;
+        attachmentRows.add(<String>[
+          cellLabel,
+          '${meta.photos.length}',
+          '${meta.audios.length}',
+          meta.hasGps ? 'Si' : 'No',
+        ]);
+      }
+    }
+
+    doc.addPage(
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(20),
+        ),
+        build: (context) {
+          final content = <pw.Widget>[
+            pw.Text(
+              'BitFlow · ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Exportado: $exportedAt',
+              style: const pw.TextStyle(fontSize: 10),
+            ),
+            pw.SizedBox(height: 12),
+          ];
+
+          if (headers.isNotEmpty) {
+            content.add(
+              pw.TableHelper.fromTextArray(
+                headers: headers,
+                data: rows,
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 9,
+                ),
+                cellStyle: const pw.TextStyle(fontSize: 8),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.grey300,
+                ),
+                cellAlignments: {
+                  for (int i = 0; i < headers.length; i++)
+                    i: pw.Alignment.centerLeft,
+                },
+              ),
+            );
+          } else {
+            content.add(pw.Text('Sin columnas exportables.'));
+          }
+
+          if (includeAttachments) {
+            content
+              ..add(pw.SizedBox(height: 14))
+              ..add(
+                pw.Text(
+                  'Adjuntos por celda',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              )
+              ..add(pw.SizedBox(height: 6));
+            if (attachmentRows.isEmpty) {
+              content.add(
+                pw.Text(
+                  'No hay adjuntos registrados.',
+                  style: const pw.TextStyle(fontSize: 9),
+                ),
+              );
+            } else {
+              content.add(
+                pw.TableHelper.fromTextArray(
+                  headers: const <String>['Celda', 'Fotos', 'Audio', 'GPS'],
+                  data: attachmentRows,
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 9,
+                  ),
+                  cellStyle: const pw.TextStyle(fontSize: 8),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.grey300,
+                  ),
+                ),
+              );
+            }
+          }
+          return content;
+        },
+      ),
+    );
+    return Uint8List.fromList(await doc.save());
+  }
+
   Future<_ExportPrep> _prepareExportPayload({
     required bool includeZip,
+    bool includeAttachments = true,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
@@ -7506,6 +7699,28 @@ class _EditorScreenState extends State<EditorScreen>
     final audioItems = <_ZipAudioItem>[];
     final manifestCells = <String, Map<String, dynamic>>{};
     final dataCols = math.max(0, _headers.length - 1);
+
+    if (!includeAttachments) {
+      final manifestCells = <String, Map<String, dynamic>>{};
+      final manifest = includeZip
+          ? <String, dynamic>{
+              'sheet': {
+                'name': _sheetName,
+                'exportedAt': DateTime.now().toIso8601String(),
+              },
+              'cells': manifestCells,
+            }
+          : const <String, dynamic>{};
+      return _ExportPrep(
+        attachments: attachments,
+        embeddedPhotos: embeddedPhotos,
+        photoItems: photoItems,
+        audioItems: audioItems,
+        manifest: manifest,
+        portableSheetJson:
+            _buildPortableSheetJson(manifestCells: manifestCells),
+      );
+    }
 
     final rowIndexById = <String, int>{};
     for (int i = 0; i < _rows.length; i++) {
@@ -8107,6 +8322,38 @@ Este paquete incluye:
     _throwIfOperationCancelledBy(shouldCancel);
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
 
+    final isMobile = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+
+    if (share) {
+      if (kIsWeb) {
+        final shared = await _tryShareWebFile(xf);
+        if (shared) return;
+        _throwIfOperationCancelledBy(shouldCancel);
+        await xf.saveTo(name);
+        if (!mounted) return;
+        _showActionSnack(
+          _isIosWeb
+              ? 'Safari iOS limita compartir archivos. Se descargó el archivo.'
+              : 'Web Share no soportado. Archivo descargado.',
+          isError: false,
+          icon: Icons.download_rounded,
+        );
+        return;
+      }
+
+      if (isMobile) {
+        final shared = await _shareOnMobileWithFallbacks(
+          name: name,
+          mime: mime,
+          bytes: bytes,
+          shouldCancel: shouldCancel,
+        );
+        if (shared) return;
+      }
+    }
+
     if (kIsWeb) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
@@ -8115,30 +8362,22 @@ Este paquete incluye:
       } catch (_) {}
     }
 
-    if (!kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)) {
-      if (share) {
-        try {
-          _throwIfOperationCancelledBy(shouldCancel);
-          await Share.shareXFiles([xf], subject: 'BitFlow Export');
-          return;
-        } catch (_) {}
-      } else {
-        try {
-          _throwIfOperationCancelledBy(shouldCancel);
-          await Share.shareXFiles([xf], subject: 'BitFlow Export');
-          return;
-        } catch (_) {}
-      }
+    if (isMobile) {
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        await Share.shareXFiles([xf], subject: 'BitFlow Export');
+        return;
+      } catch (_) {}
     }
 
     final lower = name.toLowerCase();
     final extensions = lower.endsWith('.zip')
         ? const ['zip']
-        : (lower.endsWith('.html') || lower.endsWith('.htm'))
-            ? const ['html', 'htm']
-            : const ['xlsx'];
+        : lower.endsWith('.pdf')
+            ? const ['pdf']
+            : (lower.endsWith('.html') || lower.endsWith('.htm'))
+                ? const ['html', 'htm']
+                : const ['xlsx'];
     final typeGroup = XTypeGroup(
       label: 'Export',
       extensions: extensions,
@@ -8151,6 +8390,74 @@ Este paquete incluye:
     await xf.saveTo(loc.path);
   }
 
+  Future<bool> _tryShareWebFile(XFile file) async {
+    try {
+      await Share.shareXFiles([file], subject: 'BitFlow Export');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _shareOnMobileWithFallbacks({
+    required String name,
+    required String mime,
+    required Uint8List bytes,
+    bool Function()? shouldCancel,
+  }) async {
+    final path = await persistShareTempFile(fileName: name, bytes: bytes);
+
+    if (path != null && path.trim().isNotEmpty) {
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        final email = Email(
+          subject: 'BitFlow Export',
+          body: 'Adjunto generado por BitFlow: $name',
+          attachmentPaths: <String>[path],
+          isHTML: false,
+        );
+        await FlutterEmailSender.send(email);
+        return true;
+      } catch (_) {}
+
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        final mailto = Uri(
+          scheme: 'mailto',
+          queryParameters: <String, String>{
+            'subject': 'BitFlow Export',
+            'body':
+                'Adjunto generado por BitFlow: $name\n\nSi tu cliente no adjunta automaticamente, usa:\n$path',
+          },
+        );
+        if (await canLaunchUrl(mailto)) {
+          await launchUrl(mailto, mode: LaunchMode.externalApplication);
+          return true;
+        }
+      } catch (_) {}
+
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        await Share.shareXFiles(
+          <XFile>[XFile(path, mimeType: mime, name: name)],
+          subject: 'BitFlow Export',
+        );
+        return true;
+      } catch (_) {}
+    }
+
+    try {
+      _throwIfOperationCancelledBy(shouldCancel);
+      await Share.shareXFiles(
+        <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
+        subject: 'BitFlow Export',
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   String _two(int n) => n.toString().padLeft(2, '0');
 
   String _formatDateTimeShort(DateTime dt) {
@@ -8161,6 +8468,14 @@ Este paquete incluye:
   String _safeFile(String s) {
     final t = s.trim().isEmpty ? 'Sheet' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  }
+
+  String _buildCommercialExportFileName(String extension) {
+    final now = DateTime.now().toLocal();
+    final safeSheet =
+        _safeFile(_sheetName).replaceAll(RegExp(r'\s+'), '_').trim();
+    final normalizedExt = extension.trim().toLowerCase().replaceAll('.', '');
+    return 'BitFlow_${now.year}-${_two(now.month)}-${_two(now.day)}_$safeSheet.$normalizedExt';
   }
 // ------------------------------ Engine compute (opcional) ----------------
 

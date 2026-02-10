@@ -33,6 +33,7 @@ dependencies:
   syncfusion_flutter_core: ^31.2.4
   syncfusion_flutter_datagrid: ^31.2.4
   syncfusion_flutter_xlsio: ^31.2.4
+  pdf: ^3.11.3
 
   # Archivos / exportaciÃƒÂ³n
   file_selector: ^1.0.4
