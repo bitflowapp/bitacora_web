@@ -109,7 +109,7 @@ Future<void> main() async {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Gridnote â€” Error',
+                          'Gridnote - Error',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,

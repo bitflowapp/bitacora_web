@@ -108,7 +108,7 @@ extension _EditorAttachments on _EditorScreenState {
 
   String _genAttachmentId(String prefix) {
     final now = DateTime.now().microsecondsSinceEpoch;
-    final rand = math.Random().nextInt(1 << 32);
+    final rand = math.Random().nextInt(_kStableIdRandomMaxExclusive);
     return '$prefix$now$rand';
   }
 

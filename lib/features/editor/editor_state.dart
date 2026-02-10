@@ -8,6 +8,7 @@ const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
 const int _kMaxPhotosPerCell = 6;
 const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
+const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
 
 // ??? Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
 const bool _kPersistPhotoThumbs = true;
@@ -553,7 +554,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _genStableId(String prefix) {
     final now = DateTime.now().microsecondsSinceEpoch;
-    final rand = _idRand.nextInt(1 << 32);
+    final rand = _idRand.nextInt(_kStableIdRandomMaxExclusive);
     return '$prefix$now$rand';
   }
 
