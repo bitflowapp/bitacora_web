@@ -10,6 +10,29 @@ class EditorSaveSnapshot {
   final DateTime? savedAt;
 }
 
+enum OfflineSyncState {
+  offline,
+  pending,
+  syncing,
+  synced,
+  failed,
+}
+
+@immutable
+class OfflineSyncSnapshot {
+  const OfflineSyncSnapshot({
+    required this.state,
+    required this.pendingCount,
+    this.updatedAt,
+    this.message,
+  });
+
+  final OfflineSyncState state;
+  final int pendingCount;
+  final DateTime? updatedAt;
+  final String? message;
+}
+
 class _MobileAction {
   const _MobileAction(
       {required this.icon, required this.label, required this.onTap});
@@ -499,16 +522,46 @@ class _QuickCapturePending {
     required this.sheetId,
     required this.rowId,
     required this.queuedAt,
+    this.attempts = 0,
+    this.nextRetryAt,
+    this.lastError,
   });
 
   final String sheetId;
   final String rowId;
   final DateTime queuedAt;
+  final int attempts;
+  final DateTime? nextRetryAt;
+  final String? lastError;
+
+  _QuickCapturePending copyWith({
+    String? sheetId,
+    String? rowId,
+    DateTime? queuedAt,
+    int? attempts,
+    DateTime? nextRetryAt,
+    String? lastError,
+    bool clearRetry = false,
+    bool clearError = false,
+  }) {
+    return _QuickCapturePending(
+      sheetId: sheetId ?? this.sheetId,
+      rowId: rowId ?? this.rowId,
+      queuedAt: queuedAt ?? this.queuedAt,
+      attempts: attempts ?? this.attempts,
+      nextRetryAt: clearRetry ? null : (nextRetryAt ?? this.nextRetryAt),
+      lastError: clearError ? null : (lastError ?? this.lastError),
+    );
+  }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'sheetId': sheetId,
         'rowId': rowId,
         'queuedAt': queuedAt.toIso8601String(),
+        'attempts': attempts,
+        if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
+        if (lastError != null && lastError!.trim().isNotEmpty)
+          'lastError': lastError,
       };
 
   static _QuickCapturePending? fromJson(Object? raw) {
@@ -518,10 +571,86 @@ class _QuickCapturePending {
     if (sheetId.isEmpty || rowId.isEmpty) return null;
     final queuedAt =
         DateTime.tryParse((raw['queuedAt'] ?? '').toString()) ?? DateTime.now();
+    final attempts = (raw['attempts'] as num?)?.toInt() ?? 0;
+    final nextRetryAt =
+        DateTime.tryParse((raw['nextRetryAt'] ?? '').toString());
+    final lastError = (raw['lastError'] ?? '').toString().trim();
     return _QuickCapturePending(
       sheetId: sheetId,
       rowId: rowId,
       queuedAt: queuedAt,
+      attempts: attempts < 0 ? 0 : attempts,
+      nextRetryAt: nextRetryAt,
+      lastError: lastError.isEmpty ? null : lastError,
+    );
+  }
+}
+
+class _EditPending {
+  const _EditPending({
+    required this.sheetId,
+    required this.revision,
+    required this.queuedAt,
+    this.attempts = 0,
+    this.nextRetryAt,
+    this.lastError,
+  });
+
+  final String sheetId;
+  final int revision;
+  final DateTime queuedAt;
+  final int attempts;
+  final DateTime? nextRetryAt;
+  final String? lastError;
+
+  _EditPending copyWith({
+    String? sheetId,
+    int? revision,
+    DateTime? queuedAt,
+    int? attempts,
+    DateTime? nextRetryAt,
+    String? lastError,
+    bool clearRetry = false,
+    bool clearError = false,
+  }) {
+    return _EditPending(
+      sheetId: sheetId ?? this.sheetId,
+      revision: revision ?? this.revision,
+      queuedAt: queuedAt ?? this.queuedAt,
+      attempts: attempts ?? this.attempts,
+      nextRetryAt: clearRetry ? null : (nextRetryAt ?? this.nextRetryAt),
+      lastError: clearError ? null : (lastError ?? this.lastError),
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'sheetId': sheetId,
+        'revision': revision,
+        'queuedAt': queuedAt.toIso8601String(),
+        'attempts': attempts,
+        if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
+        if (lastError != null && lastError!.trim().isNotEmpty)
+          'lastError': lastError,
+      };
+
+  static _EditPending? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final sheetId = (raw['sheetId'] ?? '').toString().trim();
+    if (sheetId.isEmpty) return null;
+    final revision = (raw['revision'] as num?)?.toInt() ?? 0;
+    final queuedAt =
+        DateTime.tryParse((raw['queuedAt'] ?? '').toString()) ?? DateTime.now();
+    final attempts = (raw['attempts'] as num?)?.toInt() ?? 0;
+    final nextRetryAt =
+        DateTime.tryParse((raw['nextRetryAt'] ?? '').toString());
+    final lastError = (raw['lastError'] ?? '').toString().trim();
+    return _EditPending(
+      sheetId: sheetId,
+      revision: revision < 0 ? 0 : revision,
+      queuedAt: queuedAt,
+      attempts: attempts < 0 ? 0 : attempts,
+      nextRetryAt: nextRetryAt,
+      lastError: lastError.isEmpty ? null : lastError,
     );
   }
 }

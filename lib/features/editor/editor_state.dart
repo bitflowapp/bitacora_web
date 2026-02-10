@@ -131,8 +131,16 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isDirty = false;
   late final ValueNotifier<EditorSaveSnapshot> _saveStatus =
       ValueNotifier(const EditorSaveSnapshot(state: EditorSaveState.idle));
+  late final ValueNotifier<OfflineSyncSnapshot> _offlineStatus = ValueNotifier(
+    const OfflineSyncSnapshot(
+      state: OfflineSyncState.synced,
+      pendingCount: 0,
+    ),
+  );
   late final EditorController _controller = EditorController(
     saveStatus: _saveStatus,
+    offlineStatus: _offlineStatus,
+    openOfflineQueue: _openOfflineQueueDialog,
     openAttachments: (ref) {
       final idx = _cellIndexForRef(ref);
       if (idx == null) return;
@@ -340,6 +348,13 @@ class _EditorScreenState extends State<EditorScreen>
   _CellRef? _lastSearchHit;
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
+  final List<_EditPending> _editQueue = <_EditPending>[];
+  final OfflineQueueStore _offlineQueueStore = OfflineQueueStore();
+  final NetworkStatusService _networkStatusService =
+      const NetworkStatusService();
+  bool _offlineSyncing = false;
+  String? _offlineLastError;
+  DateTime? _offlineRetryAt;
   Timer? _quickCaptureSyncTimer;
   bool _lastOnlineState = true;
 
@@ -400,10 +415,12 @@ class _EditorScreenState extends State<EditorScreen>
     _lastSavedRev = 0;
     _savePending = false;
     _updateSaveStatus();
-    _lastOnlineState = _isNetworkOnline();
+    _updateOfflineStatus();
+    _lastOnlineState = true;
+    unawaited(_refreshOnlineState());
     _quickCaptureSyncTimer = Timer.periodic(
-      const Duration(seconds: 6),
-      (_) => unawaited(_tickQuickCaptureSync()),
+      const Duration(seconds: 8),
+      (_) => unawaited(_tickQuickCaptureSync(fromTimer: true)),
     );
     unawaited(_loadQuickCaptureQueue());
 
@@ -505,6 +522,7 @@ class _EditorScreenState extends State<EditorScreen>
     _blinkCell.dispose();
     _gridVersion.dispose();
     _saveStatus.dispose();
+    _offlineStatus.dispose();
 
     _nameEC.dispose();
     _nameFocus.dispose();
@@ -1167,11 +1185,15 @@ class _EditorScreenState extends State<EditorScreen>
         _isDirty = _rev != _lastSavedRev;
       });
       _updateSaveStatus();
+      await _clearSavedEditPending();
       if (_saveHapticPending) {
         AppHaptics.success();
       }
       await _createBackupIfNeeded();
     } catch (e, st) {
+      if (_pendingOfflineCount > 0 && mounted) {
+        unawaited(_markOfflineSyncFailure('save_failed'));
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.save,
@@ -1465,6 +1487,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
     }
     _updateSaveStatus();
+    unawaited(_enqueueEditPending());
 
     _queueSave();
     _scheduleBackupCheck();
@@ -1899,6 +1922,14 @@ class _EditorScreenState extends State<EditorScreen>
                 ? EditorSaveState.saved
                 : EditorSaveState.idle));
     _saveStatus.value = EditorSaveSnapshot(state: state, savedAt: _lastSavedAt);
+    if (_isDirty && mounted) {
+      final hasPending = _editQueue.any(
+        (entry) => entry.sheetId == widget.sheetId && entry.revision >= _rev,
+      );
+      if (!hasPending) {
+        unawaited(_enqueueEditPending());
+      }
+    }
   }
 
   String _formatSmokeFailure(_EngineErrorDetails? details) {
@@ -2504,10 +2535,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
-  bool _isNetworkOnline() {
-    if (!kIsWeb) return true;
-    return WebCapabilities.isOnline;
-  }
+  bool _isNetworkOnline() => _lastOnlineState;
 
   int get _pendingQuickCaptureCount {
     var count = 0;
@@ -2515,6 +2543,70 @@ class _EditorScreenState extends State<EditorScreen>
       if (item.sheetId == widget.sheetId) count++;
     }
     return count;
+  }
+
+  int get _pendingEditCount {
+    var count = 0;
+    for (final item in _editQueue) {
+      if (item.sheetId == widget.sheetId) count++;
+    }
+    return count;
+  }
+
+  int get _pendingOfflineCount => _pendingQuickCaptureCount + _pendingEditCount;
+
+  OfflineSyncState _resolveOfflineSyncState() {
+    if (!_lastOnlineState) return OfflineSyncState.offline;
+    if (_offlineSyncing) return OfflineSyncState.syncing;
+    if (_offlineLastError != null && _pendingOfflineCount > 0) {
+      return OfflineSyncState.failed;
+    }
+    if (_pendingOfflineCount > 0) return OfflineSyncState.pending;
+    return OfflineSyncState.synced;
+  }
+
+  String? _resolveOfflineStatusMessage(OfflineSyncState state) {
+    switch (state) {
+      case OfflineSyncState.offline:
+        return 'Sin conexion';
+      case OfflineSyncState.pending:
+        return _pendingOfflineCount > 0
+            ? 'Pendientes: $_pendingOfflineCount'
+            : null;
+      case OfflineSyncState.syncing:
+        return 'Sincronizando...';
+      case OfflineSyncState.synced:
+        return 'Sincronizado';
+      case OfflineSyncState.failed:
+        final retry = _offlineRetryAt?.toLocal();
+        if (retry == null)
+          return _offlineLastError ?? 'Fallo de sincronizacion';
+        return 'Reintento ${_two(retry.hour)}:${_two(retry.minute)}';
+    }
+  }
+
+  void _updateOfflineStatus() {
+    _offlineStatus.value = OfflineSyncSnapshot(
+      state: _resolveOfflineSyncState(),
+      pendingCount: _pendingOfflineCount,
+      updatedAt: DateTime.now(),
+      message: _resolveOfflineStatusMessage(_resolveOfflineSyncState()),
+    );
+  }
+
+  Future<bool> _refreshOnlineState() async {
+    final prev = _lastOnlineState;
+    bool online = prev;
+    try {
+      online = await _networkStatusService.isOnline(
+        timeout: const Duration(seconds: 2),
+      );
+    } catch (_) {}
+    if (online == prev) return false;
+    _lastOnlineState = online;
+    if (mounted) setState(() {});
+    _updateOfflineStatus();
+    return true;
   }
 
   List<_QuickCapturePending> _decodeQuickCaptureQueueRaw(String raw) {
@@ -2533,83 +2625,433 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  Future<void> _loadQuickCaptureQueue() async {
+  ({List<_QuickCapturePending> quickCapture, List<_EditPending> editQueue})
+      _decodeOfflineQueuePayload(String raw) {
+    if (raw.trim().isEmpty) {
+      return (
+        quickCapture: const <_QuickCapturePending>[],
+        editQueue: const <_EditPending>[],
+      );
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return (
+          quickCapture: _decodeQuickCaptureQueueRaw(raw),
+          editQueue: const <_EditPending>[],
+        );
+      }
+      if (decoded is! Map) {
+        return (
+          quickCapture: const <_QuickCapturePending>[],
+          editQueue: const <_EditPending>[],
+        );
+      }
+      final quick = <_QuickCapturePending>[];
+      final edits = <_EditPending>[];
+      final quickRaw = decoded['quickCapture'];
+      if (quickRaw is List) {
+        for (final item in quickRaw) {
+          final parsed = _QuickCapturePending.fromJson(item);
+          if (parsed != null) quick.add(parsed);
+        }
+      }
+      final editsRaw = decoded['editQueue'];
+      if (editsRaw is List) {
+        for (final item in editsRaw) {
+          final parsed = _EditPending.fromJson(item);
+          if (parsed != null) edits.add(parsed);
+        }
+      }
+      return (quickCapture: quick, editQueue: edits);
+    } catch (_) {
+      return (
+        quickCapture: const <_QuickCapturePending>[],
+        editQueue: const <_EditPending>[],
+      );
+    }
+  }
+
+  Future<String?> _readLegacyQuickCaptureQueueForCurrentSheet() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kPrefQuickCaptureQueue) ?? '';
-      final loaded = _decodeQuickCaptureQueueRaw(raw);
+      final legacyRaw = prefs.getString(_kPrefQuickCaptureQueue) ?? '';
+      final decoded = _decodeQuickCaptureQueueRaw(legacyRaw);
+      if (decoded.isEmpty) return null;
+      final mine = <_QuickCapturePending>[];
+      final remaining = <_QuickCapturePending>[];
+      for (final item in decoded) {
+        if (item.sheetId == widget.sheetId) {
+          mine.add(item);
+        } else {
+          remaining.add(item);
+        }
+      }
+      if (mine.isEmpty) return null;
+      await prefs.setString(
+        _kPrefQuickCaptureQueue,
+        jsonEncode(remaining.map((e) => e.toJson()).toList(growable: false)),
+      );
+      return jsonEncode(<String, dynamic>{
+        'quickCapture': mine.map((e) => e.toJson()).toList(growable: false),
+        'editQueue': const <Map<String, dynamic>>[],
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadQuickCaptureQueue() async {
+    try {
+      var raw = await _offlineQueueStore.read(widget.sheetId);
+      raw ??= await _readLegacyQuickCaptureQueueForCurrentSheet();
+      final loaded = _decodeOfflineQueuePayload(raw ?? '');
       if (!mounted) return;
       setState(() {
         _quickCaptureQueue
           ..clear()
-          ..addAll(loaded);
+          ..addAll(loaded.quickCapture);
+        _editQueue
+          ..clear()
+          ..addAll(loaded.editQueue);
       });
+      _updateOfflineStatus();
       await _tickQuickCaptureSync();
     } catch (_) {}
   }
 
   Future<void> _saveQuickCaptureQueue() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final payload = jsonEncode(
-        _quickCaptureQueue.map((e) => e.toJson()).toList(growable: false),
-      );
-      await prefs.setString(_kPrefQuickCaptureQueue, payload);
+      if (_quickCaptureQueue.isEmpty && _editQueue.isEmpty) {
+        await _offlineQueueStore.delete(widget.sheetId);
+        _updateOfflineStatus();
+        return;
+      }
+      final payload = jsonEncode(<String, dynamic>{
+        'quickCapture':
+            _quickCaptureQueue.map((e) => e.toJson()).toList(growable: false),
+        'editQueue': _editQueue.map((e) => e.toJson()).toList(growable: false),
+      });
+      await _offlineQueueStore.write(sheetId: widget.sheetId, payload: payload);
+      _updateOfflineStatus();
     } catch (_) {}
   }
 
   Future<void> _enqueueQuickCapturePending(String rowId) async {
+    for (final item in _quickCaptureQueue) {
+      if (item.sheetId == widget.sheetId && item.rowId == rowId) return;
+    }
     final entry = _QuickCapturePending(
       sheetId: widget.sheetId,
       rowId: rowId,
       queuedAt: DateTime.now().toUtc(),
     );
     if (!mounted) return;
-    setState(() => _quickCaptureQueue.add(entry));
+    setState(() {
+      _quickCaptureQueue.add(entry);
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    _updateOfflineStatus();
+    await _saveQuickCaptureQueue();
+  }
+
+  Future<void> _enqueueEditPending() async {
+    final next = _EditPending(
+      sheetId: widget.sheetId,
+      revision: _rev,
+      queuedAt: DateTime.now().toUtc(),
+    );
+    if (!mounted) return;
+    setState(() {
+      final idx =
+          _editQueue.indexWhere((item) => item.sheetId == widget.sheetId);
+      if (idx >= 0) {
+        _editQueue[idx] = next;
+      } else {
+        _editQueue.add(next);
+      }
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    _updateOfflineStatus();
+    await _saveQuickCaptureQueue();
+  }
+
+  Future<void> _clearSavedEditPending() async {
+    if (!mounted) return;
+    final before = _editQueue.length;
+    setState(() {
+      _editQueue.removeWhere(
+        (entry) =>
+            entry.sheetId == widget.sheetId && entry.revision <= _lastSavedRev,
+      );
+    });
+    if (before != _editQueue.length) {
+      _updateOfflineStatus();
+      await _saveQuickCaptureQueue();
+    }
+  }
+
+  Duration _offlineRetryBackoff(int attempts) {
+    final safeAttempts = attempts < 1 ? 1 : attempts;
+    final seconds = math.min(90, math.pow(2, safeAttempts + 1).toInt());
+    return Duration(seconds: seconds);
+  }
+
+  Future<void> _markOfflineSyncFailure(String reason) async {
+    final now = DateTime.now().toUtc();
+    var maxAttempts = 1;
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _quickCaptureQueue.length; i++) {
+        final item = _quickCaptureQueue[i];
+        if (item.sheetId != widget.sheetId) continue;
+        final nextAttempts = item.attempts + 1;
+        maxAttempts = math.max(maxAttempts, nextAttempts);
+        _quickCaptureQueue[i] = item.copyWith(
+          attempts: nextAttempts,
+          nextRetryAt: now.add(_offlineRetryBackoff(nextAttempts)),
+          lastError: reason,
+        );
+      }
+      for (int i = 0; i < _editQueue.length; i++) {
+        final item = _editQueue[i];
+        if (item.sheetId != widget.sheetId) continue;
+        final nextAttempts = item.attempts + 1;
+        maxAttempts = math.max(maxAttempts, nextAttempts);
+        _editQueue[i] = item.copyWith(
+          attempts: nextAttempts,
+          nextRetryAt: now.add(_offlineRetryBackoff(nextAttempts)),
+          lastError: reason,
+        );
+      }
+      _offlineLastError = reason;
+      _offlineRetryAt = now.add(_offlineRetryBackoff(maxAttempts));
+    });
+    debugPrint('[offline_queue] sync failure: $reason');
+    _updateOfflineStatus();
     await _saveQuickCaptureQueue();
   }
 
   Future<void> _syncQuickCaptureQueue({bool notify = true}) async {
-    if (!_isNetworkOnline()) return;
-    if (_quickCaptureQueue.isEmpty) return;
-
-    final remaining = <_QuickCapturePending>[];
-    var synced = 0;
-
-    for (final entry in _quickCaptureQueue) {
-      if (entry.sheetId != widget.sheetId) {
-        remaining.add(entry);
-        continue;
-      }
-      synced++;
+    if (_offlineSyncing) return;
+    await _refreshOnlineState();
+    if (!_isNetworkOnline()) {
+      _updateOfflineStatus();
+      return;
+    }
+    if (_pendingOfflineCount <= 0) {
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+      _updateOfflineStatus();
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    if (_offlineRetryAt != null && now.isBefore(_offlineRetryAt!)) {
+      _updateOfflineStatus();
+      return;
     }
 
-    if (synced <= 0) return;
-    if (!mounted) return;
-    setState(() {
-      _quickCaptureQueue
-        ..clear()
-        ..addAll(remaining);
-    });
-    await _saveQuickCaptureQueue();
+    _offlineSyncing = true;
+    _updateOfflineStatus();
 
-    if (notify) {
-      _showActionSnack(
-        'Sync completado: $synced registro(s).',
-        isError: false,
-        icon: Icons.cloud_done_outlined,
-      );
+    var syncedQuick = 0;
+    var syncedEdits = 0;
+
+    try {
+      if (_isDirty && !_saving) {
+        await _saveLocalNow();
+      }
+
+      final remainingQuick = <_QuickCapturePending>[];
+      for (final entry in _quickCaptureQueue) {
+        if (entry.sheetId != widget.sheetId) {
+          remainingQuick.add(entry);
+          continue;
+        }
+        if (entry.nextRetryAt != null && entry.nextRetryAt!.isAfter(now)) {
+          remainingQuick.add(entry);
+          continue;
+        }
+        final exists = _rows.any((row) => row.id == entry.rowId);
+        if (!exists) continue;
+        syncedQuick++;
+      }
+
+      final remainingEdit = <_EditPending>[];
+      for (final entry in _editQueue) {
+        if (entry.sheetId != widget.sheetId) {
+          remainingEdit.add(entry);
+          continue;
+        }
+        if (entry.nextRetryAt != null && entry.nextRetryAt!.isAfter(now)) {
+          remainingEdit.add(entry);
+          continue;
+        }
+        if (_isDirty && _rev > _lastSavedRev) {
+          remainingEdit.add(entry);
+          continue;
+        }
+        if (_lastSavedRev >= entry.revision) {
+          syncedEdits++;
+          continue;
+        }
+        remainingEdit.add(entry);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _quickCaptureQueue
+          ..clear()
+          ..addAll(remainingQuick);
+        _editQueue
+          ..clear()
+          ..addAll(remainingEdit);
+        _offlineLastError = null;
+        _offlineRetryAt = null;
+      });
+      await _saveQuickCaptureQueue();
+
+      if (notify && (syncedQuick > 0 || syncedEdits > 0)) {
+        _showActionSnack(
+          'Sync completado: ${syncedQuick + syncedEdits} pendiente(s).',
+          isError: false,
+          icon: Icons.cloud_done_outlined,
+        );
+      }
+    } catch (e, st) {
+      debugPrint('[offline_queue] sync exception: $e');
+      debugPrint(st.toString());
+      await _markOfflineSyncFailure('sync_error');
+      if (notify) {
+        _showActionSnack(
+          'Fallo la sincronizacion. Reintenta desde Cola offline.',
+          isError: true,
+          icon: Icons.sync_problem_rounded,
+        );
+      }
+    } finally {
+      _offlineSyncing = false;
+      _updateOfflineStatus();
     }
   }
 
-  Future<void> _tickQuickCaptureSync() async {
-    final online = _isNetworkOnline();
-    final changed = online != _lastOnlineState;
-    _lastOnlineState = online;
+  Future<void> _tickQuickCaptureSync({bool fromTimer = false}) async {
+    final changed = await _refreshOnlineState();
+    if (!_isNetworkOnline()) {
+      _updateOfflineStatus();
+      return;
+    }
+    if (_pendingOfflineCount <= 0) {
+      _updateOfflineStatus();
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    if (fromTimer &&
+        _offlineRetryAt != null &&
+        now.isBefore(_offlineRetryAt!)) {
+      _updateOfflineStatus();
+      return;
+    }
+    await _syncQuickCaptureQueue(notify: changed && !fromTimer);
+  }
 
-    if (!online) return;
-    if (_quickCaptureQueue.isEmpty) return;
-    await _syncQuickCaptureQueue(notify: changed);
+  Future<void> _clearOfflineQueueForCurrentSheet() async {
+    if (!mounted) return;
+    setState(() {
+      _quickCaptureQueue.removeWhere((item) => item.sheetId == widget.sheetId);
+      _editQueue.removeWhere((item) => item.sheetId == widget.sheetId);
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    await _saveQuickCaptureQueue();
+    _updateOfflineStatus();
+  }
+
+  Future<void> _openOfflineQueueDialog() async {
+    if (!mounted) return;
+    final quickForSheet = _quickCaptureQueue
+        .where((item) => item.sheetId == widget.sheetId)
+        .toList(growable: false);
+    final editForSheet = _editQueue
+        .where((item) => item.sheetId == widget.sheetId)
+        .toList(growable: false);
+
+    await showAppModal<void>(
+      context: context,
+      title: 'Cola offline',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 340),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(
+              'Estado: ${_resolveOfflineStatusMessage(_resolveOfflineSyncState()) ?? 'Sincronizado'}',
+              style: TextStyle(
+                color: _palette(context).fg,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (quickForSheet.isEmpty && editForSheet.isEmpty)
+              Text(
+                'Sin pendientes.',
+                style: TextStyle(color: _palette(context).fgMuted),
+              ),
+            for (final item in quickForSheet)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.add_a_photo_outlined),
+                title: Text(
+                  'Registro ${item.rowId.substring(0, math.min(8, item.rowId.length))}',
+                ),
+                subtitle: Text(
+                  'Encolado ${_formatDateTimeShort(item.queuedAt.toLocal())}'
+                  '${item.lastError != null ? ' · ${item.lastError}' : ''}',
+                ),
+              ),
+            for (final item in editForSheet)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.edit_note_rounded),
+                title: Text('Cambios rev ${item.revision}'),
+                subtitle: Text(
+                  'Pendiente desde ${_formatDateTimeShort(item.queuedAt.toLocal())}'
+                  '${item.lastError != null ? ' · ${item.lastError}' : ''}',
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        AppButton(
+          label: 'Borrar',
+          variant: AppButtonVariant.ghost,
+          onPressed: () {
+            Navigator.of(context).pop();
+            unawaited(_clearOfflineQueueForCurrentSheet());
+          },
+        ),
+        AppButton(
+          label: 'Reintentar',
+          variant: AppButtonVariant.secondary,
+          onPressed: () {
+            Navigator.of(context).pop();
+            unawaited(_syncQuickCaptureQueue(notify: true));
+          },
+        ),
+        AppButton(
+          label: 'Cerrar',
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
   }
 
   int? _findDataColumnByKeywords(List<String> keywords) {
@@ -2803,6 +3245,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (!mounted) return;
 
+    await _refreshOnlineState();
     final online = _isNetworkOnline();
     if (!online) {
       await _enqueueQuickCapturePending(inserted.rowId);
@@ -3364,6 +3807,7 @@ class _EditorScreenState extends State<EditorScreen>
                               onPalette: () => unawaited(_openCommandPalette()),
                               onGpsMode: () => unawaited(_showGpsModePicker()),
                               onDensity: () => unawaited(_showDensityPicker()),
+                              onOpenOfflineQueue: _openOfflineQueueDialog,
                               sensorsEnabled: sensorsEnabled,
                             )
                           else
@@ -3378,6 +3822,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 context,
                                 pal,
                               ),
+                              onOpenOfflineQueue: _openOfflineQueueDialog,
                             ),
                           if (_isInAppBrowser)
                             _warningBanner(pal,
@@ -3397,21 +3842,21 @@ class _EditorScreenState extends State<EditorScreen>
                                 actionLabel: 'Exportar ZIP',
                                 onAction: () =>
                                     unawaited(_exportZipBundle(share: false))),
-                          if (_pendingQuickCaptureCount > 0)
+                          if (_pendingOfflineCount > 0)
                             _warningBanner(
                               pal,
                               text: _isNetworkOnline()
-                                  ? 'Pendiente de sync: $_pendingQuickCaptureCount registro(s).'
-                                  : 'Pendiente de sync: $_pendingQuickCaptureCount registro(s) (sin conexion).',
+                                  ? 'Pendiente de sync: $_pendingOfflineCount item(s).'
+                                  : 'Pendiente de sync: $_pendingOfflineCount item(s) (sin conexion).',
                               icon: _isNetworkOnline()
                                   ? Icons.cloud_upload_outlined
                                   : Icons.cloud_off_outlined,
                               actionLabel:
-                                  _isNetworkOnline() ? 'Sincronizar' : null,
+                                  _isNetworkOnline() ? 'Sincronizar' : 'Cola',
                               onAction: _isNetworkOnline()
                                   ? () => unawaited(
                                       _syncQuickCaptureQueue(notify: true))
-                                  : null,
+                                  : _openOfflineQueueDialog,
                             ),
                           if (_photoFlowStatus != null)
                             Container(

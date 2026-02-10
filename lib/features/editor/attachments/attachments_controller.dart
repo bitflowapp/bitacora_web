@@ -2949,6 +2949,16 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Cola offline',
+            icon: Icons.sync_alt_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openOfflineQueueDialog());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Exportar / Compartir',
             icon: Icons.ios_share_rounded,
             variant: AppButtonVariant.secondary,

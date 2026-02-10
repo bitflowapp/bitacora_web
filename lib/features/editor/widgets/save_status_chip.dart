@@ -126,3 +126,122 @@ class SaveStatusChip extends StatelessWidget {
     }
   }
 }
+
+class SyncStatusChip extends StatelessWidget {
+  const SyncStatusChip({
+    super.key,
+    required this.palette,
+    required this.status,
+    this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final ValueListenable<OfflineSyncSnapshot> status;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<OfflineSyncSnapshot>(
+      valueListenable: status,
+      builder: (context, snap, _) {
+        final label = _labelFor(snap);
+        final icon = _iconFor(snap.state);
+        final colors = _colorsFor(snap.state);
+
+        return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: colors.$1,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: colors.$2, width: palette.hairline),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: colors.$3),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.$3,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _labelFor(OfflineSyncSnapshot snap) {
+    switch (snap.state) {
+      case OfflineSyncState.offline:
+        return 'Offline';
+      case OfflineSyncState.pending:
+        return 'Pendiente';
+      case OfflineSyncState.syncing:
+        return 'Sincronizando...';
+      case OfflineSyncState.synced:
+        return 'Sincronizado';
+      case OfflineSyncState.failed:
+        return 'Fallo (reintentar)';
+    }
+  }
+
+  IconData _iconFor(OfflineSyncState state) {
+    switch (state) {
+      case OfflineSyncState.offline:
+        return Icons.cloud_off_outlined;
+      case OfflineSyncState.pending:
+        return Icons.cloud_upload_outlined;
+      case OfflineSyncState.syncing:
+        return Icons.sync_rounded;
+      case OfflineSyncState.synced:
+        return Icons.cloud_done_outlined;
+      case OfflineSyncState.failed:
+        return Icons.sync_problem_rounded;
+    }
+  }
+
+  (Color, Color, Color) _colorsFor(OfflineSyncState state) {
+    switch (state) {
+      case OfflineSyncState.offline:
+        return (
+          palette.hintBg,
+          palette.border,
+          palette.fgMuted,
+        );
+      case OfflineSyncState.pending:
+        return (
+          palette.selectionFill,
+          palette.selectionBorder.withValues(alpha: 0.4),
+          palette.selectionBorder,
+        );
+      case OfflineSyncState.syncing:
+        return (
+          palette.statusBg,
+          palette.statusFg.withValues(alpha: 0.28),
+          palette.statusFg,
+        );
+      case OfflineSyncState.synced:
+        return (
+          palette.hintBg,
+          palette.border,
+          palette.fgMuted,
+        );
+      case OfflineSyncState.failed:
+        return (
+          palette.selectionFill,
+          palette.selectionBorder,
+          palette.selectionBorder,
+        );
+    }
+  }
+}

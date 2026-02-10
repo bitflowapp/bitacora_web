@@ -27,6 +27,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onPalette,
     required this.onGpsMode,
     required this.onDensity,
+    required this.onOpenOfflineQueue,
     required this.sensorsEnabled,
   });
 
@@ -61,6 +62,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onPalette;
   final VoidCallback onGpsMode;
   final VoidCallback onDensity;
+  final VoidCallback onOpenOfflineQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -189,9 +191,20 @@ class _PremiumAppleHeader extends StatelessWidget {
                         Align(alignment: Alignment.centerRight, child: iconRow),
                       ],
                       const SizedBox(height: 2),
-                      SaveStatusChip(
-                        palette: palette,
-                        status: controller.saveStatus,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SaveStatusChip(
+                            palette: palette,
+                            status: controller.saveStatus,
+                          ),
+                          SyncStatusChip(
+                            palette: palette,
+                            status: controller.offlineStatus,
+                            onTap: onOpenOfflineQueue,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                       Wrap(
@@ -374,6 +387,7 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.onSave,
     required this.onExport,
     required this.onMenu,
+    required this.onOpenOfflineQueue,
   });
 
   final _SheetPalette palette;
@@ -383,6 +397,7 @@ class _MobileCompactHeader extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onExport;
   final VoidCallback onMenu;
+  final VoidCallback onOpenOfflineQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -391,55 +406,71 @@ class _MobileCompactHeader extends StatelessWidget {
     return ValueListenableBuilder<EditorSaveSnapshot>(
       valueListenable: controller.saveStatus,
       builder: (context, snap, _) {
-        String saveLabel;
-        switch (snap.state) {
-          case EditorSaveState.saving:
-            saveLabel = 'Guardando';
-            break;
-          case EditorSaveState.dirty:
-            saveLabel = 'Sin guardar';
-            break;
-          case EditorSaveState.saved:
-            saveLabel = 'Guardado';
-            break;
-          case EditorSaveState.idle:
-            saveLabel = 'Listo';
-            break;
-        }
+        return ValueListenableBuilder<OfflineSyncSnapshot>(
+          valueListenable: controller.offlineStatus,
+          builder: (context, offline, __) {
+            String saveLabel;
+            switch (snap.state) {
+              case EditorSaveState.saving:
+                saveLabel = 'Guardando';
+                break;
+              case EditorSaveState.dirty:
+                saveLabel = 'Sin guardar';
+                break;
+              case EditorSaveState.saved:
+                saveLabel = 'Guardado';
+                break;
+              case EditorSaveState.idle:
+                saveLabel = 'Listo';
+                break;
+            }
 
-        final pendingLabel =
-            pendingRequired > 0 ? ' · Pendientes: $pendingRequired' : '';
-        final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
+            final pendingLabel =
+                pendingRequired > 0 ? ' · Pendientes: $pendingRequired' : '';
+            final offlineLabel = offline.message?.trim().isNotEmpty == true
+                ? offline.message!.trim()
+                : 'Sincronizado';
+            final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-          child: AppTopBar(
-            title: label,
-            subtitle: '$saveLabel$pendingLabel · $modeLabel',
-            actions: [
-              AppButton(
-                label: AppStrings.editorSave,
-                icon: Icons.check_circle_outline_rounded,
-                variant: AppButtonVariant.secondary,
-                size: AppButtonSize.sm,
-                onPressed: onSave,
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              child: AppTopBar(
+                title: label,
+                subtitle:
+                    '$saveLabel$pendingLabel · Sync: $offlineLabel · $modeLabel',
+                actions: [
+                  AppButton(
+                    label: AppStrings.editorSave,
+                    icon: Icons.check_circle_outline_rounded,
+                    variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.sm,
+                    onPressed: onSave,
+                  ),
+                  AppButton(
+                    label: 'Cola',
+                    icon: Icons.sync_alt_rounded,
+                    variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.sm,
+                    onPressed: onOpenOfflineQueue,
+                  ),
+                  AppButton(
+                    label: AppStrings.editorExport,
+                    icon: Icons.ios_share_rounded,
+                    variant: AppButtonVariant.ghost,
+                    size: AppButtonSize.sm,
+                    onPressed: onExport,
+                  ),
+                  AppButton(
+                    label: AppStrings.editorOptions,
+                    icon: Icons.more_horiz_rounded,
+                    variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.sm,
+                    onPressed: onMenu,
+                  ),
+                ],
               ),
-              AppButton(
-                label: AppStrings.editorExport,
-                icon: Icons.ios_share_rounded,
-                variant: AppButtonVariant.ghost,
-                size: AppButtonSize.sm,
-                onPressed: onExport,
-              ),
-              AppButton(
-                label: AppStrings.editorOptions,
-                icon: Icons.more_horiz_rounded,
-                variant: AppButtonVariant.secondary,
-                size: AppButtonSize.sm,
-                onPressed: onMenu,
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

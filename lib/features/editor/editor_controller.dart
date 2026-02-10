@@ -1,8 +1,10 @@
-﻿part of 'editor_screen.dart';
+part of 'editor_screen.dart';
 
 class EditorController {
   const EditorController({
     required this.saveStatus,
+    required this.offlineStatus,
+    required this.openOfflineQueue,
     required this.openAttachments,
     required this.closeAttachments,
     required this.addAttachment,
@@ -11,6 +13,8 @@ class EditorController {
   });
 
   final ValueListenable<EditorSaveSnapshot> saveStatus;
+  final ValueListenable<OfflineSyncSnapshot> offlineStatus;
+  final VoidCallback openOfflineQueue;
   final void Function(CellRef ref) openAttachments;
   final VoidCallback closeAttachments;
   final Future<void> Function(CellRef ref) addAttachment;
