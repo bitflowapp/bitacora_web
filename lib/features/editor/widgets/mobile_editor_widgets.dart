@@ -52,8 +52,8 @@ class _MobileQuickActionsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppTheme.of(context);
-    final bg =
-        t.colors.surfaceElevated.withOpacity(palette.isLight ? 0.92 : 0.78);
+    final bg = t.colors.surfaceElevated
+        .withValues(alpha: palette.isLight ? 0.92 : 0.78);
 
     return AppleCard(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -272,7 +272,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                         decoration: BoxDecoration(
                           color: palette.editorBg
-                              .withOpacity(palette.isLight ? 0.96 : 0.70),
+                              .withValues(alpha: palette.isLight ? 0.96 : 0.70),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                               color: palette.borderStrong,
@@ -389,7 +389,7 @@ class _MobilePanelIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    final fg = enabled ? palette.fg : palette.fgMuted.withOpacity(0.5);
+    final fg = enabled ? palette.fg : palette.fgMuted.withValues(alpha: 0.5);
     return IconButton(
       tooltip: tooltip,
       onPressed: onTap,
@@ -440,17 +440,17 @@ class _MobileEditorField extends StatelessWidget {
         color: palette.fg,
         fontSize: fontSize,
         height: 1.08,
-        fontWeight: FontWeight.w800, // ??? nitidez
+        fontWeight: FontWeight.w800,
         letterSpacing: -0.15,
       ),
       cursorColor: palette.accent,
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-// ??? dark: vidrio visible
+// Dark: mantener vidrio visible.
         fillColor: palette.mobileInputBg,
         contentPadding: contentPadding,
-        hintText: 'Escribir???',
+        hintText: 'Escribir',
         hintStyle: TextStyle(color: palette.fgMuted),
         border: InputBorder.none,
       ),

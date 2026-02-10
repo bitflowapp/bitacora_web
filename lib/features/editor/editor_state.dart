@@ -3864,6 +3864,9 @@ class _EditorScreenState extends State<EditorScreen>
                               onFile: () => unawaited(
                                 _attachDocumentForCell(_selRow, _selCol),
                               ),
+                              onAttachments: () => unawaited(
+                                _openAttachmentPanelForCell(_selRow, _selCol),
+                              ),
                               onShare: () =>
                                   unawaited(_exportZipBundle(share: true)),
                               onPalette: () => unawaited(_openCommandPalette()),
@@ -3872,6 +3875,10 @@ class _EditorScreenState extends State<EditorScreen>
                               onOpenOfflineQueue: _openOfflineQueueDialog,
                               lastLocalSavedAt: _lastSavedAt,
                               sensorsEnabled: sensorsEnabled,
+                              selectedRow: _selRow,
+                              selectedCol: _selCol,
+                              selectedRowsCount: _selectedRows.length,
+                              pendingOfflineCount: _pendingOfflineCount,
                             )
                           else
                             _MobileCompactHeader(
@@ -3879,6 +3886,9 @@ class _EditorScreenState extends State<EditorScreen>
                               title: _sheetName,
                               controller: _controller,
                               pendingRequired: _pendingRequired,
+                              pendingOfflineCount: _pendingOfflineCount,
+                              selectedRow: _selRow,
+                              selectedCol: _selCol,
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onMenu: () => _openMobileHeaderMenu(
@@ -5249,6 +5259,9 @@ class _EditorScreenState extends State<EditorScreen>
 
     final metrics = _gridMetricsFor(_gridDensity);
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
+    final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
+    final hintText =
+        activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
     final overlay = Overlay.of(context, rootOverlay: true);
 
     _cellEditorEntry = OverlayEntry(
@@ -5329,28 +5342,28 @@ class _EditorScreenState extends State<EditorScreen>
                         width: width,
                         padding: metrics.cellPadding,
                         decoration: BoxDecoration(
-// ??? Dark: glass m??s visible (sin quedar ???bloque??? opaco).
+// Dark: glass visible sin quedar bloque opaco.
                           color: pal.isLight
-                              ? Colors.white.withOpacity(0.90)
-                              : const Color(0xFF0B0B0C).withOpacity(0.56),
+                              ? Colors.white.withValues(alpha: 0.90)
+                              : const Color(0xFF0B0B0C).withValues(alpha: 0.56),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: pal.isLight
-                                ? Colors.black.withOpacity(0.10)
-                                : Colors.white.withOpacity(0.24),
+                                ? Colors.black.withValues(alpha: 0.10)
+                                : Colors.white.withValues(alpha: 0.24),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black
-                                  .withOpacity(pal.isLight ? 0.10 : 0.55),
+                                  .withValues(alpha: pal.isLight ? 0.10 : 0.55),
                               blurRadius: 18,
                               offset: const Offset(0, 10),
                             ),
-// ??? micro-glow Apple (no azul fuerte)
+// Micro-glow monocromo.
                             if (!pal.isLight)
                               BoxShadow(
-                                color: pal.accent.withOpacity(0.18),
+                                color: pal.accent.withValues(alpha: 0.18),
                                 blurRadius: 22,
                                 offset: const Offset(0, 10),
                               ),
@@ -5364,17 +5377,19 @@ class _EditorScreenState extends State<EditorScreen>
                                 focusNode: _cellFocus,
                                 autofocus: true,
                                 maxLines: 1,
+                                autocorrect: false,
+                                enableSuggestions: false,
                                 style: TextStyle(
                                   color: pal.fg,
-                                  fontSize: metrics.cellFontSize,
+                                  fontSize: editorFont,
                                   height: 1.08,
-                                  fontWeight: FontWeight.w800, // ??? nitidez
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: -0.2,
                                 ),
                                 cursorColor: pal.accent,
                                 decoration: InputDecoration(
                                   isDense: true,
-                                  hintText: 'Escribir???',
+                                  hintText: hintText,
                                   hintStyle: TextStyle(color: pal.fgMuted),
                                   border: InputBorder.none,
                                 ),

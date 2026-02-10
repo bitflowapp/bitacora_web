@@ -23,6 +23,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onVideo,
     required this.onAudio,
     required this.onFile,
+    required this.onAttachments,
     required this.onShare,
     required this.onPalette,
     required this.onGpsMode,
@@ -30,6 +31,10 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onOpenOfflineQueue,
     required this.lastLocalSavedAt,
     required this.sensorsEnabled,
+    required this.selectedRow,
+    required this.selectedCol,
+    required this.selectedRowsCount,
+    required this.pendingOfflineCount,
   });
 
   final _SheetPalette palette;
@@ -59,12 +64,17 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onVideo;
   final VoidCallback onAudio;
   final VoidCallback onFile;
+  final VoidCallback onAttachments;
   final VoidCallback onShare;
   final VoidCallback onPalette;
   final VoidCallback onGpsMode;
   final VoidCallback onDensity;
   final VoidCallback onOpenOfflineQueue;
   final DateTime? lastLocalSavedAt;
+  final int selectedRow;
+  final int selectedCol;
+  final int selectedRowsCount;
+  final int pendingOfflineCount;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Ultimo guardado local: --:--';
@@ -72,6 +82,22 @@ class _PremiumAppleHeader extends StatelessWidget {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return 'Ultimo guardado local: $hh:$mm';
+  }
+
+  static String _columnLabel(int col) {
+    var value = col + 1;
+    final out = StringBuffer();
+    while (value > 0) {
+      final rem = (value - 1) % 26;
+      out.writeCharCode(65 + rem);
+      value = (value - 1) ~/ 26;
+    }
+    return out.toString().split('').reversed.join();
+  }
+
+  String _selectionLabel() {
+    if (selectedRow < 0 || selectedCol < 0) return 'Sin seleccion';
+    return 'Celda ${_columnLabel(selectedCol)}${selectedRow + 1}';
   }
 
   @override
@@ -214,6 +240,24 @@ class _PremiumAppleHeader extends StatelessWidget {
                             status: controller.offlineStatus,
                             onTap: onOpenOfflineQueue,
                           ),
+                          _InlineMetaChip(
+                            palette: palette,
+                            icon: Icons.grid_3x3_rounded,
+                            label: _selectionLabel(),
+                          ),
+                          if (selectedRowsCount > 1)
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.checklist_rounded,
+                              label: '$selectedRowsCount filas',
+                            ),
+                          if (pendingOfflineCount > 0)
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.cloud_upload_outlined,
+                              label: '$pendingOfflineCount en cola',
+                              onTap: onOpenOfflineQueue,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -254,6 +298,14 @@ class _PremiumAppleHeader extends StatelessWidget {
                             label: AppStrings.editorSearch,
                             semanticsLabel: AppStrings.semEditorSearch,
                             onTap: onSearch,
+                          ),
+                          _PillButton(
+                            palette: palette,
+                            filled: false,
+                            icon: Icons.attach_file_rounded,
+                            label: 'Adjuntos',
+                            semanticsLabel: 'Abrir adjuntos de celda activa',
+                            onTap: onAttachments,
                           ),
                           _PillButton(
                             palette: palette,
@@ -333,6 +385,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                           ),
                           AppleToolbarItem(
                             icon: Icons.attach_file_rounded,
+                            label: 'Adjuntos',
+                            onTap: onAttachments,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.attach_file_rounded,
                             label: 'Archivo',
                             onTap: onFile,
                           ),
@@ -404,6 +461,9 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.title,
     required this.controller,
     required this.pendingRequired,
+    required this.pendingOfflineCount,
+    required this.selectedRow,
+    required this.selectedCol,
     required this.onSave,
     required this.onExport,
     required this.onMenu,
@@ -415,6 +475,9 @@ class _MobileCompactHeader extends StatelessWidget {
   final String title;
   final EditorController controller;
   final int pendingRequired;
+  final int pendingOfflineCount;
+  final int selectedRow;
+  final int selectedCol;
   final VoidCallback onSave;
   final VoidCallback onExport;
   final VoidCallback onMenu;
@@ -427,6 +490,17 @@ class _MobileCompactHeader extends StatelessWidget {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return 'Ultimo guardado local: $hh:$mm';
+  }
+
+  static String _columnLabel(int col) {
+    var value = col + 1;
+    final out = StringBuffer();
+    while (value > 0) {
+      final rem = (value - 1) % 26;
+      out.writeCharCode(65 + rem);
+      value = (value - 1) ~/ 26;
+    }
+    return out.toString().split('').reversed.join();
   }
 
   @override
@@ -456,7 +530,9 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             final pendingLabel =
-                pendingRequired > 0 ? ' · Pendientes: $pendingRequired' : '';
+                pendingRequired > 0 ? ' | Req: $pendingRequired' : '';
+            final queueLabel =
+                pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
             final offlineLabel = offline.message?.trim().isNotEmpty == true
                 ? offline.message!.trim()
                 : 'Sincronizado';
@@ -464,13 +540,16 @@ class _MobileCompactHeader extends StatelessWidget {
             final localLabel =
                 _formatLocalSaved(lastLocalSavedAt ?? snap.savedAt)
                     .replaceFirst('Ultimo guardado local: ', 'Local: ');
+            final activeCell = (selectedRow >= 0 && selectedCol >= 0)
+                ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
+                : '--';
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
               child: AppTopBar(
                 title: label,
                 subtitle:
-                    '$saveLabel$pendingLabel · $localLabel · Sync: $offlineLabel · $modeLabel',
+                    '$saveLabel$pendingLabel$queueLabel | Celda: $activeCell | $localLabel | Sync: $offlineLabel | $modeLabel',
                 actions: [
                   AppButton(
                     label: AppStrings.editorSave,
@@ -506,6 +585,54 @@ class _MobileCompactHeader extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _InlineMetaChip extends StatelessWidget {
+  const _InlineMetaChip({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.hintBg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.border, width: palette.hairline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: palette.fgMuted),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: palette.fgMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              height: 1.05,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: content,
     );
   }
 }
