@@ -532,6 +532,19 @@ class _SheetPalette {
   _SheetPalette({
     required this.isLight,
     required this.hairline,
+    required this.gridBg,
+    required this.gridBorder,
+    required this.headerText,
+    required this.zebraA,
+    required this.zebraB,
+    required this.cellText,
+    required this.cellTextMuted,
+    required this.selectionFill,
+    required this.selectionBorder,
+    required this.focusRing,
+    required this.chipBg,
+    required this.chipBorder,
+    required this.chipText,
     required this.bg,
     required this.fg,
     required this.fgMuted,
@@ -558,19 +571,31 @@ class _SheetPalette {
     Color? zebraBg,
   })  : hoverBg = hoverBg ??
             (isLight
-                ? Colors.black.withOpacity(0.04)
-                : Colors.white.withOpacity(0.08)),
+                ? cellText.withValues(alpha: 0.04)
+                : cellText.withValues(alpha: 0.08)),
         pressedBg = pressedBg ??
             (isLight
-                ? Colors.black.withOpacity(0.08)
-                : Colors.white.withOpacity(0.14)),
-        zebraBg = zebraBg ??
-            (isLight
-                ? const Color(0xFFF9F9FB)
-                : Colors.white.withOpacity(0.02));
+                ? cellText.withValues(alpha: 0.08)
+                : cellText.withValues(alpha: 0.14)),
+        zebraBg = zebraBg ?? zebraB;
 
   final bool isLight;
   final double hairline;
+
+  // Spreadsheet tokens (single source of truth).
+  final Color gridBg;
+  final Color gridBorder;
+  final Color headerText;
+  final Color zebraA;
+  final Color zebraB;
+  final Color cellText;
+  final Color cellTextMuted;
+  final Color selectionFill;
+  final Color selectionBorder;
+  final Color focusRing;
+  final Color chipBg;
+  final Color chipBorder;
+  final Color chipText;
 
   final Color bg;
   final Color fg;
@@ -611,34 +636,59 @@ class _SheetPalette {
   factory _SheetPalette.fromApp(AppThemeData t, {required double hairline}) {
     final c = t.colors;
     final card = c.surfaceElevated;
+    final monoInk = c.textPrimary;
+    final gridBg = c.surfaceElevated;
+    final headerBg = c.surfaceMuted;
+    final zebraA = c.surface;
+    final zebraB = c.surfaceMuted.withValues(alpha: c.isLight ? 0.34 : 0.16);
+    final selectionFill = monoInk.withValues(alpha: c.isLight ? 0.08 : 0.14);
+    final selectionBorder = monoInk.withValues(alpha: c.isLight ? 0.38 : 0.52);
+    final focusRing = monoInk.withValues(alpha: c.isLight ? 0.42 : 0.62);
+    final chipBg = c.surfaceMuted;
+    final chipBorder = c.borderStrong;
+    final chipText = c.textPrimary;
 
     return _SheetPalette(
       isLight: c.isLight,
       hairline: hairline,
+      gridBg: gridBg,
+      gridBorder: c.border,
+      headerText: c.textPrimary,
+      zebraA: zebraA,
+      zebraB: zebraB,
+      cellText: c.textPrimary,
+      cellTextMuted: c.textSecondary,
+      selectionFill: selectionFill,
+      selectionBorder: selectionBorder,
+      focusRing: focusRing,
+      chipBg: chipBg,
+      chipBorder: chipBorder,
+      chipText: chipText,
       bg: c.bg,
       fg: c.textPrimary,
       fgMuted: c.textSecondary,
       appBarBg: c.bg,
-      headerBg: card,
-      indexBg: card,
-      cellBg: c.surface,
-      blinkBg: c.accentMuted,
+      headerBg: headerBg,
+      indexBg: headerBg,
+      cellBg: zebraA,
+      blinkBg: selectionFill,
       border: c.border,
       borderStrong: c.borderStrong,
       menuBg: c.surfaceElevated,
       editorBg: c.surfaceElevated,
-      mobileInputBg: c.surfaceElevated.withOpacity(c.isLight ? 0.96 : 0.72),
-      accent: c.accent,
-      statusBg: c.statusBg,
-      statusFg: c.statusFg,
+      mobileInputBg:
+          c.surfaceElevated.withValues(alpha: c.isLight ? 0.96 : 0.72),
+      accent: monoInk,
+      statusBg: c.surfaceMuted,
+      statusFg: c.textPrimary,
       hintBg: c.surfaceMuted,
-      headerCardBg: c.surfaceElevated.withOpacity(c.isLight ? 0.9 : 0.65),
+      headerCardBg: card.withValues(alpha: c.isLight ? 0.92 : 0.75),
       headerCardBorder: c.border,
-      pillBtnBg: c.surfaceMuted,
-      pillBtnBorder: c.border,
+      pillBtnBg: c.surface,
+      pillBtnBorder: c.borderStrong,
       hoverBg: c.hover,
       pressedBg: c.pressed,
-      zebraBg: c.surfaceMuted.withOpacity(c.isLight ? 0.6 : 0.12),
+      zebraBg: zebraB,
     );
   }
 }

@@ -6,10 +6,8 @@ class _WarmBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topTone =
-        palette.isLight ? const Color(0xFFF0F0F2) : const Color(0xFF151517);
-    final bottomTone =
-        palette.isLight ? const Color(0xFFE7E7EA) : const Color(0xFF101012);
+    final topTone = palette.headerBg;
+    final bottomTone = palette.gridBg;
 
     return IgnorePointer(
       child: DecoratedBox(

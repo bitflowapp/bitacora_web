@@ -103,8 +103,8 @@ class AppleButton extends StatelessWidget {
 
     switch (variant) {
       case AppleButtonVariant.filled:
-        bg = t.colors.isLight ? const Color(0xFF0B0B0C) : Colors.white;
-        fg = t.colors.isLight ? Colors.white : const Color(0xFF0B0B0C);
+        bg = t.colors.textPrimary;
+        fg = t.colors.surfaceElevated;
         border = bg;
         break;
       case AppleButtonVariant.ghost:

@@ -70,15 +70,10 @@ class _PremiumAppleHeader extends StatelessWidget {
     final glassGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: palette.isLight
-          ? [
-              const Color(0xFFFFFFFF).withOpacity(0.88),
-              const Color(0xFFF5F5F7).withOpacity(0.74),
-            ]
-          : [
-              Colors.white.withOpacity(0.12),
-              Colors.white.withOpacity(0.06),
-            ],
+      colors: [
+        palette.gridBg.withValues(alpha: palette.isLight ? 0.94 : 0.78),
+        palette.headerBg.withValues(alpha: palette.isLight ? 0.84 : 0.64),
+      ],
     );
 
     return Padding(
@@ -104,8 +99,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                     color: palette.headerCardBorder, width: palette.hairline),
                 boxShadow: [
                   BoxShadow(
-                    color:
-                        Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
+                    color: palette.cellText
+                        .withValues(alpha: palette.isLight ? 0.10 : 0.46),
                     blurRadius: 30,
                     offset: const Offset(0, 14),
                   ),
@@ -334,7 +329,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withOpacity(palette.isLight ? 0.18 : 0.12),
+                        palette.cellText
+                            .withValues(alpha: palette.isLight ? 0.06 : 0.10),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.35],
@@ -476,8 +472,8 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
               boxShadow: _hovered
                   ? [
                       BoxShadow(
-                        color: Colors.black
-                            .withOpacity(widget.palette.isLight ? 0.10 : 0.40),
+                        color: widget.palette.cellText.withValues(
+                            alpha: widget.palette.isLight ? 0.10 : 0.36),
                         blurRadius: 10,
                         offset: const Offset(0, 6),
                       ),
@@ -545,17 +541,10 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final disabled = widget.onTap == null;
 
-    final bg = widget.filled
-        ? (widget.palette.isLight
-            ? const Color(0xFF0B0B0C)
-            : const Color(0xFFFFFFFF))
-        : widget.palette.pillBtnBg;
+    final bg =
+        widget.filled ? widget.palette.cellText : widget.palette.pillBtnBg;
 
-    final fg = widget.filled
-        ? (widget.palette.isLight
-            ? const Color(0xFFFFFFFF)
-            : const Color(0xFF0B0B0C))
-        : widget.palette.fg;
+    final fg = widget.filled ? widget.palette.gridBg : widget.palette.fg;
 
     return Opacity(
       opacity: disabled ? 0.45 : 1.0,
@@ -573,8 +562,8 @@ class _PillButtonState extends State<_PillButton> {
               boxShadow: _hovered
                   ? [
                       BoxShadow(
-                        color: Colors.black
-                            .withOpacity(widget.palette.isLight ? 0.10 : 0.35),
+                        color: widget.palette.cellText.withValues(
+                            alpha: widget.palette.isLight ? 0.10 : 0.32),
                         blurRadius: 12,
                         offset: const Offset(0, 8),
                       ),
