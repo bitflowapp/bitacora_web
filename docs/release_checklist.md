@@ -95,6 +95,21 @@ Expected release output:
 - `flutter build web --release --base-href /bitacora_web/`
 4. Confirm `web/manifest.json` brand fields (name/description/icons) are correct.
 
+## 3.1) Web smoke test (post-deploy)
+1. Chrome hard refresh and service worker reset:
+- Open DevTools > Application > Service Workers > click `Unregister`.
+- Open DevTools > Application > Storage > click `Clear site data`.
+- Reload with `Ctrl+Shift+R` (or `Cmd+Shift+R` on macOS).
+2. iOS Safari site data reset:
+- iPhone/iPad: `Ajustes > Safari > Avanzado > Datos de sitios web`.
+- Search the deployed domain and remove it, then reopen Safari and reload.
+3. Functional smoke flow:
+- Enter app from landing and verify no red console errors.
+- If empty state appears, click `Crear planilla` and confirm a new sheet is created.
+- Open the sheet, enter editor, edit a few cells, and verify values persist.
+- Return to sheets and confirm list/metadata update (title, rows, date).
+- Test empty state CTA again by removing/cleaning local data and recreating one sheet.
+
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`
