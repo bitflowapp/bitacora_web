@@ -16,47 +16,42 @@ class SaveStatusChip extends StatelessWidget {
       valueListenable: status,
       builder: (context, snap, _) {
         final label = _labelFor(snap);
-        final icon = _iconFor(snap.state);
         final colors = _colorsFor(snap.state);
+        final busy = snap.state == EditorSaveState.saving;
+        final key =
+            '${snap.state.name}-${snap.savedAt?.millisecondsSinceEpoch ?? 0}';
 
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 180),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
           transitionBuilder: (child, anim) {
             final offset = Tween<Offset>(
-              begin: const Offset(0, 0.12),
+              begin: const Offset(0, 0.1),
               end: Offset.zero,
             ).animate(anim);
+            final scale = Tween<double>(
+              begin: 0.97,
+              end: 1.0,
+            ).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
             return FadeTransition(
               opacity: anim,
-              child: SlideTransition(position: offset, child: child),
+              child: SlideTransition(
+                position: offset,
+                child: ScaleTransition(scale: scale, child: child),
+              ),
             );
           },
-          child: Container(
-            key: ValueKey(snap.state),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: colors.$1,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: colors.$2, width: palette.hairline),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 14, color: colors.$3),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colors.$3,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    height: 1.05,
-                  ),
-                ),
-              ],
-            ),
+          child: _StatusChipShell(
+            key: ValueKey(key),
+            palette: palette,
+            bg: colors.$1,
+            border: colors.$2,
+            fg: colors.$3,
+            label: label,
+            icon: _iconFor(snap.state),
+            busy: busy,
           ),
         );
       },
@@ -101,19 +96,19 @@ class SaveStatusChip extends StatelessWidget {
       case EditorSaveState.saving:
         return (
           palette.statusBg,
-          palette.statusFg.withOpacity(0.25),
+          palette.statusFg.withValues(alpha: 0.25),
           palette.statusFg,
         );
       case EditorSaveState.dirty:
         return (
-          palette.accent.withOpacity(light ? 0.10 : 0.18),
-          palette.accent.withOpacity(0.3),
+          palette.accent.withValues(alpha: light ? 0.10 : 0.18),
+          palette.accent.withValues(alpha: 0.3),
           palette.accent,
         );
       case EditorSaveState.saved:
         return (
-          palette.accent.withOpacity(light ? 0.08 : 0.14),
-          palette.accent.withOpacity(0.25),
+          palette.accent.withValues(alpha: light ? 0.08 : 0.14),
+          palette.accent.withValues(alpha: 0.25),
           palette.accent,
         );
       case EditorSaveState.idle:
@@ -145,34 +140,44 @@ class SyncStatusChip extends StatelessWidget {
       valueListenable: status,
       builder: (context, snap, _) {
         final label = _labelFor(snap);
-        final icon = _iconFor(snap.state);
         final colors = _colorsFor(snap.state);
+        final busy = snap.state == OfflineSyncState.syncing;
 
-        return InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: colors.$1,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: colors.$2, width: palette.hairline),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 14, color: colors.$3),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colors.$3,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    height: 1.05,
-                  ),
-                ),
-              ],
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, anim) {
+            final offset = Tween<Offset>(
+              begin: const Offset(0, 0.1),
+              end: Offset.zero,
+            ).animate(anim);
+            final scale = Tween<double>(
+              begin: 0.97,
+              end: 1.0,
+            ).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
+            return FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: offset,
+                child: ScaleTransition(scale: scale, child: child),
+              ),
+            );
+          },
+          child: InkWell(
+            key: ValueKey(
+                '${snap.state.name}-${snap.pendingCount}-${snap.updatedAt?.millisecondsSinceEpoch ?? 0}'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(999),
+            child: _StatusChipShell(
+              palette: palette,
+              bg: colors.$1,
+              border: colors.$2,
+              fg: colors.$3,
+              label: label,
+              icon: _iconFor(snap.state),
+              busy: busy,
             ),
           ),
         );
@@ -245,5 +250,75 @@ class SyncStatusChip extends StatelessWidget {
           palette.selectionBorder,
         );
     }
+  }
+}
+
+class _StatusChipShell extends StatelessWidget {
+  const _StatusChipShell({
+    super.key,
+    required this.palette,
+    required this.bg,
+    required this.border,
+    required this.fg,
+    required this.label,
+    required this.icon,
+    required this.busy,
+  });
+
+  final _SheetPalette palette;
+  final Color bg;
+  final Color border;
+  final Color fg;
+  final String label;
+  final IconData icon;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: palette.hairline),
+        boxShadow: busy
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: fg.withValues(alpha: palette.isLight ? 0.12 : 0.24),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.9,
+                valueColor: AlwaysStoppedAnimation<Color>(fg),
+              ),
+            )
+          else
+            Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              height: 1.05,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

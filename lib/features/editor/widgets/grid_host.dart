@@ -145,7 +145,7 @@ class _GridView extends StatelessWidget {
                 : viewSize.height;
             final shellRadius = BorderRadius.circular(22);
             final shellShadow = palette.cellText
-                .withValues(alpha: palette.isLight ? 0.06 : 0.24);
+                .withValues(alpha: palette.isLight ? 0.05 : 0.2);
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -160,8 +160,8 @@ class _GridView extends StatelessWidget {
                   boxShadow: [
                     BoxShadow(
                       color: shellShadow,
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
@@ -423,7 +423,7 @@ class _HeaderCell extends StatelessWidget {
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
     final radius = BorderRadius.zero;
     final borderColor = palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 1).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -497,7 +497,7 @@ class _RowIndexCell extends StatelessWidget {
         palette.focusRing.withValues(alpha: palette.isLight ? 0.65 : 0.78);
     final bg = selected ? palette.selectionFill : palette.indexBg;
     final radius = BorderRadius.zero;
-    final lineWidth = math.max(palette.hairline, 1).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -611,14 +611,14 @@ class _DataCell extends StatelessWidget {
     final baseBg = zebra ? palette.zebraB : palette.zebraA;
     final selectedBg = palette.selectionFill;
     final rowSelectedBg =
-        palette.selectionFill.withValues(alpha: palette.isLight ? 0.55 : 0.70);
+        palette.selectionFill.withValues(alpha: palette.isLight ? 0.5 : 0.66);
     final bg = isActive
         ? palette.blinkBg
         : (selected ? selectedBg : (rowSelected ? rowSelectedBg : baseBg));
 
     final borderColor =
         focus || invalid ? palette.selectionBorder : palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 1).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final radius = BorderRadius.zero;
 
@@ -631,8 +631,8 @@ class _DataCell extends StatelessWidget {
               BoxShadow(
                 color: palette.focusRing
                     .withValues(alpha: palette.isLight ? 0.12 : 0.26),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ]
           : null,
@@ -661,7 +661,7 @@ class _DataCell extends StatelessWidget {
                         color: invalid
                             ? palette.focusRing
                             : palette.selectionBorder,
-                        width: 2,
+                        width: 1.6,
                       ),
                     )
                   : null,
@@ -718,6 +718,7 @@ class _DataCell extends StatelessWidget {
                 fontSize: metrics.cellFontSize,
                 height: 1.1,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: selected ? -0.12 : -0.04,
               ),
             ),
           );
@@ -749,7 +750,7 @@ class _DataCell extends StatelessWidget {
               iconWidget,
               const SizedBox(width: 3),
               Text(
-                '$photosCount',
+                'F$photosCount',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
@@ -765,10 +766,24 @@ class _DataCell extends StatelessWidget {
     if (hasAudio) {
       badges.add(
         _chip(
-          Icon(
-            Icons.graphic_eq_rounded,
-            size: 12,
-            color: palette.chipText,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.graphic_eq_rounded,
+                size: 12,
+                color: palette.chipText,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                'A',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: palette.chipText,
+                ),
+              ),
+            ],
           ),
           onTap: onAttachmentsTap,
         ),
@@ -777,10 +792,24 @@ class _DataCell extends StatelessWidget {
     if (hasGps) {
       badges.add(
         _chip(
-          Icon(
-            Icons.my_location_rounded,
-            size: 12,
-            color: palette.chipText,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.my_location_rounded,
+                size: 11,
+                color: palette.chipText,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                'GPS',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  color: palette.chipText,
+                ),
+              ),
+            ],
           ),
           onTap: onAttachmentsTap,
         ),

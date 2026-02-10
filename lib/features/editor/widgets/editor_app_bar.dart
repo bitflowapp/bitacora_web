@@ -658,14 +658,25 @@ class _IconCircleButton extends StatefulWidget {
 
 class _IconCircleButtonState extends State<_IconCircleButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   void _setHovered(bool value) {
     if (_hovered == value) return;
     setState(() => _hovered = value);
   }
 
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final surface = _pressed
+        ? widget.palette.pillBtnBg.withValues(alpha: 0.7)
+        : (_hovered
+            ? widget.palette.pillBtnBg.withValues(alpha: 0.92)
+            : widget.palette.pillBtnBg);
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
@@ -674,7 +685,7 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
         child: AnimatedScale(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
-          scale: _hovered ? 1.05 : 1.0,
+          scale: _pressed ? 0.97 : (_hovered ? 1.05 : 1.0),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
@@ -692,16 +703,17 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
             ),
             child: InkWell(
               onTap: widget.onTap,
+              onHighlightChanged: _setPressed,
               borderRadius: BorderRadius.circular(999),
               child: Semantics(
                 button: true,
                 label: widget.semanticsLabel,
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: widget.palette.pillBtnBg,
+                    color: surface,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                         color: widget.palette.pillBtnBorder,
@@ -741,18 +753,29 @@ class _PillButton extends StatefulWidget {
 
 class _PillButtonState extends State<_PillButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   void _setHovered(bool value) {
     if (_hovered == value) return;
     setState(() => _hovered = value);
   }
 
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final disabled = widget.onTap == null;
 
-    final bg =
+    final baseBg =
         widget.filled ? widget.palette.cellText : widget.palette.pillBtnBg;
+    final bg = _pressed
+        ? baseBg.withValues(alpha: widget.filled ? 0.85 : 0.72)
+        : (_hovered
+            ? baseBg.withValues(alpha: widget.filled ? 0.94 : 0.9)
+            : baseBg);
 
     final fg = widget.filled ? widget.palette.gridBg : widget.palette.fg;
 
@@ -764,7 +787,7 @@ class _PillButtonState extends State<_PillButton> {
         child: AnimatedScale(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
-          scale: _hovered ? 1.03 : 1.0,
+          scale: _pressed ? 0.985 : (_hovered ? 1.03 : 1.0),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
@@ -782,13 +805,14 @@ class _PillButtonState extends State<_PillButton> {
             ),
             child: InkWell(
               onTap: disabled ? null : widget.onTap,
+              onHighlightChanged: disabled ? null : _setPressed,
               borderRadius: BorderRadius.circular(999),
               child: Semantics(
                 button: true,
                 label: widget.semanticsLabel,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   decoration: BoxDecoration(
                     color: bg,
                     borderRadius: BorderRadius.circular(999),
@@ -806,6 +830,7 @@ class _PillButtonState extends State<_PillButton> {
                         style: TextStyle(
                           color: fg,
                           fontWeight: FontWeight.w900,
+                          fontSize: 13,
                           height: 1.05,
                         ),
                       ),

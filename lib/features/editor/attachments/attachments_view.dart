@@ -20,19 +20,24 @@ class AttachmentsSheetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: palette.fg,
-            fontWeight: FontWeight.w900,
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.fg,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         Text(
-          '$count',
+          '$count item(s)',
           style: TextStyle(
             color: palette.fgMuted,
             fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
         ),
         const SizedBox(width: 12),
@@ -40,6 +45,7 @@ class AttachmentsSheetHeader extends StatelessWidget {
           label: 'Agregar',
           icon: Icons.add_photo_alternate_outlined,
           variant: AppButtonVariant.secondary,
+          size: AppButtonSize.sm,
           onPressed: onAdd,
         ),
         Tooltip(

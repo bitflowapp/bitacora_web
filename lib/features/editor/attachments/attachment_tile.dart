@@ -24,17 +24,19 @@ class AttachmentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeLabel = label.trim().isEmpty ? 'Adjunto' : label.trim();
+    final overlayBg =
+        palette.bg.withValues(alpha: palette.isLight ? 0.86 : 0.62);
     return Semantics(
       button: true,
       label: 'Abrir adjunto $safeLabel',
       child: Material(
-        color: palette.headerBg,
-        borderRadius: BorderRadius.circular(14),
+        color: palette.menuBg,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           onTap: onPreview,
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -43,21 +45,41 @@ class AttachmentTile extends StatelessWidget {
                     children: [
                       Positioned.fill(child: thumb),
                       Positioned(
-                        top: 6,
-                        right: 6,
+                        top: 8,
+                        right: 8,
                         child: Tooltip(
                           message: 'Reordenar',
                           child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: palette.bg
-                                  .withOpacity(palette.isLight ? 0.85 : 0.6),
-                              borderRadius: BorderRadius.circular(8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 5,
                             ),
-                            child: Icon(
-                              Icons.drag_handle_rounded,
-                              size: 14,
-                              color: palette.fgMuted,
+                            decoration: BoxDecoration(
+                              color: overlayBg,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: palette.border,
+                                width: palette.hairline,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.drag_indicator_rounded,
+                                  size: 13,
+                                  color: palette.fgMuted,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Mover',
+                                  style: TextStyle(
+                                    color: palette.fgMuted,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -97,35 +119,44 @@ class AttachmentTile extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: [
+                    Semantics(
+                      button: true,
+                      label: 'Ver adjunto',
+                      child: Tooltip(
+                        message: 'Ver',
+                        child: _MiniActionButton(
+                          icon: Icons.visibility_outlined,
+                          onPressed: onPreview,
+                          palette: palette,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
                       label: 'Renombrar adjunto',
                       child: Tooltip(
                         message: 'Renombrar',
-                        child: IconButton(
+                        child: _MiniActionButton(
+                          icon: Icons.edit_rounded,
                           onPressed: onRename,
-                          icon: Icon(Icons.edit_rounded,
-                              color: palette.fgMuted, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                          palette: palette,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
                       label: 'Eliminar adjunto',
                       child: Tooltip(
                         message: 'Eliminar',
-                        child: IconButton(
+                        child: _MiniActionButton(
+                          icon: Icons.delete_outline_rounded,
                           onPressed: onDelete,
-                          icon: Icon(Icons.delete_outline_rounded,
-                              color: palette.fgMuted, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                          palette: palette,
                         ),
                       ),
                     ),
@@ -134,6 +165,42 @@ class AttachmentTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniActionButton extends StatelessWidget {
+  const _MiniActionButton({
+    required this.icon,
+    required this.onPressed,
+    required this.palette,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final _SheetPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: palette.hintBg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: palette.border,
+              width: palette.hairline,
+            ),
+          ),
+          child: Icon(icon, size: 16, color: palette.fgMuted),
         ),
       ),
     );

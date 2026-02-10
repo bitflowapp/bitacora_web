@@ -53,16 +53,16 @@ class _MobileQuickActionsBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppTheme.of(context);
     final bg = t.colors.surfaceElevated
-        .withValues(alpha: palette.isLight ? 0.92 : 0.78);
+        .withValues(alpha: palette.isLight ? 0.94 : 0.8);
 
     return AppleCard(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       radius: t.radii.xl,
       color: bg,
-      borderColor: t.colors.border,
+      borderColor: t.colors.borderStrong,
       shadows: t.shadows.soft,
       child: SizedBox(
-        height: _kMobileQuickBarH,
+        height: _kMobileQuickBarH + 2,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(

@@ -1431,7 +1431,19 @@ extension _EditorAttachments on _EditorScreenState {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: pal.menuBg,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: pal.border,
+                        width: pal.hairline,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: pal.cellText
+                              .withValues(alpha: pal.isLight ? 0.05 : 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
@@ -1667,6 +1679,37 @@ extension _EditorAttachments on _EditorScreenState {
           );
         }
 
+        Widget metaRow(String label, String value) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 88,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: pal.cellTextMuted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: pal.cellText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return SafeArea(
           top: false,
           child: Padding(
@@ -1717,34 +1760,52 @@ extension _EditorAttachments on _EditorScreenState {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      statChip(
-                          Icons.photo_rounded, '${currentMeta.photos.length}'),
+                      statChip(Icons.photo_rounded,
+                          'Fotos ${currentMeta.photos.length}'),
                       statChip(Icons.graphic_eq_rounded,
-                          '${currentMeta.audios.length}'),
+                          'Audios ${currentMeta.audios.length}'),
                       statChip(Icons.my_location_rounded,
-                          hasGps ? 'GPS' : 'Sin GPS'),
+                          hasGps ? 'GPS activo' : 'Sin GPS'),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Metadata',
-                    style: TextStyle(
-                      color: pal.cellText,
-                      fontWeight: FontWeight.w700,
+                  AppCard(
+                    radius: 14,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    color: pal.headerBg,
+                    borderColor: pal.border,
+                    shadows: const <BoxShadow>[],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Metadata',
+                          style: TextStyle(
+                            color: pal.cellText,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        metaRow(
+                            'Fecha/Hora',
+                            latestTs == null
+                                ? '-'
+                                : _formatDateTimeShort(latestTs)),
+                        metaRow(
+                          'Lat/Lon',
+                          hasGps
+                              ? '${lat!.toStringAsFixed(6)}, ${lon!.toStringAsFixed(6)}'
+                              : '-',
+                        ),
+                        metaRow(
+                          'Precision',
+                          precision == null
+                              ? '-'
+                              : '${precision.toStringAsFixed(1)} m',
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Fecha/Hora: ${latestTs == null ? '-' : _formatDateTimeShort(latestTs)}',
-                    style: TextStyle(color: pal.cellTextMuted),
-                  ),
-                  Text(
-                    'Lat/Lon: ${hasGps ? '${lat!.toStringAsFixed(6)}, ${lon!.toStringAsFixed(6)}' : '-'}',
-                    style: TextStyle(color: pal.cellTextMuted),
-                  ),
-                  Text(
-                    'Precision: ${precision == null ? '-' : '${precision.toStringAsFixed(1)} m'}',
-                    style: TextStyle(color: pal.cellTextMuted),
                   ),
                   const SizedBox(height: 14),
                   Wrap(
