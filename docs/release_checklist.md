@@ -79,8 +79,13 @@ Android release automation:
 - Workflow: `.github/workflows/android_release.yml`
 - Triggers: `workflow_dispatch` y tags `v*`
 - Resultado esperado:
-  - Artifact `bitflow-android-apk` con `BitFlow-<version>-android.apk`
-  - En push de tag `v*`, APK adjuntado al GitHub Release.
+  - En `workflow_dispatch`, artifact QA `bitflow-android-apk` con `BitFlow-android.apk`
+  - En push de tag `v*`, APK adjuntado al GitHub Release con nombre estable `BitFlow-android.apk`
+  - Opcional: asset versionado `BitFlow-android-vX.Y.Z.apk`
+
+Publicar release Android (1 comando):
+- Ejecutar `powershell -ExecutionPolicy Bypass -File .\scripts\tag_release.ps1`
+- El script toma la versión de `pubspec.yaml` (y muestra `buildId` de `version.json` si existe), crea `vX.Y.Z` y hace `push` del tag a `origin`.
 
 ## 2) iOS (IPA)
 1. Open `ios/Runner.xcworkspace` in Xcode and configure Team / Bundle ID / signing.
@@ -170,10 +175,11 @@ Android release automation:
 1. Android install / release:
 - Ejecutar `powershell -ExecutionPolicy Bypass -File .\\scripts\\build_android_release.ps1`.
 - Confirmar APK en `dist/BitFlow-<version>-android.apk`.
-- Publicar tag `vX.Y.Z` y verificar workflow `Android Release` en GitHub:
-  - Artifact subido (`bitflow-android-apk`).
-  - APK adjuntado al Release del tag.
-- En `docs/bitflow/index.html`, botón `Descargar Android APK` debe abrir `releases/latest`.
+- Ejecutar `powershell -ExecutionPolicy Bypass -File .\\scripts\\tag_release.ps1` para publicar tag `vX.Y.Z`.
+- Verificar workflow `Android Release` en GitHub:
+  - En `workflow_dispatch`: artifact QA `bitflow-android-apk`.
+  - En tag `v*`: APK adjuntado al Release (`BitFlow-android.apk`).
+- En `docs/bitflow/index.html`, botón `Descargar Android APK` debe abrir `/releases/latest/download/BitFlow-android.apk`.
 2. Offline real (persistente):
 - Conectar red, abrir editor y confirmar chip de sync en toolbar (`Sincronizado`).
 - Desconectar red, crear `+ Registro` y editar celdas; validar chip `Offline/Pendiente`.
