@@ -218,6 +218,8 @@ class _EditorScreenState extends State<EditorScreen>
   _CellRef? _editingCellRef;
   int? _editingHeaderCol;
   final ValueNotifier<int> _gridVersion = ValueNotifier<int>(0);
+  final Map<String, ValueNotifier<int>> _rowVersionById =
+      <String, ValueNotifier<int>>{};
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -403,6 +405,7 @@ class _EditorScreenState extends State<EditorScreen>
       ..clear()
       ..add(0);
     _rowSelectionAnchor = 0;
+    _syncRowVersionNotifiers();
     _resetMobileRowCaches();
     _scheduleValidationRecompute(immediate: true);
 
@@ -521,6 +524,10 @@ class _EditorScreenState extends State<EditorScreen>
 
     _blinkCell.dispose();
     _gridVersion.dispose();
+    for (final notifier in _rowVersionById.values) {
+      notifier.dispose();
+    }
+    _rowVersionById.clear();
     _saveStatus.dispose();
     _offlineStatus.dispose();
 
@@ -1035,6 +1042,7 @@ class _EditorScreenState extends State<EditorScreen>
       _lastSavedRev = 0;
       _savePending = false;
     });
+    _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
 
@@ -1286,6 +1294,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+    _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
 
@@ -1320,6 +1329,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+    _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
 
@@ -1664,7 +1674,45 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _bumpGridVersion() {
+    _syncRowVersionNotifiers();
     _gridVersion.value = _gridVersion.value + 1;
+  }
+
+  ValueListenable<int> _rowVersionListenable(String rowId) {
+    return _rowVersionById.putIfAbsent(
+      rowId,
+      () => ValueNotifier<int>(0),
+    );
+  }
+
+  void _bumpRowVersionById(String rowId) {
+    final notifier = _rowVersionById.putIfAbsent(
+      rowId,
+      () => ValueNotifier<int>(0),
+    );
+    notifier.value = notifier.value + 1;
+  }
+
+  void _syncRowVersionNotifiers() {
+    if (_rows.isEmpty && _rowVersionById.isNotEmpty) {
+      for (final notifier in _rowVersionById.values) {
+        notifier.dispose();
+      }
+      _rowVersionById.clear();
+      return;
+    }
+
+    final activeIds = _rows.map((row) => row.id).toSet();
+    final stale = <String>[];
+    for (final id in _rowVersionById.keys) {
+      if (!activeIds.contains(id)) stale.add(id);
+    }
+    for (final id in stale) {
+      _rowVersionById.remove(id)?.dispose();
+    }
+    for (final id in activeIds) {
+      _rowVersionById.putIfAbsent(id, () => ValueNotifier<int>(0));
+    }
   }
 
   String _effectiveHeader(int c) {
@@ -1701,19 +1749,20 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
 
+    final rowId = _rows[r].id;
     final ref = _CellRef(r, c);
     final existing = _draftCells[ref];
     if (existing == value) return;
 
     if (value == _rows[r].cells[c]) {
       if (_draftCells.remove(ref) != null) {
-        _bumpGridVersion();
+        _bumpRowVersionById(rowId);
       }
       return;
     }
 
     _draftCells[ref] = value;
-    _bumpGridVersion();
+    _bumpRowVersionById(rowId);
   }
 
   void _commitDraftHeader(int c) {
@@ -1740,12 +1789,13 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
 
+    final rowId = _rows[r].id;
     final ref = _CellRef(r, c);
     final draft = _draftCells[ref];
     final next = _normalizeCellValueForColumn(c, draft ?? _rows[r].cells[c]);
     if (next == _rows[r].cells[c]) {
       if (_draftCells.remove(ref) != null) {
-        _bumpGridVersion();
+        _bumpRowVersionById(rowId);
       }
       return;
     }
@@ -1753,7 +1803,7 @@ class _EditorScreenState extends State<EditorScreen>
     _rows[r].cells[c] = next;
     _draftCells.remove(ref);
     _markDirty(snapshot: true);
-    _bumpGridVersion();
+    _bumpRowVersionById(rowId);
   }
 
   void _clearDrafts() {
@@ -3991,6 +4041,8 @@ class _EditorScreenState extends State<EditorScreen>
                                             onOpenAttachments: (r, c) =>
                                                 _openAttachmentPanelForCell(
                                                     r, c),
+                                            rowVersionListenable:
+                                                _rowVersionListenable,
                                           );
                                         },
                                       ),

@@ -85,6 +85,7 @@ class _GridView extends StatelessWidget {
     required this.onDeleteRow,
     required this.onPickPhoto,
     required this.onOpenAttachments,
+    required this.rowVersionListenable,
   });
 
   final _SheetPalette palette;
@@ -120,6 +121,7 @@ class _GridView extends StatelessWidget {
   final ValueChanged<int> onDeleteRow;
   final ValueChanged<int> onPickPhoto;
   final void Function(int r, int c) onOpenAttachments;
+  final ValueListenable<int> Function(String rowId) rowVersionListenable;
 
 // ??? Apple-ish sizing
   static const double indexW = 54;
@@ -212,107 +214,125 @@ class _GridView extends StatelessWidget {
                                 physics: const BouncingScrollPhysics(),
                                 itemCount: rowModels.length,
                                 itemBuilder: (ctx3, r) {
-                                  final rowSelected = selectedRows.contains(r);
+                                  final row = rowModels[r];
                                   return RepaintBoundary(
-                                    child: SizedBox(
-                                      height: metrics.rowH,
-                                      child: Row(
-                                        children: [
-                                          _RowIndexCell(
-                                            palette: palette,
-                                            metrics: metrics,
-                                            width: indexW,
-                                            index: r + 1,
-                                            selected:
-                                                rowSelected || r == selRow,
-                                            onTap: () => onRowIndexTap(r),
-                                            onSecondaryTapDown: (d) =>
-                                                onContextMenu(d.globalPosition,
-                                                    r, selCol, false),
-                                          ),
-                                          for (int col = 0;
-                                              col < headers.length;
-                                              col++)
-                                            Builder(
-                                              builder: (_) {
-                                                final ref = _CellRef(r, col);
-                                                final invalid =
-                                                    isInvalid(r, col);
-                                                final isPhotos =
-                                                    col == headers.length - 1;
-                                                final photosCount =
-                                                    cellPhotoCount(r, col);
-                                                final thumbB64 =
-                                                    cellPhotoThumb(r, col);
-                                                return _DataCell(
-                                                  palette: palette,
-                                                  metrics: metrics,
-                                                  width:
-                                                      col == headers.length - 1
-                                                          ? photosW
-                                                          : colW,
-                                                  text: cellTextAt(r, col),
-                                                  hasGps: cellHasGps(r, col),
-                                                  hasAudio:
-                                                      cellHasAudios(r, col),
-                                                  photoThumbB64: thumbB64,
-                                                  photosCount: photosCount,
-                                                  zebra: r.isEven,
-                                                  thumbB64: thumbB64,
-                                                  selected: r == selRow &&
-                                                      col == selCol,
-                                                  rowSelected: rowSelected,
-                                                  isPhotos: isPhotos,
-                                                  blinkRef: blinkRef,
-                                                  cellRef: ref,
-                                                  invalid: invalid,
-                                                  isOverlayTarget:
-                                                      overlayTargetCell == ref,
-                                                  editorLink: editorLink,
-                                                  onTap: () => onEditRequested(
-                                                    r,
-                                                    col,
-                                                    col == headers.length - 1
-                                                        ? photosW
-                                                        : colW,
-                                                  ),
-                                                  onLongPress: () {
-                                                    onSelect(r, col);
-                                                    final box =
-                                                        ctx3.findRenderObject();
-                                                    if (box is RenderBox) {
-                                                      final pos =
-                                                          box.localToGlobal(
-                                                              Offset.zero);
-                                                      onContextMenu(
-                                                        pos +
-                                                            const Offset(
-                                                                120, 12),
-                                                        r,
-                                                        col,
-                                                        false,
-                                                      );
-                                                    }
-                                                  },
-                                                  onSecondaryTapDown: (d) {
-                                                    onSelect(r, col);
+                                    child: ValueListenableBuilder<int>(
+                                      valueListenable:
+                                          rowVersionListenable(row.id),
+                                      builder: (context, _, __) {
+                                        final rowSelected =
+                                            selectedRows.contains(r);
+                                        return SizedBox(
+                                          height: metrics.rowH,
+                                          child: Row(
+                                            children: [
+                                              _RowIndexCell(
+                                                palette: palette,
+                                                metrics: metrics,
+                                                width: indexW,
+                                                index: r + 1,
+                                                selected:
+                                                    rowSelected || r == selRow,
+                                                onTap: () => onRowIndexTap(r),
+                                                onSecondaryTapDown: (d) =>
                                                     onContextMenu(
                                                         d.globalPosition,
                                                         r,
+                                                        selCol,
+                                                        false),
+                                              ),
+                                              for (int col = 0;
+                                                  col < headers.length;
+                                                  col++)
+                                                Builder(
+                                                  builder: (_) {
+                                                    final ref =
+                                                        _CellRef(r, col);
+                                                    final invalid =
+                                                        isInvalid(r, col);
+                                                    final isPhotos = col ==
+                                                        headers.length - 1;
+                                                    final photosCount =
+                                                        cellPhotoCount(r, col);
+                                                    final thumbB64 =
+                                                        cellPhotoThumb(r, col);
+                                                    return _DataCell(
+                                                      palette: palette,
+                                                      metrics: metrics,
+                                                      width: col ==
+                                                              headers.length - 1
+                                                          ? photosW
+                                                          : colW,
+                                                      text: cellTextAt(r, col),
+                                                      hasGps:
+                                                          cellHasGps(r, col),
+                                                      hasAudio:
+                                                          cellHasAudios(r, col),
+                                                      photoThumbB64: thumbB64,
+                                                      photosCount: photosCount,
+                                                      zebra: r.isEven,
+                                                      thumbB64: thumbB64,
+                                                      selected: r == selRow &&
+                                                          col == selCol,
+                                                      rowSelected: rowSelected,
+                                                      isPhotos: isPhotos,
+                                                      blinkRef: blinkRef,
+                                                      cellRef: ref,
+                                                      invalid: invalid,
+                                                      isOverlayTarget:
+                                                          overlayTargetCell ==
+                                                              ref,
+                                                      editorLink: editorLink,
+                                                      onTap: () =>
+                                                          onEditRequested(
+                                                        r,
                                                         col,
-                                                        false);
+                                                        col ==
+                                                                headers.length -
+                                                                    1
+                                                            ? photosW
+                                                            : colW,
+                                                      ),
+                                                      onLongPress: () {
+                                                        onSelect(r, col);
+                                                        final box = ctx3
+                                                            .findRenderObject();
+                                                        if (box is RenderBox) {
+                                                          final pos =
+                                                              box.localToGlobal(
+                                                                  Offset.zero);
+                                                          onContextMenu(
+                                                            pos +
+                                                                const Offset(
+                                                                    120, 12),
+                                                            r,
+                                                            col,
+                                                            false,
+                                                          );
+                                                        }
+                                                      },
+                                                      onSecondaryTapDown: (d) {
+                                                        onSelect(r, col);
+                                                        onContextMenu(
+                                                            d.globalPosition,
+                                                            r,
+                                                            col,
+                                                            false);
+                                                      },
+                                                      onDeleteRow: () =>
+                                                          onDeleteRow(r),
+                                                      onPickPhoto: () =>
+                                                          onPickPhoto(r),
+                                                      onAttachmentsTap: () =>
+                                                          onOpenAttachments(
+                                                              r, col),
+                                                    );
                                                   },
-                                                  onDeleteRow: () =>
-                                                      onDeleteRow(r),
-                                                  onPickPhoto: () =>
-                                                      onPickPhoto(r),
-                                                  onAttachmentsTap: () =>
-                                                      onOpenAttachments(r, col),
-                                                );
-                                              },
-                                            ),
-                                        ],
-                                      ),
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     ),
                                   );
                                 },
