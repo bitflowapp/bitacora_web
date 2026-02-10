@@ -1793,8 +1793,8 @@ class _StartPageState extends State<StartPage> {
                           'URL invÃƒÂ¡lida (usa http/https + host)',
                           style: TextStyle(
                             color: widget.isLight
-                                ? const Color(0xFFB00020)
-                                : const Color(0xFFFF6B6B),
+                                ? const Color(0xFF1B1B1F)
+                                : const Color(0xFFE7E7EC),
                             fontSize: 12,
                           ),
                         ),
@@ -1871,8 +1871,8 @@ class _StartPageState extends State<StartPage> {
                           'Correo invÃƒÂ¡lido',
                           style: TextStyle(
                             color: widget.isLight
-                                ? const Color(0xFFB00020)
-                                : const Color(0xFFFF6B6B),
+                                ? const Color(0xFF1B1B1F)
+                                : const Color(0xFFE7E7EC),
                             fontSize: 12,
                           ),
                         ),
@@ -3052,7 +3052,7 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.root,
         title: 'RaÃƒÂ­z',
         icon: CupertinoIcons.list_bullet,
-        iconBg: const Color(0xFFFF9F0A),
+        iconBg: const Color(0xFF1B1B1F),
         count: _countSheetsInFolder(''),
         folderId: '',
         trailingBadge: null,
@@ -3069,7 +3069,7 @@ class _StartPageState extends State<StartPage> {
           kind: _ListKind.folder,
           title: f.name,
           icon: CupertinoIcons.folder,
-          iconBg: const Color(0xFFBF5AF2),
+          iconBg: const Color(0xFF2D2D33),
           count: _countSheetsInFolder(f.id),
           folderId: f.id,
           trailingBadge: null,
@@ -3084,7 +3084,7 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.trash,
         title: 'Papelera',
         icon: CupertinoIcons.trash,
-        iconBg: const Color(0xFF8E8E93),
+        iconBg: const Color(0xFF4A4A52),
         count: trashCount,
         folderId: '',
         trailingBadge: trashCount > 0 ? 'Ã¢Å¡Â ' : null,
@@ -3338,7 +3338,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF4FC3FF), Color(0xFF2D7DFF)],
+                      colors: [Color(0xFF2A2A2F), Color(0xFF17171B)],
                     ),
                     onTap: onTapToday,
                   ),
@@ -3387,7 +3387,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFFFF6B6B), Color(0xFFFF3B30)],
+                      colors: [Color(0xFF404047), Color(0xFF25252B)],
                     ),
                     onTap: onTapScheduled,
                   ),
@@ -3400,7 +3400,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFFFFC566), Color(0xFFFF9F0A)],
+                      colors: [Color(0xFF4A4A53), Color(0xFF2B2B33)],
                     ),
                     onTap: onTapFlagged,
                   ),
@@ -3541,7 +3541,7 @@ class _SuggestedListCard extends StatelessWidget {
             height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFF34C759),
+              color: const Color(0xFF1A1A1E),
               borderRadius: BorderRadius.circular(999),
             ),
             child: const Icon(CupertinoIcons.sparkles,
@@ -3593,7 +3593,7 @@ class _SuggestedListCard extends StatelessWidget {
                 border: Border.all(color: border),
               ),
               child: const Icon(CupertinoIcons.add,
-                  color: Color(0xFF34C759), size: 20),
+                  color: Color(0xFF1A1A1E), size: 20),
             ),
           ),
         ],
@@ -3787,7 +3787,7 @@ class _ApplePalette {
       isLight ? const Color(0x990B0B0F) : const Color(0x99F5F5F7);
 
   Color get accent =>
-      isLight ? const Color(0xFF007AFF) : const Color(0xFF0A84FF);
+      isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
 
   Color get muted =>
       isLight ? const Color(0x660B0B0F) : const Color(0x66F5F5F7);

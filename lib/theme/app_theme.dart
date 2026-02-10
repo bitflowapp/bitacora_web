@@ -5,11 +5,11 @@ import 'gridnote_theme.dart';
 @immutable
 class AppRadii {
   const AppRadii({
-    this.xs = 8,
-    this.sm = 12,
-    this.md = 16,
-    this.lg = 20,
-    this.xl = 26,
+    this.xs = 10,
+    this.sm = 14,
+    this.md = 18,
+    this.lg = 22,
+    this.xl = 28,
     this.pill = 999,
   });
 
@@ -24,12 +24,12 @@ class AppRadii {
 @immutable
 class AppSpacing {
   const AppSpacing({
-    this.xs = 4,
-    this.sm = 8,
-    this.md = 12,
-    this.lg = 16,
-    this.xl = 24,
-    this.xxl = 32,
+    this.xs = 6,
+    this.sm = 10,
+    this.md = 14,
+    this.lg = 20,
+    this.xl = 28,
+    this.xxl = 36,
   });
 
   final double xs;
@@ -139,37 +139,38 @@ class AppTheme {
     final surfaceMuted =
         isLight ? const Color(0xFFF2F2F4) : const Color(0xFF0F1114);
     final surfaceElevated =
-        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF15181D);
+        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF141416);
 
     final border = (theme.dividerColor).withOpacity(isLight ? 0.9 : 0.65);
     final borderStrong = scheme.outline.withOpacity(isLight ? 0.95 : 0.75);
 
     final accent = scheme.primary;
-    final accentMuted = accent.withOpacity(isLight ? 0.12 : 0.18);
+    final accentMuted = accent.withOpacity(isLight ? 0.08 : 0.12);
 
-    final statusBg = accent.withOpacity(isLight ? 0.10 : 0.16);
-    final statusFg = accent.withOpacity(isLight ? 0.95 : 0.85);
+    final statusBg = accent.withOpacity(isLight ? 0.10 : 0.20);
+    final statusFg =
+        isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
 
     final warningBg =
-        isLight ? const Color(0xFFFFF7ED) : const Color(0xFF3A2414);
+        isLight ? const Color(0xFFF2F2F4) : const Color(0xFF222228);
     final warningFg =
-        isLight ? const Color(0xFF9A3412) : const Color(0xFFFBBF24);
+        isLight ? const Color(0xFF1B1B1F) : const Color(0xFFE9E9ED);
 
     final dangerBg =
-        isLight ? const Color(0xFFFEE2E2) : const Color(0xFF3B0A0A);
+        isLight ? const Color(0xFFF2F2F4) : const Color(0xFF222228);
     final dangerFg =
-        isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
+        isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
 
     final successBg =
-        isLight ? const Color(0xFFECFDF3) : const Color(0xFF102617);
+        isLight ? const Color(0xFFF1F1F3) : const Color(0xFF1D1D22);
     final successFg =
-        isLight ? const Color(0xFF166534) : const Color(0xFF86EFAC);
+        isLight ? const Color(0xFF101014) : const Color(0xFFF4F4F6);
 
     final hover = (isLight ? Colors.black : Colors.white)
-        .withOpacity(isLight ? 0.04 : 0.08);
+        .withOpacity(isLight ? 0.03 : 0.06);
     final pressed = (isLight ? Colors.black : Colors.white)
-        .withOpacity(isLight ? 0.08 : 0.14);
-    final focusRing = accent.withOpacity(isLight ? 0.24 : 0.32);
+        .withOpacity(isLight ? 0.08 : 0.12);
+    final focusRing = accent.withOpacity(isLight ? 0.20 : 0.30);
 
     final colors = AppColors(
       isLight: isLight,
@@ -199,29 +200,29 @@ class AppTheme {
     final radii = const AppRadii();
     final spacing = const AppSpacing();
 
-    final shadowColor = Colors.black.withOpacity(isLight ? 0.10 : 0.60);
-    final softShadow = Colors.black.withOpacity(isLight ? 0.06 : 0.40);
+    final shadowColor = Colors.black.withOpacity(isLight ? 0.10 : 0.48);
+    final softShadow = Colors.black.withOpacity(isLight ? 0.05 : 0.34);
 
     final shadows = AppShadows(
       card: [
         BoxShadow(
           color: shadowColor,
-          blurRadius: isLight ? 14 : 22,
-          offset: const Offset(0, 8),
+          blurRadius: isLight ? 18 : 24,
+          offset: const Offset(0, 10),
         ),
       ],
       soft: [
         BoxShadow(
           color: softShadow,
-          blurRadius: isLight ? 10 : 16,
-          offset: const Offset(0, 5),
+          blurRadius: isLight ? 12 : 18,
+          offset: const Offset(0, 6),
         ),
       ],
       floating: [
         BoxShadow(
           color: shadowColor,
-          blurRadius: isLight ? 20 : 30,
-          offset: const Offset(0, 12),
+          blurRadius: isLight ? 24 : 30,
+          offset: const Offset(0, 14),
         ),
       ],
     );

@@ -16,13 +16,13 @@ class AppStrings {
   // Sheets
   static const sheetsTitle = 'BitFlow';
   static const sheetsSearchHint = 'Buscar por nombre o ID... (Ctrl/Cmd+K o /)';
-  static const newSheet = 'Nueva hoja';
+  static const newSheet = 'Crear planilla';
   static const templates = 'Plantillas';
   static const openLast = 'Abrir ultima';
   static const clearSearch = 'Limpiar busqueda';
   static const emptySheetsTitle = 'Todavia no hay planillas';
   static const emptySheetsBody =
-      'Crea una hoja nueva o arranca desde una plantilla para tus relevamientos.';
+      'Crea tu primera planilla o arranca desde una plantilla para tus relevamientos.';
   static const noResultsTitle = 'Sin resultados';
   static const deletedSheetToast = 'Planilla eliminada';
   static const renameSheetTitle = 'Renombrar planilla';

@@ -31,7 +31,8 @@ class AppTextField extends StatelessWidget {
     final t = context.tokens;
     final hasError = (errorText ?? '').trim().isNotEmpty;
     final borderColor = hasError ? t.colors.dangerFg : t.colors.border;
-    final fill = t.colors.surfaceMuted;
+
+    final radius = BorderRadius.circular(t.radii.md);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,7 +42,7 @@ class AppTextField extends StatelessWidget {
             label!,
             style: t.text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: t.spacing.xs),
         ],
         TextField(
           controller: controller,
@@ -54,34 +55,34 @@ class AppTextField extends StatelessWidget {
             hintText: hint,
             isDense: true,
             filled: true,
-            fillColor: fill,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
+            fillColor: t.colors.surface,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: t.spacing.lg,
+              vertical: t.spacing.sm,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(t.radii.md),
-              borderSide: BorderSide(color: borderColor, width: 0.8),
+              borderRadius: radius,
+              borderSide: BorderSide(color: borderColor, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(t.radii.md),
-              borderSide: BorderSide(color: t.colors.focusRing, width: 1.0),
+              borderRadius: radius,
+              borderSide: BorderSide(color: t.colors.focusRing, width: 1.2),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(t.radii.md),
-              borderSide: BorderSide(color: t.colors.dangerFg, width: 0.9),
+              borderRadius: radius,
+              borderSide: BorderSide(color: t.colors.dangerFg, width: 1),
             ),
             disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(t.radii.md),
+              borderRadius: radius,
               borderSide: BorderSide(
-                color: t.colors.border.withOpacity(0.5),
-                width: 0.8,
+                color: t.colors.border.withOpacity(0.6),
+                width: 1,
               ),
             ),
           ),
         ),
         if (hasError) ...[
-          const SizedBox(height: 6),
+          SizedBox(height: t.spacing.xs),
           Text(
             errorText!,
             style: t.text.bodySmall?.copyWith(color: t.colors.dangerFg),

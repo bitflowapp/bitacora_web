@@ -6,7 +6,7 @@ class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(20),
     this.radius,
     this.onTap,
     this.color,
@@ -25,31 +25,34 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final r = radius ?? t.radii.lg;
-    final body = Container(
+    final cardRadius = radius ?? t.radii.lg;
+
+    final decorated = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? t.colors.surface,
-        borderRadius: BorderRadius.circular(r),
+        borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(
           color: borderColor ?? t.colors.border,
-          width: 0.8,
+          width: 1,
         ),
         boxShadow: shadows ?? t.shadows.soft,
       ),
       child: child,
     );
 
-    if (onTap == null) return body;
+    if (onTap == null) return decorated;
 
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(cardRadius),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(r),
+        borderRadius: BorderRadius.circular(cardRadius),
         hoverColor: t.colors.hover,
         splashColor: t.colors.pressed,
-        child: body,
+        child: decorated,
       ),
     );
   }

@@ -31,42 +31,21 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final colors = t.colors;
+    final c = _resolveColors(t);
 
-    Color bg;
-    Color fg;
-    Color border;
-
-    switch (variant) {
-      case AppButtonVariant.primary:
-        bg = colors.isLight ? const Color(0xFF0B0B0C) : Colors.white;
-        fg = colors.isLight ? Colors.white : const Color(0xFF0B0B0C);
-        border = bg;
-        break;
-      case AppButtonVariant.secondary:
-        bg = colors.surfaceMuted;
-        fg = colors.textPrimary;
-        border = colors.border;
-        break;
-      case AppButtonVariant.ghost:
-        bg = Colors.transparent;
-        fg = colors.textPrimary;
-        border = colors.border;
-        break;
-      case AppButtonVariant.destructive:
-        bg = colors.dangerFg;
-        fg = colors.isLight ? Colors.white : const Color(0xFF0B0B0C);
-        border = colors.dangerFg;
-        break;
-    }
+    final minHeight = switch (size) {
+      AppButtonSize.sm => 36.0,
+      AppButtonSize.md => 42.0,
+      AppButtonSize.lg => 48.0,
+    };
 
     final padding = switch (size) {
       AppButtonSize.sm =>
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        EdgeInsets.symmetric(horizontal: t.spacing.md, vertical: t.spacing.xs),
       AppButtonSize.md =>
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        EdgeInsets.symmetric(horizontal: t.spacing.lg, vertical: t.spacing.sm),
       AppButtonSize.lg =>
-        const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        EdgeInsets.symmetric(horizontal: t.spacing.xl, vertical: t.spacing.sm),
     };
 
     final fontSize = switch (size) {
@@ -76,53 +55,53 @@ class AppButton extends StatelessWidget {
     };
 
     final style = ButtonStyle(
-      padding: WidgetStateProperty.all(padding),
-      backgroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.disabled)) {
-          return bg.withOpacity(0.4);
-        }
-        return bg;
-      }),
-      foregroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.disabled)) {
-          return fg.withOpacity(0.45);
-        }
-        return fg;
-      }),
-      overlayColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.pressed)) return colors.pressed;
-        if (states.contains(WidgetState.hovered) ||
-            states.contains(WidgetState.focused)) {
-          return colors.hover;
-        }
-        return null;
-      }),
-      shape: WidgetStateProperty.all(
+      minimumSize: WidgetStatePropertyAll<Size>(Size(0, minHeight)),
+      padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(padding),
+      shape: WidgetStatePropertyAll<OutlinedBorder>(
         RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(t.radii.pill),
         ),
       ),
-      side: WidgetStateProperty.resolveWith((states) {
-        final focus = states.contains(WidgetState.focused);
+      side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+        final focused = states.contains(WidgetState.focused);
         return BorderSide(
-          color: focus ? colors.focusRing : border,
-          width: 0.9,
+          color: focused ? t.colors.focusRing : c.border,
+          width: focused ? 1.2 : 1,
         );
       }),
-      textStyle: WidgetStateProperty.all(
+      elevation: const WidgetStatePropertyAll<double>(0),
+      backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return c.bg.withOpacity(0.50);
+        }
+        return c.bg;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return c.fg.withOpacity(0.50);
+        }
+        return c.fg;
+      }),
+      overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.pressed)) return t.colors.pressed;
+        if (states.contains(WidgetState.hovered)) return t.colors.hover;
+        if (states.contains(WidgetState.focused)) {
+          return t.colors.focusRing.withOpacity(0.20);
+        }
+        return null;
+      }),
+      textStyle: WidgetStatePropertyAll<TextStyle>(
         TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: fontSize,
           letterSpacing: 0.1,
         ),
       ),
-      elevation: WidgetStateProperty.all(0),
     );
 
     final child = Row(
       mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-      mainAxisAlignment:
-          fullWidth ? MainAxisAlignment.center : MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (loading)
           SizedBox(
@@ -130,12 +109,12 @@ class AppButton extends StatelessWidget {
             height: fontSize + 2,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(fg),
+              valueColor: AlwaysStoppedAnimation<Color>(c.fg),
             ),
           )
         else if (icon != null)
           Icon(icon, size: fontSize + 6),
-        if (icon != null || loading) const SizedBox(width: 8),
+        if (icon != null || loading) SizedBox(width: t.spacing.sm),
         Flexible(
           child: Text(
             label,
@@ -151,11 +130,51 @@ class AppButton extends StatelessWidget {
       child: child,
     );
 
-    if (tooltip == null || tooltip!.trim().isEmpty) {
-      return fullWidth
-          ? SizedBox(width: double.infinity, child: button)
-          : button;
-    }
-    return Tooltip(message: tooltip!.trim(), child: button);
+    final wrapped =
+        fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+
+    if (tooltip == null || tooltip!.trim().isEmpty) return wrapped;
+    return Tooltip(message: tooltip!.trim(), child: wrapped);
   }
+
+  _ResolvedButtonColors _resolveColors(AppTokens t) {
+    switch (variant) {
+      case AppButtonVariant.primary:
+        return _ResolvedButtonColors(
+          bg: t.colors.accent,
+          fg: t.colors.isLight ? Colors.white : const Color(0xFF0D0D0F),
+          border: t.colors.accent,
+        );
+      case AppButtonVariant.secondary:
+        return _ResolvedButtonColors(
+          bg: t.colors.surface,
+          fg: t.colors.textPrimary,
+          border: t.colors.border,
+        );
+      case AppButtonVariant.ghost:
+        return _ResolvedButtonColors(
+          bg: Colors.transparent,
+          fg: t.colors.textPrimary,
+          border: t.colors.border,
+        );
+      case AppButtonVariant.destructive:
+        return _ResolvedButtonColors(
+          bg: t.colors.dangerFg,
+          fg: t.colors.isLight ? Colors.white : const Color(0xFF0D0D0F),
+          border: t.colors.dangerFg,
+        );
+    }
+  }
+}
+
+class _ResolvedButtonColors {
+  const _ResolvedButtonColors({
+    required this.bg,
+    required this.fg,
+    required this.border,
+  });
+
+  final Color bg;
+  final Color fg;
+  final Color border;
 }

@@ -65,23 +65,24 @@ class GridnoteTheme {
 
   static GridnoteTheme build(bool light) {
     // Acento iOS-like.
-    const accentBlue = Color(0xFF0A84FF);
+    final accentMono =
+        light ? const Color(0xFF0D0D0F) : const Color(0xFFF3F3F3);
 
     // “Warm Apple” (beige/arena) para que se sienta premium.
     // Si querés más frío, cambiá scaffoldLight a 0xFFF5F5F7 y listo.
     const scaffoldLight = Color(0xFFF5F5F7);
-    const scaffoldDark = Color(0xFF050A14);
+    const scaffoldDark = Color(0xFF0A0A0C);
 
     const cardLight = Color(0xFFFFFFFF);
-    const cardDark = Color(0xFF0B1220);
+    const cardDark = Color(0xFF121214);
 
     const dividerLight = Color(0xFFE5E7EB);
-    const dividerDark = Color(0xFF1E293B);
+    const dividerDark = Color(0xFF2B2B31);
 
     final brightness = light ? Brightness.light : Brightness.dark;
 
     final baseScheme = ColorScheme.fromSeed(
-      seedColor: accentBlue,
+      seedColor: const Color(0xFF1A1A1A),
       brightness: brightness,
     );
 
@@ -98,18 +99,18 @@ class GridnoteTheme {
         .withAlpha(_a(light ? 0.06 : 0.08));
     final overlayHover = (light ? Colors.black : Colors.white)
         .withAlpha(_a(light ? 0.035 : 0.05));
-    final overlayFocusRing = accentBlue.withAlpha(_a(light ? 0.22 : 0.28));
+    final overlayFocusRing = accentMono.withAlpha(_a(light ? 0.20 : 0.30));
 
     // Tonos secundarios para headers/variants.
     final surfaceVariant =
-        light ? const Color(0xFFF2F2F4) : const Color(0xFF0F172A);
+        light ? const Color(0xFFF2F2F4) : const Color(0xFF1A1A1E);
     final onSurfaceVariant =
         (light ? const Color(0xFF111827) : const Color(0xFFE5E7EB))
             .withAlpha(_a(light ? 0.78 : 0.82));
 
     final scheme = baseScheme.copyWith(
-      primary: accentBlue,
-      secondary: accentBlue,
+      primary: accentMono,
+      secondary: accentMono,
       background: scaffold,
       surface: card,
       surfaceContainerHighest: card,
@@ -200,9 +201,9 @@ class GridnoteTheme {
       // Focus / selección / cursor (clave para que deje de parecer Flutter stock).
       focusColor: overlayFocusRing,
       textSelectionTheme: TextSelectionThemeData(
-        cursorColor: accentBlue,
-        selectionColor: accentBlue.withAlpha(_a(0.22)),
-        selectionHandleColor: accentBlue,
+        cursorColor: accentMono,
+        selectionColor: accentMono.withAlpha(_a(light ? 0.20 : 0.24)),
+        selectionHandleColor: accentMono,
       ),
 
       // AppBar plano, Apple-like (sin tint ni elevaciones raras).
@@ -285,7 +286,7 @@ class GridnoteTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(
-            color: accentBlue.withAlpha(_a(0.92)),
+            color: accentMono.withAlpha(_a(light ? 0.82 : 0.90)),
             width: 1.35,
           ),
         ),
@@ -362,20 +363,20 @@ class GridnoteTheme {
         ),
         trackColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return accentBlue.withAlpha(_a(light ? 0.30 : 0.42));
+            return accentMono.withAlpha(_a(light ? 0.24 : 0.36));
           }
           return divider.withAlpha(_a(light ? 0.28 : 0.34));
         }),
         thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) return accentBlue;
-          return light ? Colors.white : const Color(0xFF0F172A);
+          if (states.contains(MaterialState.selected)) return accentMono;
+          return light ? Colors.white : const Color(0xFF16161A);
         }),
       ),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.80 : 0.58))),
         fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) return accentBlue;
+          if (states.contains(MaterialState.selected)) return accentMono;
           return Colors.transparent;
         }),
         checkColor: const MaterialStatePropertyAll(Colors.white),
@@ -387,7 +388,7 @@ class GridnoteTheme {
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.78 : 0.55))),
         backgroundColor:
             scheme.surfaceVariant.withAlpha(_a(light ? 0.65 : 0.55)),
-        selectedColor: accentBlue.withAlpha(_a(light ? 0.14 : 0.18)),
+        selectedColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
         labelStyle: textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
           color: scheme.onSurface,
@@ -450,7 +451,7 @@ class GridnoteTheme {
         backgroundColor: card.withAlpha(_a(light ? 0.94 : 0.92)),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: accentBlue.withAlpha(_a(light ? 0.12 : 0.18)),
+        indicatorColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
         labelTextStyle: MaterialStatePropertyAll(
           textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w700,
@@ -460,7 +461,7 @@ class GridnoteTheme {
         iconTheme: MaterialStateProperty.resolveWith((states) {
           final selected = states.contains(MaterialState.selected);
           return IconThemeData(
-            color: selected ? accentBlue : scheme.onSurfaceVariant,
+            color: selected ? accentMono : scheme.onSurfaceVariant,
             size: 22,
           );
         }),
@@ -475,9 +476,10 @@ class GridnoteTheme {
       ),
 
       // Progreso/spinners.
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: accentBlue,
-        linearTrackColor: Color(0x220A84FF),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: accentMono,
+        linearTrackColor:
+            light ? const Color(0x22000000) : const Color(0x33FFFFFF),
       ),
 
       // Scrollbars discretas.
@@ -500,7 +502,7 @@ class GridnoteTheme {
       scaffold: scaffold,
       card: card,
       divider: divider,
-      accent: accentBlue,
+      accent: accentMono,
     );
   }
 }
