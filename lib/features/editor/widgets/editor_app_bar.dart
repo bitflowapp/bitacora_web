@@ -12,6 +12,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onRedo,
     required this.onAddRow,
     required this.onQuickCapture,
+    required this.onSearch,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -43,6 +44,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onRedo;
   final VoidCallback onAddRow;
   final VoidCallback onQuickCapture;
+  final VoidCallback onSearch;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -207,10 +209,10 @@ class _PremiumAppleHeader extends StatelessWidget {
                           _PillButton(
                             palette: palette,
                             filled: false,
-                            icon: Icons.check_circle_outline_rounded,
-                            label: AppStrings.editorSave,
-                            semanticsLabel: AppStrings.semEditorSave,
-                            onTap: onSave,
+                            icon: Icons.search_rounded,
+                            label: AppStrings.editorSearch,
+                            semanticsLabel: AppStrings.semEditorSearch,
+                            onTap: onSearch,
                           ),
                           _PillButton(
                             palette: palette,
@@ -223,18 +225,18 @@ class _PremiumAppleHeader extends StatelessWidget {
                           _PillButton(
                             palette: palette,
                             filled: false,
-                            icon: Icons.science_outlined,
-                            label: AppStrings.editorDiagnostics,
-                            semanticsLabel: 'Abrir diagnostico',
-                            onTap: onSmokeTest,
+                            icon: Icons.layers_outlined,
+                            label: AppStrings.editorBatchActions,
+                            semanticsLabel: 'Abrir acciones por lote',
+                            onTap: onBatch,
                           ),
                           _PillButton(
                             palette: palette,
                             filled: false,
-                            icon: Icons.functions_rounded,
-                            label: AppStrings.editorCompute,
-                            semanticsLabel: 'Calcular formulas',
-                            onTap: onCompute,
+                            icon: Icons.check_circle_outline_rounded,
+                            label: AppStrings.editorSave,
+                            semanticsLabel: AppStrings.semEditorSave,
+                            onTap: onSave,
                           ),
                         ],
                       ),
@@ -248,8 +250,14 @@ class _PremiumAppleHeader extends StatelessWidget {
                           ),
                           AppleToolbarItem(
                             icon: Icons.layers_outlined,
-                            label: 'Lote',
+                            label: 'Acciones',
                             onTap: onBatch,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.search_rounded,
+                            label: AppStrings.editorSearch,
+                            shortcut: 'Ctrl/Cmd+F',
+                            onTap: onSearch,
                           ),
                           AppleToolbarItem(
                             icon: Icons.my_location_rounded,
@@ -300,6 +308,17 @@ class _PremiumAppleHeader extends StatelessWidget {
                             label: 'Exportar',
                             shortcut: 'Ctrl/Cmd+E',
                             onTap: onExport,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.science_outlined,
+                            label: AppStrings.editorDiagnostics,
+                            onTap: onSmokeTest,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.functions_rounded,
+                            label: AppStrings.editorCompute,
+                            onTap: onCompute ?? () {},
+                            enabled: onCompute != null,
                           ),
                           AppleToolbarItem(
                             icon: Icons.ios_share_rounded,

@@ -3330,6 +3330,7 @@ class _EditorScreenState extends State<EditorScreen>
                               onAddRow: () => _insertRow(_rows.length),
                               onQuickCapture: () =>
                                   unawaited(_startQuickCaptureFlow()),
+                              onSearch: () => unawaited(_openSearchDialog()),
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -4967,186 +4968,60 @@ class _EditorScreenState extends State<EditorScreen>
         }));
       }
     } else {
-      actions.add(_CtxAction('Editar', Icons.edit_outlined,
-          () => _beginEditCell(context, pal, r, c, 320)));
       actions.add(_CtxAction('Copiar', Icons.copy_rounded,
           () => unawaited(_copySelectionToClipboard())));
       actions.add(_CtxAction('Pegar', Icons.paste_rounded,
           () => unawaited(_pasteFromClipboard())));
-      actions.add(_CtxAction('Pegar resultado', Icons.calculate_outlined,
-          () => _applyCalcToCell(r, c)));
-      actions.add(_CtxAction('Fecha/Hora ahora', Icons.schedule_rounded,
-          () => _insertNowInCell(r, c)));
       actions.add(_CtxAction(
-          'Rellenar abajo...',
-          Icons.vertical_align_bottom_rounded,
-          () => unawaited(_promptFillDown(context, r, c))));
-      actions.add(_CtxAction('Incrementar...', Icons.exposure_plus_1_rounded,
-          () => unawaited(_promptIncrement(context, r, c))));
-      actions.add(_CtxAction(
-          'Limpiar celda', Icons.backspace_outlined, () => _setCell(r, c, '')));
+          'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
 
-      if (c != _headers.length - 1) {
-        actions.add(_CtxAction(
-            'GPS -> Pegar en esta celda',
-            Icons.my_location_outlined,
-            () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
-            runOnTap: true));
-        actions.add(_CtxAction('Modo GPS...', Icons.tune_rounded,
-            () => unawaited(_showGpsModePicker()),
-            runOnTap: true));
-        actions.add(_CtxAction('Maps', Icons.map_outlined,
-            () => unawaited(_openMapsForCell(r, c))));
-
-        if (_audioRecording) {
-          actions.add(_CtxAction(
-              'Detener grabación',
-              Icons.stop_circle_outlined,
-              () => unawaited(_stopAudioRecording()),
-              runOnTap: true));
-        } else {
-          actions.add(_CtxAction(
-              'Grabar audio en esta celda',
-              Icons.mic_none_rounded,
-              () => unawaited(_startAudioRecordingForCell(r, c)),
-              runOnTap: true));
-        }
-        if (_cellHasAudios(r, c)) {
-          actions.add(_CtxAction('Audios de esta celda',
-              Icons.graphic_eq_rounded, () => _openAudiosSheetForCell(r, c)));
-        }
-
-        actions.add(_CtxAction(
-            'Agregar foto a esta celda',
-            Icons.add_photo_alternate_outlined,
-            () => unawaited(_startPhotoFlowForCell(r, c)),
-            runOnTap: true));
-        actions.add(_CtxAction(
-          'Adjuntar video',
-          Icons.videocam_outlined,
-          () => unawaited(_attachVideoForCell(r, c)),
-          runOnTap: true,
-        ));
-        actions.add(_CtxAction(
-          'Adjuntar archivo',
-          Icons.attach_file_rounded,
-          () => unawaited(_attachDocumentForCell(r, c)),
-          runOnTap: true,
-        ));
-        if (_cellHasPhotos(r, c)) {
-          actions.add(_CtxAction(
-              'Ver fotos de esta celda',
-              Icons.photo_library_outlined,
-              () => _openPhotosSheetForCell(r, c)));
-        }
-      } else {
-        if (_audioRecording) {
-          actions.add(_CtxAction(
-            'Detener grabación',
-            Icons.stop_circle_outlined,
-            () => unawaited(_stopAudioRecording()),
-            runOnTap: true,
-          ));
-        } else {
-          actions.add(_CtxAction(
-            'Grabar audio en esta celda',
-            Icons.mic_none_rounded,
-            () => unawaited(_startAudioRecordingForCell(r, c)),
-            runOnTap: true,
-          ));
-        }
-        if (_cellHasAudios(r, c)) {
-          actions.add(_CtxAction('Audios de esta celda',
-              Icons.graphic_eq_rounded, () => _openAudiosSheetForCell(r, c)));
-        }
-        actions.add(_CtxAction(
-          'Agregar foto',
-          Icons.add_photo_alternate_outlined,
-          () => unawaited(_startPhotoFlowForCell(r, c)),
-          runOnTap: true,
-        ));
-        actions.add(_CtxAction(
-          'Adjuntar video',
-          Icons.videocam_outlined,
-          () => unawaited(_attachVideoForCell(r, c)),
-          runOnTap: true,
-        ));
-        actions.add(_CtxAction(
-          'Adjuntar archivo',
-          Icons.attach_file_rounded,
-          () => unawaited(_attachDocumentForCell(r, c)),
-          runOnTap: true,
-        ));
-        if (_cellHasPhotos(r, c)) {
-          actions.add(_CtxAction(
-              'Ver fotos de esta celda',
-              Icons.photo_library_outlined,
-              () => _openPhotosSheetForCell(r, c)));
-        }
-      }
-
-      actions.add(_CtxAction('Insertar fila arriba', Icons.arrow_upward_rounded,
-          () => _insertRow(r)));
-      actions.add(_CtxAction('Insertar fila abajo',
-          Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
-      actions.add(
-        _CtxAction('Seleccionar solo esta fila', Icons.checklist_rtl_rounded,
-            () {
-          setState(() {
-            _selectedRows
-              ..clear()
-              ..add(r);
-            _rowSelectionAnchor = r;
-            _setSelection(r, c, preserveRowSelection: true);
-          });
-        }),
-      );
-      actions.add(_CtxAction(
-        _selectedRows.contains(r)
-            ? 'Quitar fila de seleccion'
-            : 'Agregar fila a seleccion',
-        Icons.layers_outlined,
-        () {
-          setState(() {
-            if (_selectedRows.contains(r) && _selectedRows.length > 1) {
-              _selectedRows.remove(r);
-            } else {
-              _selectedRows.add(r);
-            }
-            _rowSelectionAnchor = r;
-            _setSelection(r, c, preserveRowSelection: true);
-          });
-        },
-      ));
       if (_batchTargetRows().length > 1) {
         actions.add(_CtxAction(
             'Aplicar valor a seleccion',
             Icons.format_color_text_rounded,
             () => unawaited(_promptBatchApplyValue())));
-        actions.add(_CtxAction(
-            'Aplicar GPS a seleccion',
-            Icons.my_location_rounded,
-            () => unawaited(_applyGpsToSelectedRows())));
-        actions.add(_CtxAction('Duplicar filas seleccionadas',
-            Icons.copy_all_outlined, _duplicateSelectedRows));
       }
+
       actions.add(_CtxAction(
-          'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
-      actions.add(_CtxAction(
-          'Borrar fila', Icons.delete_outline_rounded, () => _deleteRow(r)));
+        'Adjuntar foto',
+        Icons.add_photo_alternate_outlined,
+        () => unawaited(_startPhotoFlowForCell(r, c)),
+        runOnTap: true,
+      ));
+      if (c != _headers.length - 1) {
+        actions.add(_CtxAction(
+          'Adjuntar GPS',
+          Icons.my_location_rounded,
+          () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
+          runOnTap: true,
+        ));
+      }
+
+      final hasAttachments = _cellMetaAt(r, c)?.isEmpty == false;
+      if (hasAttachments) {
+        actions.add(_CtxAction('Ver adjuntos', Icons.attach_file_rounded,
+            () => unawaited(_openAttachmentPanelForCell(r, c))));
+      }
     }
 
     if (actions.isEmpty) return;
 
     final overlay = Overlay.of(context);
-
     final size = overlay.context.size;
     if (size == null) return;
 
     final res = await showMenu<int>(
       context: context,
       color: pal.menuBg,
-      elevation: 10,
+      elevation: 14,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: pal.gridBorder,
+          width: math.max(pal.hairline, 1).toDouble(),
+        ),
+      ),
+      menuPadding: const EdgeInsets.symmetric(vertical: 6),
       position: RelativeRect.fromLTRB(
         globalPos.dx,
         globalPos.dy,
@@ -5158,15 +5033,18 @@ class _EditorScreenState extends State<EditorScreen>
           PopupMenuItem<int>(
             value: i,
             onTap: actions[i].runOnTap ? actions[i].run : null,
+            height: 42,
             child: Row(
               children: [
-                Icon(actions[i].icon, size: 18, color: pal.fg),
+                Icon(actions[i].icon, size: 18, color: pal.cellText),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     actions[i].label,
-                    style:
-                        TextStyle(color: pal.fg, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      color: pal.cellText,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],

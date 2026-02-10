@@ -41,7 +41,9 @@ class AppStrings {
   // Editor
   static const editorSheetNameHint = 'Nombre de planilla';
   static const editorSave = 'Guardar';
+  static const editorSearch = 'Buscar';
   static const editorExport = 'Exportar';
+  static const editorBatchActions = 'Acciones';
   static const editorDiagnostics = 'Diagnostico';
   static const editorCompute = 'Calcular';
   static const editorOptions = 'Opciones';
@@ -112,6 +114,7 @@ class AppStrings {
   static const semTogglePin = 'Fijar o desfijar planilla';
   static const semEditorExport = 'Exportar planilla';
   static const semEditorSave = 'Guardar planilla';
+  static const semEditorSearch = 'Buscar en planilla';
   static const semEditorGps = 'Capturar ubicacion GPS';
   static const semEditorPhoto = 'Agregar foto';
   static const semEditorAudio = 'Grabar audio';
