@@ -12,18 +12,35 @@ build/
 # Platform folders: keep mostly ignored, track only store-pack config files.
 android/*
 !android/app/
+!android/build.gradle.kts
+!android/settings.gradle.kts
+!android/gradle.properties
+!android/gradlew
+!android/gradlew.bat
+!android/gradle/
+!android/gradle/wrapper/
+!android/gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.properties
+!android/key.properties.example
 android/app/*
 !android/app/build.gradle.kts
 !android/app/src/
 android/app/src/*
+!android/app/src/debug/
+!android/app/src/profile/
 !android/app/src/main/
+!android/app/src/debug/AndroidManifest.xml
+!android/app/src/profile/AndroidManifest.xml
 android/app/src/main/*
 !android/app/src/main/AndroidManifest.xml
+!android/app/src/main/kotlin/
 !android/app/src/main/res/
 android/app/src/main/res/*
 !android/app/src/main/res/drawable/
 !android/app/src/main/res/drawable-v21/
 !android/app/src/main/res/mipmap-*/
+!android/app/src/main/res/values/
+!android/app/src/main/res/values-night/
 android/app/src/main/res/drawable/*
 android/app/src/main/res/drawable-v21/*
 android/app/src/main/res/mipmap-*/*
@@ -31,7 +48,8 @@ android/app/src/main/res/mipmap-*/*
 !android/app/src/main/res/drawable-v21/launch_background.xml
 !android/app/src/main/res/mipmap-*/ic_launcher.png
 !android/app/src/main/res/mipmap-*/ic_launcher_round.png
-!android/key.properties.example
+!android/app/src/main/res/values/styles.xml
+!android/app/src/main/res/values-night/styles.xml
 
 ios/*
 !ios/Runner/
