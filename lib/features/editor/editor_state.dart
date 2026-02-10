@@ -117,7 +117,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
   static const Duration _slowValidationThreshold = Duration(milliseconds: 12);
   static const String _kPhotoReadErrorMsg =
-      'No se pudo leer la imagen (bytes vacÃ­os).';
+      'No se pudo leer la imagen (bytes vacios).';
 // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -2289,7 +2289,7 @@ class _EditorScreenState extends State<EditorScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$count fila(s) seleccionadas Â· columna activa: $columnLabel',
+            '$count fila(s) seleccionadas - columna activa: $columnLabel',
             style: TextStyle(
               color: _palette(context).fgMuted,
               fontWeight: FontWeight.w600,
@@ -4083,7 +4083,7 @@ class _EditorScreenState extends State<EditorScreen>
                                               _setSelectionAndRefreshGrid(
                                                   picked.row, picked.col);
                                               _updatePhotoFlowStatus(
-                                                'Destino ${_cellLabelForRef(ref)} Â· listo',
+                                                'Destino ${_cellLabelForRef(ref)} - listo',
                                                 target: ref,
                                               );
                                             },
@@ -4914,7 +4914,7 @@ class _EditorScreenState extends State<EditorScreen>
                         : Icons.mic_none_rounded,
                   ),
                   title: Text(_audioRecording
-                      ? 'Detener grabaciÃ³n'
+                      ? 'Detener grabacion'
                       : 'Grabar audio en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -6276,7 +6276,7 @@ class _EditorScreenState extends State<EditorScreen>
       case _GpsWriteMode.pasteActive:
         return 'Inserta coordenadas en la celda seleccionada.';
       case _GpsWriteMode.pickTarget:
-        return 'Luego de capturar GPS, elegÃ­s la celda destino.';
+        return 'Luego de capturar GPS, elegis la celda destino.';
       case _GpsWriteMode.metadataOnly:
         return 'Guarda GPS en metadata sin tocar el texto.';
     }
@@ -7838,7 +7838,7 @@ class _EditorScreenState extends State<EditorScreen>
         build: (context) {
           final content = <pw.Widget>[
             pw.Text(
-              'BitFlow Â· ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              'BitFlow - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
               style: pw.TextStyle(
                 fontSize: 18,
                 fontWeight: pw.FontWeight.bold,
@@ -9170,7 +9170,7 @@ Este paquete incluye:
         if (!mounted) return;
         _showActionSnack(
           _isIosWeb
-              ? 'Safari iOS limita compartir archivos. Se descargÃ³ el archivo.'
+              ? 'Safari iOS limita compartir archivos. Se descargo el archivo.'
               : 'Web Share no soportado. Archivo descargado.',
           isError: false,
           icon: Icons.download_rounded,
