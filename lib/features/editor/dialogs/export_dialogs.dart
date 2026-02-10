@@ -121,6 +121,16 @@ extension _EditorExportDialogs on _EditorScreenState {
                     },
                   ),
                   AppButton(
+                    label: 'Importar paquete',
+                    icon: Icons.file_open_rounded,
+                    variant: AppButtonVariant.ghost,
+                    size: AppButtonSize.sm,
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      unawaited(_openImportPackageDialog());
+                    },
+                  ),
+                  AppButton(
                     label: AppStrings.editorReportHtml,
                     icon: Icons.description_rounded,
                     variant: AppButtonVariant.ghost,

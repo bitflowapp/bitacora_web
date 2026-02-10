@@ -423,9 +423,9 @@ class _StartPageState extends State<StartPage> {
                               'Empieza en segundos con una hoja vacia o una plantilla base.',
                         ),
                         _OnboardingPage(
-                          title: '3. Importa un backup',
+                          title: '3. Importa un paquete',
                           body:
-                              'Si ya trabajabas antes, importa un ZIP para continuar donde quedaste.',
+                              'Si ya trabajabas antes, importa un paquete ZIP para continuar donde quedaste.',
                         ),
                       ],
                     ),
@@ -452,7 +452,7 @@ class _StartPageState extends State<StartPage> {
                     ),
                   if (page == 2)
                     AppButton(
-                      label: 'Importar backup ZIP',
+                      label: 'Importar paquete ZIP',
                       variant: AppButtonVariant.secondary,
                       onPressed: () => closeAndRun(ctx, _importBackupZip),
                     ),
@@ -1124,46 +1124,109 @@ class _StartPageState extends State<StartPage> {
 
       final archive = ZipDecoder().decodeBytes(bytes);
       ArchiveFile? backupFile;
+      ArchiveFile? sheetFile;
+      ArchiveFile? manifestFile;
       for (final f in archive) {
         final name = f.name.trim();
         if (name == 'backup.json' || name.endsWith('/backup.json')) {
           backupFile = f;
-          break;
+        } else if (name == 'sheet.json' || name.endsWith('/sheet.json')) {
+          sheetFile = f;
+        } else if (name == 'manifest.json' || name.endsWith('/manifest.json')) {
+          manifestFile = f;
         }
       }
-      if (backupFile == null) {
+      if (backupFile == null && sheetFile == null) {
         _reportStartPageErrorMessage(
-          'backup_json_missing',
+          'package_json_missing',
           flow: AppErrorFlow.importData,
           operation: 'import_backup_lookup_manifest',
-          fallbackMessage: 'No se encontro backup.json en el ZIP.',
+          fallbackMessage:
+              'No se encontro backup.json ni sheet.json en el ZIP.',
         );
         return;
       }
 
-      final backupRaw = jsonDecode(utf8.decode(_archiveFileBytes(backupFile)));
-      if (backupRaw is! Map) {
-        _reportStartPageErrorMessage(
-          'backup_invalid_root',
-          flow: AppErrorFlow.importData,
-          operation: 'import_backup_decode_json',
-          fallbackMessage: 'Backup invalido.',
-        );
-        return;
-      }
-      final sheetRaw = backupRaw['sheet'];
-      if (sheetRaw is! Map) {
-        _reportStartPageErrorMessage(
-          'backup_invalid_missing_sheet',
-          flow: AppErrorFlow.importData,
-          operation: 'import_backup_validate_sheet',
-          fallbackMessage: 'Backup invalido: falta sheet.',
-        );
-        return;
+      late final Map<String, dynamic> sheetRaw;
+      List<dynamic> assetsRaw = const <dynamic>[];
+      if (backupFile != null) {
+        final backupRaw =
+            jsonDecode(utf8.decode(_archiveFileBytes(backupFile)));
+        if (backupRaw is! Map) {
+          _reportStartPageErrorMessage(
+            'backup_invalid_root',
+            flow: AppErrorFlow.importData,
+            operation: 'import_backup_decode_json',
+            fallbackMessage: 'Backup invalido.',
+          );
+          return;
+        }
+        final sheetCandidate = backupRaw['sheet'];
+        if (sheetCandidate is! Map) {
+          _reportStartPageErrorMessage(
+            'backup_invalid_missing_sheet',
+            flow: AppErrorFlow.importData,
+            operation: 'import_backup_validate_sheet',
+            fallbackMessage: 'Backup invalido: falta sheet.',
+          );
+          return;
+        }
+        sheetRaw = Map<String, dynamic>.from(sheetCandidate);
+        assetsRaw = (backupRaw['assets'] as List?) ?? const <dynamic>[];
+      } else {
+        final sheetCandidate =
+            jsonDecode(utf8.decode(_archiveFileBytes(sheetFile!)));
+        if (sheetCandidate is! Map) {
+          _reportStartPageErrorMessage(
+            'package_invalid_sheet_json',
+            flow: AppErrorFlow.importData,
+            operation: 'import_package_decode_sheet_json',
+            fallbackMessage: 'sheet.json invalido.',
+          );
+          return;
+        }
+        sheetRaw = Map<String, dynamic>.from(sheetCandidate);
+        if (manifestFile != null) {
+          final manifestRaw =
+              jsonDecode(utf8.decode(_archiveFileBytes(manifestFile)));
+          if (manifestRaw is Map) {
+            assetsRaw = (manifestRaw['assets'] as List?) ?? const <dynamic>[];
+            if (assetsRaw.isEmpty) {
+              final cellsRaw = manifestRaw['cells'];
+              if (cellsRaw is Map) {
+                final flattened = <Map<String, dynamic>>[];
+                for (final entry in cellsRaw.entries) {
+                  if (entry.value is! Map) continue;
+                  final cellMap = Map<String, dynamic>.from(entry.value as Map);
+                  final photos = cellMap['photos'];
+                  if (photos is List) {
+                    for (final item in photos) {
+                      if (item is! Map) continue;
+                      final next = Map<String, dynamic>.from(item);
+                      next.putIfAbsent('kind', () => 'photo');
+                      next.putIfAbsent('cellKey', () => entry.key.toString());
+                      flattened.add(next);
+                    }
+                  }
+                  final audios = cellMap['audios'];
+                  if (audios is List) {
+                    for (final item in audios) {
+                      if (item is! Map) continue;
+                      final next = Map<String, dynamic>.from(item);
+                      next.putIfAbsent('kind', () => 'audio');
+                      next.putIfAbsent('cellKey', () => entry.key.toString());
+                      flattened.add(next);
+                    }
+                  }
+                }
+                assetsRaw = flattened;
+              }
+            }
+          }
+        }
       }
 
-      final normalized =
-          SheetStore.normalizeModel(Map<String, dynamic>.from(sheetRaw));
+      final normalized = SheetStore.normalizeModel(sheetRaw);
       final rowsRaw = (normalized['rows'] as List?) ?? const [];
       final rowIds = <String>[];
       for (final r in rowsRaw) {
@@ -1179,7 +1242,6 @@ class _StartPageState extends State<StartPage> {
       final newSheetId = DateTime.now().millisecondsSinceEpoch.toString();
       normalized['savedAt'] = DateTime.now().toIso8601String();
 
-      final assetsRaw = backupRaw['assets'];
       final assetsById = <String, Map<String, dynamic>>{};
       if (assetsRaw is List) {
         for (final a in assetsRaw) {
@@ -1603,12 +1665,12 @@ class _StartPageState extends State<StartPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Importar: restaura un backup ZIP desde este equipo.',
+                'Importar: restaura un paquete ZIP desde este equipo.',
                 style: Theme.of(ctx).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
               Text(
-                'El reporte HTML y el backup ZIP completo se generan dentro del Editor.',
+                'El reporte HTML y el paquete/backup ZIP se generan dentro del Editor.',
                 style: Theme.of(ctx).textTheme.bodyMedium,
               ),
             ],
@@ -2388,7 +2450,7 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _importBackupZip();
               },
-              child: const Text('Importar backup ZIP...'),
+              child: const Text('Importar paquete ZIP...'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {

@@ -86,14 +86,21 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'export_zip',
-          label: 'Exportar ZIP',
+          label: 'Exportar paquete',
           shortcut: 'Ctrl/Cmd+Shift+E',
           icon: Icons.archive_outlined,
           onSelected: () => unawaited(_exportZipBundle(share: false)),
         ),
         CommandAction(
+          id: 'import_package',
+          label: 'Importar paquete',
+          shortcut: 'Ctrl/Cmd+Shift+I',
+          icon: Icons.file_open_rounded,
+          onSelected: () => unawaited(_openImportPackageDialog()),
+        ),
+        CommandAction(
           id: 'share_zip',
-          label: 'Compartir ZIP',
+          label: 'Compartir paquete',
           icon: Icons.ios_share_rounded,
           onSelected: () => unawaited(_exportZipBundle(share: true)),
         ),

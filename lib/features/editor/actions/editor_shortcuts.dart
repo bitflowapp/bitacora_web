@@ -104,6 +104,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyI) {
+      unawaited(_openImportPackageDialog());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
       unawaited(_openCommandPalette());
       return KeyEventResult.handled;
