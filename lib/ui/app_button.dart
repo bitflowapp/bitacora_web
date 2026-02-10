@@ -77,6 +77,9 @@ class AppButton extends StatelessWidget {
 
     final style = ButtonStyle(
       padding: WidgetStateProperty.all(padding),
+      minimumSize: WidgetStateProperty.all(
+        Size(0, size == AppButtonSize.lg ? 46 : 40),
+      ),
       backgroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) {
           return bg.withOpacity(0.4);
@@ -110,8 +113,7 @@ class AppButton extends StatelessWidget {
         );
       }),
       textStyle: WidgetStateProperty.all(
-        TextStyle(
-          fontWeight: FontWeight.w700,
+        t.textStyles.labelStrong.copyWith(
           fontSize: fontSize,
           letterSpacing: 0.1,
         ),

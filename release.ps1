@@ -36,7 +36,7 @@ if ($Clean) {
   & $Flutter clean
 }
 & $Flutter pub get
-& $Flutter build web --release
+& $Flutter build web --release --base-href /bitacora_web/
 
 $webBuild = Join-Path $scriptDir "build\\web"
 if (-not (Test-Path $webBuild)) {

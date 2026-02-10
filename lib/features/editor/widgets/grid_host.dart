@@ -550,13 +550,13 @@ class _DataCell extends StatelessWidget {
     final focus = selected || isOverlayTarget;
     final baseBg = zebra ? palette.zebraBg : palette.cellBg;
     final selectedBg =
-        palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
+        palette.hintBg.withOpacity(palette.isLight ? 0.75 : 0.28);
     final bg = isActive ? palette.blinkBg : (selected ? selectedBg : baseBg);
 
     final borderColor = invalid
         ? Colors.red.withOpacity(palette.isLight ? 0.85 : 0.75)
         : focus
-            ? palette.accent.withOpacity(palette.isLight ? 0.45 : 0.65)
+            ? palette.borderStrong.withOpacity(palette.isLight ? 0.70 : 0.75)
             : palette.border.withOpacity(palette.isLight ? 0.55 : 0.40);
 
     final radius = BorderRadius.circular(10);
@@ -616,10 +616,10 @@ class _DataCell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: palette.accent.withOpacity(palette.isLight ? 0.12 : 0.20),
+        color: palette.hintBg.withOpacity(palette.isLight ? 0.75 : 0.30),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: palette.accent.withOpacity(0.35),
+          color: palette.borderStrong.withOpacity(0.35),
           width: palette.hairline,
         ),
       ),
@@ -668,7 +668,7 @@ class _DataCell extends StatelessWidget {
           : Icon(
               Icons.photo_rounded,
               size: 12,
-              color: palette.accent.withOpacity(0.8),
+              color: palette.fgMuted,
             );
       badges.add(
         _badge(
@@ -682,7 +682,7 @@ class _DataCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: palette.accent.withOpacity(0.85),
+                  color: palette.fgMuted,
                 ),
               ),
             ],
@@ -696,7 +696,7 @@ class _DataCell extends StatelessWidget {
           Icon(
             Icons.graphic_eq_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.fgMuted,
           ),
         ),
       );
@@ -707,7 +707,7 @@ class _DataCell extends StatelessWidget {
           Icon(
             Icons.my_location_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.fgMuted,
           ),
         ),
       );

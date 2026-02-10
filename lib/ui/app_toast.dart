@@ -18,6 +18,7 @@ class AppToast {
         (isError
             ? Icons.error_outline_rounded
             : Icons.check_circle_outline_rounded);
+    final border = isError ? t.colors.dangerFg : t.colors.accent;
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -28,7 +29,10 @@ class AppToast {
         duration: duration,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(t.radii.md),
+          side: BorderSide(color: border.withOpacity(0.45), width: 0.8),
         ),
+        elevation: 6,
+        margin: const EdgeInsets.all(12),
         content: Row(
           children: [
             Icon(iconData, size: 18, color: fg),

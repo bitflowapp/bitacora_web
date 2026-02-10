@@ -115,7 +115,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
   static const Duration _slowValidationThreshold = Duration(milliseconds: 12);
   static const String _kPhotoReadErrorMsg =
-      'No se pudo leer la imagen (bytes vacÃ­os).';
+      'No se pudo leer la imagen (bytes vacíos).';
 // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -2556,6 +2556,8 @@ class _EditorScreenState extends State<EditorScreen>
                               pendingRequired: _pendingRequired,
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
+                              onSearch: () =>
+                                  unawaited(_openCommandPalette()),
                               onMenu: () => _openMobileHeaderMenu(
                                 context,
                                 pal,
@@ -2623,7 +2625,7 @@ class _EditorScreenState extends State<EditorScreen>
                                               _setSelectionAndRefreshGrid(
                                                   picked.row, picked.col);
                                               _updatePhotoFlowStatus(
-                                                'Destino ${_cellLabelForRef(ref)} Â· listo',
+                                                'Destino ${_cellLabelForRef(ref)} · listo',
                                                 target: ref,
                                               );
                                             },
@@ -3362,7 +3364,7 @@ class _EditorScreenState extends State<EditorScreen>
                         : Icons.mic_none_rounded,
                   ),
                   title: Text(_audioRecording
-                      ? 'Detener grabaciÃ³n'
+                      ? 'Detener grabación'
                       : 'Grabar audio en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -4078,7 +4080,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         if (_audioRecording) {
           actions.add(_CtxAction(
-              'Detener grabaciÃ³n',
+              'Detener grabación',
               Icons.stop_circle_outlined,
               () => unawaited(_stopAudioRecording()),
               runOnTap: true));
@@ -4120,7 +4122,7 @@ class _EditorScreenState extends State<EditorScreen>
       } else {
         if (_audioRecording) {
           actions.add(_CtxAction(
-            'Detener grabaciÃ³n',
+            'Detener grabación',
             Icons.stop_circle_outlined,
             () => unawaited(_stopAudioRecording()),
             runOnTap: true,
@@ -4676,7 +4678,7 @@ class _EditorScreenState extends State<EditorScreen>
       case _GpsWriteMode.pasteActive:
         return 'Inserta coordenadas en la celda seleccionada.';
       case _GpsWriteMode.pickTarget:
-        return 'Luego de capturar GPS, elegÃ­s la celda destino.';
+        return 'Luego de capturar GPS, elegís la celda destino.';
       case _GpsWriteMode.metadataOnly:
         return 'Guarda GPS en metadata sin tocar el texto.';
     }

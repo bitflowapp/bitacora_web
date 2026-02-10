@@ -3,6 +3,14 @@
 ## Que es
 Bitacora Web es una app local para registrar actividades, evidencias (fotos/audio/GPS) y generar respaldos o reportes sin servidor.
 
+## Beneficios clave
+- Evidencias con fotos, audio y GPS por cada fila.
+- Exportación directa a Excel/PDF y backups ZIP.
+- Funciona sin internet ni servidor (datos locales).
+- Operación simple para equipos en campo.
+- Compartir por WhatsApp o correo en segundos.
+- Diseño claro y profesional para uso diario.
+
 ## Requisitos
 - Windows 10/11
 - Google Chrome o Microsoft Edge

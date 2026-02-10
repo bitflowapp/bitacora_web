@@ -42,12 +42,11 @@ class AttachmentsSheetHeader extends StatelessWidget {
           variant: AppButtonVariant.secondary,
           onPressed: onAdd,
         ),
-        Tooltip(
-          message: 'Cerrar',
-          child: IconButton(
-            onPressed: onClose,
-            icon: Icon(Icons.close_rounded, color: palette.fgMuted),
-          ),
+        AppIconButton(
+          icon: Icons.close_rounded,
+          onPressed: onClose,
+          tooltip: 'Cerrar',
+          variant: AppIconButtonVariant.ghost,
         ),
       ],
     );
