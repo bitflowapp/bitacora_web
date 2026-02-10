@@ -3,6 +3,8 @@ import 'web_capabilities_stub.dart'
 
 class WebCapabilities {
   static bool get isSecureContext => WebCapabilitiesImpl.isSecureContext;
+  static bool get isStandalone => WebCapabilitiesImpl.isStandalone;
+  static bool get isIosSafari => WebCapabilitiesImpl.isIosSafari;
   static bool get isInAppBrowser => WebCapabilitiesImpl.isInAppBrowser;
   static bool get isOnline => WebCapabilitiesImpl.isOnline;
   static bool get geolocationAvailable =>

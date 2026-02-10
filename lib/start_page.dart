@@ -74,6 +74,7 @@ import 'services/app_update_service.dart';
 import 'services/engine_api.dart';
 import 'services/engine_config.dart';
 import 'services/sheet_store.dart';
+import 'services/web_capabilities.dart';
 import 'models/cell_ref.dart';
 import 'models/cell_meta.dart';
 import 'models/table_state.dart';
@@ -191,6 +192,10 @@ class _StartPageState extends State<StartPage> {
   AppUpdateSnapshot? _updateSnapshot;
   bool _updateChecking = false;
   bool _hideUpdateBanner = false;
+  bool _iosInstallHelperHiddenSession = false;
+  bool _iosInstallHelperHiddenPersistent = false;
+  static const String _kPrefIosInstallHelperDismissed =
+      'bitflow.ios_install_helper_dismissed.v1';
 
   // --------------------- Toast overlay ---------------------
   OverlayEntry? _toastEntry;
@@ -203,6 +208,7 @@ class _StartPageState extends State<StartPage> {
     _reload();
     unawaited(_loadPrefs());
     unawaited(_loadOrg());
+    unawaited(_loadIosInstallHelperPref());
     unawaited(_checkForUpdates(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowOnboarding());
@@ -2223,6 +2229,48 @@ class _StartPageState extends State<StartPage> {
     }
   }
 
+  bool get _shouldShowIosInstallHelper {
+    if (!kIsWeb) return false;
+    if (_iosInstallHelperHiddenSession || _iosInstallHelperHiddenPersistent) {
+      return false;
+    }
+    if (!WebCapabilities.isIosSafari) return false;
+    if (WebCapabilities.isStandalone) return false;
+    if (WebCapabilities.isInAppBrowser) return false;
+    return true;
+  }
+
+  Future<void> _loadIosInstallHelperPref() async {
+    if (!kIsWeb) return;
+    if (!WebCapabilities.isIosSafari) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dismissed = prefs.getBool(_kPrefIosInstallHelperDismissed) ?? false;
+      if (!mounted) {
+        _iosInstallHelperHiddenPersistent = dismissed;
+        return;
+      }
+      setState(() => _iosInstallHelperHiddenPersistent = dismissed);
+    } catch (_) {}
+  }
+
+  void _ackIosInstallHelper() {
+    if (!mounted) return;
+    setState(() => _iosInstallHelperHiddenSession = true);
+  }
+
+  Future<void> _dismissIosInstallHelperForever() async {
+    if (!mounted) return;
+    setState(() {
+      _iosInstallHelperHiddenSession = true;
+      _iosInstallHelperHiddenPersistent = true;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPrefIosInstallHelperDismissed, true);
+    } catch (_) {}
+  }
+
   Future<void> _applyAvailableUpdate() async {
     final current = _updateSnapshot;
     if (current == null || !current.updateAvailable) {
@@ -3007,6 +3055,73 @@ class _StartPageState extends State<StartPage> {
                     ),
                   ),
                 ),
+                if (_shouldShowIosInstallHelper)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _AppleSectionCard(
+                        colors: colors,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Instalar en iPhone',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Instalar: Compartir -> Anadir a inicio',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.25,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              children: [
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  color: colors.textPrimary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _ackIosInstallHelper,
+                                  child: Text(
+                                    'Entendido',
+                                    style: TextStyle(
+                                      color: colors.surface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: () => unawaited(
+                                      _dismissIosInstallHelperForever()),
+                                  child: Text(
+                                    'No mostrar mas',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (!_hideUpdateBanner &&
                     (_updateSnapshot?.updateAvailable ?? false))
                   SliverToBoxAdapter(

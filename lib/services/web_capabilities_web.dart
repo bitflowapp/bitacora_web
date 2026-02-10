@@ -5,6 +5,35 @@ import 'dart:js_util' as js_util;
 class WebCapabilitiesImpl {
   static bool get isSecureContext => html.window.isSecureContext == true;
 
+  static bool get isStandalone {
+    try {
+      final mediaQuery = html.window.matchMedia('(display-mode: standalone)');
+      final mediaStandalone = mediaQuery.matches ?? false;
+      final navStandaloneRaw = js_util.getProperty(
+        html.window.navigator,
+        'standalone',
+      );
+      final navStandalone = navStandaloneRaw == true;
+      return mediaStandalone || navStandalone;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool get isIosSafari {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    final isIos =
+        ua.contains('iphone') || ua.contains('ipad') || ua.contains('ipod');
+    if (!isIos) return false;
+    final isSafari = ua.contains('safari');
+    final excluded = ua.contains('crios') ||
+        ua.contains('fxios') ||
+        ua.contains('edgios') ||
+        ua.contains('opios') ||
+        ua.contains('duckduckgo');
+    return isSafari && !excluded;
+  }
+
   static bool get isInAppBrowser {
     final ua = html.window.navigator.userAgent.toLowerCase();
     const markers = <String>[
