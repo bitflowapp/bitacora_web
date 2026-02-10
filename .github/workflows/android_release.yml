@@ -41,22 +41,33 @@ jobs:
       - name: Flutter analyze
         run: flutter analyze --no-fatal-warnings --no-fatal-infos
 
-      - name: Build Android APK (release)
-        run: flutter build apk --release
-
       - name: Resolve app version
         id: app_version
         shell: bash
         run: |
-          version="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
-          version="${version//[^0-9A-Za-z._-]/-}"
-          echo "value=$version" >> "$GITHUB_OUTPUT"
+          version_raw="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
+          version_raw="${version_raw//[^0-9A-Za-z._+-]/-}"
+          semver="${version_raw%%+*}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            build_id="${GITHUB_REF_NAME}"
+          else
+            build_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
+          echo "raw=$version_raw" >> "$GITHUB_OUTPUT"
+          echo "semver=$semver" >> "$GITHUB_OUTPUT"
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+      - name: Build Android APK (release)
+        run: |
+          flutter build apk --release \
+            --dart-define=BUILD_ID=${{ steps.app_version.outputs.build_id }}
 
       - name: Stage dist artifact
         shell: bash
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-${{ steps.app_version.outputs.value }}-android.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android-${{ steps.app_version.outputs.semver }}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -70,4 +81,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
           files: dist/*.apk
