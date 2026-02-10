@@ -2683,7 +2683,6 @@ class _StartPageState extends State<StartPage> {
     final completedCount = _countTrash();
 
     final mq = MediaQuery.of(context);
-    final compactTopBar = mq.size.width < 900;
     final bottomPad = mq.padding.bottom;
     final buildStamp = _buildStamp;
 
@@ -2696,37 +2695,50 @@ class _StartPageState extends State<StartPage> {
             CustomScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               slivers: [
-                CupertinoSliverNavigationBar(
-                  largeTitle: Text(
-                    _tab == _HomeTab.trash ? 'Papelera' : 'BitFlow',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
-                      color: colors.textPrimary,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: AppTopBar(
+                      title: _tab == _HomeTab.trash ? 'Papelera' : 'BitFlow',
+                      subtitle: _tab == _HomeTab.trash
+                          ? 'Elementos eliminados recientemente'
+                          : '${data.length} planillas activas',
+                      leading: AppButton(
+                        label: isLight ? 'Noche' : 'Día',
+                        icon: isLight
+                            ? CupertinoIcons.moon_stars
+                            : CupertinoIcons.sun_max,
+                        variant: AppButtonVariant.ghost,
+                        size: AppButtonSize.sm,
+                        onPressed: widget.onToggleTheme,
+                      ),
+                      actions: [
+                        AppButton(
+                          label: 'Buscar',
+                          icon: CupertinoIcons.search,
+                          variant: AppButtonVariant.ghost,
+                          size: AppButtonSize.sm,
+                          onPressed: () =>
+                              setState(() => _showSearch = !_showSearch),
+                        ),
+                        AppButton(
+                          label: 'Crear',
+                          icon: CupertinoIcons.list_bullet_below_rectangle,
+                          variant: AppButtonVariant.secondary,
+                          size: AppButtonSize.sm,
+                          onPressed: !_busy && _tab != _HomeTab.trash
+                              ? _newSheet
+                              : null,
+                        ),
+                        AppButton(
+                          label: 'Más',
+                          icon: CupertinoIcons.ellipsis,
+                          variant: AppButtonVariant.secondary,
+                          size: AppButtonSize.sm,
+                          onPressed: () => _openMoreSheet(colors),
+                        ),
+                      ],
                     ),
-                  ),
-                  backgroundColor: colors.navBarBg,
-                  border: Border(bottom: BorderSide(color: colors.separator)),
-                  leading: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: widget.onToggleTheme,
-                    child: Icon(
-                      isLight
-                          ? CupertinoIcons.moon_stars
-                          : CupertinoIcons.sun_max,
-                      color: colors.accent,
-                    ),
-                  ),
-                  trailing: _TopPillActions(
-                    colors: colors,
-                    compact: compactTopBar,
-                    enabledAdd: !_busy && _tab != _HomeTab.trash,
-                    onSearch: () => setState(() => _showSearch = !_showSearch),
-                    onAdd: _newSheet,
-                    onExport: () => _exportLatestSheet(),
-                    onImport: () => _importBackupZip(),
-                    onHelp: () => _showHelpDialog(),
-                    onMore: () => _openMoreSheet(colors),
                   ),
                 ),
 
@@ -3978,13 +3990,8 @@ class _AppleEmptyState extends StatelessWidget {
         ? 'Las planillas movidas a papelera aparecen acá durante un tiempo para poder recuperarlas.'
         : AppStrings.emptySheetsBody;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.separator),
-        boxShadow: [colors.subtleShadow],
-      ),
+    return AppCard(
+      radius: 18,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Column(
         children: [
@@ -4025,30 +4032,28 @@ class _AppleEmptyState extends StatelessWidget {
                 Semantics(
                   label: AppStrings.semAddSheet,
                   button: true,
-                  child: CupertinoButton.filled(
+                  child: AppButton(
+                    label: AppStrings.newSheet,
+                    icon: CupertinoIcons.add,
+                    variant: AppButtonVariant.primary,
                     onPressed: isBusy ? null : () => onNew(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    child: const Text(AppStrings.newSheet),
                   ),
                 ),
                 Semantics(
                   label: AppStrings.semTemplates,
                   button: true,
-                  child: _AppleOutlineButton(
-                    onPressed: isBusy ? null : () => onTemplate(),
-                    colors: colors,
+                  child: AppButton(
                     label: 'Plantilla',
                     icon: CupertinoIcons.square_grid_2x2,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: isBusy ? null : () => onTemplate(),
                   ),
                 ),
-                _AppleOutlineButton(
-                  onPressed: () => onFolders(),
-                  colors: colors,
+                AppButton(
                   label: 'Carpetas',
                   icon: CupertinoIcons.folder,
+                  variant: AppButtonVariant.ghost,
+                  onPressed: () => onFolders(),
                 ),
               ],
             ),

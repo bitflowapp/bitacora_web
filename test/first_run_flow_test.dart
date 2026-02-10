@@ -76,7 +76,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 350));
 
-    await tester.tap(find.byTooltip(AppStrings.templates).first);
+    await tester.tap(find.text(AppStrings.templates).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Plantilla base'));

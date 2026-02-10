@@ -350,88 +350,61 @@ class _MobileCompactHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = title.trim().isEmpty ? 'Planilla' : title.trim();
-    return Container(
-      constraints: const BoxConstraints(minHeight: 52),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: palette.appBarBg,
-        border: Border(
-          bottom:
-              BorderSide(color: palette.borderStrong, width: palette.hairline),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fg,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    height: 1.05,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    SaveStatusChip(
-                      palette: palette,
-                      status: controller.saveStatus,
-                    ),
-                    if (pendingRequired > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: Colors.red.withOpacity(0.4), width: 1),
-                        ),
-                        child: Text(
-                          'Pend: $pendingRequired',
-                          style: TextStyle(
-                            color: Colors.red.withOpacity(0.85),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                            height: 1.05,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
+
+    return ValueListenableBuilder<EditorSaveSnapshot>(
+      valueListenable: controller.saveStatus,
+      builder: (context, snap, _) {
+        String saveLabel;
+        switch (snap.state) {
+          case EditorSaveState.saving:
+            saveLabel = 'Guardando';
+            break;
+          case EditorSaveState.dirty:
+            saveLabel = 'Sin guardar';
+            break;
+          case EditorSaveState.saved:
+            saveLabel = 'Guardado';
+            break;
+          case EditorSaveState.idle:
+            saveLabel = 'Listo';
+            break;
+        }
+
+        final pendingLabel =
+            pendingRequired > 0 ? ' · Pendientes: $pendingRequired' : '';
+        final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+          child: AppTopBar(
+            title: label,
+            subtitle: '$saveLabel$pendingLabel · $modeLabel',
+            actions: [
+              AppButton(
+                label: AppStrings.editorSave,
+                icon: Icons.check_circle_outline_rounded,
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.sm,
+                onPressed: onSave,
+              ),
+              AppButton(
+                label: AppStrings.editorExport,
+                icon: Icons.ios_share_rounded,
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.sm,
+                onPressed: onExport,
+              ),
+              AppButton(
+                label: AppStrings.editorOptions,
+                icon: Icons.more_horiz_rounded,
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.sm,
+                onPressed: onMenu,
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: AppStrings.editorSave,
-            onPressed: onSave,
-            icon: Icon(Icons.check_circle_outline_rounded, color: palette.fg),
-            splashRadius: 18,
-          ),
-          IconButton(
-            tooltip: AppStrings.editorExport,
-            onPressed: onExport,
-            icon: Icon(Icons.ios_share_rounded, color: palette.fg),
-            splashRadius: 18,
-          ),
-          IconButton(
-            tooltip: AppStrings.editorOptions,
-            onPressed: onMenu,
-            icon: Icon(Icons.more_horiz_rounded, color: palette.fg),
-            splashRadius: 18,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

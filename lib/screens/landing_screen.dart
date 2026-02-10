@@ -172,22 +172,20 @@ class _TopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          brand,
-          style: context.tokens.text.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-          ),
-        ),
-        const Spacer(),
+    return AppTopBar(
+      title: brand,
+      subtitle: 'Bitacora operativa offline',
+      leading: Icon(
+        Icons.grid_view_rounded,
+        color: context.tokens.colors.textPrimary,
+        size: 20,
+      ),
+      actions: [
         AppButton(
           label: 'Probar ahora',
           variant: AppButtonVariant.primary,
           onPressed: () => context.go('/app'),
         ),
-        const SizedBox(width: 10),
         AppButton(
           label: 'Modo',
           variant: AppButtonVariant.ghost,

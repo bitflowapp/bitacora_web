@@ -596,8 +596,16 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final theme = Theme.of(context);
 
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2.6)),
+      return Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: const LoadingState(message: 'Cargando planillas...'),
+            ),
+          ),
+        ),
       );
     }
 
@@ -877,191 +885,59 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bg = theme.scaffoldBackgroundColor.withOpacity(0.92);
-    final divider = theme.dividerColor.withOpacity(0.55);
-
-    return SliverAppBar(
-      pinned: true,
-      floating: false,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      backgroundColor: bg,
-      surfaceTintColor: Colors.transparent,
-      automaticallyImplyLeading: false,
-      expandedHeight: 132,
-      toolbarHeight: kToolbarHeight,
-      flexibleSpace: LayoutBuilder(
-        builder: (context, constraints) {
-          final top = MediaQuery.of(context).padding.top;
-          final minH = kToolbarHeight + top;
-          final maxH = 132.0 + top;
-
-          final t =
-              ((constraints.maxHeight - minH) / (maxH - minH)).clamp(0.0, 1.0);
-          final largeOpacity = t;
-          final smallOpacity = (1.0 - t).clamp(0.0, 1.0);
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: bg,
-                  border:
-                      Border(bottom: BorderSide(color: divider, width: 0.8)),
+    return SliverToBoxAdapter(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 940),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            child: AppTopBar(
+              title: title,
+              subtitle: subtitle,
+              actions: [
+                AppButton(
+                  label: AppStrings.newSheet,
+                  icon: Icons.add,
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.sm,
+                  onPressed: () {
+                    hapticSelect();
+                    onNew();
+                  },
                 ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                top: top,
-                height: kToolbarHeight,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Opacity(
-                    opacity: smallOpacity,
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ),
+                AppButton(
+                  label: AppStrings.templates,
+                  icon: Icons.view_quilt_outlined,
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.sm,
+                  onPressed: () {
+                    hapticSelect();
+                    onTemplates();
+                  },
                 ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 14,
-                child: Opacity(
-                  opacity: largeOpacity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.4,
-                            ) ??
-                            const TextStyle(
-                                fontSize: 34, fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.70),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+                AppButton(
+                  label: isLight ? 'Noche' : 'Día',
+                  icon: isLight
+                      ? Icons.dark_mode_outlined
+                      : Icons.light_mode_outlined,
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.sm,
+                  onPressed: () {
+                    hapticSelect();
+                    onToggleTheme();
+                  },
                 ),
-              ),
-            ],
-          );
-        },
-      ),
-      actions: [
-        _AppBarPillAction(
-          tooltip: AppStrings.newSheet,
-          semanticsLabel: AppStrings.semAddSheet,
-          icon: Icons.add,
-          onTap: onNew,
-          hapticSelect: hapticSelect,
-        ),
-        _AppBarPillAction(
-          tooltip: AppStrings.templates,
-          semanticsLabel: AppStrings.semTemplates,
-          icon: Icons.view_quilt_outlined,
-          onTap: onTemplates,
-          hapticSelect: hapticSelect,
-        ),
-        _AppBarPillAction(
-          tooltip: isLight ? 'Modo oscuro' : 'Modo claro',
-          semanticsLabel: AppStrings.semToggleTheme,
-          icon: isLight ? Icons.dark_mode : Icons.light_mode,
-          onTap: onToggleTheme,
-          hapticSelect: hapticSelect,
-        ),
-        _AppBarPillAction(
-          tooltip: AppStrings.actions,
-          semanticsLabel: AppStrings.semOpenSheetActions,
-          icon: Icons.more_horiz_rounded,
-          onTap: onMoreInfo,
-          hapticSelect: hapticSelect,
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
-  }
-}
-
-class _AppBarPillAction extends StatefulWidget {
-  const _AppBarPillAction({
-    required this.tooltip,
-    required this.semanticsLabel,
-    required this.icon,
-    required this.onTap,
-    required this.hapticSelect,
-  });
-
-  final String tooltip;
-  final String semanticsLabel;
-  final IconData icon;
-  final VoidCallback onTap;
-  final VoidCallback hapticSelect;
-
-  @override
-  State<_AppBarPillAction> createState() => _AppBarPillActionState();
-}
-
-class _AppBarPillActionState extends State<_AppBarPillAction> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bg = theme.colorScheme.surfaceVariant.withOpacity(
-      theme.brightness == Brightness.dark ? 0.55 : 0.70,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: AnimatedScale(
-        scale: _pressed ? 0.985 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Material(
-          color: bg,
-          shape: const StadiumBorder(),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: () {
-              widget.hapticSelect();
-              widget.onTap();
-            },
-            onHighlightChanged: (v) => setState(() => _pressed = v),
-            child: Semantics(
-              button: true,
-              label: widget.semanticsLabel,
-              child: Tooltip(
-                message: widget.tooltip,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Icon(widget.icon, size: 20),
+                AppButton(
+                  label: AppStrings.actions,
+                  icon: Icons.more_horiz_rounded,
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.sm,
+                  onPressed: () {
+                    hapticSelect();
+                    onMoreInfo();
+                  },
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -1475,69 +1351,48 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Material(
-            color: theme.cardColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-              side: BorderSide(
-                color: theme.dividerColor.withOpacity(0.65),
-                width: 0.9,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const EmptyState(
+                title: AppStrings.emptySheetsTitle,
+                message: AppStrings.emptySheetsBody,
+                icon: Icons.table_chart_outlined,
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
                 children: [
-                  Icon(Icons.table_chart_outlined, size: 56, color: cs.primary),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppStrings.emptySheetsTitle,
-                    style: context.appText.titleMedium,
+                  Semantics(
+                    button: true,
+                    label: AppStrings.semAddSheet,
+                    child: AppButton(
+                      label: AppStrings.newSheet,
+                      icon: Icons.add,
+                      variant: AppButtonVariant.primary,
+                      onPressed: onNew,
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppStrings.emptySheetsBody,
-                    textAlign: TextAlign.center,
-                    style: context.appText.bodyMuted,
-                  ),
-                  const SizedBox(height: 20),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      Semantics(
-                        button: true,
-                        label: AppStrings.semAddSheet,
-                        child: FilledButton.icon(
-                          onPressed: onNew,
-                          icon: const Icon(Icons.add),
-                          label: const Text(AppStrings.newSheet),
-                        ),
-                      ),
-                      Semantics(
-                        button: true,
-                        label: AppStrings.semTemplates,
-                        child: OutlinedButton.icon(
-                          onPressed: onTemplates,
-                          icon: const Icon(Icons.view_quilt_outlined),
-                          label: const Text(AppStrings.templates),
-                        ),
-                      ),
-                    ],
+                  Semantics(
+                    button: true,
+                    label: AppStrings.semTemplates,
+                    child: AppButton(
+                      label: AppStrings.templates,
+                      icon: Icons.view_quilt_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onTemplates,
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -1556,51 +1411,17 @@ class _NoResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Material(
-            color: theme.cardColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-              side: BorderSide(
-                color: theme.dividerColor.withOpacity(0.65),
-                width: 0.9,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.search_off_outlined,
-                    size: 56,
-                    color: theme.colorScheme.onSurface.withOpacity(0.70),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppStrings.noResultsTitle,
-                    style: context.appText.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppStrings.noResultsBody(query),
-                    textAlign: TextAlign.center,
-                    style: context.appText.bodyMuted,
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: onClear,
-                    icon: const Icon(Icons.close),
-                    label: const Text(AppStrings.clearSearch),
-                  ),
-                ],
-              ),
-            ),
+          child: EmptyState(
+            title: AppStrings.noResultsTitle,
+            message: AppStrings.noResultsBody(query),
+            icon: Icons.search_off_outlined,
+            actionLabel: AppStrings.clearSearch,
+            onAction: onClear,
           ),
         ),
       ),

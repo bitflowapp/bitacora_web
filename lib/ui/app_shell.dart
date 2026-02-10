@@ -93,45 +93,55 @@ class AppTopBar extends StatelessWidget {
         border: Border.all(color: t.colors.border, width: 1),
         boxShadow: t.shadows.soft,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (leading != null) ...[
-            leading!,
-            SizedBox(width: t.spacing.sm),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-                  SizedBox(height: t.spacing.xs),
-                  Text(
-                    subtitle!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.text.bodySmall?.copyWith(
-                      color: t.colors.textSecondary,
-                    ),
-                  ),
-                ],
+          Row(
+            children: [
+              if (leading != null) ...[
+                leading!,
+                SizedBox(width: t.spacing.sm),
               ],
-            ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+                      SizedBox(height: t.spacing.xs),
+                      Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
           if (actions.isNotEmpty) ...[
-            SizedBox(width: t.spacing.md),
-            Wrap(
-              spacing: t.spacing.sm,
-              runSpacing: t.spacing.sm,
-              children: actions,
+            SizedBox(height: t.spacing.sm),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: t.spacing.sm,
+                runSpacing: t.spacing.sm,
+                alignment: WrapAlignment.end,
+                children: actions,
+              ),
             ),
           ],
         ],
