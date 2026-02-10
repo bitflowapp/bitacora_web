@@ -117,7 +117,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
   static const Duration _slowValidationThreshold = Duration(milliseconds: 12);
   static const String _kPhotoReadErrorMsg =
-      'No se pudo leer la imagen (bytes vacíos).';
+      'No se pudo leer la imagen (bytes vacÃ­os).';
 // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
@@ -2253,7 +2253,7 @@ class _EditorScreenState extends State<EditorScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$count fila(s) seleccionadas · columna activa: $columnLabel',
+            '$count fila(s) seleccionadas Â· columna activa: $columnLabel',
             style: TextStyle(
               color: _palette(context).fgMuted,
               fontWeight: FontWeight.w600,
@@ -3039,6 +3039,10 @@ class _EditorScreenState extends State<EditorScreen>
     final editForSheet = _editQueue
         .where((item) => item.sheetId == widget.sheetId)
         .toList(growable: false);
+    final retryAt = _offlineRetryAt?.toLocal();
+    final statusText =
+        _resolveOfflineStatusMessage(_resolveOfflineSyncState()) ??
+            'Sincronizado';
 
     await showAppModal<void>(
       context: context,
@@ -3049,12 +3053,33 @@ class _EditorScreenState extends State<EditorScreen>
           shrinkWrap: true,
           children: [
             Text(
-              'Estado: ${_resolveOfflineStatusMessage(_resolveOfflineSyncState()) ?? 'Sincronizado'}',
+              'Estado: $statusText',
               style: TextStyle(
                 color: _palette(context).fg,
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (_offlineLastError?.trim().isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Ultimo error: ${_offlineLastError!.trim()}',
+                style: TextStyle(
+                  color: _palette(context).fgMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            if (retryAt != null &&
+                (quickForSheet.isNotEmpty || editForSheet.isNotEmpty)) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Proximo reintento: ${_formatDateTimeShort(retryAt)}',
+                style: TextStyle(
+                  color: _palette(context).fgMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             if (quickForSheet.isEmpty && editForSheet.isEmpty)
               Text(
@@ -3071,7 +3096,9 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 subtitle: Text(
                   'Encolado ${_formatDateTimeShort(item.queuedAt.toLocal())}'
-                  '${item.lastError != null ? ' · ${item.lastError}' : ''}',
+                  ' | intentos ${item.attempts}'
+                  '${item.nextRetryAt != null ? ' | retry ${_formatDateTimeShort(item.nextRetryAt!.toLocal())}' : ''}'
+                  '${item.lastError != null ? ' | ${item.lastError}' : ''}',
                 ),
               ),
             for (final item in editForSheet)
@@ -3082,13 +3109,23 @@ class _EditorScreenState extends State<EditorScreen>
                 title: Text('Cambios rev ${item.revision}'),
                 subtitle: Text(
                   'Pendiente desde ${_formatDateTimeShort(item.queuedAt.toLocal())}'
-                  '${item.lastError != null ? ' · ${item.lastError}' : ''}',
+                  ' | intentos ${item.attempts}'
+                  '${item.nextRetryAt != null ? ' | retry ${_formatDateTimeShort(item.nextRetryAt!.toLocal())}' : ''}'
+                  '${item.lastError != null ? ' | ${item.lastError}' : ''}',
                 ),
               ),
           ],
         ),
       ),
       actions: [
+        AppButton(
+          label: 'Exportar ZIP',
+          variant: AppButtonVariant.ghost,
+          onPressed: () {
+            Navigator.of(context).pop();
+            unawaited(_exportZipBundle(share: false));
+          },
+        ),
         AppButton(
           label: 'Borrar',
           variant: AppButtonVariant.ghost,
@@ -3976,7 +4013,7 @@ class _EditorScreenState extends State<EditorScreen>
                                               _setSelectionAndRefreshGrid(
                                                   picked.row, picked.col);
                                               _updatePhotoFlowStatus(
-                                                'Destino ${_cellLabelForRef(ref)} · listo',
+                                                'Destino ${_cellLabelForRef(ref)} Â· listo',
                                                 target: ref,
                                               );
                                             },
@@ -4806,7 +4843,7 @@ class _EditorScreenState extends State<EditorScreen>
                         : Icons.mic_none_rounded,
                   ),
                   title: Text(_audioRecording
-                      ? 'Detener grabación'
+                      ? 'Detener grabaciÃ³n'
                       : 'Grabar audio en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -6125,7 +6162,7 @@ class _EditorScreenState extends State<EditorScreen>
       case _GpsWriteMode.pasteActive:
         return 'Inserta coordenadas en la celda seleccionada.';
       case _GpsWriteMode.pickTarget:
-        return 'Luego de capturar GPS, elegís la celda destino.';
+        return 'Luego de capturar GPS, elegÃ­s la celda destino.';
       case _GpsWriteMode.metadataOnly:
         return 'Guarda GPS en metadata sin tocar el texto.';
     }
@@ -7687,7 +7724,7 @@ class _EditorScreenState extends State<EditorScreen>
         build: (context) {
           final content = <pw.Widget>[
             pw.Text(
-              'BitFlow · ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              'BitFlow Â· ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
               style: pw.TextStyle(
                 fontSize: 18,
                 fontWeight: pw.FontWeight.bold,
@@ -9019,7 +9056,7 @@ Este paquete incluye:
         if (!mounted) return;
         _showActionSnack(
           _isIosWeb
-              ? 'Safari iOS limita compartir archivos. Se descargó el archivo.'
+              ? 'Safari iOS limita compartir archivos. Se descargÃ³ el archivo.'
               : 'Web Share no soportado. Archivo descargado.',
           isError: false,
           icon: Icons.download_rounded,
@@ -9094,6 +9131,15 @@ Este paquete incluye:
     if (path != null && path.trim().isNotEmpty) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
+        await Share.shareXFiles(
+          <XFile>[XFile(path, mimeType: mime, name: name)],
+          subject: 'BitFlow Export',
+        );
+        return true;
+      } catch (_) {}
+
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
           subject: 'BitFlow Export',
           body: 'Adjunto generado por BitFlow: $name',
@@ -9118,15 +9164,6 @@ Este paquete incluye:
           await launchUrl(mailto, mode: LaunchMode.externalApplication);
           return true;
         }
-      } catch (_) {}
-
-      try {
-        _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles(
-          <XFile>[XFile(path, mimeType: mime, name: name)],
-          subject: 'BitFlow Export',
-        );
-        return true;
       } catch (_) {}
     }
 

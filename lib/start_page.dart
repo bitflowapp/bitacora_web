@@ -3127,7 +3127,7 @@ class _StartPageState extends State<StartPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Instalar en iPhone',
+                              'Instalar en iPhone (Safari)',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontWeight: FontWeight.w800,
@@ -3136,7 +3136,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Instalar: Compartir -> Anadir a inicio',
+                              'Instalar rapido: Compartir -> Anadir a inicio',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
@@ -3170,7 +3170,7 @@ class _StartPageState extends State<StartPage> {
                                   onPressed: () => unawaited(
                                       _dismissIosInstallHelperForever()),
                                   child: Text(
-                                    'No mostrar mas',
+                                    'No mostrar de nuevo',
                                     style: TextStyle(
                                       color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
