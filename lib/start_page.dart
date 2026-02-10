@@ -64,11 +64,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'core/app_error.dart';
 import 'ui/ui.dart';
 import 'workers/json_worker.dart';
 import 'services/app_error_reporter.dart';
+import 'services/app_update_service.dart';
 import 'services/engine_api.dart';
 import 'services/engine_config.dart';
 import 'services/sheet_store.dart';
@@ -77,6 +79,7 @@ import 'models/cell_meta.dart';
 import 'models/table_state.dart';
 import 'services/export_xlsx_service.dart';
 import 'services/build_info.dart';
+import 'services/force_update_service.dart';
 import 'services/attachment_store.dart';
 import 'services/audio_storage_service.dart';
 import 'services/audio_service.dart';
@@ -184,6 +187,10 @@ class _StartPageState extends State<StartPage> {
   late final TextEditingController _searchEC;
 
   String get _buildStamp => BuildInfo.stamp;
+  final AppUpdateService _appUpdateService = const AppUpdateService();
+  AppUpdateSnapshot? _updateSnapshot;
+  bool _updateChecking = false;
+  bool _hideUpdateBanner = false;
 
   // --------------------- Toast overlay ---------------------
   OverlayEntry? _toastEntry;
@@ -196,6 +203,7 @@ class _StartPageState extends State<StartPage> {
     _reload();
     unawaited(_loadPrefs());
     unawaited(_loadOrg());
+    unawaited(_checkForUpdates(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowOnboarding());
     });
@@ -2191,6 +2199,65 @@ class _StartPageState extends State<StartPage> {
     return 'No se pudo conectar al engine. $text';
   }
 
+  Future<void> _checkForUpdates({bool silent = false}) async {
+    if (_updateChecking) return;
+    if (mounted) {
+      setState(() => _updateChecking = true);
+    } else {
+      _updateChecking = true;
+    }
+
+    final result = await _appUpdateService.checkForUpdates();
+    if (!mounted) return;
+
+    setState(() {
+      _updateChecking = false;
+      _updateSnapshot = result;
+      if (result.updateAvailable) {
+        _hideUpdateBanner = false;
+      }
+    });
+
+    if (!silent) {
+      _toast(result.message);
+    }
+  }
+
+  Future<void> _applyAvailableUpdate() async {
+    final current = _updateSnapshot;
+    if (current == null || !current.updateAvailable) {
+      _toast('No hay actualizaciones pendientes.');
+      return;
+    }
+
+    if (kIsWeb) {
+      final result = await ForceUpdateService.I.forceUpdate();
+      if (!mounted) return;
+      _toast(result.message.trim().isEmpty
+          ? 'Recargando version nueva...'
+          : result.message);
+      return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final url = Uri.parse(AppUpdateService.androidLatestApkUrl);
+      final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+      _toast(opened
+          ? 'Abriendo descarga de Android...'
+          : 'No se pudo abrir la descarga.');
+      return;
+    }
+
+    final releaseUrl = Uri.parse(
+      'https://github.com/marcoluna-nqn/bitacora_web/releases/latest',
+    );
+    final opened =
+        await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
+    _toast(opened
+        ? 'Abriendo pagina de release.'
+        : 'En iOS: usa Safari y actualiza desde la web/PWA.');
+  }
+
   Future<void> _openMoreSheet(_ApplePalette colors) async {
     await showCupertinoModalPopup<void>(
       context: context,
@@ -2219,6 +2286,19 @@ class _StartPageState extends State<StartPage> {
                 await _openMailSettings();
               },
               child: const Text('Ajustes (Correo/Motor)…'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _checkForUpdates(silent: false);
+              },
+              child: Text(
+                (_updateSnapshot?.updateAvailable ?? false)
+                    ? 'Actualizacion disponible…'
+                    : (_updateChecking
+                        ? 'Buscando actualizaciones...'
+                        : 'Buscar actualizaciones…'),
+              ),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -2927,6 +3007,77 @@ class _StartPageState extends State<StartPage> {
                     ),
                   ),
                 ),
+                if (!_hideUpdateBanner &&
+                    (_updateSnapshot?.updateAvailable ?? false))
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _AppleSectionCard(
+                        colors: colors,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Actualizacion disponible',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _updateSnapshot!.remoteVersion.trim().isEmpty
+                                  ? 'Hay una nueva version lista para instalar.'
+                                  : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.25,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              children: [
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  color: colors.textPrimary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _applyAvailableUpdate,
+                                  child: Text(
+                                    kIsWeb ? 'Actualizar ahora' : 'Descargar',
+                                    style: TextStyle(
+                                      color: colors.surface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: () {
+                                    setState(() => _hideUpdateBanner = true);
+                                  },
+                                  child: Text(
+                                    'Ocultar',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // Pull to refresh (iOS)
                 CupertinoSliverRefreshControl(

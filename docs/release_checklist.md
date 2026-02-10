@@ -180,6 +180,10 @@ Publicar release Android (1 comando):
   - En `workflow_dispatch`: artifact QA `bitflow-android-apk`.
   - En tag `v*`: APK adjuntado al Release (`BitFlow-android.apk`).
 - En `docs/bitflow/index.html`, botón `Descargar Android APK` debe abrir `/releases/latest/download/BitFlow-android.apk`.
+- En la app (Start/About), validar chequeo de updates:
+  - Si hay versión nueva, aparece banner discreto `Actualizacion disponible`.
+  - CTA Android abre `/releases/latest/download/BitFlow-android.apk`.
+  - En Web/PWA, CTA `Actualizar` fuerza recarga con limpieza de caches.
 2. Offline real (persistente):
 - Conectar red, abrir editor y confirmar chip de sync en toolbar (`Sincronizado`).
 - Desconectar red, crear `+ Registro` y editar celdas; validar chip `Offline/Pendiente`.

@@ -5,6 +5,8 @@ class BuildInfo {
       String.fromEnvironment('GIT_SHA', defaultValue: 'dev');
   static const String buildTime =
       String.fromEnvironment('BUILD_TIME', defaultValue: '');
+  static const String buildId =
+      String.fromEnvironment('BUILD_ID', defaultValue: '');
   static const String engineBaseUrl =
       String.fromEnvironment('ENGINE_BASE_URL', defaultValue: '');
 
@@ -17,12 +19,19 @@ class BuildInfo {
   static String get stamp {
     final ts = buildTime.trim();
     if (ts.isEmpty) return 'Build: $shortSha';
-    return 'Build: $shortSha • $ts';
+    return 'Build: $shortSha * $ts';
+  }
+
+  static String get buildIdLabel {
+    final id = buildId.trim();
+    if (id.isNotEmpty) return id;
+    return shortSha;
   }
 
   static Map<String, dynamic> toJson() => {
         'gitSha': gitSha.trim().isEmpty ? 'dev' : gitSha.trim(),
         'buildTime': buildTime.trim(),
+        'buildId': buildId.trim(),
         'engineBaseUrl': engineBaseUrl.trim(),
       };
 
