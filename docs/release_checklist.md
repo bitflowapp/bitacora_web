@@ -136,6 +136,27 @@ Expected release output:
 - Confirmar que `flutter_bootstrap.js` se carga con query `?v=<buildId>`.
 - Abrir una pestaña con build anterior, desplegar versión nueva y comprobar recarga en versión nueva sin limpiar manualmente caches.
 
+## 3.3) P3 smoke test (Spreadsheet UI Polish)
+1. Grilla premium monocroma:
+- Abrir editor en desktop y validar contenedor principal de planilla con fondo blanco, borde gris sutil, radio grande y sombra suave.
+- Verificar header sticky con fondo gris claro y tipografia semibold.
+- Revisar zebra en filas (muy sutil, sin contraste agresivo).
+2. Seleccion y foco:
+- Seleccionar celdas y confirmar fill gris suave + borde gris oscuro.
+- Entrar en edicion y validar focus ring de 2px gris (sin azul default del navegador/SO).
+- Hover/pressed en celdas y botones: solo tonos grises.
+3. Chips y panel de adjuntos:
+- En una celda con foto/audio/GPS, confirmar chips minimalistas monocromo.
+- Click/tap en chip abre panel de adjuntos redondeado.
+- En el panel validar acciones: `Ver`, `Reemplazar`, `Eliminar`, `Copiar coordenadas`.
+- Validar metadata visible: fecha/hora, lat/lon y precision.
+4. Toolbar y menu contextual:
+- Verificar barra superior con acciones `+ Registro`, `Buscar`, `Exportar`, `Acciones`.
+- Abrir menu contextual y confirmar acciones base: `Copiar`, `Pegar`, `Duplicar fila`, `Aplicar valor a seleccion`, `Adjuntar foto`, `Adjuntar GPS`.
+5. Accesibilidad y responsive:
+- Con text scale alto (>= 130%), confirmar que toolbar, top bars y paneles no desbordan.
+- Validar uso correcto en desktop y mobile sin overflows visuales.
+
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`
