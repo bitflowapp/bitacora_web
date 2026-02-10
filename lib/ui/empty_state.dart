@@ -24,21 +24,36 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 32, color: t.colors.accent),
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: t.colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(t.radii.lg),
+              border: Border.all(color: t.colors.border, width: 1),
+            ),
+            child: Icon(icon, size: 28, color: t.colors.accent),
+          ),
           const SizedBox(height: 12),
           Text(
             title,
-            style: t.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: t.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.1,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             message,
-            style: t.text.bodyMedium?.copyWith(color: t.colors.textSecondary),
+            style: t.text.bodyMedium?.copyWith(
+              color: t.colors.textSecondary,
+              height: 1.25,
+            ),
             textAlign: TextAlign.center,
           ),
           if (actionLabel != null && onAction != null) ...[

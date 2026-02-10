@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'app_tokens.dart';
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   const AppTextField({
     super.key,
     this.controller,
+    this.focusNode,
     this.label,
     this.hint,
     this.errorText,
@@ -17,6 +18,7 @@ class AppTextField extends StatelessWidget {
   });
 
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String? label;
   final String? hint;
   final String? errorText;
@@ -27,56 +29,107 @@ class AppTextField extends StatelessWidget {
   final bool obscureText;
 
   @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  FocusNode? _ownFocusNode;
+  bool _focused = false;
+
+  FocusNode get _effectiveFocusNode => widget.focusNode ?? _ownFocusNode!;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownFocusNode = widget.focusNode == null ? FocusNode() : null;
+    _effectiveFocusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode == widget.focusNode) return;
+    oldWidget.focusNode?.removeListener(_handleFocusChange);
+    if (oldWidget.focusNode == null) {
+      _ownFocusNode?.removeListener(_handleFocusChange);
+      _ownFocusNode?.dispose();
+      _ownFocusNode = null;
+    }
+    _ownFocusNode = widget.focusNode == null ? FocusNode() : null;
+    _effectiveFocusNode.addListener(_handleFocusChange);
+    _focused = _effectiveFocusNode.hasFocus;
+  }
+
+  @override
+  void dispose() {
+    _effectiveFocusNode.removeListener(_handleFocusChange);
+    _ownFocusNode?.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    final value = _effectiveFocusNode.hasFocus;
+    if (_focused == value) return;
+    setState(() => _focused = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final hasError = (errorText ?? '').trim().isNotEmpty;
-    final borderColor = hasError ? t.colors.dangerFg : t.colors.border;
+    final hasError = (widget.errorText ?? '').trim().isNotEmpty;
+    final borderColor = hasError
+        ? t.colors.dangerFg
+        : (_focused ? t.colors.focusRing : t.colors.border);
 
-    final radius = BorderRadius.circular(t.radii.md);
+    final radius = BorderRadius.circular(t.radii.md + 2);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (label != null) ...[
+        if (widget.label != null) ...[
           Text(
-            label!,
+            widget.label!,
             style: t.text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
           SizedBox(height: t.spacing.xs),
         ],
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          enabled: enabled,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          obscureText: obscureText,
-          decoration: InputDecoration(
-            hintText: hint,
-            isDense: true,
-            filled: true,
-            fillColor: t.colors.surface,
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: t.spacing.lg,
-              vertical: t.spacing.sm,
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: t.colors.surface,
+            borderRadius: radius,
+            border: Border.all(
+              color: borderColor,
+              width: _focused ? 1.2 : 1,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: radius,
-              borderSide: BorderSide(color: borderColor, width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: radius,
-              borderSide: BorderSide(color: t.colors.focusRing, width: 1.2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: radius,
-              borderSide: BorderSide(color: t.colors.dangerFg, width: 1),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: radius,
-              borderSide: BorderSide(
-                color: t.colors.border.withOpacity(0.6),
-                width: 1,
+            boxShadow: _focused
+                ? [
+                    BoxShadow(
+                      color: t.colors.focusRing
+                          .withValues(alpha: t.colors.isLight ? 0.18 : 0.26),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: TextField(
+            controller: widget.controller,
+            focusNode: _effectiveFocusNode,
+            onChanged: widget.onChanged,
+            enabled: widget.enabled,
+            maxLines: widget.maxLines,
+            keyboardType: widget.keyboardType,
+            obscureText: widget.obscureText,
+            decoration: InputDecoration(
+              hintText: widget.hint,
+              isDense: true,
+              border: InputBorder.none,
+              filled: false,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: t.spacing.lg,
+                vertical: t.spacing.sm,
               ),
             ),
           ),
@@ -84,7 +137,7 @@ class AppTextField extends StatelessWidget {
         if (hasError) ...[
           SizedBox(height: t.spacing.xs),
           Text(
-            errorText!,
+            widget.errorText!,
             style: t.text.bodySmall?.copyWith(color: t.colors.dangerFg),
           ),
         ],

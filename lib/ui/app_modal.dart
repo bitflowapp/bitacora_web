@@ -10,7 +10,7 @@ class AppModal extends StatelessWidget {
     required this.child,
     this.actions,
     this.showClose = true,
-    this.maxWidth = 560,
+    this.maxWidth = 620,
   });
 
   final String? title;
@@ -23,33 +23,43 @@ class AppModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Dialog(
-      insetPadding: const EdgeInsets.all(18),
+      insetPadding: const EdgeInsets.all(20),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: AppCard(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(20),
+          radius: t.radii.xl,
+          borderColor: t.colors.borderStrong,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (title != null || showClose)
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (title != null)
                       Expanded(
                         child: Text(
                           title!,
                           style: t.text.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.1,
                           ),
                         ),
                       ),
                     if (showClose)
-                      IconButton(
-                        tooltip: 'Cerrar',
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(Icons.close),
+                      Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        child: IconButton(
+                          tooltip: 'Cerrar',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                       ),
                   ],
                 ),

@@ -132,45 +132,44 @@ class AppTheme {
 
   static AppThemeData fromTheme(ThemeData theme) {
     final isLight = theme.brightness == Brightness.light;
-    final scheme = theme.colorScheme;
 
     final bg = theme.scaffoldBackgroundColor;
-    final surface = theme.cardColor;
+    final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF121317);
     final surfaceMuted =
-        isLight ? const Color(0xFFF2F2F4) : const Color(0xFF0F1114);
+        isLight ? const Color(0xFFF4F4F6) : const Color(0xFF111216);
     final surfaceElevated =
-        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF141416);
+        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF17181D);
 
-    final border = (theme.dividerColor).withOpacity(isLight ? 0.9 : 0.65);
-    final borderStrong = scheme.outline.withOpacity(isLight ? 0.95 : 0.75);
+    final neutralInk =
+        isLight ? const Color(0xFF111113) : const Color(0xFFF4F4F6);
+    final neutralMuted =
+        isLight ? const Color(0xFF575861) : const Color(0xFFB6B7C0);
+    final border = isLight ? const Color(0xFFE3E4E8) : const Color(0xFF2B2D34);
+    final borderStrong =
+        isLight ? const Color(0xFFD2D4DB) : const Color(0xFF3A3C45);
 
-    final accent = scheme.primary;
-    final accentMuted = accent.withOpacity(isLight ? 0.08 : 0.12);
+    final accent = neutralInk;
+    final accentMuted = accent.withValues(alpha: isLight ? 0.07 : 0.16);
 
-    final statusBg = accent.withOpacity(isLight ? 0.10 : 0.20);
-    final statusFg =
-        isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
+    final statusBg = accent.withValues(alpha: isLight ? 0.08 : 0.16);
+    final statusFg = neutralInk;
 
-    final warningBg =
-        isLight ? const Color(0xFFF2F2F4) : const Color(0xFF222228);
-    final warningFg =
-        isLight ? const Color(0xFF1B1B1F) : const Color(0xFFE9E9ED);
+    final warningBg = surfaceMuted;
+    final warningFg = neutralInk;
 
     final dangerBg =
-        isLight ? const Color(0xFFF2F2F4) : const Color(0xFF222228);
-    final dangerFg =
-        isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
+        isLight ? const Color(0xFFF5F5F6) : const Color(0xFF191A1F);
+    final dangerFg = neutralInk;
 
     final successBg =
-        isLight ? const Color(0xFFF1F1F3) : const Color(0xFF1D1D22);
-    final successFg =
-        isLight ? const Color(0xFF101014) : const Color(0xFFF4F4F6);
+        isLight ? const Color(0xFFF3F3F5) : const Color(0xFF1A1B20);
+    final successFg = neutralInk;
 
     final hover = (isLight ? Colors.black : Colors.white)
-        .withOpacity(isLight ? 0.03 : 0.06);
+        .withValues(alpha: isLight ? 0.035 : 0.07);
     final pressed = (isLight ? Colors.black : Colors.white)
-        .withOpacity(isLight ? 0.08 : 0.12);
-    final focusRing = accent.withOpacity(isLight ? 0.20 : 0.30);
+        .withValues(alpha: isLight ? 0.09 : 0.15);
+    final focusRing = accent.withValues(alpha: isLight ? 0.28 : 0.40);
 
     final colors = AppColors(
       isLight: isLight,
@@ -180,8 +179,8 @@ class AppTheme {
       surfaceElevated: surfaceElevated,
       border: border,
       borderStrong: borderStrong,
-      textPrimary: scheme.onSurface,
-      textSecondary: scheme.onSurfaceVariant,
+      textPrimary: neutralInk,
+      textSecondary: neutralMuted,
       accent: accent,
       accentMuted: accentMuted,
       statusBg: statusBg,
@@ -200,8 +199,8 @@ class AppTheme {
     final radii = const AppRadii();
     final spacing = const AppSpacing();
 
-    final shadowColor = Colors.black.withOpacity(isLight ? 0.10 : 0.48);
-    final softShadow = Colors.black.withOpacity(isLight ? 0.05 : 0.34);
+    final shadowColor = Colors.black.withValues(alpha: isLight ? 0.10 : 0.48);
+    final softShadow = Colors.black.withValues(alpha: isLight ? 0.05 : 0.34);
 
     final shadows = AppShadows(
       card: [
