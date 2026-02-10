@@ -2649,6 +2649,16 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Acciones por lote',
+            icon: Icons.layers_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openBatchActionsSheet());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Deshacer',
             icon: Icons.undo_rounded,
             variant: AppButtonVariant.secondary,

@@ -75,6 +75,16 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyF) {
+      unawaited(_openSearchDialog());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyN) {
+      _insertRow(_rows.length);
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyE) {
       if (isShift) {
         unawaited(_exportZipBundle(share: false));

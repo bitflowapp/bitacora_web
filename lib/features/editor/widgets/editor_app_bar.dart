@@ -16,6 +16,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onExport,
     required this.onSmokeTest,
     required this.onCompute,
+    required this.onBatch,
     required this.onGps,
     required this.onPhoto,
     required this.onVideo,
@@ -47,6 +48,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onExport;
   final VoidCallback onSmokeTest;
   final VoidCallback? onCompute;
+  final VoidCallback onBatch;
 
   final VoidCallback onGps;
   final VoidCallback onPhoto;
@@ -248,6 +250,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.add_box_outlined,
                             label: '+ Registro',
                             onTap: onQuickCapture,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.layers_outlined,
+                            label: 'Lote',
+                            onTap: onBatch,
                           ),
                           AppleToolbarItem(
                             icon: Icons.my_location_rounded,

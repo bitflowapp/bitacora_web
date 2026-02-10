@@ -162,12 +162,16 @@ class _EditorScreenState extends State<EditorScreen>
   final math.Random _idRand = math.Random();
   final GridSelectionController _selection =
       GridSelectionController(initial: null);
+  final Set<int> _selectedRows = <int>{};
+  int? _rowSelectionAnchor;
 
   final Map<String, CellMeta> _cellMeta = <String, CellMeta>{};
   _GpsWriteMode _gpsWriteMode = _GpsWriteMode.pasteActive;
   _GpsFix? _pendingGpsFix;
   bool _gpsPickingTarget = false;
+  bool _autoGpsBatchEnabled = false;
   static const String _prefGpsMode = 'bitflow:gps_mode';
+  static const String _prefAutoGpsBatch = 'bitflow:auto_gps_batch';
   static const String _prefGridDensity = 'bitflow:grid_density';
 
   _GridDensity _gridDensity = _GridDensity.normal;
@@ -332,6 +336,8 @@ class _EditorScreenState extends State<EditorScreen>
   int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
   int _pendingRequired = 0;
+  String _lastSearchQuery = '';
+  _CellRef? _lastSearchHit;
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   Timer? _quickCaptureSyncTimer;
@@ -378,6 +384,10 @@ class _EditorScreenState extends State<EditorScreen>
     _headers = initial.headers;
     _colIds = initial.colIds;
     _rows = initial.rows;
+    _selectedRows
+      ..clear()
+      ..add(0);
+    _rowSelectionAnchor = 0;
     _resetMobileRowCaches();
     _scheduleValidationRecompute(immediate: true);
 
@@ -400,6 +410,7 @@ class _EditorScreenState extends State<EditorScreen>
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
     unawaited(_loadGpsMode());
+    unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection()
@@ -2014,11 +2025,18 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  bool _setSelection(int r, int c, {bool blink = false}) {
+  bool _setSelection(
+    int r,
+    int c, {
+    bool blink = false,
+    bool preserveRowSelection = false,
+  }) {
     if (_rows.isEmpty || _headers.isEmpty) {
       final changed = _selRow != 0 || _selCol != 0;
       _selRow = 0;
       _selCol = 0;
+      _selectedRows.clear();
+      _rowSelectionAnchor = null;
       _selection.clear();
       return changed;
     }
@@ -2027,15 +2045,401 @@ class _EditorScreenState extends State<EditorScreen>
     final changed = _selRow != rr || _selCol != cc;
     _selRow = rr;
     _selCol = cc;
+    if (!preserveRowSelection) {
+      _selectedRows
+        ..clear()
+        ..add(rr);
+      _rowSelectionAnchor = rr;
+    } else if (_selectedRows.isEmpty) {
+      _selectedRows.add(rr);
+      _rowSelectionAnchor ??= rr;
+    }
     _syncSelectionController();
     if (blink) _blink(rr, cc);
     return changed;
   }
 
-  void _setSelectionAndRefreshGrid(int r, int c, {bool blink = false}) {
-    if (_setSelection(r, c, blink: blink)) {
+  void _setSelectionAndRefreshGrid(
+    int r,
+    int c, {
+    bool blink = false,
+    bool preserveRowSelection = false,
+  }) {
+    if (_setSelection(
+      r,
+      c,
+      blink: blink,
+      preserveRowSelection: preserveRowSelection,
+    )) {
       _bumpGridVersion();
     }
+  }
+
+  List<int> _selectedRowsSorted() {
+    if (_selectedRows.isEmpty) return const <int>[];
+    final out = _selectedRows
+        .where((r) => r >= 0 && r < _rows.length)
+        .toList(growable: false)
+      ..sort();
+    return out;
+  }
+
+  List<int> _batchTargetRows() {
+    final selected = _selectedRowsSorted();
+    if (selected.isNotEmpty) return selected;
+    if (_selRow >= 0 && _selRow < _rows.length) return <int>[_selRow];
+    return const <int>[];
+  }
+
+  int _resolveBatchTargetColumn() {
+    if (_headers.length < 2) return 0;
+    final lastDataCol = _headers.length - 2;
+    if (_selCol >= 0 && _selCol <= lastDataCol) return _selCol;
+    return _resolveQuickCaptureDateColumn().clamp(0, lastDataCol);
+  }
+
+  void _handleRowIndexTap(int row) {
+    if (row < 0 || row >= _rows.length) return;
+    final keyboard = HardwareKeyboard.instance;
+    final isShift = keyboard.isShiftPressed;
+    final isMod = keyboard.isControlPressed || keyboard.isMetaPressed;
+
+    setState(() {
+      if (isShift) {
+        final anchor = _rowSelectionAnchor ?? _selRow;
+        final start = math.min(anchor, row);
+        final end = math.max(anchor, row);
+        final next = isMod ? Set<int>.from(_selectedRows) : <int>{};
+        for (int i = start; i <= end; i++) {
+          next.add(i);
+        }
+        _selectedRows
+          ..clear()
+          ..addAll(next);
+        _rowSelectionAnchor = anchor;
+        _setSelection(row, _selCol, preserveRowSelection: true);
+      } else if (isMod) {
+        if (_selectedRows.contains(row) && _selectedRows.length > 1) {
+          _selectedRows.remove(row);
+        } else {
+          _selectedRows.add(row);
+        }
+        _rowSelectionAnchor = row;
+        _setSelection(row, _selCol, preserveRowSelection: true);
+      } else {
+        _selectedRows
+          ..clear()
+          ..add(row);
+        _rowSelectionAnchor = row;
+        _setSelection(row, _selCol, preserveRowSelection: true);
+      }
+      _blink(row, _selCol);
+    });
+  }
+
+  Future<void> _openBatchActionsSheet() async {
+    if (!mounted) return;
+    final selected = _batchTargetRows();
+    if (selected.isEmpty) {
+      _showActionSnack(
+        'No hay filas seleccionadas.',
+        isError: true,
+        icon: Icons.layers_clear_outlined,
+      );
+      return;
+    }
+
+    final count = selected.length;
+    final targetCol = _resolveBatchTargetColumn();
+    final columnLabel = _headerLabel(targetCol);
+
+    await showAppModal<void>(
+      context: context,
+      title: 'Acciones por lote',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$count fila(s) seleccionadas · columna activa: $columnLabel',
+            style: TextStyle(
+              color: _palette(context).fgMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'Aplicar mismo valor',
+            icon: Icons.format_color_text_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_promptBatchApplyValue());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label:
+                'Auto GPS: ${_autoGpsBatchEnabled ? 'Activado' : 'Desactivado'}',
+            icon: _autoGpsBatchEnabled
+                ? Icons.toggle_on_rounded
+                : Icons.toggle_off_outlined,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_setAutoGpsBatchEnabled(!_autoGpsBatchEnabled));
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Aplicar GPS a seleccion',
+            icon: Icons.my_location_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_applyGpsToSelectedRows());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Duplicar fila(s)',
+            icon: Icons.copy_all_outlined,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _duplicateSelectedRows();
+            },
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+  }
+
+  Future<void> _promptBatchApplyValue() async {
+    final rows = _batchTargetRows();
+    if (rows.isEmpty || _headers.length < 2) return;
+    final targetCol = _resolveBatchTargetColumn();
+    final initial = _effectiveCell(rows.first, targetCol);
+    final controller = TextEditingController(text: initial);
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Aplicar valor (${rows.length} filas)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Columna: ${_headerLabel(targetCol)}',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Valor para aplicar',
+                ),
+                onSubmitted: (v) => Navigator.of(ctx).pop(v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: const Text('Aplicar'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || value == null) return;
+
+    final normalized = _normalizeCellValueForColumn(targetCol, value);
+    final refsToClear = <_CellRef>[];
+    var changed = 0;
+    for (final r in rows) {
+      if (r < 0 || r >= _rows.length) continue;
+      if (_rows[r].cells[targetCol] == normalized) continue;
+      _rows[r].cells[targetCol] = normalized;
+      refsToClear.add(_CellRef(r, targetCol));
+      changed++;
+    }
+
+    if (changed == 0) {
+      _showActionSnack(
+        'Sin cambios para aplicar.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    _clearCellDrafts(refsToClear);
+    _setSelection(
+      rows.first,
+      targetCol,
+      preserveRowSelection: true,
+      blink: true,
+    );
+    _markDirty(snapshot: true);
+    _showActionSnack(
+      'Valor aplicado a $changed fila(s).',
+      isError: false,
+      icon: Icons.done_all_rounded,
+    );
+  }
+
+  Future<void> _applyGpsToSelectedRows() async {
+    if (!_autoGpsBatchEnabled) {
+      _showActionSnack(
+        'Activa Auto GPS para aplicar coordenadas por lote.',
+        isError: true,
+        icon: Icons.gps_off_rounded,
+      );
+      return;
+    }
+    if (_guardInAppBrowser(DiagnosticActionType.gps)) return;
+    if (_guardInsecureContext(DiagnosticActionType.gps)) return;
+    if (kIsWeb && !WebCapabilities.geolocationAvailable) {
+      _showActionSnack(
+        'GPS no disponible en este navegador.',
+        isError: true,
+        icon: Icons.gps_off_rounded,
+      );
+      return;
+    }
+
+    final rows = _batchTargetRows();
+    if (rows.isEmpty || _headers.length < 2) return;
+    final targetCol = _resolveBatchTargetColumn();
+    final outcome =
+        await _getGpsFixWithFallback(timeout: const Duration(seconds: 12));
+    if (!mounted) return;
+    if (!outcome.ok || outcome.fix == null) {
+      _showGpsError(outcome);
+      return;
+    }
+    final fix = outcome.fix!;
+    final gpsMeta = GpsMeta(
+      lat: fix.lat,
+      lng: fix.lng,
+      accuracyM: fix.accuracyM,
+      timestamp: fix.ts,
+      source: fix.source,
+      provider: fix.provider,
+    );
+    final shouldWriteText = _gpsWriteMode != _GpsWriteMode.metadataOnly;
+    final text = _gpsTextForFix(fix);
+    final refsToClear = <_CellRef>[];
+    var applied = 0;
+
+    for (final r in rows) {
+      if (r < 0 || r >= _rows.length) continue;
+      final ref = _cellRefAt(r, targetCol);
+      if (ref == null) continue;
+      final current = _cellMeta[ref.key];
+      _cellMeta[ref.key] = CellMeta(
+        gps: gpsMeta,
+        photos: current?.photos ?? const <PhotoAttachment>[],
+        audios: current?.audios ?? const <AudioAttachment>[],
+      );
+      if (shouldWriteText) {
+        _rows[r].cells[targetCol] = text;
+        refsToClear.add(_CellRef(r, targetCol));
+      }
+      applied++;
+    }
+
+    if (applied == 0) return;
+    if (refsToClear.isNotEmpty) {
+      _clearCellDrafts(refsToClear);
+    }
+    _setSelection(
+      rows.first,
+      targetCol,
+      preserveRowSelection: true,
+      blink: true,
+    );
+    _markDirty(snapshot: true);
+    _showActionSnack(
+      'GPS aplicado a $applied fila(s).',
+      isError: false,
+      icon: Icons.my_location_rounded,
+    );
+  }
+
+  void _duplicateSelectedRows() {
+    final targets = _batchTargetRows();
+    if (targets.isEmpty) return;
+    final ordered = targets.toList(growable: false)..sort();
+    final insertAtList = <int>[];
+    var offset = 0;
+
+    setState(() {
+      for (final original in ordered) {
+        final srcIndex = original + offset;
+        if (srcIndex < 0 || srcIndex >= _rows.length) continue;
+        final src = _rows[srcIndex];
+        final newId = _genStableId('r_');
+        final copy = _RowModel(
+          id: newId,
+          cells: List<String>.from(src.cells),
+          photos: src.photos.map((p) => p.copy()).toList(growable: false),
+          gpsLat: src.gpsLat,
+          gpsLng: src.gpsLng,
+          gpsAccuracyM: src.gpsAccuracyM,
+          gpsTs: src.gpsTs,
+          gpsIsLastKnown: src.gpsIsLastKnown,
+        );
+        final insertAt = (srcIndex + 1).clamp(0, _rows.length);
+        _duplicateCellMetaRow(src.id, newId);
+        _rows.insert(insertAt, copy);
+        insertAtList.add(insertAt);
+        offset++;
+      }
+      if (insertAtList.isNotEmpty) {
+        _selectedRows
+          ..clear()
+          ..addAll(insertAtList);
+        _rowSelectionAnchor = insertAtList.first;
+        _setSelection(
+          insertAtList.first,
+          _selCol,
+          preserveRowSelection: true,
+        );
+      }
+    });
+
+    if (insertAtList.isEmpty) return;
+    for (final idx in insertAtList) {
+      _insertMobileRowCache(idx);
+    }
+    _markDirty(snapshot: true);
+    _showActionSnack(
+      'Filas duplicadas: ${insertAtList.length}.',
+      isError: false,
+      icon: Icons.copy_all_outlined,
+    );
   }
 
   _CellRef? _cellIndexForRef(CellRef ref) {
@@ -2933,6 +3337,8 @@ class _EditorScreenState extends State<EditorScreen>
                               onCompute: _engineBusy
                                   ? null
                                   : () => unawaited(_computeEngine()),
+                              onBatch: () =>
+                                  unawaited(_openBatchActionsSheet()),
                               onGps: () => unawaited(_requestGpsForCell(
                                   _selRow, _selCol,
                                   forceWriteText: true)),
@@ -3103,6 +3509,7 @@ class _EditorScreenState extends State<EditorScreen>
                                             hScroll: _hScroll,
                                             selRow: _selRow,
                                             selCol: _selCol,
+                                            selectedRows: _selectedRows,
                                             blink: _blinkCell,
                                             editorLink: _editorLink,
                                             overlayTargetCell:
@@ -3113,6 +3520,7 @@ class _EditorScreenState extends State<EditorScreen>
                                               _setSelectionAndRefreshGrid(r, c,
                                                   blink: true);
                                             },
+                                            onRowIndexTap: _handleRowIndexTap,
                                             onEditRequested: (r, c, w) =>
                                                 _beginEditCell(
                                                     context, pal, r, c, w),
@@ -3215,6 +3623,7 @@ class _EditorScreenState extends State<EditorScreen>
                           sensorsEnabled: sensorsEnabled,
                           onQuickCapture: () =>
                               unawaited(_startQuickCaptureFlow()),
+                          onBatch: () => unawaited(_openBatchActionsSheet()),
                           onGps: () => unawaited(_requestGpsForCell(
                               _selRow, _selCol,
                               forceWriteText: true)),
@@ -4675,6 +5084,47 @@ class _EditorScreenState extends State<EditorScreen>
           () => _insertRow(r)));
       actions.add(_CtxAction('Insertar fila abajo',
           Icons.arrow_downward_rounded, () => _insertRow(r + 1)));
+      actions.add(
+        _CtxAction('Seleccionar solo esta fila', Icons.checklist_rtl_rounded,
+            () {
+          setState(() {
+            _selectedRows
+              ..clear()
+              ..add(r);
+            _rowSelectionAnchor = r;
+            _setSelection(r, c, preserveRowSelection: true);
+          });
+        }),
+      );
+      actions.add(_CtxAction(
+        _selectedRows.contains(r)
+            ? 'Quitar fila de seleccion'
+            : 'Agregar fila a seleccion',
+        Icons.layers_outlined,
+        () {
+          setState(() {
+            if (_selectedRows.contains(r) && _selectedRows.length > 1) {
+              _selectedRows.remove(r);
+            } else {
+              _selectedRows.add(r);
+            }
+            _rowSelectionAnchor = r;
+            _setSelection(r, c, preserveRowSelection: true);
+          });
+        },
+      ));
+      if (_batchTargetRows().length > 1) {
+        actions.add(_CtxAction(
+            'Aplicar valor a seleccion',
+            Icons.format_color_text_rounded,
+            () => unawaited(_promptBatchApplyValue())));
+        actions.add(_CtxAction(
+            'Aplicar GPS a seleccion',
+            Icons.my_location_rounded,
+            () => unawaited(_applyGpsToSelectedRows())));
+        actions.add(_CtxAction('Duplicar filas seleccionadas',
+            Icons.copy_all_outlined, _duplicateSelectedRows));
+      }
       actions.add(_CtxAction(
           'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
       actions.add(_CtxAction(
@@ -5142,6 +5592,88 @@ class _EditorScreenState extends State<EditorScreen>
     return out;
   }
 
+  Future<void> _openSearchDialog() async {
+    if (!mounted) return;
+    final controller = TextEditingController(text: _lastSearchQuery);
+    final query = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Buscar'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Texto a buscar en la planilla',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onSubmitted: (value) => Navigator.of(ctx).pop(value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: const Text('Buscar'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || query == null) return;
+    final q = query.trim();
+    if (q.isEmpty) return;
+    final continueFromLast = _lastSearchQuery == q;
+    if (!continueFromLast) {
+      _lastSearchHit = null;
+    }
+    _lastSearchQuery = q;
+
+    if (_jumpToSearchMatch(q, continueFromLast: continueFromLast)) return;
+    _showActionSnack(
+      'Sin resultados para "$q".',
+      isError: false,
+      icon: Icons.search_off_rounded,
+    );
+  }
+
+  bool _jumpToSearchMatch(String query, {bool continueFromLast = true}) {
+    final needle = query.toLowerCase();
+    final rows = _rows.length;
+    final cols = _headers.length - 1;
+    if (rows <= 0 || cols <= 0) return false;
+
+    final max = rows * cols;
+    final selectedLinear = (_selRow * cols) + _selCol.clamp(0, cols - 1);
+    var startLinear = selectedLinear + 1;
+
+    if (continueFromLast && _lastSearchHit != null) {
+      final hit = _lastSearchHit!;
+      startLinear = (hit.r * cols) + hit.c + 1;
+    }
+
+    for (int i = 0; i < max; i++) {
+      final idx = (startLinear + i) % max;
+      final r = idx ~/ cols;
+      final c = idx % cols;
+      final text = _effectiveCell(r, c).toLowerCase();
+      if (!text.contains(needle)) continue;
+      _lastSearchHit = _CellRef(r, c);
+      _setSelectionAndRefreshGrid(r, c, blink: true);
+      _showActionSnack(
+        'Coincidencia en fila ${r + 1}, columna ${_headerLabel(c)}.',
+        isError: false,
+        icon: Icons.search_rounded,
+      );
+      return true;
+    }
+    _lastSearchHit = null;
+    return false;
+  }
+
 // ------------------------------ GPS / Maps ------------------------------
 
   CellMeta? _cellMetaAt(int r, int c) {
@@ -5215,6 +5747,17 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
+  Future<void> _loadAutoGpsBatch() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool(_prefAutoGpsBatch) ?? false;
+      if (!mounted) return;
+      if (enabled != _autoGpsBatchEnabled) {
+        setState(() => _autoGpsBatchEnabled = enabled);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _setGpsMode(_GpsWriteMode mode) async {
     if (mode == _gpsWriteMode) return;
     if (mounted) setState(() => _gpsWriteMode = mode);
@@ -5222,6 +5765,23 @@ class _EditorScreenState extends State<EditorScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefGpsMode, mode.name);
     } catch (_) {}
+  }
+
+  Future<void> _setAutoGpsBatchEnabled(bool enabled) async {
+    if (enabled == _autoGpsBatchEnabled) return;
+    if (mounted) setState(() => _autoGpsBatchEnabled = enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefAutoGpsBatch, enabled);
+    } catch (_) {}
+    if (!mounted) return;
+    _showActionSnack(
+      enabled
+          ? 'Auto GPS activado para acciones por lote.'
+          : 'Auto GPS desactivado.',
+      isError: false,
+      icon: enabled ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+    );
   }
 
   // _showGpsModePicker movido a dialogs/editor_dialogs.dart

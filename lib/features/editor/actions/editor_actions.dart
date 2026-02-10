@@ -8,6 +8,50 @@ extension _EditorActions on _EditorScreenState {
       title: 'Comandos',
       actions: [
         CommandAction(
+          id: 'create_row',
+          label: 'Crear fila',
+          shortcut: 'Ctrl/Cmd+N',
+          icon: Icons.add_rounded,
+          onSelected: () => _insertRow(_rows.length),
+        ),
+        CommandAction(
+          id: 'batch_actions',
+          label: 'Acciones por lote',
+          icon: Icons.layers_outlined,
+          onSelected: () => unawaited(_openBatchActionsSheet()),
+        ),
+        CommandAction(
+          id: 'search',
+          label: 'Buscar',
+          shortcut: 'Ctrl/Cmd+F',
+          icon: Icons.search_rounded,
+          onSelected: () => unawaited(_openSearchDialog()),
+        ),
+        CommandAction(
+          id: 'export',
+          label: 'Exportar',
+          shortcut: 'Ctrl/Cmd+E',
+          icon: Icons.download_rounded,
+          onSelected: () => unawaited(_openExportMenu()),
+        ),
+        CommandAction(
+          id: 'attach_photo',
+          label: 'Adjuntar foto',
+          shortcut: 'P',
+          icon: Icons.photo_camera_outlined,
+          onSelected: () => unawaited(
+            _startPhotoFlowForCell(_selRow, _selCol),
+          ),
+        ),
+        CommandAction(
+          id: 'attach_gps',
+          label: 'Adjuntar GPS',
+          shortcut: 'G',
+          icon: Icons.my_location_rounded,
+          onSelected: () => unawaited(
+              _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
+        ),
+        CommandAction(
           id: 'save',
           label: 'Guardar',
           shortcut: 'Ctrl/Cmd+S',

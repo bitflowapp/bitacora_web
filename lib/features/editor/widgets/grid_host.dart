@@ -72,11 +72,13 @@ class _GridView extends StatelessWidget {
     required this.hScroll,
     required this.selRow,
     required this.selCol,
+    required this.selectedRows,
     required this.blink,
     required this.editorLink,
     required this.overlayTargetCell,
     required this.overlayTargetHeaderCol,
     required this.onSelect,
+    required this.onRowIndexTap,
     required this.onEditRequested,
     required this.onHeaderEditRequested,
     required this.onContextMenu,
@@ -100,6 +102,7 @@ class _GridView extends StatelessWidget {
 
   final int selRow;
   final int selCol;
+  final Set<int> selectedRows;
 
   final ValueListenable<_CellRef?> blink;
 
@@ -108,6 +111,7 @@ class _GridView extends StatelessWidget {
   final int? overlayTargetHeaderCol;
 
   final _SelectCell onSelect;
+  final ValueChanged<int> onRowIndexTap;
   final _EditCell onEditRequested;
   final _EditHeader onHeaderEditRequested;
   final _ContextMenu onContextMenu;
@@ -181,6 +185,7 @@ class _GridView extends StatelessWidget {
                             physics: const BouncingScrollPhysics(),
                             itemCount: rowModels.length,
                             itemBuilder: (ctx3, r) {
+                              final rowSelected = selectedRows.contains(r);
                               return RepaintBoundary(
                                 child: SizedBox(
                                   height: metrics.rowH,
@@ -191,8 +196,8 @@ class _GridView extends StatelessWidget {
                                         metrics: metrics,
                                         width: indexW,
                                         index: r + 1,
-                                        selected: r == selRow,
-                                        onTap: () => onSelect(r, selCol),
+                                        selected: rowSelected || r == selRow,
+                                        onTap: () => onRowIndexTap(r),
                                         onSecondaryTapDown: (d) =>
                                             onContextMenu(d.globalPosition, r,
                                                 selCol, false),
@@ -225,6 +230,7 @@ class _GridView extends StatelessWidget {
                                               thumbB64: thumbB64,
                                               selected:
                                                   r == selRow && col == selCol,
+                                              rowSelected: rowSelected,
                                               isPhotos: isPhotos,
                                               blinkRef: blinkRef,
                                               cellRef: ref,
@@ -504,6 +510,7 @@ class _DataCell extends StatelessWidget {
     required this.zebra,
     required this.thumbB64,
     required this.selected,
+    required this.rowSelected,
     required this.invalid,
     required this.isPhotos,
     required this.blinkRef,
@@ -528,6 +535,7 @@ class _DataCell extends StatelessWidget {
   final bool zebra;
   final String thumbB64;
   final bool selected;
+  final bool rowSelected;
   final bool invalid;
   final bool isPhotos;
 
@@ -551,7 +559,11 @@ class _DataCell extends StatelessWidget {
     final baseBg = zebra ? palette.zebraBg : palette.cellBg;
     final selectedBg =
         palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
-    final bg = isActive ? palette.blinkBg : (selected ? selectedBg : baseBg);
+    final rowSelectedBg =
+        palette.accent.withOpacity(palette.isLight ? 0.05 : 0.12);
+    final bg = isActive
+        ? palette.blinkBg
+        : (selected ? selectedBg : (rowSelected ? rowSelectedBg : baseBg));
 
     final borderColor = invalid
         ? Colors.red.withOpacity(palette.isLight ? 0.85 : 0.75)

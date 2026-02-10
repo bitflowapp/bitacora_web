@@ -25,6 +25,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
     required this.palette,
     required this.sensorsEnabled,
     required this.onQuickCapture,
+    required this.onBatch,
     required this.onGps,
     required this.onPhoto,
     required this.onVideo,
@@ -38,6 +39,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
   final _SheetPalette palette;
   final bool sensorsEnabled;
   final VoidCallback onQuickCapture;
+  final VoidCallback onBatch;
   final VoidCallback onGps;
   final VoidCallback onPhoto;
   final VoidCallback onVideo;
@@ -71,6 +73,14 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 dense: true,
                 onPressed: onQuickCapture,
                 variant: AppleButtonVariant.filled,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.layers_outlined,
+                label: 'Lote',
+                dense: true,
+                onPressed: onBatch,
+                variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
               AppleButton(
