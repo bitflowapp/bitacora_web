@@ -55,9 +55,9 @@ jobs:
           ENGINE_BASE_URL: ${{ vars.ENGINE_BASE_URL }}
         run: |
           mkdir -p web/assets
-          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > assets/version.json
-          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/version.json
-          echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > assets/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
 
       - name: Build web
         run: |

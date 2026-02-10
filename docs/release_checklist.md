@@ -110,6 +110,32 @@ Expected release output:
 - Return to sheets and confirm list/metadata update (title, rows, date).
 - Test empty state CTA again by removing/cleaning local data and recreating one sheet.
 
+## 3.2) P2 smoke test (Modo Campo + Plantillas + Lote + Atajos)
+1. Plantillas:
+- En `Crear planilla`, abrir galería y crear al menos una planilla por template (`Plantilla base`, `Resistividades`, `Inventario`, `Checklist`).
+- Verificar columnas y defaults iniciales.
+- En columnas `Estado`, comprobar selector con `OK / Obs / Urgente`.
+- En columnas `Fecha`, validar formato `YYYY-MM-DD HH:mm`.
+- En `Progresiva/ID`, ingresar texto no numérico y confirmar validación.
+2. Modo Campo (`+ Registro`):
+- Desde editor, ejecutar `+ Registro` y confirmar: foto/archivo, timestamp en columna de fecha, nota opcional y nueva fila creada.
+- Con permisos de ubicación, verificar metadata GPS (lat/lon/precisión/timestamp) en la fila/celda destino.
+- Desconectar red, crear registro y confirmar banner `Pendiente de sync`.
+- Reconectar red y validar sync automático + limpieza de pendientes.
+3. Acciones por lote:
+- Seleccionar filas desde el índice (Ctrl/Cmd-click y Shift-click rango).
+- Ejecutar `Aplicar mismo valor` y validar cambio en todas las filas seleccionadas.
+- Activar `Auto GPS`, ejecutar `Aplicar GPS a selección` y validar aplicación masiva.
+- Ejecutar `Duplicar fila(s)` y validar metadatos/copias.
+4. Command Palette y shortcuts:
+- `Ctrl/Cmd+K`: abre paleta con `Crear fila`, `Buscar`, `Exportar`, `Adjuntar foto`, `Adjuntar GPS`.
+- `Ctrl/Cmd+F`: abre búsqueda y navega a coincidencias.
+- `Ctrl/Cmd+S`: guarda y actualiza estado de guardado.
+5. Cache busting web:
+- Verificar que `/version.json` tenga `buildId` nuevo tras deploy.
+- Confirmar que `flutter_bootstrap.js` se carga con query `?v=<buildId>`.
+- Abrir una pestaña con build anterior, desplegar versión nueva y comprobar recarga en versión nueva sin limpiar manualmente caches.
+
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`

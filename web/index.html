@@ -13,7 +13,7 @@
   <meta name="description" content="Bitacora operativa offline con evidencias, adjuntos y exportacion lista para auditorias." />
   <meta name="robots" content="index,follow" />
 
-  <!-- BUILD ID (lo reemplazás en /docs después del robocopy) -->
+  <!-- BUILD ID fallback (si version.json no está disponible) -->
   <meta name="bitflow-build" content="__BUILD_ID__" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -74,16 +74,29 @@
 
   <script>
     (function () {
-      function getBuildId() {
+      async function resolveBuildId() {
+        try {
+          var res = await fetch('version.json?x=' + Date.now(), {
+            cache: 'no-store'
+          });
+          if (res.ok) {
+            var json = await res.json();
+            if (json && typeof json === 'object') {
+              var fromVersion = (json.buildId || json.gitSha || json.buildTime || '')
+                .toString()
+                .trim();
+              if (fromVersion) return fromVersion;
+            }
+          }
+        } catch (_) {}
+
         var m = document.querySelector('meta[name="bitflow-build"]');
         var v = m ? (m.getAttribute('content') || '') : '';
-        return (v && v !== '__BUILD_ID__') ? v : ('dev-' + Date.now());
+        if (v && v !== '__BUILD_ID__') return v;
+        return 'dev-' + Date.now();
       }
 
-      var BUILD = getBuildId();
-      window.__BITFLOW_BUILD__ = BUILD;
-
-      function mountBadge() {
+      function mountBadge(build) {
         try {
           var el = document.getElementById('build-badge');
           if (!el) {
@@ -91,18 +104,18 @@
             el.id = 'build-badge';
             document.body.appendChild(el);
           }
-          el.textContent = 'build ' + BUILD;
+          el.textContent = 'build ' + build;
         } catch (_) {}
       }
 
       // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
-      async function nukeCachesIfBuildChanged() {
+      async function nukeCachesIfBuildChanged(build) {
         var key = 'bitflow_last_build';
         var last = null;
         try { last = localStorage.getItem(key); } catch (_) {}
 
-        if (last === BUILD) return;
-        try { localStorage.setItem(key, BUILD); } catch (_) {}
+        if (last === build) return;
+        try { localStorage.setItem(key, build); } catch (_) {}
 
         try {
           if ('serviceWorker' in navigator) {
@@ -120,6 +133,15 @@
               try { await caches.delete(names[j]); } catch (_) {}
             }
           }
+        } catch (_) {}
+      }
+
+      function loadFlutterBootstrap(build) {
+        try {
+          var script = document.createElement('script');
+          script.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(build);
+          script.async = true;
+          document.body.appendChild(script);
         } catch (_) {}
       }
 
@@ -174,7 +196,6 @@
       }
 
       function boot() {
-        mountBadge();
         scheduleApply();
 
         window.addEventListener('resize', scheduleApply, { passive: true });
@@ -192,19 +213,33 @@
         } catch (_) {}
       }
 
+      async function start() {
+        try {
+          var build = await resolveBuildId();
+          window.__BITFLOW_BUILD__ = build;
+          await nukeCachesIfBuildChanged(build);
+          mountBadge(build);
+          boot();
+          loadFlutterBootstrap(build);
+        } catch (_) {
+          var fallback = 'dev-' + Date.now();
+          window.__BITFLOW_BUILD__ = fallback;
+          mountBadge(fallback);
+          boot();
+          loadFlutterBootstrap(fallback);
+        }
+      }
+
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-          nukeCachesIfBuildChanged().catch(function(){}).finally(boot);
-        });
+        document.addEventListener('DOMContentLoaded', start);
       } else {
-        nukeCachesIfBuildChanged().catch(function(){}).finally(boot);
+        start();
       }
     })();
   </script>
 </head>
 
 <body>
-  <!-- Cache-bust real del bootstrap -->
-  <script src="flutter_bootstrap.js?v=__BUILD_ID__" async></script>
+  <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
 </body>
 </html>
