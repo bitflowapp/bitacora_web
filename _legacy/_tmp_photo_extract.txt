@@ -1,4 +1,4 @@
-﻿  Future<void> _startPhotoFlowForCell(int r, int c) async {
+  Future<void> _startPhotoFlowForCell(int r, int c) async {
     if (_rows.isEmpty || _headers.isEmpty) return;
     final target = await _ensurePhotoTargetCell(r, c);
     if (target == null) return;
@@ -9,7 +9,7 @@
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} Â· esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
       target: ref,
     );
 
@@ -18,7 +18,7 @@
     if (picked == null) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} Â· cancelado',
+        'Destino ${_cellLabelForRef(ref)} · cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -47,7 +47,7 @@
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · seleccion multiple',
+      'Destino ${_cellLabelForRef(ref)}  seleccion multiple',
       target: ref,
     );
 
@@ -57,7 +57,7 @@
     if (batch.cancelled) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · cancelado',
+        'Destino ${_cellLabelForRef(ref)}  cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -66,7 +66,7 @@
     if (!batch.ok) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · error',
+        'Destino ${_cellLabelForRef(ref)}  error',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -81,7 +81,7 @@
     final results = batch.results;
     for (int i = 0; i < results.length; i++) {
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · procesando ${i + 1}/${results.length}',
+        'Destino ${_cellLabelForRef(ref)}  procesando ${i + 1}/${results.length}',
         target: ref,
       );
       await _processPhotoOutcome(
@@ -94,7 +94,7 @@
 
     _photoFlowActive = false;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · ${results.length} foto(s) agregada(s)',
+      'Destino ${_cellLabelForRef(ref)}  ${results.length} foto(s) agregada(s)',
       target: ref,
     );
     _clearPhotoFlowStatusSoon();
@@ -292,7 +292,7 @@
           backgroundColor: pal.menuBg,
           title: const Text('No se pudo abrir la camara'),
           content: const Text(
-            'No se pudo capturar desde camara. Â¿Queres elegir desde galeria?',
+            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
           ),
           actions: [
             TextButton(

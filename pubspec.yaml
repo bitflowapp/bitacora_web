@@ -1,5 +1,5 @@
-﻿name: bitacora_web
-description: "BitÃƒÂ¡cora web: hoja tipo Excel con experiencia tipo Apple."
+name: bitacora_web
+description: "Bit¡cora web: hoja tipo Excel con experiencia tipo Apple."
 publish_to: "none"
 version: 1.0.1+2
 
@@ -17,9 +17,9 @@ dependencies:
   # Utilidades
   intl: 0.20.2
   collection: ^1.18.0
-  image: ^4.2.0       # Para convertir HEIC/WEBP a JPEG en exportaciÃƒÂ³n
+  image: ^4.2.0       # Para convertir HEIC/WEBP a JPEG en exportaci³n
 
-  # NavegaciÃƒÂ³n
+  # Navegaci³n
   go_router: ^16.3.0
 
   # Estado / preferencias
@@ -34,7 +34,7 @@ dependencies:
   syncfusion_flutter_datagrid: ^31.2.4
   syncfusion_flutter_xlsio: ^31.2.4
 
-  # Archivos / exportaciÃƒÂ³n
+  # Archivos / exportaci³n
   file_selector: ^1.0.4
   file_saver: ^0.3.1
   csv: ^6.0.0
@@ -59,12 +59,12 @@ dependencies:
   speech_to_text: ^7.3.0
   permission_handler: ^11.3.1
 
-  # GPS / ubicaciÃƒÂ³n
+  # GPS / ubicaci³n
   geolocator: ^12.0.0
   flutter_map: ^7.0.0
   latlong2: ^0.9.0
 
-  # DiagnÃƒÂ³stico (opcional)
+  # Diagn³stico (opcional)
   sentry_flutter: ^9.7.0
   package_info_plus: ^9.0.0
 
@@ -73,7 +73,7 @@ dependencies:
   dio: ^5.9.0
   dio_web_adapter: ^2.1.1
 
-  # Firebase (dejados solo si usÃƒÂ¡s Firestore en otra parte)
+  # Firebase (dejados solo si us¡s Firestore en otra parte)
   firebase_core: ^4.2.1
   cloud_firestore: ^6.1.0
   image_picker: ^1.2.1

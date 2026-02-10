@@ -89,7 +89,7 @@ Expected release output:
 ## 3) Web
 1. Confirm `web/index.html` keeps `<base href="$FLUTTER_BASE_HREF" />`.
 2. Build with target base href when deploying under subpath, for example:
-- `flutter build web --release --base-href /bitflow/`
+- `flutter build web --release --base-href /bitacora_web/`
 3. Confirm `web/manifest.json` brand fields (name/description/icons) are correct.
 
 ## 4) Icons and splash sanity

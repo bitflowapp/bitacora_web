@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_card.dart';
+import 'app_icon_button.dart';
 import 'app_tokens.dart';
 
 class AppModal extends StatelessWidget {
@@ -46,10 +47,11 @@ class AppModal extends StatelessWidget {
                         ),
                       ),
                     if (showClose)
-                      IconButton(
+                      AppIconButton(
+                        icon: Icons.close,
                         tooltip: 'Cerrar',
                         onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(Icons.close),
+                        variant: AppIconButtonVariant.ghost,
                       ),
                   ],
                 ),

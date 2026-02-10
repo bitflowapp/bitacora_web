@@ -10,10 +10,14 @@ class AppTextField extends StatelessWidget {
     this.hint,
     this.errorText,
     this.onChanged,
+    this.onSubmitted,
     this.enabled = true,
     this.maxLines = 1,
     this.keyboardType,
     this.obscureText = false,
+    this.textInputAction,
+    this.prefixIcon,
+    this.suffixIcon,
   });
 
   final TextEditingController? controller;
@@ -21,10 +25,14 @@ class AppTextField extends StatelessWidget {
   final String? hint;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final bool enabled;
   final int maxLines;
   final TextInputType? keyboardType;
   final bool obscureText;
+  final TextInputAction? textInputAction;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -39,22 +47,29 @@ class AppTextField extends StatelessWidget {
         if (label != null) ...[
           Text(
             label!,
-            style: t.text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            style: t.textStyles.labelStrong.copyWith(
+              color: t.colors.textPrimary,
+            ),
           ),
           const SizedBox(height: 6),
         ],
         TextField(
           controller: controller,
           onChanged: onChanged,
+          onSubmitted: onSubmitted,
           enabled: enabled,
           maxLines: maxLines,
           keyboardType: keyboardType,
           obscureText: obscureText,
+          textInputAction: textInputAction,
+          style: t.text.bodyMedium?.copyWith(color: t.colors.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
             isDense: true,
             filled: true,
             fillColor: fill,
+            prefixIcon: prefixIcon,
+            suffixIcon: suffixIcon,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 12,

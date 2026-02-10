@@ -172,6 +172,7 @@ class _TopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Row(
       children: [
         Text(
@@ -188,10 +189,11 @@ class _TopNav extends StatelessWidget {
           onPressed: () => context.go('/app'),
         ),
         const SizedBox(width: 10),
-        AppButton(
-          label: 'Modo',
-          variant: AppButtonVariant.ghost,
+        AppIconButton(
+          icon: t.colors.isLight ? Icons.dark_mode_outlined : Icons.light_mode,
+          tooltip: t.colors.isLight ? 'Modo oscuro' : 'Modo claro',
           onPressed: onToggleTheme,
+          variant: AppIconButtonVariant.ghost,
         ),
       ],
     );

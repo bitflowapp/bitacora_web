@@ -79,7 +79,7 @@ $allOk = (Run-Step "flutter pub get" { & $Flutter pub get }) -and $allOk
 $allOk = (Run-Step "dart format ." { & $dartExe format . }) -and $allOk
 $allOk = (Run-Step "flutter analyze" { & $Flutter analyze }) -and $allOk
 $allOk = (Run-Step "flutter test" { & $Flutter test }) -and $allOk
-$allOk = (Run-Step "flutter build web --release" { & $Flutter build web --release }) -and $allOk
+$allOk = (Run-Step "flutter build web --release --base-href /bitacora_web/" { & $Flutter build web --release --base-href /bitacora_web/ }) -and $allOk
 $allOk = (Run-Step "release.ps1 -Clean" { & (Join-Path $scriptDir "release.ps1") -Clean }) -and $allOk
 
 $zipLine = "- Release ZIP: NOT FOUND"

@@ -1,4 +1,4 @@
-﻿// ------------------------------ Audio -----------------------------------
+// ------------------------------ Audio -----------------------------------
 
   String _audioStoredRefFrom(StoredAudio stored) {
     final key = stored.storageKey.trim();
@@ -269,7 +269,7 @@
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
+      _showSnack('Detén la grabación para reproducir.', isError: false);
       return;
     }
 

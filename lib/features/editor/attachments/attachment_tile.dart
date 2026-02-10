@@ -105,12 +105,12 @@ class AttachmentTile extends StatelessWidget {
                       label: 'Renombrar adjunto',
                       child: Tooltip(
                         message: 'Renombrar',
-                        child: IconButton(
+                        child: AppIconButton(
+                          icon: Icons.edit_rounded,
                           onPressed: onRename,
-                          icon: Icon(Icons.edit_rounded,
-                              color: palette.fgMuted, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                          tooltip: 'Renombrar',
+                          size: AppIconButtonSize.sm,
+                          variant: AppIconButtonVariant.ghost,
                         ),
                       ),
                     ),
@@ -120,12 +120,12 @@ class AttachmentTile extends StatelessWidget {
                       label: 'Eliminar adjunto',
                       child: Tooltip(
                         message: 'Eliminar',
-                        child: IconButton(
+                        child: AppIconButton(
+                          icon: Icons.delete_outline_rounded,
                           onPressed: onDelete,
-                          icon: Icon(Icons.delete_outline_rounded,
-                              color: palette.fgMuted, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                          tooltip: 'Eliminar',
+                          size: AppIconButtonSize.sm,
+                          variant: AppIconButtonVariant.ghost,
                         ),
                       ),
                     ),

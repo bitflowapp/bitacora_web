@@ -77,40 +77,41 @@ class _PremiumAppleHeader extends StatelessWidget {
             ],
     );
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(14, top + 8, 14, 10),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                    sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
-                child: const SizedBox(),
+    return RepaintBoundary(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(14, top + 8, 14, 10),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                      sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
+                  child: const SizedBox(),
+                ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              decoration: BoxDecoration(
-                color: palette.headerCardBg,
-                gradient: glassGradient,
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(
-                    color: palette.headerCardBorder, width: palette.hairline),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        Colors.black.withOpacity(palette.isLight ? 0.10 : 0.55),
-                    blurRadius: 30,
-                    offset: const Offset(0, 14),
-                  ),
-                ],
-              ),
-              child: LayoutBuilder(
-                builder: (ctx, cs) {
-                  final compact = cs.maxWidth < 720;
-                  final veryCompact = cs.maxWidth < 520;
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                decoration: BoxDecoration(
+                  color: palette.headerCardBg,
+                  gradient: glassGradient,
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                      color: palette.headerCardBorder, width: palette.hairline),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withOpacity(palette.isLight ? 0.10 : 0.55),
+                      blurRadius: 30,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: LayoutBuilder(
+                  builder: (ctx, cs) {
+                    final compact = cs.maxWidth < 720;
+                    final veryCompact = cs.maxWidth < 520;
 
                   final titleSize = veryCompact ? 30.0 : 34.0;
                   final pillGap = veryCompact ? 8.0 : 10.0;
@@ -170,158 +171,169 @@ class _PremiumAppleHeader extends StatelessWidget {
                     ),
                   );
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!compact)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!compact)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: titleField),
+                              const SizedBox(width: 10),
+                              iconRow,
+                            ],
+                          )
+                        else ...[
+                          titleField,
+                          const SizedBox(height: 10),
+                          Align(
+                              alignment: Alignment.centerRight, child: iconRow),
+                        ],
+                        const SizedBox(height: 2),
+                        SaveStatusChip(
+                          palette: palette,
+                          status: controller.saveStatus,
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: pillGap,
+                          runSpacing: 10,
                           children: [
-                            Expanded(child: titleField),
-                            const SizedBox(width: 10),
-                            iconRow,
+                            _PillButton(
+                              palette: palette,
+                              filled: true,
+                              icon: Icons.check_circle_outline_rounded,
+                              label: AppStrings.editorSave,
+                              semanticsLabel: AppStrings.semEditorSave,
+                              onTap: onSave,
+                            ),
+                            _PillButton(
+                              palette: palette,
+                              filled: false,
+                              icon: Icons.ios_share_rounded,
+                              label: AppStrings.editorExport,
+                              semanticsLabel: AppStrings.semEditorExport,
+                              onTap: onExport,
+                            ),
+                            _PillButton(
+                              palette: palette,
+                              filled: false,
+                              icon: Icons.search_rounded,
+                              label: 'Buscar',
+                              semanticsLabel: 'Buscar en planilla',
+                              onTap: onPalette,
+                            ),
+                            _PillButton(
+                              palette: palette,
+                              filled: false,
+                              icon: Icons.science_outlined,
+                              label: AppStrings.editorDiagnostics,
+                              semanticsLabel: 'Abrir diagnostico',
+                              onTap: onSmokeTest,
+                            ),
+                            _PillButton(
+                              palette: palette,
+                              filled: false,
+                              icon: Icons.functions_rounded,
+                              label: AppStrings.editorCompute,
+                              semanticsLabel: 'Calcular formulas',
+                              onTap: onCompute,
+                            ),
                           ],
-                        )
-                      else ...[
-                        titleField,
-                        const SizedBox(height: 10),
-                        Align(alignment: Alignment.centerRight, child: iconRow),
+                        ),
+                        const SizedBox(height: 12),
+                        AppleToolbar(
+                          items: [
+                            AppleToolbarItem(
+                              icon: Icons.my_location_rounded,
+                              label: 'GPS',
+                              shortcut: 'G',
+                              onTap: onGps,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onGps,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.tune_rounded,
+                              label: 'Modo GPS',
+                              onTap: onGpsMode,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.format_line_spacing_rounded,
+                              label: 'Densidad',
+                              onTap: onDensity,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.photo_camera_outlined,
+                              label: 'Camara',
+                              shortcut: 'P',
+                              onTap: onPhoto,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onPhoto,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.videocam_outlined,
+                              label: 'Video',
+                              onTap: onVideo,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.mic_none_rounded,
+                              label: 'Audio',
+                              shortcut: 'A',
+                              onTap: onAudio,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onAudio,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.attach_file_rounded,
+                              label: 'Archivo',
+                              onTap: onFile,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.download_rounded,
+                              label: 'Exportar',
+                              shortcut: 'Ctrl/Cmd+E',
+                              onTap: onExport,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.ios_share_rounded,
+                              label: 'Compartir',
+                              shortcut: 'Ctrl/Cmd+Shift+E',
+                              onTap: onShare,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.keyboard,
+                              label: 'Atajos',
+                              shortcut: 'Ctrl/Cmd+K',
+                              onTap: onPalette,
+                            ),
+                          ],
+                        ),
                       ],
-                      const SizedBox(height: 2),
-                      SaveStatusChip(
-                        palette: palette,
-                        status: controller.saveStatus,
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: pillGap,
-                        runSpacing: 10,
-                        children: [
-                          _PillButton(
-                            palette: palette,
-                            filled: true,
-                            icon: Icons.check_circle_outline_rounded,
-                            label: AppStrings.editorSave,
-                            semanticsLabel: AppStrings.semEditorSave,
-                            onTap: onSave,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.ios_share_rounded,
-                            label: AppStrings.editorExport,
-                            semanticsLabel: AppStrings.semEditorExport,
-                            onTap: onExport,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.science_outlined,
-                            label: AppStrings.editorDiagnostics,
-                            semanticsLabel: 'Abrir diagnostico',
-                            onTap: onSmokeTest,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.functions_rounded,
-                            label: AppStrings.editorCompute,
-                            semanticsLabel: 'Calcular formulas',
-                            onTap: onCompute,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      AppleToolbar(
-                        items: [
-                          AppleToolbarItem(
-                            icon: Icons.my_location_rounded,
-                            label: 'GPS',
-                            shortcut: 'G',
-                            onTap: onGps,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onGps,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.tune_rounded,
-                            label: 'Modo GPS',
-                            onTap: onGpsMode,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.format_line_spacing_rounded,
-                            label: 'Densidad',
-                            onTap: onDensity,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.photo_camera_outlined,
-                            label: 'Camara',
-                            shortcut: 'P',
-                            onTap: onPhoto,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onPhoto,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.videocam_outlined,
-                            label: 'Video',
-                            onTap: onVideo,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.mic_none_rounded,
-                            label: 'Audio',
-                            shortcut: 'A',
-                            onTap: onAudio,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onAudio,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.attach_file_rounded,
-                            label: 'Archivo',
-                            onTap: onFile,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.download_rounded,
-                            label: 'Exportar',
-                            shortcut: 'Ctrl/Cmd+E',
-                            onTap: onExport,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.ios_share_rounded,
-                            label: 'Compartir',
-                            shortcut: 'Ctrl/Cmd+Shift+E',
-                            onTap: onShare,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.keyboard,
-                            label: 'Atajos',
-                            shortcut: 'Ctrl/Cmd+K',
-                            onTap: onPalette,
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withOpacity(palette.isLight ? 0.18 : 0.12),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.35],
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white
+                              .withOpacity(palette.isLight ? 0.18 : 0.12),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.35],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -336,6 +348,7 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.pendingRequired,
     required this.onSave,
     required this.onExport,
+    required this.onSearch,
     required this.onMenu,
   });
 
@@ -345,6 +358,7 @@ class _MobileCompactHeader extends StatelessWidget {
   final int pendingRequired;
   final VoidCallback onSave;
   final VoidCallback onExport;
+  final VoidCallback onSearch;
   final VoidCallback onMenu;
 
   @override
@@ -428,6 +442,12 @@ class _MobileCompactHeader extends StatelessWidget {
             tooltip: AppStrings.editorOptions,
             onPressed: onMenu,
             icon: Icon(Icons.more_horiz_rounded, color: palette.fg),
+            splashRadius: 18,
+          ),
+          IconButton(
+            tooltip: 'Buscar',
+            onPressed: onSearch,
+            icon: Icon(Icons.search_rounded, color: palette.fg),
             splashRadius: 18,
           ),
         ],

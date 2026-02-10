@@ -1,15 +1,15 @@
 // lib/start_page.dart
-// StartPage (BitFlow) Ã¢â‚¬â€ Home Ã¢â‚¬Å“100% Apple (Cupertino-first), robusto y vendible.
+// StartPage (BitFlow)  Home 100% Apple (Cupertino-first), robusto y vendible.
 //
-// Ã¢Å“â€¦ UPDATE (menÃƒÂº estilo Reminders iOS):
-// - Agrega Ã¢â‚¬Å“dashboard superior: tarjetas Hoy/Programados/Todos/Con indicador/Terminados.
-// - Agrega Ã¢â‚¬Å“Lista sugerida + Ã¢â‚¬Å“Mis listas (RaÃƒÂ­z + Carpetas + Papelera).
-// - Barra superior en pÃƒÂ­ldora (Buscar / Nuevo / MÃƒÂ¡s) como Reminders.
-// - BotÃƒÂ³n flotante iOS (+) abajo a la derecha (NO Material FAB).
+//  UPDATE (menú estilo Reminders iOS):
+// - Agrega dashboard superior: tarjetas Hoy/Programados/Todos/Con indicador/Terminados.
+// - Agrega Lista sugerida + Mis listas (Raíz + Carpetas + Papelera).
+// - Barra superior en píldora (Buscar / Nuevo / Más) como Reminders.
+// - Botón flotante iOS (+) abajo a la derecha (NO Material FAB).
 //
-// Ã¢Å“â€¦ FIX ENGINE (apunta al puerto):
+//  FIX ENGINE (apunta al puerto):
 // - Default inteligente: usa el MISMO host donde abriste la web + :8001 (en desktop: localhost -> 8001; en iPhone/Android: IP LAN -> 8001).
-// - Normaliza lo que pegÃƒÂ¡s: elimina /healthz, /docs, #/..., ?... y deja solo scheme://host:port.
+// - Normaliza lo que pegás: elimina /healthz, /docs, #/..., ?... y deja solo scheme://host:port.
 // - Acepta pegar "192.168.x.x:8001" sin http://
 //
 // Mantiene:
@@ -122,13 +122,13 @@ class _StartPageState extends State<StartPage> {
   _QuickFilter _quick = _QuickFilter.none;
 
   // Carpeta seleccionada (solo aplica en _HomeTab.sheets)
-  String _selectedFolderId = ''; // '' = RaÃƒÂ­z
+  String _selectedFolderId = ''; // '' = Raíz
 
   // --------------------- Preferences (correo destino + engine url) ---------------------
   static const String _kPrefDefaultEmail = 'bitflow.default_email';
   static const String _kPrefAutoSend = 'bitflow.auto_send';
 
-  // Ã¢Å“â€¦ Engine URL (FastAPI / Python)
+  //  Engine URL (FastAPI / Python)
   static const String _kPrefEngineBaseUrlLegacy = 'bitflow.engine_base_url';
   static const int _kDefaultEnginePort = 8001;
   static const String _kPrefOnboardingDone = 'bitflow.onboarding_done.v1';
@@ -478,7 +478,7 @@ class _StartPageState extends State<StartPage> {
 
   bool _looksLikeHttpUrl(String s) {
     var v = s.trim();
-    if (v.isEmpty) return true; // permitir Ã¢â‚¬Å“sin configurar
+    if (v.isEmpty) return true; // permitir sin configurar
 
     return EngineConfig.isValidBaseUrl(v);
   }
@@ -538,7 +538,7 @@ class _StartPageState extends State<StartPage> {
         _orgLoaded = true;
       });
 
-      // Primera sincronizaciÃƒÂ³n: createdAt para planillas existentes + purge TTL.
+      // Primera sincronización: createdAt para planillas existentes + purge TTL.
       await _syncCreatedAtForKnownSheets();
       await _purgeExpiredTrashIfNeeded();
     } catch (_) {
@@ -576,7 +576,7 @@ class _StartPageState extends State<StartPage> {
         changed = true;
       }
 
-      // Folder inexistente -> raÃƒÂ­z
+      // Folder inexistente -> raíz
       final fId = _sheetFolder[m.id];
       if (fId != null && fId.isNotEmpty && !_folders.any((f) => f.id == fId)) {
         _sheetFolder.remove(m.id);
@@ -620,7 +620,7 @@ class _StartPageState extends State<StartPage> {
 
         purged++;
       } catch (_) {
-        // Se mantiene en papelera para no Ã¢â‚¬Å“revivir datos inconsistentes.
+        // Se mantiene en papelera para no revivir datos inconsistentes.
       }
     }
 
@@ -628,7 +628,7 @@ class _StartPageState extends State<StartPage> {
 
     await _saveOrg();
 
-    // Refrescar lista real del store despuÃƒÂ©s de purgar.
+    // Refrescar lista real del store después de purgar.
     _reload();
 
     if (!mounted) return;
@@ -642,10 +642,10 @@ class _StartPageState extends State<StartPage> {
 
     final id = SheetStore.createNew();
 
-    // createdAt real (fecha de creaciÃƒÂ³n)
+    // createdAt real (fecha de creación)
     _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
 
-    // Si estÃƒÂ¡s parado en una carpeta (tab sheets), la planilla nace ahÃƒÂ­
+    // Si estás parado en una carpeta (tab sheets), la planilla nace ahí
     if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
       _sheetFolder[id] = _selectedFolderId;
     }
@@ -1206,12 +1206,12 @@ class _StartPageState extends State<StartPage> {
   Future<void> _open(SheetMeta m) async {
     if (_busy) return;
 
-    // Si estÃƒÂ¡ en papelera: pedimos restauraciÃƒÂ³n (mÃƒÂ¡s coherente)
+    // Si está en papelera: pedimos restauración (más coherente)
     if (_trashDeletedAtMs.containsKey(m.id)) {
       final ok = await _confirmCupertino(
-        title: 'EstÃƒÂ¡ en papelera',
+        title: 'Está en papelera',
         message:
-            'Para abrir y editar, primero hay que restaurar la planilla. Ã‚Â¿Restaurar ahora?',
+            'Para abrir y editar, primero hay que restaurar la planilla. ¿Restaurar ahora?',
         okText: 'Restaurar',
       );
       if (ok != true) return;
@@ -1264,7 +1264,7 @@ class _StartPageState extends State<StartPage> {
     final ok = await _confirmCupertino(
       title: 'Mover a papelera',
       message:
-          'Se podrÃƒÂ¡ recuperar durante $_trashTtlDays dÃƒÂ­as. Ã‚Â¿QuerÃƒÂ©s continuar?',
+          'Se podrá recuperar durante $_trashTtlDays días. ¿Querés continuar?',
       okText: 'Mover',
       danger: true,
     );
@@ -1293,7 +1293,7 @@ class _StartPageState extends State<StartPage> {
     final ok = await _confirmCupertino(
       title: 'Eliminar definitivamente',
       message:
-          'Esto borra los datos de forma irreversible. Ã‚Â¿Eliminar ahora?',
+          'Esto borra los datos de forma irreversible. ¿Eliminar ahora?',
       okText: 'Eliminar',
       danger: true,
     );
@@ -1345,7 +1345,7 @@ class _StartPageState extends State<StartPage> {
       _setBusyMessage(AppStrings.progressWritingFile);
 
       await ExportXlsxService.download(
-        fileName: name, // sin Ã¢â‚¬Å“.xlsx
+        fileName: name, // sin .xlsx
         headers: parsed.headers,
         rows: parsed.rows,
       );
@@ -1354,9 +1354,9 @@ class _StartPageState extends State<StartPage> {
       if (!mounted) return;
       _toast('Exportado como $name.xlsx');
 
-      // Estado de producto (sin fragilidad): avisamos configuraciÃƒÂ³n.
+      // Estado de producto (sin fragilidad): avisamos configuración.
       if (_autoSend && _defaultEmail.isNotEmpty) {
-        _toast('Auto-envÃƒÂ­o activo: destino ${_defaultEmail.trim()}');
+        _toast('Auto-envío activo: destino ${_defaultEmail.trim()}');
       }
     } on _StartPageOperationCancelled {
       _toast(AppStrings.infoExportCancelled);
@@ -1426,7 +1426,7 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
-  // --------------------- Notes (Ã¢â‚¬Å“mensaje destacado) ---------------------
+  // --------------------- Notes (mensaje destacado) ---------------------
 
   Future<void> _editNote(SheetMeta m) async {
     final current = (_sheetNotes[m.id] ?? '').trim();
@@ -1435,7 +1435,7 @@ class _StartPageState extends State<StartPage> {
       title: 'Mensaje destacado',
       initialValue: current,
       placeholder:
-          'Ej: Ã¢â‚¬Å“Enviar a cliente hoy 18:00 / Ã¢â‚¬Å“WP: revisar mediciÃƒÂ³n 3',
+          'Ej: Enviar a cliente hoy 18:00 / WP: revisar medición 3',
       okText: 'Guardar',
       extraAction: _PromptExtraAction(
         label: 'Limpiar',
@@ -1489,7 +1489,7 @@ class _StartPageState extends State<StartPage> {
                   _quick = _QuickFilter.none;
                 });
               },
-              child: const Text('RaÃƒÂ­z'),
+              child: const Text('Raíz'),
             ),
             for (final f in folders)
               CupertinoActionSheetAction(
@@ -1517,14 +1517,14 @@ class _StartPageState extends State<StartPage> {
                   _quick = _QuickFilter.none;
                 });
               },
-              child: const Text('Nueva carpetaÃ¢â‚¬Â¦'),
+              child: const Text('Nueva carpeta'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openFolderManagerPage();
               },
-              child: const Text('Gestionar carpetasÃ¢â‚¬Â¦'),
+              child: const Text('Gestionar carpetas'),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -1562,7 +1562,7 @@ class _StartPageState extends State<StartPage> {
       ctx: ctx,
       title: 'Eliminar carpeta',
       message:
-          'Las planillas vuelven a Ã¢â‚¬Å“RaÃƒÂ­z. Ã‚Â¿Eliminar Ã¢â‚¬Å“${folder.name}?',
+          'Las planillas vuelven a Raíz. ¿Eliminar ${folder.name}?',
       okText: 'Eliminar',
       danger: true,
     );
@@ -1570,7 +1570,7 @@ class _StartPageState extends State<StartPage> {
 
     _folders.removeWhere((f) => f.id == folder.id);
 
-    // Reasignar sheets a raÃƒÂ­z
+    // Reasignar sheets a raíz
     final toMove = <String>[];
     _sheetFolder.forEach((sheetId, fId) {
       if (fId == folder.id) toMove.add(sheetId);
@@ -1600,7 +1600,7 @@ class _StartPageState extends State<StartPage> {
       info: _PromptInfo(
         title: 'Carpetas por mes',
         message:
-            'Ejemplos: Ã¢â‚¬Å“$suggested, Ã¢â‚¬Å“Septiembre 2026, Ã¢â‚¬Å“Obra X. Un solo nivel, simple y ordenado.',
+            'Ejemplos: $suggested, Septiembre 2026, Obra X. Un solo nivel, simple y ordenado.',
       ),
     );
 
@@ -1670,9 +1670,9 @@ class _StartPageState extends State<StartPage> {
                 await _saveOrg();
                 if (!mounted) return;
                 setState(() {});
-                _toast('Movida a RaÃƒÂ­z.');
+                _toast('Movida a Raíz.');
               },
-              child: const Text('RaÃƒÂ­z'),
+              child: const Text('Raíz'),
             ),
             for (final f in folders)
               CupertinoActionSheetAction(
@@ -1790,7 +1790,7 @@ class _StartPageState extends State<StartPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'URL invÃƒÂ¡lida (usa http/https + host)',
+                          'URL inválida (usa http/https + host)',
                           style: TextStyle(
                             color: widget.isLight
                                 ? const Color(0xFFB00020)
@@ -1847,7 +1847,7 @@ class _StartPageState extends State<StartPage> {
                       icon: CupertinoIcons.paperplane,
                       title: 'Correo destino',
                       message:
-                          'RegistrÃƒÂ¡ un correo destino. Tu flujo de export (Editor/Backend/Service) puede usarlo para enviar planillas sin pasos extra.',
+                          'Registrá un correo destino. Tu flujo de export (Editor/Backend/Service) puede usarlo para enviar planillas sin pasos extra.',
                       isLight: widget.isLight,
                     ),
                     const SizedBox(height: 10),
@@ -1868,7 +1868,7 @@ class _StartPageState extends State<StartPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'Correo invÃƒÂ¡lido',
+                          'Correo inválido',
                           style: TextStyle(
                             color: widget.isLight
                                 ? const Color(0xFFB00020)
@@ -1879,9 +1879,9 @@ class _StartPageState extends State<StartPage> {
                       ),
                     const SizedBox(height: 10),
                     _CupertinoToggleRow(
-                      title: 'Auto-envÃƒÂ­o al exportar',
+                      title: 'Auto-envío al exportar',
                       subtitle:
-                          'Activa la automatizaciÃƒÂ³n cuando tu producto lo ejecute.',
+                          'Activa la automatización cuando tu producto lo ejecute.',
                       value: autoSend,
                       onChanged: (v) => setLocal(() => autoSend = v),
                     ),
@@ -2021,28 +2021,28 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 setState(() => _showSearch = !_showSearch);
               },
-              child: Text(_showSearch ? 'Ocultar bÃƒÂºsqueda' : 'Buscar'),
+              child: Text(_showSearch ? 'Ocultar búsqueda' : 'Buscar'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openFolderPicker();
               },
-              child: const Text('CarpetasÃ¢â‚¬Â¦'),
+              child: const Text('Carpetas'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openMailSettings();
               },
-              child: const Text('Ajustes (Correo/Motor)…'),
+              child: const Text('Ajustes (Correo/Motor)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openStaticPage(const AboutScreen());
               },
-              child: const Text('Acerca de…'),
+              child: const Text('Acerca de'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -2056,21 +2056,21 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _openStaticPage(const TermsScreen());
               },
-              child: const Text('Términos'),
+              child: const Text('Trminos'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openLicenses();
               },
-              child: const Text('Licencias…'),
+              child: const Text('Licencias'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openDiagnostics();
               },
-              child: const Text('Diagnóstico / Soporte…'),
+              child: const Text('Diagnstico / Soporte'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -2084,28 +2084,28 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _newTemplateSheet();
               },
-              child: const Text('Nueva plantillaÃ¢â‚¬Â¦'),
+              child: const Text('Nueva plantilla'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _createSmokeTestSheet();
               },
-              child: const Text('Smoke Test (GPS/Fotos/Audio)Ã¢â‚¬Â¦'),
+              child: const Text('Smoke Test (GPS/Fotos/Audio)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openSortSheet();
               },
-              child: const Text('OrdenarÃ¢â‚¬Â¦'),
+              child: const Text('Ordenar'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openViewSheet();
               },
-              child: const Text('VistaÃ¢â‚¬Â¦'),
+              child: const Text('Vista'),
             ),
             CupertinoActionSheetAction(
               onPressed: () {
@@ -2155,7 +2155,7 @@ class _StartPageState extends State<StartPage> {
                 setState(() => _sort = _SortMode.titleAsc);
               },
               isDefaultAction: _sort == _SortMode.titleAsc,
-              child: const Text('TÃƒÂ­tulo (AÃ¢â‚¬â€œZ)'),
+              child: const Text('Título (AZ)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () {
@@ -2164,7 +2164,7 @@ class _StartPageState extends State<StartPage> {
                 setState(() => _sort = _SortMode.rowsDesc);
               },
               isDefaultAction: _sort == _SortMode.rowsDesc,
-              child: const Text('MÃƒÂ¡s filas'),
+              child: const Text('Más filas'),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -2199,7 +2199,7 @@ class _StartPageState extends State<StartPage> {
                 setState(() => _view = _ViewMode.grid);
               },
               isDefaultAction: _view == _ViewMode.grid,
-              child: const Text('CuadrÃƒÂ­cula'),
+              child: const Text('Cuadrícula'),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -2296,11 +2296,11 @@ class _StartPageState extends State<StartPage> {
   }
 
   String _folderName(String folderId) {
-    if (folderId.isEmpty) return 'RaÃƒÂ­z';
+    if (folderId.isEmpty) return 'Raíz';
     for (final f in _folders) {
       if (f.id == folderId) return f.name;
     }
-    return 'RaÃƒÂ­z';
+    return 'Raíz';
   }
 
   String _monthYearLabel(DateTime d) {
@@ -2617,7 +2617,7 @@ class _StartPageState extends State<StartPage> {
       }
     }
 
-    // Search (tÃƒÂ­tulo o nota)
+    // Search (título o nota)
     final q = _q.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list.where((m) {
@@ -2772,7 +2772,7 @@ class _StartPageState extends State<StartPage> {
                       colors: colors,
                       title: 'Lista sugerida: Carpeta del mes',
                       subtitle:
-                          'Organiza automÃƒÂ¡ticamente las planillas nuevas.',
+                          'Organiza automáticamente las planillas nuevas.',
                       onAdd: () async {
                         final created = await _createFolderDialog(context);
                         if (created == null) return;
@@ -2787,7 +2787,7 @@ class _StartPageState extends State<StartPage> {
                   ),
                 ),
 
-                // Mis listas (RaÃƒÂ­z + carpetas + Papelera)
+                // Mis listas (Raíz + carpetas + Papelera)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -2844,7 +2844,7 @@ class _StartPageState extends State<StartPage> {
                                 _q = v;
                               }),
                               placeholder:
-                                  'Buscar por tÃƒÂ­tulo o mensaje destacadoÃ¢â‚¬Â¦',
+                                  'Buscar por título o mensaje destacado',
                             ),
                             if (_tab == _HomeTab.sheets) ...[
                               const SizedBox(height: 10),
@@ -2875,7 +2875,7 @@ class _StartPageState extends State<StartPage> {
                                   ? 'Con indicador: ${data.length} planilla(s)'
                                   : (_searchAll
                                       ? 'Mostrando ${data.length} (buscando en todas)'
-                                      : 'Mostrando ${data.length} en Ã¢â‚¬Å“${_folderName(_selectedFolderId)}'),
+                                      : 'Mostrando ${data.length} en ${_folderName(_selectedFolderId)}'),
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 12,
@@ -3007,7 +3007,7 @@ class _StartPageState extends State<StartPage> {
               ),
             ),
 
-            // BotÃƒÂ³n flotante iOS (+) como Reminders (no Material FAB)
+            // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)
               Positioned.fill(
                 child: DecoratedBox(
@@ -3046,11 +3046,11 @@ class _StartPageState extends State<StartPage> {
   List<_HomeListItem> _buildHomeLists(_ApplePalette colors) {
     final items = <_HomeListItem>[];
 
-    // RaÃƒÂ­z
+    // Raíz
     items.add(
       _HomeListItem(
         kind: _ListKind.root,
-        title: 'RaÃƒÂ­z',
+        title: 'Raíz',
         icon: CupertinoIcons.list_bullet,
         iconBg: const Color(0xFFFF9F0A),
         count: _countSheetsInFolder(''),
@@ -3087,7 +3087,7 @@ class _StartPageState extends State<StartPage> {
         iconBg: const Color(0xFF8E8E93),
         count: trashCount,
         folderId: '',
-        trailingBadge: trashCount > 0 ? 'Ã¢Å¡Â ' : null,
+        trailingBadge: trashCount > 0 ? '' : null,
       ),
     );
 
@@ -3976,9 +3976,9 @@ class _AppleEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title =
-        tab == _HomeTab.trash ? 'Papelera vacÃ­a' : AppStrings.emptySheetsTitle;
+        tab == _HomeTab.trash ? 'Papelera vaca' : AppStrings.emptySheetsTitle;
     final msg = tab == _HomeTab.trash
-        ? 'Las planillas movidas a papelera aparecen acÃƒÂ¡ durante un tiempo para poder recuperarlas.'
+        ? 'Las planillas movidas a papelera aparecen acá durante un tiempo para poder recuperarlas.'
         : AppStrings.emptySheetsBody;
 
     return Container(
@@ -4253,10 +4253,10 @@ class _AppleSheetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = meta.title.isEmpty ? 'Planilla sin tÃƒÂ­tulo' : meta.title;
+    final title = meta.title.isEmpty ? 'Planilla sin título' : meta.title;
     final subtitle = tab == _HomeTab.trash
-        ? '${meta.rows} filas Ã‚Â· ${fmt(meta.updatedAt)} Ã‚Â· vence en ${daysLeftInTrash ?? 0} dÃƒÂ­a(s)'
-        : '${meta.rows} filas Ã‚Â· ${fmt(meta.updatedAt)} Ã‚Â· $folderName';
+        ? '${meta.rows} filas · ${fmt(meta.updatedAt)} · vence en ${daysLeftInTrash ?? 0} día(s)'
+        : '${meta.rows} filas · ${fmt(meta.updatedAt)} · $folderName';
 
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -4407,7 +4407,7 @@ class _AppleSheetGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = meta.title.isEmpty ? 'Planilla sin tÃƒÂ­tulo' : meta.title;
+    final title = meta.title.isEmpty ? 'Planilla sin título' : meta.title;
 
     return Container(
       decoration: BoxDecoration(
@@ -4453,8 +4453,8 @@ class _AppleSheetGridCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             tab == _HomeTab.trash
-                ? '${meta.rows} filas Ã‚Â· vence en ${daysLeftInTrash ?? 0} dÃƒÂ­a(s)'
-                : '${meta.rows} filas Ã‚Â· $folderName',
+                ? '${meta.rows} filas · vence en ${daysLeftInTrash ?? 0} día(s)'
+                : '${meta.rows} filas · $folderName',
             style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: 12,
@@ -4701,7 +4701,7 @@ class _FolderManagerPageState extends State<_FolderManagerPage> {
               ? _AppleSectionCard(
                   colors: pal,
                   child: Text(
-                    'No hay carpetas creadas todavÃƒÂ­a.',
+                    'No hay carpetas creadas todavía.',
                     style: TextStyle(
                         color: pal.textSecondary, fontWeight: FontWeight.w600),
                   ),
@@ -4766,7 +4766,7 @@ class _FolderRow extends StatelessWidget {
           builder: (ctx) => CupertinoActionSheet(
             title: Text(folder.name),
             message: Text(
-                '$count planilla(s) Ã‚Â· creada ${_fmtFolderCreated(folder.createdAtMs)}'),
+                '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}'),
             actions: [
               CupertinoActionSheetAction(
                 onPressed: () {
@@ -4804,7 +4804,7 @@ class _FolderRow extends StatelessWidget {
                         color: pal.textPrimary, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 2),
                 Text(
-                  '$count planilla(s) Ã‚Â· creada ${_fmtFolderCreated(folder.createdAtMs)}',
+                  '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}',
                   style: TextStyle(
                       color: pal.textSecondary,
                       fontSize: 12,
@@ -4903,7 +4903,7 @@ class _MailSettingsResult {
 }
 
 // ---------------- Compat: Color.withValues(alpha: ...) ----------------
-// Si tu Flutter ya lo tiene nativo, esta extensiÃƒÂ³n no molesta: el miembro real gana.
+// Si tu Flutter ya lo tiene nativo, esta extensión no molesta: el miembro real gana.
 extension _ColorWithValuesCompat on Color {
   Color withValues({double? alpha}) {
     if (alpha == null) return this;
