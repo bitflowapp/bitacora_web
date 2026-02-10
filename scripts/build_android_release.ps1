@@ -41,16 +41,21 @@ function Read-AppVersion {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
 
+$versionRaw = Read-AppVersion -PubspecPath (Join-Path $repoRoot 'pubspec.yaml')
+$semver = ($versionRaw -split '\+')[0].Trim()
+if ([string]::IsNullOrWhiteSpace($semver)) {
+    $semver = $versionRaw
+}
+
 Invoke-Step -Name 'Flutter clean' -Command 'flutter clean'
 Invoke-Step -Name 'Flutter pub get' -Command 'flutter pub get'
-Invoke-Step -Name 'Flutter build apk --release' -Command 'flutter build apk --release'
+Invoke-Step -Name 'Flutter build apk --release' -Command "flutter build apk --release --dart-define=BUILD_ID=$semver"
 
 $apkSource = Join-Path $repoRoot 'build\app\outputs\flutter-apk\app-release.apk'
 if (-not (Test-Path -LiteralPath $apkSource)) {
     throw "Release APK not found at $apkSource"
 }
 
-$versionRaw = Read-AppVersion -PubspecPath (Join-Path $repoRoot 'pubspec.yaml')
 $versionSafe = ($versionRaw -replace '[^0-9A-Za-z._-]', '-')
 $distDir = Join-Path $repoRoot 'dist'
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null

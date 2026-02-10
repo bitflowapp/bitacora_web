@@ -50,20 +50,28 @@ jobs:
       - name: Set build stamp
         run: echo "BUILD_TIME=$(date -u +'%Y-%m-%d %H:%M')" >> "$GITHUB_ENV"
 
+      - name: Resolve app version
+        id: app_version
+        run: |
+          version_raw="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
+          semver="${version_raw%%+*}"
+          echo "semver=$semver" >> "$GITHUB_OUTPUT"
+
       - name: Write version.json
         env:
           ENGINE_BASE_URL: ${{ vars.ENGINE_BASE_URL }}
         run: |
           mkdir -p web/assets
-          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > assets/version.json
-          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/version.json
-          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"appVersion\":\"${{ steps.app_version.outputs.semver }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > assets/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"appVersion\":\"${{ steps.app_version.outputs.semver }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/version.json
+          echo "{\"buildId\":\"${{ github.run_id }}-${{ github.run_attempt }}\",\"appVersion\":\"${{ steps.app_version.outputs.semver }}\",\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
 
       - name: Build web
         run: |
           echo "Using BASE_HREF=${{ env.BASE_HREF }}"
           flutter build web --release \
             --base-href "${{ env.BASE_HREF }}" \
+            --dart-define=BUILD_ID=${{ github.run_id }}-${{ github.run_attempt }} \
             --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }} \
             --dart-define=GIT_SHA=${{ github.sha }} \
             --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
