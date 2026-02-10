@@ -24,47 +24,47 @@ Entregar una experiencia premium tipo Apple/Microsoft en BitFlow, manteniendo co
 
 ### F1 - Design System v2 (monocromo premium)
 Checklist:
-- [ ] Unificar tokens de color/radio/sombra/espaciado en monocromo.
-- [ ] Pulir botones, inputs, chips y modales con focus/hover/pressed consistentes.
-- [ ] Mejorar microcopy de estados vacios y mensajes base.
+- [x] Unificar tokens de color/radio/sombra/espaciado en monocromo.
+- [x] Pulir botones, inputs, chips y modales con focus/hover/pressed consistentes.
+- [x] Mejorar microcopy de estados vacios y mensajes base.
 Done:
-- [ ] No hay acentos de color fuera de escala de grises en componentes core.
-- [ ] Controles base se sienten consistentes en desktop y mobile.
+- [x] No hay acentos de color fuera de escala de grises en componentes core.
+- [x] Controles base se sienten consistentes en desktop y mobile.
 
 ### F2 - Editor Premium pass (UX, bugs, performance)
 Checklist:
-- [ ] Pulir topbar/toolbar/chips con jerarquia visual clara.
-- [ ] Mejorar feedback de seleccion y estado de grilla.
-- [ ] Ajustar shortcuts y command palette para acciones de alto uso.
-- [ ] Resolver bugs visibles de overlays/focus/scroll y reducir rebuilds innecesarios.
+- [x] Pulir topbar/toolbar/chips con jerarquia visual clara.
+- [x] Mejorar feedback de seleccion y estado de grilla.
+- [x] Ajustar shortcuts y command palette para acciones de alto uso.
+- [x] Resolver bugs visibles de overlays/focus/scroll y reducir rebuilds innecesarios.
 Done:
-- [ ] Flujo guardar/buscar/exportar/adjuntar en 1-2 interacciones.
-- [ ] Navegacion por teclado y cierre con ESC consistente.
+- [x] Flujo guardar/buscar/exportar/adjuntar en 1-2 interacciones.
+- [x] Navegacion por teclado y cierre con ESC consistente.
 
 ### F3 - Offline + Share hardening
 Checklist:
-- [ ] Reforzar estado de cola offline y retry/backoff con feedback claro.
-- [ ] Mejorar experiencia export/share (Android share sheet, Web fallback).
-- [ ] Pulir helper iOS/PWA + update/cache coherente con ForceUpdateService.
+- [x] Reforzar estado de cola offline y retry/backoff con feedback claro.
+- [x] Mejorar experiencia export/share (Android share sheet, Web fallback).
+- [x] Pulir helper iOS/PWA + update/cache coherente con ForceUpdateService.
 Done:
-- [ ] Offline no rompe edicion y usuario entiende estado/siguiente paso.
-- [ ] Export y share tienen resultado claro o fallback explicitado.
+- [x] Offline no rompe edicion y usuario entiende estado/siguiente paso.
+- [x] Export y share tienen resultado claro o fallback explicitado.
 
 ### F4 - Productividad (ahorro de tiempo)
 Checklist:
-- [ ] Mejorar acciones por lote mas usadas.
-- [ ] Potenciar autocomplete/defaults reutilizando logica actual.
-- [ ] Pulir galeria de templates y validaciones rapidas.
+- [x] Mejorar acciones por lote mas usadas.
+- [x] Potenciar autocomplete/defaults reutilizando logica actual.
+- [x] Pulir galeria de templates y validaciones rapidas.
 Done:
-- [ ] Operaciones repetitivas requieren menos taps/clicks y menos errores.
+- [x] Operaciones repetitivas requieren menos taps/clicks y menos errores.
 
 ### F5 - Docs + QA comercial
 Checklist:
-- [ ] Actualizar release checklist con smoke tests reales de P7.
-- [ ] Barrido de mojibake en `lib/` y `docs/`.
-- [ ] Verificar builds y dejar evidencia de despliegue.
+- [x] Actualizar release checklist con smoke tests reales de P7.
+- [x] Barrido de mojibake en `lib/` y `docs/`.
+- [x] Verificar builds y dejar evidencia de despliegue.
 Done:
-- [ ] Checklist utilizable por QA/manual release sin pasos ambiguos.
+- [x] Checklist utilizable por QA/manual release sin pasos ambiguos.
 
 ## Comandos de validacion por fase
 - `dart format --set-exit-if-changed .`

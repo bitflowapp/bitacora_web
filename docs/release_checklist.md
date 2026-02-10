@@ -216,7 +216,7 @@ Publicar release Android (1 comando):
 - Verificar topbar/toolbar monocroma con acciones clave en 1 tap: `Guardar`, `+ Registro`, `Buscar`, `Exportar`.
 - Confirmar chips de estado: guardado y sync (`Offline / Pendiente sync` cuando aplica).
 - En mobile: abrir `Acciones` y validar accesos a `Adjuntar`, `Exportar`, `Importar paquete`.
-- Atajos: `Ctrl/Cmd+K`, `Ctrl/Cmd+S`, `Ctrl/Cmd+F`, `Ctrl/Cmd+Shift+E`, `Ctrl/Cmd+Shift+I`.
+- Atajos: `Ctrl/Cmd+K`, `Ctrl/Cmd+S`, `Ctrl/Cmd+F`, `Ctrl/Cmd+Shift+B`, `Ctrl/Cmd+Shift+L`, `Ctrl/Cmd+Shift+E`, `Ctrl/Cmd+Shift+I`.
 2. Exportar paquete BitFlow:
 - Desde editor, `Exportar paquete (.bitflow.zip)` y validar archivo generado.
 - Descomprimir y verificar estructura minima:
@@ -234,6 +234,13 @@ Publicar release Android (1 comando):
 - Con red off, editar y confirmar estado offline visible sin bloqueos.
 - En iPhone Safari: validar helper de instalacion y que no aparece en standalone.
 - En iPhone Safari: editar celda, background/volver, y validar `Ultimo guardado local`.
+
+## 3.6) Public links sanity (post push)
+1. Pages:
+- Abrir `https://marcoluna-nqn.github.io/bitacora_web/` y confirmar carga limpia (sin errores rojos en consola).
+2. APK release estable:
+- Probar `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`.
+- Confirmar descarga directa del APK sin depender de artifacts de Actions.
 
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
