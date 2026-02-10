@@ -88,9 +88,12 @@ Expected release output:
 
 ## 3) Web
 1. Confirm `web/index.html` keeps `<base href="$FLUTTER_BASE_HREF" />`.
-2. Build with target base href when deploying under subpath, for example:
-- `flutter build web --release --base-href /bitflow/`
-3. Confirm `web/manifest.json` brand fields (name/description/icons) are correct.
+2. Set the GitHub Actions variable `BASE_HREF` in `Settings > Secrets and variables > Actions > Variables`.
+- Project page (this repo `bitacora_web`): `/bitacora_web/`
+- User/org page root: `/`
+3. Build locally with the expected base href, for example:
+- `flutter build web --release --base-href /bitacora_web/`
+4. Confirm `web/manifest.json` brand fields (name/description/icons) are correct.
 
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:

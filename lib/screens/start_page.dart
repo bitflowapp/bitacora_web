@@ -2821,7 +2821,7 @@ class _ApplePalette {
       isLight ? const Color(0x990B0B0F) : const Color(0x99F5F5F7);
 
   Color get accent =>
-      isLight ? const Color(0xFF007AFF) : const Color(0xFF0A84FF);
+      isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
 
   Color get muted =>
       isLight ? const Color(0x660B0B0F) : const Color(0x66F5F5F7);

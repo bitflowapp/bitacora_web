@@ -12,7 +12,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} Â· esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
       target: ref,
     );
 
@@ -21,7 +21,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (picked == null) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} Â· cancelado',
+        'Destino ${_cellLabelForRef(ref)} · cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -473,7 +473,7 @@ extension _EditorAttachments on _EditorScreenState {
           backgroundColor: pal.menuBg,
           title: const Text('No se pudo abrir la camara'),
           content: const Text(
-            'No se pudo capturar desde camara. Â¿Queres elegir desde galeria?',
+            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
           ),
           actions: [
             TextButton(
@@ -2453,7 +2453,7 @@ extension _EditorAttachments on _EditorScreenState {
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
+      _showSnack('Detén la grabación para reproducir.', isError: false);
       return;
     }
 
