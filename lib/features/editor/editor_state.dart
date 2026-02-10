@@ -1473,12 +1473,68 @@ class _EditorScreenState extends State<EditorScreen>
   _ColType _colType(int c) {
     if (c == _headers.length - 1) return _ColType.photos;
     final h = _headerLabel(c).toLowerCase();
+    if (h.contains('estado') || h.contains('status')) return _ColType.status;
     if (h.contains('fecha') || h.contains('date')) return _ColType.date;
+    if (h.contains('hora') || h.contains('time')) return _ColType.date;
     if (h.contains('lat') || h.contains('lon') || h.contains('acc')) {
       return _ColType.number;
     }
-    if (h.contains('progres')) return _ColType.number;
+    if (h.contains('progres') ||
+        RegExp(r'(^|[^a-z])id([^a-z]|$)').hasMatch(h)) {
+      return _ColType.number;
+    }
     return _ColType.text;
+  }
+
+  List<String>? _statusOptionsForCol(int c) {
+    if (_colType(c) != _ColType.status) return null;
+    return const <String>['OK', 'Obs', 'Urgente'];
+  }
+
+  DateTime? _parseDateCellValue(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final match = RegExp(
+      r'^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?$',
+    ).firstMatch(text);
+    if (match != null) {
+      final y = int.tryParse(match.group(1) ?? '');
+      final m = int.tryParse(match.group(2) ?? '');
+      final d = int.tryParse(match.group(3) ?? '');
+      final hh = int.tryParse(match.group(4) ?? '0') ?? 0;
+      final mm = int.tryParse(match.group(5) ?? '0') ?? 0;
+      if (y != null && m != null && d != null) {
+        return DateTime(y, m, d, hh, mm);
+      }
+    }
+    return DateTime.tryParse(text);
+  }
+
+  String _formatDateCellValue(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year}-${_two(local.month)}-${_two(local.day)} ${_two(local.hour)}:${_two(local.minute)}';
+  }
+
+  String _normalizeCellValueForColumn(int c, String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final type = _colType(c);
+    switch (type) {
+      case _ColType.status:
+        final options = _statusOptionsForCol(c) ?? const <String>[];
+        for (final item in options) {
+          if (item.toLowerCase() == trimmed.toLowerCase()) {
+            return item;
+          }
+        }
+        return trimmed;
+      case _ColType.date:
+        final parsed = _parseDateCellValue(trimmed);
+        if (parsed == null) return trimmed;
+        return _formatDateCellValue(parsed);
+      default:
+        return trimmed;
+    }
   }
 
   bool _isRequired(int c) {
@@ -1511,10 +1567,22 @@ class _EditorScreenState extends State<EditorScreen>
 
           switch (type) {
             case _ColType.date:
-              if (DateTime.tryParse(v) == null) invalid.add(ref);
+              if (_parseDateCellValue(v) == null) invalid.add(ref);
               break;
             case _ColType.number:
               if (double.tryParse(v) == null) invalid.add(ref);
+              break;
+            case _ColType.status:
+              final options = _statusOptionsForCol(c);
+              if (options == null || options.isEmpty) break;
+              var matched = false;
+              for (final item in options) {
+                if (item.toLowerCase() == v.toLowerCase()) {
+                  matched = true;
+                  break;
+                }
+              }
+              if (!matched) invalid.add(ref);
               break;
             default:
               break;
@@ -1640,7 +1708,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     final ref = _CellRef(r, c);
     final draft = _draftCells[ref];
-    final next = draft ?? _rows[r].cells[c];
+    final next = _normalizeCellValueForColumn(c, draft ?? _rows[r].cells[c]);
     if (next == _rows[r].cells[c]) {
       if (_draftCells.remove(ref) != null) {
         _bumpGridVersion();
@@ -3333,6 +3401,14 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
+    final statusOptions = _statusOptionsForCol(c);
+    if (initialOverride == null &&
+        statusOptions != null &&
+        statusOptions.isNotEmpty) {
+      unawaited(_pickStatusForCell(context, pal, r, c, statusOptions));
+      return;
+    }
+
     final isDesktop = _isDesktopUi(context, _kbController.kbInsetDp.value);
     if (!isDesktop) {
       _openMobileInlineEditor(
@@ -3394,6 +3470,76 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  Future<void> _pickStatusForCell(
+    BuildContext context,
+    _SheetPalette pal,
+    int r,
+    int c,
+    List<String> options,
+  ) async {
+    if (options.isEmpty) return;
+    final current = _effectiveCell(r, c).trim();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pal.border, width: pal.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.tune_rounded, color: pal.fg),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Estado',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                for (final option in options)
+                  ListTile(
+                    leading: Icon(
+                      current.toLowerCase() == option.toLowerCase()
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: pal.fgMuted,
+                    ),
+                    title: Text(option),
+                    onTap: () => Navigator.of(ctx).pop(option),
+                  ),
+                ListTile(
+                  leading: Icon(Icons.clear_rounded, color: pal.fgMuted),
+                  title: const Text('Limpiar'),
+                  onTap: () => Navigator.of(ctx).pop(''),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || picked == null) return;
+    _setCell(r, c, picked);
+  }
+
   String _headerLabel(int c) {
     final t = _effectiveHeader(c).trim();
     if (t.isNotEmpty) return t;
@@ -3412,9 +3558,10 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
 
-    if (_rows[r].cells[c] == value) return;
+    final next = _normalizeCellValueForColumn(c, value);
+    if (_rows[r].cells[c] == next) return;
 
-    _rows[r].cells[c] = value;
+    _rows[r].cells[c] = next;
     _markDirty(snapshot: true);
   }
 

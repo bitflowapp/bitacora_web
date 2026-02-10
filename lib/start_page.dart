@@ -53,8 +53,12 @@ import 'package:flutter/material.dart'
         PageController,
         Curves,
         Theme,
+        IconButton,
+        Ink,
+        InkWell,
         MaterialPageRoute,
         LicensePage,
+        showModalBottomSheet,
         showDialog;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_selector/file_selector.dart';
@@ -103,6 +107,14 @@ enum _SortMode { updatedDesc, titleAsc, rowsDesc }
 enum _HomeTab { sheets, trash }
 
 enum _QuickFilter { none, today, flagged }
+
+enum _CreateSheetChoice {
+  blank,
+  plantilla,
+  resistividades,
+  inventario,
+  checklist,
+}
 
 class _StartPageOperationCancelled implements Exception {
   const _StartPageOperationCancelled();
@@ -637,21 +649,206 @@ class _StartPageState extends State<StartPage> {
 
   // --------------------- Actions ---------------------
 
-  Future<void> _newSheet() async {
+  TemplateKind? _templateFromChoice(_CreateSheetChoice choice) {
+    switch (choice) {
+      case _CreateSheetChoice.blank:
+        return null;
+      case _CreateSheetChoice.plantilla:
+        return TemplateKind.plantilla;
+      case _CreateSheetChoice.resistividades:
+        return TemplateKind.resistividades;
+      case _CreateSheetChoice.inventario:
+        return TemplateKind.inventario;
+      case _CreateSheetChoice.checklist:
+        return TemplateKind.checklist;
+    }
+  }
+
+  Future<_CreateSheetChoice?> _showCreateSheetGallery({
+    required bool includeBlank,
+  }) async {
+    if (!mounted) return null;
+    final isLight = widget.isLight;
+    final pal = _ApplePalette(isLight: isLight);
+    final border = pal.separator;
+
+    return showModalBottomSheet<_CreateSheetChoice>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (ctx) {
+        Widget card({
+          required _CreateSheetChoice value,
+          required IconData icon,
+          required String title,
+          required String subtitle,
+          bool emphasized = false,
+        }) {
+          return InkWell(
+            onTap: () => Navigator.of(ctx).pop(value),
+            borderRadius: BorderRadius.circular(16),
+            child: Ink(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: emphasized
+                    ? (isLight
+                        ? const Color(0xFFF2F2F7)
+                        : const Color(0xFF1F1F24))
+                    : pal.group,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isLight
+                          ? const Color(0xFF111114)
+                          : const Color(0xFFF4F4F6),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 18,
+                      color: isLight
+                          ? const Color(0xFFFFFFFF)
+                          : const Color(0xFF0B0B0C),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: pal.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: Text(
+                      subtitle,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: pal.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: pal.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border),
+              boxShadow: [pal.subtleShadow],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      includeBlank ? 'Crear planilla' : 'Elegir plantilla',
+                      style: TextStyle(
+                        color: pal.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon:
+                          Icon(CupertinoIcons.xmark, color: pal.textSecondary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.2,
+                  children: [
+                    if (includeBlank)
+                      card(
+                        value: _CreateSheetChoice.blank,
+                        icon: CupertinoIcons.doc_text,
+                        title: 'Planilla vacia',
+                        subtitle: 'Empieza desde cero con columnas editables.',
+                        emphasized: true,
+                      ),
+                    card(
+                      value: _CreateSheetChoice.plantilla,
+                      icon: CupertinoIcons.square_grid_2x2,
+                      title: 'Plantilla base',
+                      subtitle:
+                          'Actividad, Detalle, Estado, Responsable, Fecha.',
+                    ),
+                    card(
+                      value: _CreateSheetChoice.resistividades,
+                      icon: CupertinoIcons.waveform_path_ecg,
+                      title: 'Resistividades',
+                      subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones.',
+                    ),
+                    card(
+                      value: _CreateSheetChoice.inventario,
+                      icon: CupertinoIcons.cube_box,
+                      title: 'Inventario',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota.',
+                    ),
+                    card(
+                      value: _CreateSheetChoice.checklist,
+                      icon: CupertinoIcons.checkmark_alt_circle,
+                      title: 'Checklist diario',
+                      subtitle:
+                          'Tarea, Responsable, Estado, Fecha, Comentario.',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _createAndOpenSheet({TemplateKind? template}) async {
     if (_busy) return;
 
-    final id = SheetStore.createNew();
+    final id = template == null
+        ? SheetStore.createNew()
+        : SheetStore.createFromTemplate(template);
 
-    // createdAt real (fecha de creación)
     _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
-
-    // Si estás parado en una carpeta (tab sheets), la planilla nace ahí
     if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
       _sheetFolder[id] = _selectedFolderId;
     }
 
     await _saveOrg();
-
     _reload();
     if (!mounted) return;
 
@@ -670,32 +867,21 @@ class _StartPageState extends State<StartPage> {
     _reload();
   }
 
+  Future<void> _newSheet() async {
+    if (_busy) return;
+    final choice = await _showCreateSheetGallery(includeBlank: true);
+    if (!mounted || choice == null) return;
+    final template = _templateFromChoice(choice);
+    await _createAndOpenSheet(template: template);
+  }
+
   Future<void> _newTemplateSheet() async {
     if (_busy) return;
-
-    final id = SheetStore.createFromTemplate(TemplateKind.plantilla);
-    _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
-    if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
-      _sheetFolder[id] = _selectedFolderId;
-    }
-
-    await _saveOrg();
-    _reload();
-    if (!mounted) return;
-
-    await Navigator.of(context).push<void>(
-      CupertinoPageRoute(
-        builder: (_) => EditorScreen(
-          isLight: widget.isLight,
-          onToggleTheme: widget.onToggleTheme,
-          sheetId: id,
-          engineBaseUrl: _engineBaseForEditor(),
-        ),
-      ),
-    );
-
-    if (!mounted) return;
-    _reload();
+    final choice = await _showCreateSheetGallery(includeBlank: false);
+    if (!mounted || choice == null) return;
+    final template = _templateFromChoice(choice);
+    if (template == null) return;
+    await _createAndOpenSheet(template: template);
   }
 
   Future<void> _openDiagnostics() async {

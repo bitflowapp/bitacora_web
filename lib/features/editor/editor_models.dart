@@ -456,7 +456,7 @@ class _CellRef {
   int get hashCode => Object.hash(r, c);
 }
 
-enum _ColType { text, number, date, photos }
+enum _ColType { text, number, date, status, photos }
 
 Uint8List? _tryDecodeB64(String raw) {
   try {

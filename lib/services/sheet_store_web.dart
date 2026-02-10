@@ -32,6 +32,65 @@ enum TemplateKind {
   checklist,
 }
 
+class _TemplateColumn {
+  const _TemplateColumn({
+    required this.label,
+    required this.type,
+    this.defaultValue = '',
+    this.options = const <String>[],
+  });
+
+  final String label;
+  final String type;
+  final String defaultValue;
+  final List<String> options;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'label': label,
+        'type': type,
+        'default': defaultValue,
+        if (options.isNotEmpty) 'options': options,
+      };
+}
+
+class _TemplateDefinition {
+  const _TemplateDefinition({
+    required this.name,
+    required this.columns,
+  });
+
+  final String name;
+  final List<_TemplateColumn> columns;
+
+  List<String> headersWithPhotos(String photosHeader) {
+    return <String>[
+      ...columns.map((c) => c.label),
+      photosHeader,
+    ];
+  }
+
+  List<Map<String, dynamic>> columnSpecsWithPhotos(String photosHeader) {
+    return <Map<String, dynamic>>[
+      ...columns.map((c) => c.toJson()),
+      <String, dynamic>{
+        'label': photosHeader,
+        'type': 'photos',
+      },
+    ];
+  }
+
+  List<List<String>> initialRows(int count) {
+    final headersLen = columns.length + 1; // +Photos
+    return List<List<String>>.generate(count, (_) {
+      final row = List<String>.filled(headersLen, '');
+      for (int i = 0; i < columns.length; i++) {
+        row[i] = columns[i].defaultValue;
+      }
+      return row;
+    });
+  }
+}
+
 class SheetStore {
   static SharedPreferences? _prefs;
 
@@ -142,6 +201,14 @@ class SheetStore {
     if (cellMeta is Map && cellMeta.isNotEmpty) {
       model['cellMeta'] = cellMeta;
     }
+    final columnSpecs = existingMap?['columnSpecs'];
+    if (columnSpecs is List && columnSpecs.isNotEmpty) {
+      model['columnSpecs'] = columnSpecs;
+    }
+    final templateKind = (existingMap?['templateKind'] ?? '').toString().trim();
+    if (templateKind.isNotEmpty) {
+      model['templateKind'] = templateKind;
+    }
 
     prefs.setString(_sheetKey(id), jsonEncode(model));
   }
@@ -230,6 +297,14 @@ class SheetStore {
     if (cellMeta is Map && cellMeta.isNotEmpty) {
       normalized['cellMeta'] = cellMeta;
     }
+    final columnSpecs = raw['columnSpecs'];
+    if (columnSpecs is List && columnSpecs.isNotEmpty) {
+      normalized['columnSpecs'] = columnSpecs;
+    }
+    final templateKind = (raw['templateKind'] ?? '').toString().trim();
+    if (templateKind.isNotEmpty) {
+      normalized['templateKind'] = templateKind;
+    }
 
     return normalized;
   }
@@ -275,50 +350,17 @@ class SheetStore {
   }
 
   static String createFromTemplate(TemplateKind kind) {
-    switch (kind) {
-      case TemplateKind.plantilla:
-        return _createWith(
-          name: 'Plantilla',
-          headers: const [
-            'Actividad',
-            'Detalle',
-            'Estado',
-            'Responsable',
-            'Fecha',
-          ],
-        );
-      case TemplateKind.resistividades:
-        return _createWith(
-          headers: const [
-            'Fecha',
-            'Progresiva',
-            '1 m (Ohm)',
-            '3 m (Ohm)',
-            '5 m (Ohm)',
-            'Observaciones',
-          ],
-        );
-      case TemplateKind.inventario:
-        return _createWith(
-          headers: const [
-            'Item',
-            'Cantidad',
-            'Unidad',
-            'Ubicacion',
-            'Nota',
-          ],
-        );
-      case TemplateKind.checklist:
-        return _createWith(
-          headers: const [
-            'Tarea',
-            'Responsable',
-            'Estado',
-            'Hora',
-            'Comentario',
-          ],
-        );
-    }
+    final spec = _templateDefinitionOf(kind);
+    final headers = spec.headersWithPhotos(_photosHeader);
+    final rows = spec.initialRows(3);
+    final columnSpecs = spec.columnSpecsWithPhotos(_photosHeader);
+    return _createWith(
+      name: spec.name,
+      headers: headers,
+      rows: rows,
+      columnSpecs: columnSpecs,
+      templateKind: kind.name,
+    );
   }
 
   static Future<String> ensureDefault() async {
@@ -360,7 +402,7 @@ class SheetStore {
 
       // Legacy
       final legacyRaw = prefs.getString('$_legacyPrefix$id');
-      if (legacyRaw == null || legacyRaw.trim().isNotEmpty == false) continue;
+      if (legacyRaw == null || legacyRaw.trim().isEmpty) continue;
       final legacyTitle =
           prefs.getString('$_legacyPrefix$id$_legacyTitleSuffix');
       final legacyMeta = _metaFromLegacy(
@@ -449,22 +491,88 @@ class SheetStore {
     );
   }
 
+  static _TemplateDefinition _templateDefinitionOf(TemplateKind kind) {
+    switch (kind) {
+      case TemplateKind.plantilla:
+        return const _TemplateDefinition(
+          name: 'Plantilla base',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Actividad', type: 'text'),
+            _TemplateColumn(label: 'Detalle', type: 'text'),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+          ],
+        );
+      case TemplateKind.resistividades:
+        return const _TemplateDefinition(
+          name: 'Relevamiento resistividades',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Progresiva', type: 'number'),
+            _TemplateColumn(label: '1 m (Ohm)', type: 'number'),
+            _TemplateColumn(label: '3 m (Ohm)', type: 'number'),
+            _TemplateColumn(label: '5 m (Ohm)', type: 'number'),
+            _TemplateColumn(label: 'Observaciones', type: 'text'),
+          ],
+        );
+      case TemplateKind.inventario:
+        return const _TemplateDefinition(
+          name: 'Inventario simple',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Item', type: 'text'),
+            _TemplateColumn(
+                label: 'Cantidad', type: 'number', defaultValue: '1'),
+            _TemplateColumn(label: 'Unidad', type: 'text', defaultValue: 'u'),
+            _TemplateColumn(label: 'Ubicacion', type: 'text'),
+            _TemplateColumn(label: 'Nota', type: 'text'),
+          ],
+        );
+      case TemplateKind.checklist:
+        return const _TemplateDefinition(
+          name: 'Checklist diario',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Tarea', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Comentario', type: 'text'),
+          ],
+        );
+    }
+  }
+
   static String _createWith({
     required List<String> headers,
     String name = '',
+    List<List<String>>? rows,
+    List<Map<String, dynamic>>? columnSpecs,
+    String? templateKind,
   }) {
     final id = _nextSheetId();
-    final rows = List.generate(
-      3,
-      (_) => List<String>.filled(headers.length, ''),
-    );
+    final initialRows = rows ??
+        List.generate(3, (_) => List<String>.filled(headers.length, ''));
 
     final model = <String, dynamic>{
       'name': name,
       'savedAt': DateTime.now().toIso8601String(),
       'headers': headers,
       'colIds': _normalizeColIds(headers, null),
-      'rows': _buildRowMaps(rows),
+      'rows': _buildRowMaps(initialRows),
+      if (columnSpecs != null && columnSpecs.isNotEmpty)
+        'columnSpecs': columnSpecs,
+      if (templateKind != null && templateKind.trim().isNotEmpty)
+        'templateKind': templateKind.trim(),
     };
 
     _prefs?.setString(_sheetKey(id), jsonEncode(model));

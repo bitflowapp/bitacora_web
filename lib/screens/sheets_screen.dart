@@ -309,7 +309,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withOpacity(0.55);
+        final divider = theme.dividerColor.withOpacity(0.65);
+        final cardBg = theme.cardColor;
 
         Widget tile({
           required IconData icon,
@@ -317,47 +318,92 @@ class _SheetsScreenState extends State<SheetsScreen> {
           required String subtitle,
           required TemplateKind value,
         }) {
-          return ListTile(
-            leading: _PillIcon(icon: icon),
-            title: Text(title,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle),
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
             onTap: () => Navigator.of(ctx).pop(value),
+            child: Ink(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: divider, width: 0.8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _PillIcon(icon: icon),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: Text(
+                      subtitle,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 4),
-            tile(
-              icon: Icons.auto_awesome_outlined,
-              title: 'Plantilla base',
-              subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
-              value: TemplateKind.plantilla,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: Row(
+                children: [
+                  Text(
+                    'Galeria de templates',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            tile(
-              icon: Icons.table_rows,
-              title: 'Relevamiento resistividades',
-              subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
-              value: TemplateKind.resistividades,
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.18,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              children: [
+                tile(
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'Plantilla base',
+                  subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                  value: TemplateKind.plantilla,
+                ),
+                tile(
+                  icon: Icons.table_rows,
+                  title: 'Relevamiento resistividades',
+                  subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                  value: TemplateKind.resistividades,
+                ),
+                tile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Inventario simple',
+                  subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                  value: TemplateKind.inventario,
+                ),
+                tile(
+                  icon: Icons.check_circle_outline,
+                  title: 'Checklist diario',
+                  subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
+                  value: TemplateKind.checklist,
+                ),
+              ],
             ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            tile(
-              icon: Icons.inventory_2_outlined,
-              title: 'Inventario simple',
-              subtitle: 'Ítem, Cantidad, Unidad, Ubicación, Nota',
-              value: TemplateKind.inventario,
-            ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            tile(
-              icon: Icons.check_circle_outline,
-              title: 'Checklist diario',
-              subtitle: 'Tarea, Responsable, Estado, Hora, Comentario',
-              value: TemplateKind.checklist,
-            ),
-            const SizedBox(height: 10),
           ],
         );
       },
