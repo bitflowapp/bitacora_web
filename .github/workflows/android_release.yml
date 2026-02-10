@@ -67,13 +67,16 @@ jobs:
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android-${{ steps.app_version.outputs.semver }}.apk"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android-${GITHUB_REF_NAME}.apk"
+          fi
 
       - name: Upload APK artifact
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: bitflow-android-apk
-          path: dist/*.apk
+          path: dist/BitFlow-android.apk
           if-no-files-found: error
 
       - name: Attach APK to GitHub Release
@@ -83,4 +86,6 @@ jobs:
           generate_release_notes: true
           overwrite_files: true
           fail_on_unmatched_files: true
-          files: dist/*.apk
+          files: |
+            dist/BitFlow-android.apk
+            dist/BitFlow-android-${{ github.ref_name }}.apk

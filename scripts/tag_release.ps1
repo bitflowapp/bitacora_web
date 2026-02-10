@@ -2,9 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 param(
-    [string] $Tag = '',
-    [switch] $NoPush,
-    [switch] $SkipNotes
+    [string] $Tag = ''
 )
 
 function Invoke-Git {
@@ -19,7 +17,7 @@ function Invoke-Git {
     }
 }
 
-function Read-PubspecVersion {
+function Get-PubspecVersion {
     param(
         [Parameter(Mandatory = $true)]
         [string] $PubspecPath
@@ -38,17 +36,17 @@ function Read-PubspecVersion {
     }
 
     $semver = ($raw -split '\+')[0].Trim()
-    if ($semver -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
-        throw "Version '$raw' does not include a valid semver prefix."
+    if ($semver -notmatch '^\d+\.\d+\.\d+$') {
+        throw "Version '$raw' is invalid. Expected 'version: X.Y.Z+N' in pubspec.yaml."
     }
 
     return @{
         Raw = $raw
-        Semver = $semver
+        SemVer = $semver
     }
 }
 
-function Read-BuildIdFromVersionJson {
+function Get-BuildId {
     param(
         [Parameter(Mandatory = $true)]
         [string] $RepoRoot
@@ -81,90 +79,40 @@ function Read-BuildIdFromVersionJson {
     return ''
 }
 
-function Write-ReleaseNotes {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string] $RepoRoot,
-        [Parameter(Mandatory = $true)]
-        [string] $TagName,
-        [Parameter(Mandatory = $true)]
-        [string] $VersionRaw,
-        [Parameter(Mandatory = $true)]
-        [string] $BuildId
-    )
-
-    $notesPath = Join-Path $RepoRoot 'docs\release_notes.md'
-    $utcNow = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')
-    $commit = (& git rev-parse --short HEAD).Trim()
-    if ($LASTEXITCODE -ne 0) {
-        throw "git rev-parse --short HEAD failed with exit code $LASTEXITCODE"
-    }
-
-    $lines = @(
-        "# Release notes: $TagName",
-        "",
-        "- Date (UTC): $utcNow",
-        "- Version (pubspec): $VersionRaw",
-        "- BuildId (version.json): " + ($(if ([string]::IsNullOrWhiteSpace($BuildId)) { '(not found)' } else { $BuildId })),
-        "- Commit: $commit",
-        "",
-        "## Checklist",
-        "- Android Release workflow should publish BitFlow-android.apk to GitHub Releases.",
-        "- Landing download button should resolve to releases/latest/download/BitFlow-android.apk.",
-        "- Pages deployment should expose the updated version.json."
-    )
-
-    Set-Content -LiteralPath $notesPath -Value $lines -Encoding UTF8
-    Write-Host "Release notes written to $notesPath" -ForegroundColor Green
-}
-
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
 
-$versionInfo = Read-PubspecVersion -PubspecPath (Join-Path $repoRoot 'pubspec.yaml')
+$versionInfo = Get-PubspecVersion -PubspecPath (Join-Path $repoRoot 'pubspec.yaml')
 $versionRaw = $versionInfo.Raw
-$semver = $versionInfo.Semver
-$buildId = Read-BuildIdFromVersionJson -RepoRoot $repoRoot
+$semver = $versionInfo.SemVer
+$buildId = Get-BuildId -RepoRoot $repoRoot
 
 $tagName = if ([string]::IsNullOrWhiteSpace($Tag)) { "v$semver" } else { $Tag.Trim() }
-if ($tagName -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$') {
-    throw "Tag '$tagName' is invalid. Use format vX.Y.Z (optionally with suffix)."
+if ($tagName -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "Tag '$tagName' is invalid. Use format vX.Y.Z."
 }
 
 Write-Host "Repo root: $repoRoot"
 Write-Host "pubspec version: $versionRaw"
 Write-Host "detected buildId: " + ($(if ([string]::IsNullOrWhiteSpace($buildId)) { '(not found)' } else { $buildId }))
 Write-Host "tag to create: $tagName"
-
-Invoke-Git -Args @('fetch', '--tags', 'origin')
+Write-Host ""
 
 & git rev-parse -q --verify "refs/tags/$tagName" *> $null
 if ($LASTEXITCODE -eq 0) {
-    throw "Tag '$tagName' already exists locally."
+    throw "Tag '$tagName' already exists locally. Aborting."
 }
 
-$remoteTag = & git ls-remote --tags origin $tagName
+$remoteTag = & git ls-remote --tags origin "refs/tags/$tagName"
 if ($LASTEXITCODE -ne 0) {
-    throw "Failed to query remote tags for '$tagName'."
+    throw "Failed to query remote tags for '$tagName' on origin."
 }
 if (-not [string]::IsNullOrWhiteSpace($remoteTag)) {
-    throw "Tag '$tagName' already exists on origin."
-}
-
-if (-not $SkipNotes) {
-    Write-ReleaseNotes `
-        -RepoRoot $repoRoot `
-        -TagName $tagName `
-        -VersionRaw $versionRaw `
-        -BuildId $buildId
+    throw "Tag '$tagName' already exists on origin. Aborting."
 }
 
 Invoke-Git -Args @('tag', '-a', $tagName, '-m', "BitFlow release $tagName")
 Write-Host "Tag created: $tagName" -ForegroundColor Green
 
-if ($NoPush) {
-    Write-Host "NoPush set: skipped 'git push origin $tagName'." -ForegroundColor Yellow
-} else {
-    Invoke-Git -Args @('push', 'origin', $tagName)
-    Write-Host "Tag pushed: $tagName" -ForegroundColor Green
-}
+Invoke-Git -Args @('push', 'origin', $tagName)
+Write-Host "Tag pushed: $tagName" -ForegroundColor Green
