@@ -37,6 +37,8 @@ void main() {
     await _pumpFrames(tester);
     await tester.tap(find.text('Crear hoja').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Planilla vacia').first);
+    await tester.pumpAndSettle();
 
     expect(find.byType(EditorScreen), findsOneWidget);
 
