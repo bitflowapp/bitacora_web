@@ -112,4 +112,5 @@ docs/bitflow/app/
 # Large local artifacts
 _legacy/tmp_20260206/
 docs/bitflow/downloads/BitFlow.apk
+dist/
 
