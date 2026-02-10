@@ -162,6 +162,7 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.onContextMenu,
     required this.onPickPhoto,
     required this.onDeleteRow,
+    required this.onOpenAttachments,
   });
 
   final _SheetPalette palette;
@@ -193,6 +194,7 @@ class _MobileNotesGrid extends StatelessWidget {
   final _ContextMenu onContextMenu;
   final ValueChanged<int> onPickPhoto;
   final ValueChanged<int> onDeleteRow;
+  final void Function(int r, int c) onOpenAttachments;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +212,7 @@ class _MobileNotesGrid extends StatelessWidget {
           borderRadius: shellRadius,
           border: Border.all(
             color: palette.gridBorder,
-            width: math.max(palette.hairline, 1),
+            width: math.max(palette.hairline, 1).toDouble(),
           ),
           boxShadow: [
             BoxShadow(
@@ -283,6 +285,7 @@ class _MobileNotesGrid extends StatelessWidget {
               photoThumbB64: '',
               onTap: () => onHeaderTap(ctx, col),
               onLongPress: (pos) => onContextMenu(pos, -1, col, true),
+              onAttachmentsTap: null,
               child: isActive
                   ? ValueListenableBuilder<TextEditingValue>(
                       valueListenable: activeController,
@@ -335,11 +338,12 @@ class _MobileNotesGrid extends StatelessWidget {
                 isSelected: isSelected,
                 hasGps: hasGps,
                 hasAudio: hasAudio,
-                hasPhoto: false,
+                hasPhoto: count > 0,
                 zebra: row.isEven,
-                photoThumbB64: '',
+                photoThumbB64: thumb,
                 onTap: () => onCellTap(ctx, row, col),
                 onLongPress: (pos) => onContextMenu(pos, row, col, false),
+                onAttachmentsTap: () => onOpenAttachments(row, col),
                 child: _PhotosCell(
                   palette: palette,
                   count: count,
@@ -368,6 +372,7 @@ class _MobileNotesGrid extends StatelessWidget {
               photoThumbB64: thumbB64,
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
+              onAttachmentsTap: () => onOpenAttachments(row, col),
               child: isActive
                   ? ValueListenableBuilder<TextEditingValue>(
                       valueListenable: activeController,
@@ -396,6 +401,7 @@ class _MobileNotesGrid extends StatelessWidget {
     required String photoThumbB64,
     required VoidCallback onTap,
     required ValueChanged<Offset> onLongPress,
+    required VoidCallback? onAttachmentsTap,
     required Widget child,
   }) {
     final headerBg = palette.headerBg;
@@ -407,24 +413,30 @@ class _MobileNotesGrid extends StatelessWidget {
 
     final borderColor =
         (isActive || isSelected) ? palette.selectionBorder : palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 1);
+    final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     final radius = 6.0;
 
     Offset? lastTapPos;
 
-    Widget badge(Widget inner) {
-      return Container(
-        padding: const EdgeInsets.all(2),
+    Widget badge(Widget inner, {VoidCallback? onTap}) {
+      final chip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: palette.accent.withOpacity(palette.isLight ? 0.12 : 0.20),
-          borderRadius: BorderRadius.circular(6),
+          color: palette.chipBg,
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: palette.accent.withOpacity(0.35),
-            width: palette.hairline,
+            color: palette.chipBorder,
+            width: math.max(palette.hairline, 1).toDouble(),
           ),
         ),
         child: inner,
+      );
+      if (onTap == null) return chip;
+      return InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: chip,
       );
     }
 
@@ -444,6 +456,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 filterQuality: FilterQuality.low,
               ),
             ),
+            onTap: onAttachmentsTap,
           ),
         );
       } else if (hasPhoto) {
@@ -452,8 +465,9 @@ class _MobileNotesGrid extends StatelessWidget {
             Icon(
               Icons.photo_rounded,
               size: 12,
-              color: palette.accent.withOpacity(0.8),
+              color: palette.chipText,
             ),
+            onTap: onAttachmentsTap,
           ),
         );
       }
@@ -464,8 +478,9 @@ class _MobileNotesGrid extends StatelessWidget {
           Icon(
             Icons.graphic_eq_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.chipText,
           ),
+          onTap: onAttachmentsTap,
         ),
       );
     }
@@ -475,8 +490,9 @@ class _MobileNotesGrid extends StatelessWidget {
           Icon(
             Icons.my_location_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.chipText,
           ),
+          onTap: onAttachmentsTap,
         ),
       );
     }

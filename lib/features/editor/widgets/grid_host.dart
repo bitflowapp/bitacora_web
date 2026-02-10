@@ -84,6 +84,7 @@ class _GridView extends StatelessWidget {
     required this.onContextMenu,
     required this.onDeleteRow,
     required this.onPickPhoto,
+    required this.onOpenAttachments,
   });
 
   final _SheetPalette palette;
@@ -118,6 +119,7 @@ class _GridView extends StatelessWidget {
 
   final ValueChanged<int> onDeleteRow;
   final ValueChanged<int> onPickPhoto;
+  final void Function(int r, int c) onOpenAttachments;
 
 // ??? Apple-ish sizing
   static const double indexW = 54;
@@ -151,7 +153,7 @@ class _GridView extends StatelessWidget {
                   borderRadius: shellRadius,
                   border: Border.all(
                     color: palette.gridBorder,
-                    width: math.max(palette.hairline, 1),
+                    width: math.max(palette.hairline, 1).toDouble(),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -304,6 +306,8 @@ class _GridView extends StatelessWidget {
                                                       onDeleteRow(r),
                                                   onPickPhoto: () =>
                                                       onPickPhoto(r),
+                                                  onAttachmentsTap: () =>
+                                                      onOpenAttachments(r, col),
                                                 );
                                               },
                                             ),
@@ -351,9 +355,11 @@ class _GridView extends StatelessWidget {
         color: palette.headerBg,
         border: Border(
           right: BorderSide(
-              color: palette.gridBorder, width: math.max(palette.hairline, 1)),
+              color: palette.gridBorder,
+              width: math.max(palette.hairline, 1).toDouble()),
           bottom: BorderSide(
-              color: palette.gridBorder, width: math.max(palette.hairline, 1)),
+              color: palette.gridBorder,
+              width: math.max(palette.hairline, 1).toDouble()),
         ),
       ),
       child: Text('#',
@@ -397,7 +403,7 @@ class _HeaderCell extends StatelessWidget {
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
     final radius = BorderRadius.zero;
     final borderColor = palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 1);
+    final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -471,7 +477,7 @@ class _RowIndexCell extends StatelessWidget {
         palette.focusRing.withValues(alpha: palette.isLight ? 0.65 : 0.78);
     final bg = selected ? palette.selectionFill : palette.indexBg;
     final radius = BorderRadius.zero;
-    final lineWidth = math.max(palette.hairline, 1);
+    final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -501,7 +507,7 @@ class _RowIndexCell extends StatelessWidget {
                       borderRadius: radius,
                       border: Border.all(
                           color: neutralRing,
-                          width: math.max(palette.hairline, 1.2)),
+                          width: math.max(palette.hairline, 1.2).toDouble()),
                     )
                   : null,
               child: Text(
@@ -546,6 +552,7 @@ class _DataCell extends StatelessWidget {
     required this.onSecondaryTapDown,
     required this.onDeleteRow,
     required this.onPickPhoto,
+    required this.onAttachmentsTap,
   });
 
   final _SheetPalette palette;
@@ -575,6 +582,7 @@ class _DataCell extends StatelessWidget {
 
   final VoidCallback onDeleteRow;
   final VoidCallback onPickPhoto;
+  final VoidCallback onAttachmentsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -590,7 +598,7 @@ class _DataCell extends StatelessWidget {
 
     final borderColor =
         focus || invalid ? palette.selectionBorder : palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 1);
+    final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     final radius = BorderRadius.zero;
 
@@ -649,18 +657,24 @@ class _DataCell extends StatelessWidget {
     return CompositedTransformTarget(link: editorLink, child: cellBody);
   }
 
-  Widget _badge(Widget child) {
-    return Container(
-      padding: const EdgeInsets.all(2),
+  Widget _chip(Widget child, {VoidCallback? onTap}) {
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: palette.accent.withOpacity(palette.isLight ? 0.12 : 0.20),
-        borderRadius: BorderRadius.circular(6),
+        color: palette.chipBg,
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: palette.accent.withOpacity(0.35),
-          width: palette.hairline,
+          color: palette.chipBorder,
+          width: math.max(palette.hairline, 1).toDouble(),
         ),
       ),
       child: child,
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: chip,
     );
   }
 
@@ -689,7 +703,7 @@ class _DataCell extends StatelessWidget {
           );
 
     final badges = <Widget>[];
-    if (!isPhotos && photosCount > 0) {
+    if (photosCount > 0) {
       final bytes = _tryDecodeB64(photoThumbB64);
       final iconWidget = bytes != null
           ? ClipRRect(
@@ -705,10 +719,10 @@ class _DataCell extends StatelessWidget {
           : Icon(
               Icons.photo_rounded,
               size: 12,
-              color: palette.accent.withOpacity(0.8),
+              color: palette.chipText,
             );
       badges.add(
-        _badge(
+        _chip(
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -719,33 +733,36 @@ class _DataCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: palette.accent.withOpacity(0.85),
+                  color: palette.chipText,
                 ),
               ),
             ],
           ),
+          onTap: onAttachmentsTap,
         ),
       );
     }
     if (hasAudio) {
       badges.add(
-        _badge(
+        _chip(
           Icon(
             Icons.graphic_eq_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.chipText,
           ),
+          onTap: onAttachmentsTap,
         ),
       );
     }
     if (hasGps) {
       badges.add(
-        _badge(
+        _chip(
           Icon(
             Icons.my_location_rounded,
             size: 12,
-            color: palette.accent.withOpacity(0.8),
+            color: palette.chipText,
           ),
+          onTap: onAttachmentsTap,
         ),
       );
     }

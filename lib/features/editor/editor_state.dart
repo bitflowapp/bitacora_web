@@ -3542,6 +3542,9 @@ class _EditorScreenState extends State<EditorScreen>
                                               r,
                                               _headers.length - 1,
                                             ),
+                                            onOpenAttachments: (r, c) =>
+                                                _openAttachmentPanelForCell(
+                                                    r, c),
                                           );
                                         },
                                       ),
@@ -3604,6 +3607,8 @@ class _EditorScreenState extends State<EditorScreen>
                                             r,
                                             _headers.length - 1,
                                           ),
+                                          onOpenAttachments: (r, c) =>
+                                              _openAttachmentPanelForCell(r, c),
                                         );
                                       },
                                     ),

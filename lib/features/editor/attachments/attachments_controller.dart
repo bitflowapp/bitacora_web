@@ -1493,6 +1493,336 @@ extension _EditorAttachments on _EditorScreenState {
     );
   }
 
+  DateTime? _latestAttachmentTimestamp(CellMeta meta) {
+    DateTime? latest = meta.gps?.timestamp;
+    for (final photo in meta.photos) {
+      if (latest == null || photo.addedAt.isAfter(latest)) {
+        latest = photo.addedAt;
+      }
+    }
+    for (final audio in meta.audios) {
+      if (latest == null || audio.addedAt.isAfter(latest)) {
+        latest = audio.addedAt;
+      }
+    }
+    return latest;
+  }
+
+  (double?, double?, double?) _coordsForMeta(CellMeta meta) {
+    final gps = meta.gps;
+    if (gps != null) {
+      return (gps.lat, gps.lng, gps.accuracyM);
+    }
+    for (final photo in meta.photos) {
+      if (photo.lat != null && photo.lon != null) {
+        return (photo.lat, photo.lon, photo.accuracyM);
+      }
+    }
+    return (null, null, null);
+  }
+
+  Future<void> _replacePrimaryPhotoForCell(int r, int c) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final photos = _cellMeta[ref.key]?.photos ?? const <PhotoAttachment>[];
+    if (photos.isEmpty) {
+      await _startPhotoFlowForCell(r, c);
+      return;
+    }
+
+    final picked = await _showPhotoSourcePicker();
+    if (!mounted) return;
+    if (picked == null) return;
+
+    _photoFlowActive = true;
+    _updatePhotoFlowStatus(
+      'Destino ${_cellLabelForRef(ref)} - reemplazando foto',
+      target: ref,
+    );
+    await _processPhotoOutcome(
+      picked.outcome,
+      ref,
+      fromCamera: picked.fromCamera,
+      replaceIndex: 0,
+    );
+    _photoFlowActive = false;
+  }
+
+  Future<void> _clearAttachmentsForCell(int r, int c) async {
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final current = _cellMeta[ref.key];
+    if (current == null || current.isEmpty) return;
+
+    final cleanup = <Future<void>>[];
+    for (final photo in current.photos) {
+      final storedRef = photo.storedRef.trim();
+      if (storedRef.isNotEmpty) {
+        cleanup.add(_attachmentStore.delete(storedRef));
+      }
+    }
+    for (final audio in current.audios) {
+      final storedRef = audio.storedRef.trim();
+      if (storedRef.isNotEmpty) {
+        cleanup.add(_attachmentStore.delete(storedRef));
+      }
+    }
+    if (cleanup.isNotEmpty) {
+      await Future.wait(cleanup, eagerError: false);
+    }
+
+    _setCellMetaEntry(
+      r,
+      c,
+      const CellMeta(
+        photos: <PhotoAttachment>[],
+        audios: <AudioAttachment>[],
+      ),
+      markDirty: true,
+    );
+    _refreshCellAfterSave(r, c);
+  }
+
+  Future<void> _copyGpsCoordinatesForCell(int r, int c) async {
+    final meta = _cellMetaAt(r, c);
+    if (meta == null) return;
+    final coords = _coordsForMeta(meta);
+    final lat = coords.$1;
+    final lon = coords.$2;
+    if (lat == null || lon == null) {
+      _showActionSnack(
+        'Esta celda no tiene coordenadas para copiar.',
+        isError: true,
+        icon: Icons.content_copy_rounded,
+      );
+      return;
+    }
+    final payload = '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}';
+    await Clipboard.setData(ClipboardData(text: payload));
+    _showActionSnack(
+      'Coordenadas copiadas: $payload',
+      isError: false,
+      icon: Icons.content_copy_rounded,
+    );
+  }
+
+  Future<void> _openAttachmentPanelForCell(int r, int c) async {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+
+    final meta = _cellMetaAt(r, c);
+    if (meta == null || meta.isEmpty) {
+      _showActionSnack(
+        'Sin adjuntos en ${CellKey(r, c).a1}.',
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        final currentMeta = _cellMetaAt(r, c) ?? meta;
+        final latestTs = _latestAttachmentTimestamp(currentMeta)?.toLocal();
+        final coords = _coordsForMeta(currentMeta);
+        final lat = coords.$1;
+        final lon = coords.$2;
+        final precision = coords.$3;
+        final hasGps = lat != null && lon != null;
+        final hasPhotos = currentMeta.photos.isNotEmpty;
+        final hasAudios = currentMeta.audios.isNotEmpty;
+        final canOpenViewer = hasPhotos || hasAudios;
+
+        Widget statChip(IconData icon, String label) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: pal.chipBg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: pal.chipBorder,
+                width: math.max(pal.hairline, 1).toDouble(),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: pal.chipText),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: pal.chipText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: pal.menuBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: pal.gridBorder,
+                  width: math.max(pal.hairline, 1).toDouble(),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: pal.cellText
+                        .withValues(alpha: pal.isLight ? 0.08 : 0.24),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Adjuntos - ${CellKey(r, c).a1}',
+                          style: TextStyle(
+                            color: pal.cellText,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        tooltip: 'Cerrar',
+                        icon:
+                            Icon(Icons.close_rounded, color: pal.cellTextMuted),
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      statChip(
+                          Icons.photo_rounded, '${currentMeta.photos.length}'),
+                      statChip(Icons.graphic_eq_rounded,
+                          '${currentMeta.audios.length}'),
+                      statChip(Icons.my_location_rounded,
+                          hasGps ? 'GPS' : 'Sin GPS'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Metadata',
+                    style: TextStyle(
+                      color: pal.cellText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Fecha/Hora: ${latestTs == null ? '-' : _formatDateTimeShort(latestTs)}',
+                    style: TextStyle(color: pal.cellTextMuted),
+                  ),
+                  Text(
+                    'Lat/Lon: ${hasGps ? '${lat!.toStringAsFixed(6)}, ${lon!.toStringAsFixed(6)}' : '-'}',
+                    style: TextStyle(color: pal.cellTextMuted),
+                  ),
+                  Text(
+                    'Precision: ${precision == null ? '-' : '${precision.toStringAsFixed(1)} m'}',
+                    style: TextStyle(color: pal.cellTextMuted),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppButton(
+                        label: 'Ver',
+                        icon: Icons.visibility_outlined,
+                        variant: AppButtonVariant.secondary,
+                        size: AppButtonSize.sm,
+                        onPressed: canOpenViewer
+                            ? () {
+                                Navigator.of(ctx).pop();
+                                if (hasPhotos) {
+                                  _openPhotosSheetForCell(r, c);
+                                  return;
+                                }
+                                if (hasAudios) {
+                                  _openAudiosSheetForCell(r, c);
+                                }
+                              }
+                            : null,
+                      ),
+                      AppButton(
+                        label: 'Reemplazar',
+                        icon: Icons.autorenew_rounded,
+                        variant: AppButtonVariant.secondary,
+                        size: AppButtonSize.sm,
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          unawaited(_replacePrimaryPhotoForCell(r, c));
+                        },
+                      ),
+                      AppButton(
+                        label: 'Eliminar',
+                        icon: Icons.delete_outline_rounded,
+                        variant: AppButtonVariant.ghost,
+                        size: AppButtonSize.sm,
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          final ok = await _confirmDeleteEvidence(
+                            context,
+                            name: 'adjuntos',
+                            cellLabel: CellKey(r, c).a1,
+                          );
+                          if (!ok) return;
+                          await _clearAttachmentsForCell(r, c);
+                          _showActionSnack(
+                            'Adjuntos eliminados en ${CellKey(r, c).a1}.',
+                            isError: false,
+                            icon: Icons.delete_outline_rounded,
+                          );
+                        },
+                      ),
+                      AppButton(
+                        label: 'Copiar coordenadas',
+                        icon: Icons.content_copy_rounded,
+                        variant: AppButtonVariant.ghost,
+                        size: AppButtonSize.sm,
+                        onPressed: hasGps
+                            ? () {
+                                Navigator.of(ctx).pop();
+                                unawaited(_copyGpsCoordinatesForCell(r, c));
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _attachVideoForCell(int r, int c) async {
     final ref = _cellRefAt(r, c);
     if (ref == null) return;
