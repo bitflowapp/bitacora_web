@@ -52,9 +52,9 @@ class AppStrings {
   static const editorShortcuts = 'Atajos';
   static const editorExportShare = 'Exportar / Compartir';
   static const editorExportXlsx = 'Exportar XLSX';
-  static const editorExportZip = 'Exportar ZIP (adjuntos)';
-  static const editorShareZip = 'Compartir ZIP';
-  static const editorBackupZip = 'Backup del proyecto (ZIP)';
+  static const editorExportZip = 'Exportar paquete (.bitflow.zip)';
+  static const editorShareZip = 'Compartir paquete';
+  static const editorBackupZip = 'Exportar backup legacy (ZIP)';
   static const editorReportHtml = 'Reporte HTML (imprimible)';
   static const progressSaving = 'Guardando cambios...';
   static const progressImportingBackup = 'Importando backup...';

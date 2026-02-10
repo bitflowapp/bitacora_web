@@ -7123,7 +7123,7 @@ class _EditorScreenState extends State<EditorScreen>
         photoItems: prep.photoItems,
         audioItems: prep.audioItems,
         manifest: prep.manifest,
-        portableSheetJson: prep.portableSheetJson,
+        packageSheetJson: prep.packageSheetJson,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -7141,11 +7141,11 @@ class _EditorScreenState extends State<EditorScreen>
 
       final now = DateTime.now();
       final baseName =
-          '${_safeFile(_sheetName)}_bitacora_pro_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
+          'BitFlow-package_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
-        name: '$baseName.zip',
+        name: '$baseName.bitflow.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
@@ -7764,18 +7764,23 @@ class _EditorScreenState extends State<EditorScreen>
     final photoItems = <_ZipPhotoItem>[];
     final audioItems = <_ZipAudioItem>[];
     final manifestCells = <String, Map<String, dynamic>>{};
+    final manifestAssets = <Map<String, dynamic>>[];
     final dataCols = math.max(0, _headers.length - 1);
+    final exportedAtUtc = DateTime.now().toUtc();
+    final packageSheetJson = _buildPackageSheetJson(
+      exportedAtUtc: exportedAtUtc,
+    );
 
     if (!includeAttachments) {
-      final manifestCells = <String, Map<String, dynamic>>{};
       final manifest = includeZip
-          ? <String, dynamic>{
-              'sheet': {
-                'name': _sheetName,
-                'exportedAt': DateTime.now().toIso8601String(),
-              },
-              'cells': manifestCells,
-            }
+          ? await _buildPackageManifest(
+              exportedAtUtc: exportedAtUtc,
+              manifestCells: manifestCells,
+              manifestAssets: manifestAssets,
+              photoCount: 0,
+              audioCount: 0,
+              gpsCount: 0,
+            )
           : const <String, dynamic>{};
       return _ExportPrep(
         attachments: attachments,
@@ -7783,8 +7788,7 @@ class _EditorScreenState extends State<EditorScreen>
         photoItems: photoItems,
         audioItems: audioItems,
         manifest: manifest,
-        portableSheetJson:
-            _buildPortableSheetJson(manifestCells: manifestCells),
+        packageSheetJson: packageSheetJson,
       );
     }
 
@@ -7890,8 +7894,10 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               pathInZip: relPath,
             ));
-            manifestPhotos.add({
+            final photoManifest = <String, dynamic>{
               'id': photo.id,
+              'kind': itemType,
+              'cellKey': cellRef,
               'type': itemType,
               'fileName': fileName,
               if (photo.caption.trim().isNotEmpty)
@@ -7900,7 +7906,9 @@ class _EditorScreenState extends State<EditorScreen>
               'size': photo.size,
               'path': relPath,
               'addedAt': photo.addedAt.toIso8601String(),
-            });
+            };
+            manifestPhotos.add(photoManifest);
+            manifestAssets.add(photoManifest);
           }
         }
         if (includeZip && manifestPhotos.isNotEmpty) {
@@ -7933,15 +7941,19 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               pathInZip: relPath,
             ));
-            manifestAudios.add({
+            final audioManifest = <String, dynamic>{
               'id': audio.id,
+              'kind': 'audio',
+              'cellKey': cellRef,
               'fileName': fileName,
               'mime': audio.mime,
               'size': audio.size,
               'durationMs': audio.durationMs,
               'path': relPath,
               'addedAt': audio.addedAt.toIso8601String(),
-            });
+            };
+            manifestAudios.add(audioManifest);
+            manifestAssets.add(audioManifest);
           }
         }
         if (includeZip && manifestAudios.isNotEmpty) {
@@ -7954,19 +7966,17 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
+    final gpsCount = attachments.where((item) => item.type == 'gps').length;
     final manifest = includeZip
-        ? <String, dynamic>{
-            'sheet': {
-              'name': _sheetName,
-              'exportedAt': DateTime.now().toIso8601String(),
-            },
-            'cells': manifestCells,
-          }
+        ? await _buildPackageManifest(
+            exportedAtUtc: exportedAtUtc,
+            manifestCells: manifestCells,
+            manifestAssets: manifestAssets,
+            photoCount: photoItems.length,
+            audioCount: audioItems.length,
+            gpsCount: gpsCount,
+          )
         : const <String, dynamic>{};
-
-    final portableSheetJson = _buildPortableSheetJson(
-      manifestCells: manifestCells,
-    );
 
     return _ExportPrep(
       attachments: attachments,
@@ -7974,7 +7984,7 @@ class _EditorScreenState extends State<EditorScreen>
       photoItems: photoItems,
       audioItems: audioItems,
       manifest: manifest,
-      portableSheetJson: portableSheetJson,
+      packageSheetJson: packageSheetJson,
     );
   }
 
@@ -7983,12 +7993,12 @@ class _EditorScreenState extends State<EditorScreen>
     required List<_ZipPhotoItem> photoItems,
     required List<_ZipAudioItem> audioItems,
     required Map<String, dynamic> manifest,
-    required Map<String, dynamic> portableSheetJson,
+    required Map<String, dynamic> packageSheetJson,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final archive = Archive();
-    archive.addFile(ArchiveFile('Sheet.xlsx', xlsxBytes.length, xlsxBytes));
+    archive.addFile(ArchiveFile('export.xlsx', xlsxBytes.length, xlsxBytes));
 
     for (final item in photoItems) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -8013,28 +8023,621 @@ class _EditorScreenState extends State<EditorScreen>
         ArchiveFile('manifest.json', manifestBytes.length, manifestBytes));
 
     final sheetJsonBytes =
-        Uint8List.fromList(utf8.encode(jsonEncode(portableSheetJson)));
+        Uint8List.fromList(utf8.encode(jsonEncode(packageSheetJson)));
     archive.addFile(
       ArchiveFile('sheet.json', sheetJsonBytes.length, sheetJsonBytes),
-    );
-
-    final viewerHtml = _portableViewerHtml();
-    final viewerJs = _portableViewerJs();
-    final viewerReadme = _portableViewerReadme();
-    final htmlBytes = Uint8List.fromList(utf8.encode(viewerHtml));
-    final jsBytes = Uint8List.fromList(utf8.encode(viewerJs));
-    final readmeBytes = Uint8List.fromList(utf8.encode(viewerReadme));
-    archive.addFile(
-      ArchiveFile('viewer/index.html', htmlBytes.length, htmlBytes),
-    );
-    archive.addFile(ArchiveFile('viewer/app.js', jsBytes.length, jsBytes));
-    archive.addFile(
-      ArchiveFile('viewer/README.txt', readmeBytes.length, readmeBytes),
     );
 
     final encoder = ZipEncoder();
     final zipData = encoder.encode(archive);
     return Uint8List.fromList(zipData);
+  }
+
+  Future<Map<String, dynamic>> _buildPackageManifest({
+    required DateTime exportedAtUtc,
+    required Map<String, Map<String, dynamic>> manifestCells,
+    required List<Map<String, dynamic>> manifestAssets,
+    required int photoCount,
+    required int audioCount,
+    required int gpsCount,
+  }) async {
+    final appVersion = await _readAppVersionForExport();
+    final nonEmptyCells = _countNonEmptyCells();
+    final totalAttachments = photoCount + audioCount;
+
+    return <String, dynamic>{
+      'format': 'bitflow_package_v1',
+      'appVersion': appVersion,
+      'buildId': BuildInfo.buildIdLabel,
+      'exportedAt': exportedAtUtc.toIso8601String(),
+      'platform': _platformLabelForExport(),
+      'sheet': {
+        'id': widget.sheetId,
+        'name': _sheetName,
+        'rowCount': _rows.length,
+        'columnCount': _headers.length,
+      },
+      'counts': {
+        'rows': _rows.length,
+        'cells': nonEmptyCells,
+        'attachments': totalAttachments,
+        'photos': photoCount,
+        'audios': audioCount,
+        'gps': gpsCount,
+      },
+      if (manifestCells.isNotEmpty) 'cells': manifestCells,
+      if (manifestAssets.isNotEmpty) 'assets': manifestAssets,
+    };
+  }
+
+  Map<String, dynamic> _buildPackageSheetJson({
+    required DateTime exportedAtUtc,
+  }) {
+    final model = _buildModelForSave(DateTime.now());
+    final json = model.toJson();
+    json['sheetId'] = widget.sheetId;
+    json['packageMeta'] = <String, dynamic>{
+      'format': 'bitflow_package_v1',
+      'exportedAt': exportedAtUtc.toIso8601String(),
+    };
+    return json;
+  }
+
+  Future<String> _readAppVersionForExport() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final version = info.version.trim();
+      if (version.isNotEmpty) return version;
+    } catch (_) {}
+    return '0.0.0';
+  }
+
+  String _platformLabelForExport() {
+    if (kIsWeb) return 'web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
+  }
+
+  int _countNonEmptyCells() {
+    var total = 0;
+    for (final row in _rows) {
+      final maxCol = math.min(row.cells.length, _headers.length);
+      for (int col = 0; col < maxCol; col++) {
+        if (row.cells[col].trim().isNotEmpty) {
+          total++;
+        }
+      }
+    }
+    return total;
+  }
+
+  Uint8List _archiveFileBytes(ArchiveFile file) {
+    final content = file.content;
+    if (content is Uint8List) return content;
+    if (content is List<int>) return Uint8List.fromList(content);
+    return Uint8List(0);
+  }
+
+  ArchiveFile? _findArchiveFileByPath(
+    Map<String, ArchiveFile> filesByPath,
+    String path,
+  ) {
+    final normalized = path.trim().replaceAll('\\', '/');
+    if (normalized.isEmpty) return null;
+    final direct = filesByPath[normalized];
+    if (direct != null) return direct;
+    for (final entry in filesByPath.entries) {
+      final key = entry.key;
+      if (key == normalized || key.endsWith('/$normalized')) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  CellRef? _resolveImportCellRef(
+    String rawKey, {
+    required String targetSheetId,
+    required List<String> rowIds,
+    required List<String> colIds,
+  }) {
+    final ref = CellRef.fromKey(rawKey, defaultSheetId: targetSheetId);
+    if (ref != null) return ref.withSheet(targetSheetId);
+    final cell = CellKey.fromKey(rawKey);
+    if (cell == null) return null;
+    if (cell.row < 0 || cell.row >= rowIds.length) return null;
+    if (cell.col < 0 || cell.col >= colIds.length) return null;
+    return CellRef(
+      sheetId: targetSheetId,
+      rowId: rowIds[cell.row],
+      colId: colIds[cell.col],
+    );
+  }
+
+  Future<_PackageImportBundle> _readPackageImportBundle(
+    Uint8List bytes, {
+    bool Function()? shouldCancel,
+  }) async {
+    _throwIfOperationCancelledBy(shouldCancel);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final filesByPath = <String, ArchiveFile>{};
+    for (final f in archive) {
+      filesByPath[f.name.replaceAll('\\', '/')] = f;
+    }
+
+    ArchiveFile? findByName(String name) {
+      for (final entry in filesByPath.entries) {
+        final key = entry.key;
+        if (key == name || key.endsWith('/$name')) return entry.value;
+      }
+      return null;
+    }
+
+    final backupFile = findByName('backup.json');
+    final sheetFile = findByName('sheet.json');
+    final manifestFile = findByName('manifest.json');
+
+    if (backupFile == null && sheetFile == null) {
+      throw const FormatException(
+        'ZIP invalido: falta backup.json o sheet.json.',
+      );
+    }
+
+    if (backupFile != null) {
+      final rootRaw = jsonDecode(utf8.decode(_archiveFileBytes(backupFile)));
+      if (rootRaw is! Map) {
+        throw const FormatException('backup.json invalido.');
+      }
+      final root = Map<String, dynamic>.from(rootRaw);
+      final sheetRaw = root['sheet'];
+      if (sheetRaw is! Map) {
+        throw const FormatException('backup.json invalido: falta sheet.');
+      }
+
+      final assets = <Map<String, dynamic>>[];
+      final assetsRaw = root['assets'];
+      if (assetsRaw is List) {
+        for (final item in assetsRaw) {
+          if (item is Map) {
+            assets.add(Map<String, dynamic>.from(item));
+          }
+        }
+      }
+      final photos = assets.where((a) => a['kind'] == 'photo').length;
+      final audios = assets.where((a) => a['kind'] == 'audio').length;
+      final rows = ((sheetRaw as Map)['rows'] as List?)?.length ?? 0;
+      return _PackageImportBundle(
+        format: 'backup_legacy',
+        sheetRaw: Map<String, dynamic>.from(sheetRaw),
+        assets: assets,
+        filesByPath: filesByPath,
+        preview: _PackageImportPreview(
+          formatLabel: 'Backup legacy',
+          rows: rows,
+          attachments: assets.length,
+          photos: photos,
+          audios: audios,
+          exportedAt: DateTime.tryParse((root['exportedAt'] ?? '').toString()),
+        ),
+      );
+    }
+
+    final sheetRawDecoded =
+        jsonDecode(utf8.decode(_archiveFileBytes(sheetFile!)));
+    if (sheetRawDecoded is! Map) {
+      throw const FormatException('sheet.json invalido.');
+    }
+    final sheetRaw = Map<String, dynamic>.from(sheetRawDecoded);
+
+    Map<String, dynamic> manifest = const <String, dynamic>{};
+    if (manifestFile != null) {
+      final manifestRaw =
+          jsonDecode(utf8.decode(_archiveFileBytes(manifestFile)));
+      if (manifestRaw is Map) {
+        manifest = Map<String, dynamic>.from(manifestRaw);
+      }
+    }
+
+    final assets = <Map<String, dynamic>>[];
+    final assetsRaw = manifest['assets'];
+    if (assetsRaw is List) {
+      for (final item in assetsRaw) {
+        if (item is Map) {
+          assets.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+    if (assets.isEmpty) {
+      final cellsRaw = manifest['cells'];
+      if (cellsRaw is Map) {
+        for (final cellEntry in cellsRaw.entries) {
+          if (cellEntry.value is! Map) continue;
+          final cellMap = Map<String, dynamic>.from(cellEntry.value as Map);
+          final photos = cellMap['photos'];
+          if (photos is List) {
+            for (final item in photos) {
+              if (item is! Map) continue;
+              final next = Map<String, dynamic>.from(item);
+              next.putIfAbsent('kind', () => 'photo');
+              next.putIfAbsent('cellKey', () => cellEntry.key.toString());
+              assets.add(next);
+            }
+          }
+          final audios = cellMap['audios'];
+          if (audios is List) {
+            for (final item in audios) {
+              if (item is! Map) continue;
+              final next = Map<String, dynamic>.from(item);
+              next.putIfAbsent('kind', () => 'audio');
+              next.putIfAbsent('cellKey', () => cellEntry.key.toString());
+              assets.add(next);
+            }
+          }
+        }
+      }
+    }
+
+    final counts = manifest['counts'];
+    final rowsCount =
+        ((counts is Map ? counts['rows'] : null) as num?)?.toInt() ??
+            ((sheetRaw['rows'] as List?)?.length ?? 0);
+    final photosCount =
+        ((counts is Map ? counts['photos'] : null) as num?)?.toInt() ??
+            assets.where((a) => a['kind'] == 'photo').length;
+    final audiosCount =
+        ((counts is Map ? counts['audios'] : null) as num?)?.toInt() ??
+            assets.where((a) => a['kind'] == 'audio').length;
+    final attachmentsCount =
+        ((counts is Map ? counts['attachments'] : null) as num?)?.toInt() ??
+            assets.length;
+
+    return _PackageImportBundle(
+      format: (manifest['format'] ?? 'bitflow_package').toString(),
+      sheetRaw: sheetRaw,
+      assets: assets,
+      filesByPath: filesByPath,
+      preview: _PackageImportPreview(
+        formatLabel: (manifest['format'] ?? 'BitFlow package').toString(),
+        rows: rowsCount,
+        attachments: attachmentsCount,
+        photos: photosCount,
+        audios: audiosCount,
+        exportedAt:
+            DateTime.tryParse((manifest['exportedAt'] ?? '').toString()),
+        appVersion: (manifest['appVersion'] ?? '').toString(),
+        buildId: (manifest['buildId'] ?? '').toString(),
+      ),
+    );
+  }
+
+  Future<void> _importPackageBundle(
+    _PackageImportBundle bundle, {
+    required bool replaceCurrent,
+  }) async {
+    _beginLongOperation(
+      message: AppStrings.progressImportingBackup,
+      cancellable: true,
+    );
+    try {
+      _throwIfLongOperationCancelled();
+      final normalized = SheetStore.normalizeModel(bundle.sheetRaw);
+      final targetSheetId = replaceCurrent
+          ? widget.sheetId
+          : DateTime.now().millisecondsSinceEpoch.toString();
+      normalized['savedAt'] = DateTime.now().toIso8601String();
+
+      final imported = await _restorePackageAssetsIntoModel(
+        normalizedModel: normalized,
+        assets: bundle.assets,
+        filesByPath: bundle.filesByPath,
+        targetSheetId: targetSheetId,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      _throwIfLongOperationCancelled();
+
+      _setLongOperationMessage(AppStrings.progressWritingFile);
+      if (replaceCurrent) {
+        await _clearOfflineQueueForCurrentSheet();
+        final loaded = _SheetModel.fromJson(imported.model);
+        if (mounted) {
+          _applyLoadedModel(loaded);
+          await _saveLocalNow();
+          _showActionSnack(
+            imported.missingAssets > 0
+                ? 'Paquete restaurado. Faltantes: ${imported.missingAssets}.'
+                : 'Paquete restaurado en planilla actual.',
+            isError: false,
+            icon: Icons.system_update_alt_rounded,
+          );
+        }
+        return;
+      }
+
+      SheetStore.saveModel(targetSheetId, imported.model);
+      if (!mounted) return;
+      _showActionSnack(
+        imported.missingAssets > 0
+            ? 'Paquete importado. Faltantes: ${imported.missingAssets}.'
+            : 'Paquete importado como nueva planilla.',
+        isError: false,
+        icon: Icons.check_circle_outline_rounded,
+      );
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => EditorScreen(
+            sheetId: targetSheetId,
+            initialName: (imported.model['name'] ?? '').toString(),
+            engineBaseUrl: widget.engineBaseUrl,
+            engineApiKey: widget.engineApiKey,
+            isLight: widget.isLight,
+            onToggleTheme: widget.onToggleTheme,
+          ),
+        ),
+      );
+    } on _EditorLongOperationCancelled {
+      _showActionSnack(
+        AppStrings.infoImportCancelled,
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.importData,
+        operation: replaceCurrent
+            ? 'import_package_replace_current'
+            : 'import_package_create_new',
+        stackTrace: st,
+        fallbackMessage: 'No se pudo importar el paquete.',
+        icon: Icons.file_open_rounded,
+      );
+    } finally {
+      _clearLongOperation();
+    }
+  }
+
+  Future<
+      ({
+        Map<String, dynamic> model,
+        int importedPhotos,
+        int importedAudios,
+        int missingAssets,
+      })> _restorePackageAssetsIntoModel({
+    required Map<String, dynamic> normalizedModel,
+    required List<Map<String, dynamic>> assets,
+    required Map<String, ArchiveFile> filesByPath,
+    required String targetSheetId,
+    bool Function()? shouldCancel,
+  }) async {
+    _throwIfOperationCancelledBy(shouldCancel);
+    final rowsRaw = (normalizedModel['rows'] as List?) ?? const [];
+    final rowIds = <String>[];
+    for (final row in rowsRaw) {
+      if (row is Map) {
+        rowIds.add((row['id'] ?? '').toString());
+      }
+    }
+    final colIds = (normalizedModel['colIds'] as List?)
+            ?.map((e) => (e ?? '').toString())
+            .toList() ??
+        const <String>[];
+
+    final assetsById = <String, Map<String, dynamic>>{};
+    for (final asset in assets) {
+      final kind = (asset['kind'] ?? '').toString();
+      final id = (asset['id'] ?? '').toString();
+      if (kind.isEmpty || id.isEmpty) continue;
+      assetsById['$kind:$id'] = asset;
+    }
+
+    var importedPhotos = 0;
+    var importedAudios = 0;
+    var missingAssets = 0;
+    final usedPhotoIds = <String>{};
+    final usedAudioIds = <String>{};
+    final nextCellMeta = <String, dynamic>{};
+    final cellMetaRaw = normalizedModel['cellMeta'];
+
+    if (cellMetaRaw is Map) {
+      for (final entry in cellMetaRaw.entries) {
+        _throwIfOperationCancelledBy(shouldCancel);
+        final rawKey = entry.key.toString();
+        final metaRaw = entry.value;
+        if (metaRaw is! Map) continue;
+
+        final ref = _resolveImportCellRef(
+          rawKey,
+          targetSheetId: targetSheetId,
+          rowIds: rowIds,
+          colIds: colIds,
+        );
+        if (ref == null) continue;
+
+        final nextMeta = <String, dynamic>{};
+        final gps = metaRaw['gps'];
+        if (gps is Map && gps.isNotEmpty) {
+          nextMeta['gps'] = gps;
+        }
+
+        final photosRaw = metaRaw['photos'];
+        if (photosRaw is List) {
+          final updatedPhotos = <Map<String, dynamic>>[];
+          for (final p in photosRaw) {
+            _throwIfOperationCancelledBy(shouldCancel);
+            if (p is! Map) continue;
+            final source = Map<String, dynamic>.from(p);
+            final sourceId = (source['id'] ?? '').toString();
+            var id = sourceId.isNotEmpty ? sourceId : _genAttachmentId('ph_');
+            if (!usedPhotoIds.add(id)) {
+              id = _genAttachmentId('ph_');
+              usedPhotoIds.add(id);
+            }
+
+            final asset = assetsById['photo:$sourceId'] ??
+                assetsById['video:$sourceId'] ??
+                assetsById['file:$sourceId'];
+            final assetPath = (asset?['path'] ?? source['path'] ?? '')
+                .toString()
+                .replaceAll('\\', '/');
+            final archiveFile = _findArchiveFileByPath(filesByPath, assetPath);
+            final contentBytes =
+                archiveFile == null ? null : _archiveFileBytes(archiveFile);
+
+            final fileName = (source['name'] ??
+                    asset?['fileName'] ??
+                    source['filename'] ??
+                    'foto.jpg')
+                .toString();
+            final mime =
+                (source['mime'] ?? asset?['mime'] ?? 'image/jpeg').toString();
+            final thumbRef = (source['thumbRef'] ?? '').toString();
+            var storedRef = '';
+            var size = (source['size'] as num?)?.toInt() ?? 0;
+
+            if (contentBytes != null && contentBytes.isNotEmpty) {
+              final save = await AttachmentStore.I.saveImage(
+                cellRef: ref,
+                attachmentId: id,
+                bytes: contentBytes,
+                originalName: fileName,
+                mime: mime,
+                webFile: null,
+              );
+              if (save != null && save.storedRef.trim().isNotEmpty) {
+                storedRef = save.storedRef;
+                size = contentBytes.lengthInBytes;
+                importedPhotos++;
+              }
+            } else if (assetPath.isNotEmpty) {
+              missingAssets++;
+            }
+
+            final updated = <String, dynamic>{
+              'id': id,
+              'name': fileName,
+              'mime': mime,
+              'size': size,
+              'storedRef': storedRef,
+              'thumbRef': thumbRef,
+              'addedAt': (source['addedAt'] ?? DateTime.now().toIso8601String())
+                  .toString(),
+              'lastKnown': (source['lastKnown'] as bool?) ?? false,
+            };
+            final caption = (source['caption'] ?? '').toString().trim();
+            if (caption.isNotEmpty) updated['caption'] = caption;
+            if (source['lat'] != null) updated['lat'] = source['lat'];
+            if (source['lon'] != null) updated['lon'] = source['lon'];
+            if (source['acc'] != null) updated['acc'] = source['acc'];
+            updatedPhotos.add(updated);
+          }
+          if (updatedPhotos.isNotEmpty) {
+            nextMeta['photos'] = updatedPhotos;
+          }
+        }
+
+        final audiosRaw = metaRaw['audios'];
+        if (audiosRaw is List) {
+          final updatedAudios = <Map<String, dynamic>>[];
+          for (final a in audiosRaw) {
+            _throwIfOperationCancelledBy(shouldCancel);
+            if (a is! Map) continue;
+            final source = Map<String, dynamic>.from(a);
+            final sourceId = (source['id'] ?? '').toString();
+            var id = sourceId.isNotEmpty ? sourceId : _genAttachmentId('au_');
+            if (!usedAudioIds.add(id)) {
+              id = _genAttachmentId('au_');
+              usedAudioIds.add(id);
+            }
+
+            final asset = assetsById['audio:$sourceId'];
+            final assetPath = (asset?['path'] ?? source['path'] ?? '')
+                .toString()
+                .replaceAll('\\', '/');
+            final archiveFile = _findArchiveFileByPath(filesByPath, assetPath);
+            final contentBytes =
+                archiveFile == null ? null : _archiveFileBytes(archiveFile);
+
+            final fileName = (source['name'] ??
+                    asset?['fileName'] ??
+                    source['filename'] ??
+                    'audio.m4a')
+                .toString();
+            final mime =
+                (source['mime'] ?? asset?['mime'] ?? 'audio/m4a').toString();
+            final durationMs = (source['durationMs'] as num?)?.toInt() ??
+                (asset?['durationMs'] as num?)?.toInt() ??
+                0;
+            var storedRef = '';
+            var size = (source['size'] as num?)?.toInt() ?? 0;
+
+            if (contentBytes != null && contentBytes.isNotEmpty) {
+              final recording = RecordedAudio(
+                fileName: fileName,
+                mime: mime,
+                duration: Duration(milliseconds: durationMs),
+                bytes: contentBytes,
+              );
+              final stored = await AudioStorageService.I.saveRecording(
+                sheetId: targetSheetId,
+                cellKey: ref.compactKey,
+                attachmentId: id,
+                recording: recording,
+              );
+              if (stored != null) {
+                storedRef = _audioStoredRefFrom(stored);
+                size = stored.bytesLength;
+                importedAudios++;
+              }
+            } else if (assetPath.isNotEmpty) {
+              missingAssets++;
+            }
+
+            updatedAudios.add(<String, dynamic>{
+              'id': id,
+              'name': fileName,
+              'mime': mime,
+              'size': size,
+              'durationMs': durationMs,
+              'storedRef': storedRef,
+              'addedAt': (source['addedAt'] ?? DateTime.now().toIso8601String())
+                  .toString(),
+            });
+          }
+          if (updatedAudios.isNotEmpty) {
+            nextMeta['audios'] = updatedAudios;
+          }
+        }
+
+        if (nextMeta.isNotEmpty) {
+          nextCellMeta[ref.key] = nextMeta;
+        }
+      }
+    }
+
+    if (nextCellMeta.isNotEmpty) {
+      normalizedModel['cellMeta'] = nextCellMeta;
+    } else {
+      normalizedModel.remove('cellMeta');
+    }
+
+    return (
+      model: normalizedModel,
+      importedPhotos: importedPhotos,
+      importedAudios: importedAudios,
+      missingAssets: missingAssets,
+    );
   }
 
   Map<String, dynamic> _buildPortableSheetJson({

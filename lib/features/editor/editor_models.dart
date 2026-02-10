@@ -428,6 +428,46 @@ class _BackupBundle {
   final List<_BackupAsset> assets;
 }
 
+enum _PackageImportMode { createNew, replaceCurrent }
+
+class _PackageImportPreview {
+  const _PackageImportPreview({
+    required this.formatLabel,
+    required this.rows,
+    required this.attachments,
+    required this.photos,
+    required this.audios,
+    this.exportedAt,
+    this.appVersion,
+    this.buildId,
+  });
+
+  final String formatLabel;
+  final int rows;
+  final int attachments;
+  final int photos;
+  final int audios;
+  final DateTime? exportedAt;
+  final String? appVersion;
+  final String? buildId;
+}
+
+class _PackageImportBundle {
+  const _PackageImportBundle({
+    required this.format,
+    required this.sheetRaw,
+    required this.assets,
+    required this.filesByPath,
+    required this.preview,
+  });
+
+  final String format;
+  final Map<String, dynamic> sheetRaw;
+  final List<Map<String, dynamic>> assets;
+  final Map<String, ArchiveFile> filesByPath;
+  final _PackageImportPreview preview;
+}
+
 class _ExportPrep {
   const _ExportPrep({
     required this.attachments,
@@ -435,7 +475,7 @@ class _ExportPrep {
     required this.photoItems,
     required this.audioItems,
     required this.manifest,
-    required this.portableSheetJson,
+    required this.packageSheetJson,
   });
 
   final List<AttachmentRow> attachments;
@@ -443,7 +483,7 @@ class _ExportPrep {
   final List<_ZipPhotoItem> photoItems;
   final List<_ZipAudioItem> audioItems;
   final Map<String, dynamic> manifest;
-  final Map<String, dynamic> portableSheetJson;
+  final Map<String, dynamic> packageSheetJson;
 }
 
 class _SheetSnapshot {
