@@ -12,7 +12,9 @@ permissions:
   id-token: write
 
 env:
-  BASE_HREF: /bitacora_web/
+  FLUTTER_CHANNEL: stable
+  # Override from repo/org variable BASE_HREF when needed (for user pages use "/").
+  BASE_HREF: ${{ vars.BASE_HREF || '/bitacora_web/' }}
 
 jobs:
   build:
@@ -24,11 +26,26 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Flutter version
+        run: flutter --version
 
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Format check
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        run: flutter test
 
       - name: Set build stamp
         run: echo "BUILD_TIME=$(date -u +'%Y-%m-%d %H:%M')" >> "$GITHUB_ENV"
@@ -43,12 +60,13 @@ jobs:
           echo "{\"gitSha\":\"${{ github.sha }}\",\"buildTime\":\"${{ env.BUILD_TIME }}\",\"engineBaseUrl\":\"${ENGINE_BASE_URL}\"}" > web/assets/version.json
 
       - name: Build web
-        run: >
-          flutter build web --release
-          --base-href "${{ env.BASE_HREF }}"
-          --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }}
-          --dart-define=GIT_SHA=${{ github.sha }}
-          --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
+        run: |
+          echo "Using BASE_HREF=${{ env.BASE_HREF }}"
+          flutter build web --release \
+            --base-href "${{ env.BASE_HREF }}" \
+            --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }} \
+            --dart-define=GIT_SHA=${{ github.sha }} \
+            --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -65,6 +83,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-
-
