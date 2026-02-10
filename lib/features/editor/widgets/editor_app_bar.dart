@@ -11,6 +11,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onUndo,
     required this.onRedo,
     required this.onAddRow,
+    required this.onQuickCapture,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -40,6 +41,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onAddRow;
+  final VoidCallback onQuickCapture;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -200,6 +202,14 @@ class _PremiumAppleHeader extends StatelessWidget {
                           _PillButton(
                             palette: palette,
                             filled: true,
+                            icon: Icons.add_box_outlined,
+                            label: '+ Registro',
+                            semanticsLabel: 'Crear registro rapido de campo',
+                            onTap: onQuickCapture,
+                          ),
+                          _PillButton(
+                            palette: palette,
+                            filled: false,
                             icon: Icons.check_circle_outline_rounded,
                             label: AppStrings.editorSave,
                             semanticsLabel: AppStrings.semEditorSave,
@@ -234,6 +244,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                       const SizedBox(height: 12),
                       AppleToolbar(
                         items: [
+                          AppleToolbarItem(
+                            icon: Icons.add_box_outlined,
+                            label: '+ Registro',
+                            onTap: onQuickCapture,
+                          ),
                           AppleToolbarItem(
                             icon: Icons.my_location_rounded,
                             label: 'GPS',

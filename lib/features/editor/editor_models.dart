@@ -494,6 +494,38 @@ class _GpsOutcome {
   bool get ok => fix != null;
 }
 
+class _QuickCapturePending {
+  const _QuickCapturePending({
+    required this.sheetId,
+    required this.rowId,
+    required this.queuedAt,
+  });
+
+  final String sheetId;
+  final String rowId;
+  final DateTime queuedAt;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'sheetId': sheetId,
+        'rowId': rowId,
+        'queuedAt': queuedAt.toIso8601String(),
+      };
+
+  static _QuickCapturePending? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final sheetId = (raw['sheetId'] ?? '').toString().trim();
+    final rowId = (raw['rowId'] ?? '').toString().trim();
+    if (sheetId.isEmpty || rowId.isEmpty) return null;
+    final queuedAt =
+        DateTime.tryParse((raw['queuedAt'] ?? '').toString()) ?? DateTime.now();
+    return _QuickCapturePending(
+      sheetId: sheetId,
+      rowId: rowId,
+      queuedAt: queuedAt,
+    );
+  }
+}
+
 // ============================== Paleta =====================================
 
 class _SheetPalette {

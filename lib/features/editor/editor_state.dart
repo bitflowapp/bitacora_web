@@ -18,6 +18,7 @@ const String _kPrefCameraRationaleSeen =
     'bitflow.permission_rationale.camera.v1';
 const String _kPrefMicrophoneRationaleSeen =
     'bitflow.permission_rationale.microphone.v1';
+const String _kPrefQuickCaptureQueue = 'bitflow.quick_capture_queue.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -331,6 +332,10 @@ class _EditorScreenState extends State<EditorScreen>
   int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
   int _pendingRequired = 0;
+  final List<_QuickCapturePending> _quickCaptureQueue =
+      <_QuickCapturePending>[];
+  Timer? _quickCaptureSyncTimer;
+  bool _lastOnlineState = true;
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -385,6 +390,12 @@ class _EditorScreenState extends State<EditorScreen>
     _lastSavedRev = 0;
     _savePending = false;
     _updateSaveStatus();
+    _lastOnlineState = _isNetworkOnline();
+    _quickCaptureSyncTimer = Timer.periodic(
+      const Duration(seconds: 6),
+      (_) => unawaited(_tickQuickCaptureSync()),
+    );
+    unawaited(_loadQuickCaptureQueue());
 
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
@@ -454,6 +465,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileEnsureLateT?.cancel();
     _mobileFocusRetryT?.cancel();
     _photoFlowClearT?.cancel();
+    _quickCaptureSyncTimer?.cancel();
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
@@ -513,6 +525,8 @@ class _EditorScreenState extends State<EditorScreen>
         unawaited(_saveLocalNow());
       }
       _removeCellEditor();
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_tickQuickCaptureSync());
     }
   }
 
@@ -2018,6 +2032,332 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  bool _isNetworkOnline() {
+    if (!kIsWeb) return true;
+    return WebCapabilities.isOnline;
+  }
+
+  int get _pendingQuickCaptureCount {
+    var count = 0;
+    for (final item in _quickCaptureQueue) {
+      if (item.sheetId == widget.sheetId) count++;
+    }
+    return count;
+  }
+
+  List<_QuickCapturePending> _decodeQuickCaptureQueueRaw(String raw) {
+    if (raw.trim().isEmpty) return const <_QuickCapturePending>[];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <_QuickCapturePending>[];
+      final out = <_QuickCapturePending>[];
+      for (final item in decoded) {
+        final parsed = _QuickCapturePending.fromJson(item);
+        if (parsed != null) out.add(parsed);
+      }
+      return out;
+    } catch (_) {
+      return const <_QuickCapturePending>[];
+    }
+  }
+
+  Future<void> _loadQuickCaptureQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kPrefQuickCaptureQueue) ?? '';
+      final loaded = _decodeQuickCaptureQueueRaw(raw);
+      if (!mounted) return;
+      setState(() {
+        _quickCaptureQueue
+          ..clear()
+          ..addAll(loaded);
+      });
+      await _tickQuickCaptureSync();
+    } catch (_) {}
+  }
+
+  Future<void> _saveQuickCaptureQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = jsonEncode(
+        _quickCaptureQueue.map((e) => e.toJson()).toList(growable: false),
+      );
+      await prefs.setString(_kPrefQuickCaptureQueue, payload);
+    } catch (_) {}
+  }
+
+  Future<void> _enqueueQuickCapturePending(String rowId) async {
+    final entry = _QuickCapturePending(
+      sheetId: widget.sheetId,
+      rowId: rowId,
+      queuedAt: DateTime.now().toUtc(),
+    );
+    if (!mounted) return;
+    setState(() => _quickCaptureQueue.add(entry));
+    await _saveQuickCaptureQueue();
+  }
+
+  Future<void> _syncQuickCaptureQueue({bool notify = true}) async {
+    if (!_isNetworkOnline()) return;
+    if (_quickCaptureQueue.isEmpty) return;
+
+    final remaining = <_QuickCapturePending>[];
+    var synced = 0;
+
+    for (final entry in _quickCaptureQueue) {
+      if (entry.sheetId != widget.sheetId) {
+        remaining.add(entry);
+        continue;
+      }
+      synced++;
+    }
+
+    if (synced <= 0) return;
+    if (!mounted) return;
+    setState(() {
+      _quickCaptureQueue
+        ..clear()
+        ..addAll(remaining);
+    });
+    await _saveQuickCaptureQueue();
+
+    if (notify) {
+      _showActionSnack(
+        'Sync completado: $synced registro(s).',
+        isError: false,
+        icon: Icons.cloud_done_outlined,
+      );
+    }
+  }
+
+  Future<void> _tickQuickCaptureSync() async {
+    final online = _isNetworkOnline();
+    final changed = online != _lastOnlineState;
+    _lastOnlineState = online;
+
+    if (!online) return;
+    if (_quickCaptureQueue.isEmpty) return;
+    await _syncQuickCaptureQueue(notify: changed);
+  }
+
+  int? _findDataColumnByKeywords(List<String> keywords) {
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return null;
+    for (int c = 0; c < dataCols; c++) {
+      final label = _headerLabel(c).toLowerCase();
+      for (final key in keywords) {
+        if (label.contains(key)) return c;
+      }
+    }
+    return null;
+  }
+
+  int _resolveQuickCaptureDateColumn() {
+    final found = _findDataColumnByKeywords(
+      const <String>['fecha', 'date', 'hora', 'time', 'timestamp'],
+    );
+    if (found != null) return found;
+    if (_selCol >= 0 && _selCol < _headers.length - 1) return _selCol;
+    return 0;
+  }
+
+  int? _resolveQuickCaptureNoteColumn(int dateCol) {
+    final found = _findDataColumnByKeywords(
+      const <String>['nota', 'observ', 'coment', 'detalle', 'note'],
+    );
+    if (found != null && found != dateCol) return found;
+    final dataCols = _headers.length - 1;
+    for (int c = 0; c < dataCols; c++) {
+      if (c != dateCol) return c;
+    }
+    return null;
+  }
+
+  int _resolveQuickCaptureGpsColumn(int fallbackCol) {
+    final found = _findDataColumnByKeywords(
+      const <String>['gps', 'ubic', 'coord', 'lat', 'lon'],
+    );
+    return found ?? fallbackCol;
+  }
+
+  String _quickCaptureTimestampText(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year}-${_two(local.month)}-${_two(local.day)} ${_two(local.hour)}:${_two(local.minute)}';
+  }
+
+  Future<String?> _promptQuickCaptureNote() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Nota corta (opcional)'),
+          content: TextField(
+            controller: controller,
+            maxLength: 140,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Ej: Inspeccion en poste 12',
+            ),
+            onSubmitted: (value) => Navigator.of(ctx).pop(value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('Omitir'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
+  ({int rowIndex, String rowId, CellRef? photoRef})? _appendQuickCaptureRow({
+    required DateTime capturedAt,
+    required String note,
+    _GpsFix? gpsFix,
+  }) {
+    if (_headers.length < 2) return null;
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return null;
+
+    final rowId = _genStableId('r_');
+    final cells = List<String>.filled(_headers.length, '');
+    final dateCol = _resolveQuickCaptureDateColumn().clamp(0, dataCols - 1);
+    final noteCol = _resolveQuickCaptureNoteColumn(dateCol);
+    final gpsCol =
+        _resolveQuickCaptureGpsColumn(dateCol).clamp(0, dataCols - 1);
+
+    cells[dateCol] = _quickCaptureTimestampText(capturedAt);
+    if (note.trim().isNotEmpty && noteCol != null) {
+      cells[noteCol] = note.trim();
+    }
+    if (gpsFix != null && gpsCol != dateCol) {
+      cells[gpsCol] = _gpsTextForFix(gpsFix);
+    }
+
+    final row = _RowModel(
+      id: rowId,
+      cells: cells,
+      photos: const <_RowPhoto>[],
+    );
+    final insertAt = _rows.length;
+    final photoRef = CellRef(
+      sheetId: widget.sheetId,
+      rowId: rowId,
+      colId: _colIds[_headers.length - 1],
+    );
+
+    final gpsRef = CellRef(
+      sheetId: widget.sheetId,
+      rowId: rowId,
+      colId: _colIds[gpsCol],
+    );
+
+    setState(() {
+      _rows.add(row);
+      _setSelection(insertAt, dateCol);
+
+      if (gpsFix != null) {
+        _cellMeta[gpsRef.key] = CellMeta(
+          gps: GpsMeta(
+            lat: gpsFix.lat,
+            lng: gpsFix.lng,
+            accuracyM: gpsFix.accuracyM,
+            timestamp: gpsFix.ts,
+            source: gpsFix.source,
+            provider: gpsFix.provider,
+          ),
+        );
+      }
+    });
+    _insertMobileRowCache(insertAt);
+    _markDirty(snapshot: true);
+    return (rowIndex: insertAt, rowId: rowId, photoRef: photoRef);
+  }
+
+  // Modo Campo: este flujo siempre crea una fila nueva y adjunta la foto en
+  // la columna Photos de esa fila.
+  Future<void> _startQuickCaptureFlow() async {
+    if (_rows.isEmpty || _headers.length < 2) return;
+    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
+
+    final picked = await _showPhotoSourcePicker();
+    if (!mounted || picked == null) return;
+
+    final outcome = picked.outcome;
+    if (!outcome.ok) {
+      if (outcome.cancelled) return;
+      _showActionSnack(
+        outcome.error ?? 'No se pudo obtener la foto.',
+        isError: true,
+        icon: Icons.photo_camera_outlined,
+      );
+      return;
+    }
+
+    final note = await _promptQuickCaptureNote();
+    if (!mounted) return;
+    if (note == null) return;
+
+    final gpsOutcome = await _getGpsFixWithFallback(
+      timeout: const Duration(seconds: 10),
+    );
+    if (!mounted) return;
+
+    final inserted = _appendQuickCaptureRow(
+      capturedAt: DateTime.now(),
+      note: note,
+      gpsFix: gpsOutcome.fix,
+    );
+    if (inserted == null) return;
+
+    if (inserted.photoRef != null) {
+      await _processPhotoOutcome(
+        outcome,
+        inserted.photoRef!,
+        fromCamera: picked.fromCamera,
+      );
+    }
+    if (!mounted) return;
+
+    final online = _isNetworkOnline();
+    if (!online) {
+      await _enqueueQuickCapturePending(inserted.rowId);
+      _showActionSnack(
+        'Pendiente de sync. Se sincroniza automaticamente al volver la conexion.',
+        isError: false,
+        icon: Icons.cloud_off_outlined,
+      );
+    } else {
+      await _syncQuickCaptureQueue(notify: false);
+    }
+
+    if (!gpsOutcome.ok) {
+      _showActionSnack(
+        'Registro guardado sin GPS (permiso o senal no disponible).',
+        isError: false,
+        icon: Icons.gps_off_rounded,
+      );
+    }
+
+    _showActionSnack(
+      'Registro creado en fila ${inserted.rowIndex + 1}.',
+      isError: false,
+      icon: Icons.add_task_rounded,
+    );
+  }
+
   void _beginLongOperation({
     required String message,
     required bool cancellable,
@@ -2516,6 +2856,8 @@ class _EditorScreenState extends State<EditorScreen>
                               onUndo: _undoOnce,
                               onRedo: _redoOnce,
                               onAddRow: () => _insertRow(_rows.length),
+                              onQuickCapture: () =>
+                                  unawaited(_startQuickCaptureFlow()),
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -2580,6 +2922,22 @@ class _EditorScreenState extends State<EditorScreen>
                                 actionLabel: 'Exportar ZIP',
                                 onAction: () =>
                                     unawaited(_exportZipBundle(share: false))),
+                          if (_pendingQuickCaptureCount > 0)
+                            _warningBanner(
+                              pal,
+                              text: _isNetworkOnline()
+                                  ? 'Pendiente de sync: $_pendingQuickCaptureCount registro(s).'
+                                  : 'Pendiente de sync: $_pendingQuickCaptureCount registro(s) (sin conexion).',
+                              icon: _isNetworkOnline()
+                                  ? Icons.cloud_upload_outlined
+                                  : Icons.cloud_off_outlined,
+                              actionLabel:
+                                  _isNetworkOnline() ? 'Sincronizar' : null,
+                              onAction: _isNetworkOnline()
+                                  ? () => unawaited(
+                                      _syncQuickCaptureQueue(notify: true))
+                                  : null,
+                            ),
                           if (_photoFlowStatus != null)
                             Container(
                               margin: const EdgeInsets.only(bottom: 6),
@@ -2787,6 +3145,8 @@ class _EditorScreenState extends State<EditorScreen>
                         child: _MobileQuickActionsBar(
                           palette: pal,
                           sensorsEnabled: sensorsEnabled,
+                          onQuickCapture: () =>
+                              unawaited(_startQuickCaptureFlow()),
                           onGps: () => unawaited(_requestGpsForCell(
                               _selRow, _selCol,
                               forceWriteText: true)),

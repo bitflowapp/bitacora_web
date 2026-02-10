@@ -2599,6 +2599,16 @@ extension _EditorAttachments on _EditorScreenState {
         mainAxisSize: MainAxisSize.min,
         children: [
           AppButton(
+            label: '+ Registro',
+            icon: Icons.add_box_outlined,
+            variant: AppButtonVariant.primary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_startQuickCaptureFlow());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Guardar',
             icon: Icons.check_circle_outline_rounded,
             variant: AppButtonVariant.secondary,

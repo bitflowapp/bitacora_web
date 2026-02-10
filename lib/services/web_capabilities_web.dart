@@ -30,6 +30,8 @@ class WebCapabilitiesImpl {
     return false;
   }
 
+  static bool get isOnline => html.window.navigator.onLine ?? true;
+
   static bool get geolocationAvailable =>
       html.window.navigator.geolocation != null;
 

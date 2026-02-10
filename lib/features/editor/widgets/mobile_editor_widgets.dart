@@ -24,6 +24,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
   const _MobileQuickActionsBar({
     required this.palette,
     required this.sensorsEnabled,
+    required this.onQuickCapture,
     required this.onGps,
     required this.onPhoto,
     required this.onVideo,
@@ -36,6 +37,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
 
   final _SheetPalette palette;
   final bool sensorsEnabled;
+  final VoidCallback onQuickCapture;
   final VoidCallback onGps;
   final VoidCallback onPhoto;
   final VoidCallback onVideo;
@@ -63,6 +65,14 @@ class _MobileQuickActionsBar extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
+              AppleButton(
+                icon: Icons.add_box_outlined,
+                label: '+ Registro',
+                dense: true,
+                onPressed: onQuickCapture,
+                variant: AppleButtonVariant.filled,
+              ),
+              const SizedBox(width: 8),
               AppleButton(
                 icon: Icons.my_location_rounded,
                 label: 'GPS',
