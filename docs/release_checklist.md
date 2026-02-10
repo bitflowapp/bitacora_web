@@ -72,6 +72,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release_android.ps1
 
 Expected release output:
 - `build/app/outputs/bundle/release/app-release.aab`
+- `build/app/outputs/flutter-apk/app-release.apk`
+- `dist/BitFlow-<version>-android.apk` (via `scripts/build_android_release.ps1`)
+
+Android release automation:
+- Workflow: `.github/workflows/android_release.yml`
+- Triggers: `workflow_dispatch` y tags `v*`
+- Resultado esperado:
+  - Artifact `bitflow-android-apk` con `BitFlow-<version>-android.apk`
+  - En push de tag `v*`, APK adjuntado al GitHub Release.
 
 ## 2) iOS (IPA)
 1. Open `ios/Runner.xcworkspace` in Xcode and configure Team / Bundle ID / signing.
@@ -156,6 +165,36 @@ Expected release output:
 5. Accesibilidad y responsive:
 - Con text scale alto (>= 130%), confirmar que toolbar, top bars y paneles no desbordan.
 - Validar uso correcto en desktop y mobile sin overflows visuales.
+
+## 3.4) P6 smoke test (Android-first: offline real + share + perf)
+1. Android install / release:
+- Ejecutar `powershell -ExecutionPolicy Bypass -File .\\scripts\\build_android_release.ps1`.
+- Confirmar APK en `dist/BitFlow-<version>-android.apk`.
+- Publicar tag `vX.Y.Z` y verificar workflow `Android Release` en GitHub:
+  - Artifact subido (`bitflow-android-apk`).
+  - APK adjuntado al Release del tag.
+- En `docs/bitflow/index.html`, botón `Descargar Android APK` debe abrir `releases/latest`.
+2. Offline real (persistente):
+- Conectar red, abrir editor y confirmar chip de sync en toolbar (`Sincronizado`).
+- Desconectar red, crear `+ Registro` y editar celdas; validar chip `Offline/Pendiente`.
+- Cerrar y reabrir app: pendientes deben mantenerse (cola persistida).
+- Abrir `Cola offline`: validar listado de Quick Capture + edición, botones `Reintentar` y `Borrar`.
+- Reconectar red: validar transición `Sincronizando...` -> `Sincronizado`.
+3. Share Pro (2 taps):
+- Abrir modal `Exportar planilla`.
+- Elegir `XLSX` y luego `PDF`; alternar `Incluir adjuntos`.
+- Confirmar nombre `BitFlow_YYYY-MM-DD_<sheet>.<ext>`.
+- Android:
+  - Compartir intenta primero correo con adjunto real.
+  - Si falla, fallback a `mailto:`.
+  - Si falla, fallback a share sheet (WhatsApp/apps).
+- Web/iOS Safari:
+  - Si Web Share soporta archivos, compartir directo.
+  - Si no, fallback a descarga con mensaje claro.
+4. Performance editor:
+- Abrir planilla grande y escribir en varias filas seguidas (desktop y mobile).
+- Confirmar input fluido sin lag visible ni pérdida de teclas.
+- Hacer scroll + edición alternada; validar que la UI sigue responsiva y sin jank evidente.
 
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
