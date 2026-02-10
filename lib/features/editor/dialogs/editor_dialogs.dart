@@ -18,6 +18,8 @@ extension _EditorDialogs on _EditorScreenState {
           Text('Ctrl/Cmd+E - Exportar XLSX'),
           Text('Ctrl/Cmd+Shift+E - Exportar paquete'),
           Text('Ctrl/Cmd+Shift+I - Importar paquete'),
+          Text('Ctrl/Cmd+Shift+B - Aplicar valor a seleccion'),
+          Text('Ctrl/Cmd+Shift+L - Abrir cola offline'),
           Text('Ctrl/Cmd+N - Crear fila'),
           Text('Ctrl/Cmd+G - GPS en celda'),
           Text('Ctrl/Cmd+Shift+A - Audio en celda'),

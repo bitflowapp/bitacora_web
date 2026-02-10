@@ -349,6 +349,8 @@ class _EditorScreenState extends State<EditorScreen>
   int _pendingRequired = 0;
   String _lastSearchQuery = '';
   _CellRef? _lastSearchHit;
+  static const int _maxRecentValuesPerColumn = 8;
+  final Map<int, List<String>> _recentValuesByCol = <int, List<String>>{};
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -1070,6 +1072,40 @@ class _EditorScreenState extends State<EditorScreen>
       ..clear()
       ..add(_snapshot());
     _redo.clear();
+    _seedRecentValuesFromRows();
+  }
+
+  void _seedRecentValuesFromRows() {
+    _recentValuesByCol.clear();
+    if (_headers.length < 2) return;
+    final dataCols = _headers.length - 1;
+    for (int c = 0; c < dataCols; c++) {
+      for (final row in _rows) {
+        if (c < 0 || c >= row.cells.length) continue;
+        _rememberValueForColumn(c, row.cells[c]);
+      }
+    }
+  }
+
+  void _rememberValueForColumn(int c, String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || c < 0) return;
+    final list = _recentValuesByCol.putIfAbsent(c, () => <String>[]);
+    final normalized = trimmed.toLowerCase();
+    list.removeWhere((item) => item.trim().toLowerCase() == normalized);
+    list.insert(0, trimmed);
+    if (list.length > _maxRecentValuesPerColumn) {
+      list.removeRange(_maxRecentValuesPerColumn, list.length);
+    }
+  }
+
+  List<String> _recentValuesForColumn(int c, {String? excluding}) {
+    final list = _recentValuesByCol[c];
+    if (list == null || list.isEmpty) return const <String>[];
+    final excluded = (excluding ?? '').trim().toLowerCase();
+    return list
+        .where((item) => item.trim().toLowerCase() != excluded)
+        .toList(growable: false);
   }
 
   _SheetModel _buildModelForSave(DateTime savedAt) {
@@ -2326,6 +2362,10 @@ class _EditorScreenState extends State<EditorScreen>
     final targetCol = _resolveBatchTargetColumn();
     final initial = _effectiveCell(rows.first, targetCol);
     final controller = TextEditingController(text: initial);
+    final suggestions = _recentValuesForColumn(
+      targetCol,
+      excluding: initial,
+    );
 
     final value = await showDialog<String>(
       context: context,
@@ -2349,6 +2389,35 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 onSubmitted: (v) => Navigator.of(ctx).pop(v),
               ),
+              if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Recientes',
+                  style: Theme.of(ctx).textTheme.labelMedium,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final item in suggestions.take(6))
+                      ActionChip(
+                        label: Text(
+                          item,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onPressed: () {
+                          controller.value = controller.value.copyWith(
+                            text: item,
+                            selection:
+                                TextSelection.collapsed(offset: item.length),
+                            composing: TextRange.empty,
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
           actions: [
@@ -2368,6 +2437,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted || value == null) return;
 
     final normalized = _normalizeCellValueForColumn(targetCol, value);
+    _rememberValueForColumn(targetCol, normalized);
     final refsToClear = <_CellRef>[];
     var changed = 0;
     for (final r in rows) {
@@ -4535,6 +4605,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_rows[r].cells[c] == next) return;
 
     _rows[r].cells[c] = next;
+    _rememberValueForColumn(c, next);
     _markDirty(snapshot: true);
   }
 
@@ -5299,6 +5370,11 @@ class _EditorScreenState extends State<EditorScreen>
     final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
     final hintText =
         activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
+    final suggestions = activeCol == null
+        ? const <String>[]
+        : _recentValuesForColumn(activeCol, excluding: initial)
+            .take(4)
+            .toList(growable: false);
     final overlay = Overlay.of(context, rootOverlay: true);
 
     _cellEditorEntry = OverlayEntry(
@@ -5406,50 +5482,88 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                           ],
                         ),
-                        child: Row(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _cellEC,
-                                focusNode: _cellFocus,
-                                autofocus: true,
-                                maxLines: 1,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                style: TextStyle(
-                                  color: pal.fg,
-                                  fontSize: editorFont,
-                                  height: 1.08,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.2,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _cellEC,
+                                    focusNode: _cellFocus,
+                                    autofocus: true,
+                                    maxLines: 1,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    style: TextStyle(
+                                      color: pal.fg,
+                                      fontSize: editorFont,
+                                      height: 1.08,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.2,
+                                    ),
+                                    cursorColor: pal.accent,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      hintText: hintText,
+                                      hintStyle: TextStyle(color: pal.fgMuted),
+                                      border: InputBorder.none,
+                                    ),
+                                    onSubmitted: (v) {
+                                      onCommit(v);
+                                      _removeCellEditor();
+                                    },
+                                  ),
                                 ),
-                                cursorColor: pal.accent,
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  hintText: hintText,
-                                  hintStyle: TextStyle(color: pal.fgMuted),
-                                  border: InputBorder.none,
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () {
+                                    onCommit(_cellEC.text);
+                                    _removeCellEditor();
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 4),
+                                    child: Icon(Icons.check_rounded,
+                                        color: pal.fg, size: 20),
+                                  ),
                                 ),
-                                onSubmitted: (v) {
-                                  onCommit(v);
-                                  _removeCellEditor();
-                                },
-                              ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            InkWell(
-                              onTap: () {
-                                onCommit(_cellEC.text);
-                                _removeCellEditor();
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 4),
-                                child: Icon(Icons.check_rounded,
-                                    color: pal.fg, size: 20),
+                            if (suggestions.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (final suggestion in suggestions) ...[
+                                      ActionChip(
+                                        label: Text(
+                                          suggestion,
+                                          style: TextStyle(
+                                            color: pal.fg,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          _cellEC.value =
+                                              _cellEC.value.copyWith(
+                                            text: suggestion,
+                                            selection: TextSelection.collapsed(
+                                                offset: suggestion.length),
+                                            composing: TextRange.empty,
+                                          );
+                                          _cellFocus.requestFocus();
+                                        },
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),

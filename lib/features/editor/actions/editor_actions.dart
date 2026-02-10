@@ -56,6 +56,13 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openBatchActionsSheet()),
         ),
         CommandAction(
+          id: 'apply_value_to_selection',
+          label: 'Aplicar valor a seleccion',
+          subtitle: 'Carga rapida por columna activa',
+          icon: Icons.format_color_text_rounded,
+          onSelected: () => unawaited(_promptBatchApplyValue()),
+        ),
+        CommandAction(
           id: 'open_attachments',
           label: 'Abrir adjuntos de celda activa',
           subtitle: activeCell,
