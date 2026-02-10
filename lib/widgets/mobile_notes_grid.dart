@@ -134,8 +134,6 @@ double _mobileCardWidthForScreen(double screenW) {
   return clamped.toDouble();
 }
 
-int _alphaFor(double opacity) => (opacity * 255).round();
-
 class _MobileNotesGrid extends StatelessWidget {
   const _MobileNotesGrid({
     required this.palette,
@@ -200,27 +198,54 @@ class _MobileNotesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     assert(rowScrollControllers.length >= rowModels.length);
     assert(rowKeys.length >= rowModels.length);
+    final shellRadius = BorderRadius.circular(22);
+    final shellShadow =
+        palette.cellText.withValues(alpha: palette.isLight ? 0.06 : 0.24);
 
-    return ListView.separated(
-      controller: verticalController,
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(
-          0, _mobileListPadTop(density), 0, _mobileListPadBottom(density)),
-      itemCount: rowModels.length + 1,
-      separatorBuilder: (_, __) => SizedBox(height: _mobileRowSpacing(density)),
-      itemBuilder: (ctx, index) {
-        if (index == 0) {
-          return KeyedSubtree(
-            key: headerKey,
-            child: _buildHeaderRow(ctx),
-          );
-        }
-        final row = index - 1;
-        return KeyedSubtree(
-          key: rowKeys[row],
-          child: _buildDataRow(ctx, row),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.gridBg,
+          borderRadius: shellRadius,
+          border: Border.all(
+            color: palette.gridBorder,
+            width: math.max(palette.hairline, 1),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: shellShadow,
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: shellRadius,
+          child: ListView.separated(
+            controller: verticalController,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(0, _mobileListPadTop(density), 0,
+                _mobileListPadBottom(density)),
+            itemCount: rowModels.length + 1,
+            separatorBuilder: (_, __) =>
+                SizedBox(height: _mobileRowSpacing(density)),
+            itemBuilder: (ctx, index) {
+              if (index == 0) {
+                return KeyedSubtree(
+                  key: headerKey,
+                  child: _buildHeaderRow(ctx),
+                );
+              }
+              final row = index - 1;
+              return KeyedSubtree(
+                key: rowKeys[row],
+                child: _buildDataRow(ctx, row),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 
@@ -254,6 +279,7 @@ class _MobileNotesGrid extends StatelessWidget {
               hasGps: false,
               hasAudio: false,
               hasPhoto: false,
+              zebra: false,
               photoThumbB64: '',
               onTap: () => onHeaderTap(ctx, col),
               onLongPress: (pos) => onContextMenu(pos, -1, col, true),
@@ -310,6 +336,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 hasGps: hasGps,
                 hasAudio: hasAudio,
                 hasPhoto: false,
+                zebra: row.isEven,
                 photoThumbB64: '',
                 onTap: () => onCellTap(ctx, row, col),
                 onLongPress: (pos) => onContextMenu(pos, row, col, false),
@@ -337,6 +364,7 @@ class _MobileNotesGrid extends StatelessWidget {
               hasGps: hasGps,
               hasAudio: hasAudio,
               hasPhoto: hasPhoto,
+              zebra: row.isEven,
               photoThumbB64: thumbB64,
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
@@ -364,24 +392,22 @@ class _MobileNotesGrid extends StatelessWidget {
     required bool hasGps,
     required bool hasAudio,
     required bool hasPhoto,
+    required bool zebra,
     required String photoThumbB64,
     required VoidCallback onTap,
     required ValueChanged<Offset> onLongPress,
     required Widget child,
   }) {
-    final t = AppTheme.of(context);
     final headerBg = palette.headerBg;
-    final baseBg = palette.cellBg;
-    final activeBg = palette.blinkBg;
-    final selectedBg =
-        palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
-    final bg = isActive
-        ? activeBg
-        : (isSelected ? selectedBg : (isHeader ? headerBg : baseBg));
+    final baseBg =
+        isHeader ? headerBg : (zebra ? palette.zebraB : palette.zebraA);
+    final activeBg = palette.selectionFill;
+    final selectedBg = palette.selectionFill;
+    final bg = isActive ? activeBg : (isSelected ? selectedBg : baseBg);
 
-    final borderColor = (isActive || isSelected)
-        ? palette.accent.withOpacity(palette.isLight ? 0.55 : 0.7)
-        : palette.border;
+    final borderColor =
+        (isActive || isSelected) ? palette.selectionBorder : palette.gridBorder;
+    final lineWidth = math.max(palette.hairline, 1);
 
     final radius = 6.0;
 
@@ -495,14 +521,34 @@ class _MobileNotesGrid extends StatelessWidget {
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: borderColor, width: palette.hairline),
-              boxShadow: isSelected ? t.shadows.soft : null,
+              border: Border.all(color: borderColor, width: lineWidth),
+              boxShadow: (isActive || isSelected)
+                  ? [
+                      BoxShadow(
+                        color: palette.focusRing
+                            .withValues(alpha: palette.isLight ? 0.10 : 0.20),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(
                   horizontal: _mobileCardPadH(density),
                   vertical: _mobileCardPadV(density)),
-              child: decoratedChild,
+              child: Container(
+                foregroundDecoration: (isActive || isSelected)
+                    ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(radius),
+                        border: Border.all(
+                          color: palette.focusRing,
+                          width: 2,
+                        ),
+                      )
+                    : null,
+                child: decoratedChild,
+              ),
             ),
           ),
         ),
@@ -518,8 +564,8 @@ class _MobileNotesGrid extends StatelessWidget {
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: palette.fg,
-        fontWeight: isHeader ? FontWeight.w800 : FontWeight.w600,
+        color: isHeader ? palette.headerText : palette.cellText,
+        fontWeight: isHeader ? FontWeight.w700 : FontWeight.w600,
         fontSize: _mobileTextSize(density, isHeader: isHeader),
         height: 1.05,
         letterSpacing: 0.0,

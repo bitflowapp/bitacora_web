@@ -139,146 +139,185 @@ class _GridView extends StatelessWidget {
             final safeH = (c.hasBoundedHeight && c.maxHeight.isFinite)
                 ? c.maxHeight
                 : viewSize.height;
+            final shellRadius = BorderRadius.circular(22);
+            final shellShadow = palette.cellText
+                .withValues(alpha: palette.isLight ? 0.06 : 0.24);
 
-            return Container(
-              color: palette.bg,
-              child: SingleChildScrollView(
-                controller: hScroll,
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: SizedBox(
-                  width: totalW,
-                  height: safeH,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: metrics.headerH,
-                        child: Row(
-                          children: [
-                            _rowIndexHeader(width: indexW),
-                            for (int col = 0; col < headers.length; col++)
-                              _HeaderCell(
-                                palette: palette,
-                                metrics: metrics,
-                                width:
-                                    col == headers.length - 1 ? photosW : colW,
-                                text: _labelHeader(headers, col),
-                                isPhotos: col == headers.length - 1,
-                                isOverlayTarget: overlayTargetHeaderCol == col,
-                                editorLink: editorLink,
-                                onTap: () => onHeaderEditRequested(
-                                  col,
-                                  col == headers.length - 1 ? photosW : colW,
-                                ),
-                                onSecondaryTapDown: (d) => onContextMenu(
-                                    d.globalPosition, -1, col, true),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Scrollbar(
-                          controller: vScroll,
-                          thumbVisibility: false,
-                          child: ListView.builder(
-                            controller: vScroll,
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: rowModels.length,
-                            itemBuilder: (ctx3, r) {
-                              final rowSelected = selectedRows.contains(r);
-                              return RepaintBoundary(
-                                child: SizedBox(
-                                  height: metrics.rowH,
-                                  child: Row(
-                                    children: [
-                                      _RowIndexCell(
-                                        palette: palette,
-                                        metrics: metrics,
-                                        width: indexW,
-                                        index: r + 1,
-                                        selected: rowSelected || r == selRow,
-                                        onTap: () => onRowIndexTap(r),
-                                        onSecondaryTapDown: (d) =>
-                                            onContextMenu(d.globalPosition, r,
-                                                selCol, false),
-                                      ),
-                                      for (int col = 0;
-                                          col < headers.length;
-                                          col++)
-                                        Builder(
-                                          builder: (_) {
-                                            final ref = _CellRef(r, col);
-                                            final invalid = isInvalid(r, col);
-                                            final isPhotos =
-                                                col == headers.length - 1;
-                                            final photosCount =
-                                                cellPhotoCount(r, col);
-                                            final thumbB64 =
-                                                cellPhotoThumb(r, col);
-                                            return _DataCell(
-                                              palette: palette,
-                                              metrics: metrics,
-                                              width: col == headers.length - 1
-                                                  ? photosW
-                                                  : colW,
-                                              text: cellTextAt(r, col),
-                                              hasGps: cellHasGps(r, col),
-                                              hasAudio: cellHasAudios(r, col),
-                                              photoThumbB64: thumbB64,
-                                              photosCount: photosCount,
-                                              zebra: r.isEven,
-                                              thumbB64: thumbB64,
-                                              selected:
-                                                  r == selRow && col == selCol,
-                                              rowSelected: rowSelected,
-                                              isPhotos: isPhotos,
-                                              blinkRef: blinkRef,
-                                              cellRef: ref,
-                                              invalid: invalid,
-                                              isOverlayTarget:
-                                                  overlayTargetCell == ref,
-                                              editorLink: editorLink,
-                                              onTap: () => onEditRequested(
-                                                r,
-                                                col,
-                                                col == headers.length - 1
-                                                    ? photosW
-                                                    : colW,
-                                              ),
-                                              onLongPress: () {
-                                                onSelect(r, col);
-                                                final box =
-                                                    ctx3.findRenderObject();
-                                                if (box is RenderBox) {
-                                                  final pos = box.localToGlobal(
-                                                      Offset.zero);
-                                                  onContextMenu(
-                                                    pos + const Offset(120, 12),
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.gridBg,
+                  borderRadius: shellRadius,
+                  border: Border.all(
+                    color: palette.gridBorder,
+                    width: math.max(palette.hairline, 1),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: shellShadow,
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: shellRadius,
+                  child: SingleChildScrollView(
+                    controller: hScroll,
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: SizedBox(
+                      width: totalW,
+                      height: safeH,
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: metrics.headerH,
+                            child: Row(
+                              children: [
+                                _rowIndexHeader(width: indexW),
+                                for (int col = 0; col < headers.length; col++)
+                                  _HeaderCell(
+                                    palette: palette,
+                                    metrics: metrics,
+                                    width: col == headers.length - 1
+                                        ? photosW
+                                        : colW,
+                                    text: _labelHeader(headers, col),
+                                    isPhotos: col == headers.length - 1,
+                                    isOverlayTarget:
+                                        overlayTargetHeaderCol == col,
+                                    editorLink: editorLink,
+                                    onTap: () => onHeaderEditRequested(
+                                      col,
+                                      col == headers.length - 1
+                                          ? photosW
+                                          : colW,
+                                    ),
+                                    onSecondaryTapDown: (d) => onContextMenu(
+                                        d.globalPosition, -1, col, true),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Scrollbar(
+                              controller: vScroll,
+                              thumbVisibility: false,
+                              child: ListView.builder(
+                                controller: vScroll,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: rowModels.length,
+                                itemBuilder: (ctx3, r) {
+                                  final rowSelected = selectedRows.contains(r);
+                                  return RepaintBoundary(
+                                    child: SizedBox(
+                                      height: metrics.rowH,
+                                      child: Row(
+                                        children: [
+                                          _RowIndexCell(
+                                            palette: palette,
+                                            metrics: metrics,
+                                            width: indexW,
+                                            index: r + 1,
+                                            selected:
+                                                rowSelected || r == selRow,
+                                            onTap: () => onRowIndexTap(r),
+                                            onSecondaryTapDown: (d) =>
+                                                onContextMenu(d.globalPosition,
+                                                    r, selCol, false),
+                                          ),
+                                          for (int col = 0;
+                                              col < headers.length;
+                                              col++)
+                                            Builder(
+                                              builder: (_) {
+                                                final ref = _CellRef(r, col);
+                                                final invalid =
+                                                    isInvalid(r, col);
+                                                final isPhotos =
+                                                    col == headers.length - 1;
+                                                final photosCount =
+                                                    cellPhotoCount(r, col);
+                                                final thumbB64 =
+                                                    cellPhotoThumb(r, col);
+                                                return _DataCell(
+                                                  palette: palette,
+                                                  metrics: metrics,
+                                                  width:
+                                                      col == headers.length - 1
+                                                          ? photosW
+                                                          : colW,
+                                                  text: cellTextAt(r, col),
+                                                  hasGps: cellHasGps(r, col),
+                                                  hasAudio:
+                                                      cellHasAudios(r, col),
+                                                  photoThumbB64: thumbB64,
+                                                  photosCount: photosCount,
+                                                  zebra: r.isEven,
+                                                  thumbB64: thumbB64,
+                                                  selected: r == selRow &&
+                                                      col == selCol,
+                                                  rowSelected: rowSelected,
+                                                  isPhotos: isPhotos,
+                                                  blinkRef: blinkRef,
+                                                  cellRef: ref,
+                                                  invalid: invalid,
+                                                  isOverlayTarget:
+                                                      overlayTargetCell == ref,
+                                                  editorLink: editorLink,
+                                                  onTap: () => onEditRequested(
                                                     r,
                                                     col,
-                                                    false,
-                                                  );
-                                                }
+                                                    col == headers.length - 1
+                                                        ? photosW
+                                                        : colW,
+                                                  ),
+                                                  onLongPress: () {
+                                                    onSelect(r, col);
+                                                    final box =
+                                                        ctx3.findRenderObject();
+                                                    if (box is RenderBox) {
+                                                      final pos =
+                                                          box.localToGlobal(
+                                                              Offset.zero);
+                                                      onContextMenu(
+                                                        pos +
+                                                            const Offset(
+                                                                120, 12),
+                                                        r,
+                                                        col,
+                                                        false,
+                                                      );
+                                                    }
+                                                  },
+                                                  onSecondaryTapDown: (d) {
+                                                    onSelect(r, col);
+                                                    onContextMenu(
+                                                        d.globalPosition,
+                                                        r,
+                                                        col,
+                                                        false);
+                                                  },
+                                                  onDeleteRow: () =>
+                                                      onDeleteRow(r),
+                                                  onPickPhoto: () =>
+                                                      onPickPhoto(r),
+                                                );
                                               },
-                                              onSecondaryTapDown: (d) {
-                                                onSelect(r, col);
-                                                onContextMenu(d.globalPosition,
-                                                    r, col, false);
-                                              },
-                                              onDeleteRow: () => onDeleteRow(r),
-                                              onPickPhoto: () => onPickPhoto(r),
-                                            );
-                                          },
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -311,15 +350,15 @@ class _GridView extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.headerBg,
         border: Border(
-          right:
-              BorderSide(color: palette.borderStrong, width: palette.hairline),
-          bottom:
-              BorderSide(color: palette.borderStrong, width: palette.hairline),
+          right: BorderSide(
+              color: palette.gridBorder, width: math.max(palette.hairline, 1)),
+          bottom: BorderSide(
+              color: palette.gridBorder, width: math.max(palette.hairline, 1)),
         ),
       ),
       child: Text('#',
           style: TextStyle(
-            color: palette.fgMuted,
+            color: palette.headerText,
             fontWeight: FontWeight.w900,
             fontSize: metrics.indexFontSize,
           )),
@@ -356,9 +395,9 @@ class _HeaderCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final t =
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
-    final radius = BorderRadius.circular(12);
-    final borderColor =
-        palette.borderStrong.withOpacity(palette.isLight ? 0.55 : 0.45);
+    final radius = BorderRadius.zero;
+    final borderColor = palette.gridBorder;
+    final lineWidth = math.max(palette.hairline, 1);
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -370,8 +409,8 @@ class _HeaderCell extends StatelessWidget {
             color: palette.headerBg,
             borderRadius: radius,
             border: Border(
-              right: BorderSide(color: borderColor, width: palette.hairline),
-              bottom: BorderSide(color: borderColor, width: palette.hairline),
+              right: BorderSide(color: borderColor, width: lineWidth),
+              bottom: BorderSide(color: borderColor, width: lineWidth),
             ),
           ),
           child: InkWell(
@@ -389,8 +428,8 @@ class _HeaderCell extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: palette.fg,
-                  fontWeight: FontWeight.w800,
+                  color: palette.headerText,
+                  fontWeight: FontWeight.w700,
                   fontSize: metrics.headerFontSize,
                   height: 1.05,
                   letterSpacing: 0.1,
@@ -428,15 +467,11 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final neutralRing = palette.isLight
-        ? Colors.black.withOpacity(0.12)
-        : Colors.white.withOpacity(0.18);
-
-    final glow = palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
-    final bg = selected
-        ? palette.accent.withOpacity(palette.isLight ? 0.08 : 0.18)
-        : palette.indexBg;
-    final radius = BorderRadius.circular(10);
+    final neutralRing =
+        palette.focusRing.withValues(alpha: palette.isLight ? 0.65 : 0.78);
+    final bg = selected ? palette.selectionFill : palette.indexBg;
+    final radius = BorderRadius.zero;
+    final lineWidth = math.max(palette.hairline, 1);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -448,20 +483,9 @@ class _RowIndexCell extends StatelessWidget {
             color: bg,
             borderRadius: radius,
             border: Border(
-              right: BorderSide(
-                  color: palette.borderStrong, width: palette.hairline),
-              bottom:
-                  BorderSide(color: palette.border, width: palette.hairline),
+              right: BorderSide(color: palette.gridBorder, width: lineWidth),
+              bottom: BorderSide(color: palette.gridBorder, width: lineWidth),
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: glow,
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    )
-                  ]
-                : null,
           ),
           child: InkWell(
             onTap: onTap,
@@ -483,7 +507,7 @@ class _RowIndexCell extends StatelessWidget {
               child: Text(
                 index.toString(),
                 style: TextStyle(
-                  color: selected ? palette.fg : palette.fgMuted,
+                  color: selected ? palette.cellText : palette.cellTextMuted,
                   fontWeight: FontWeight.w800,
                   fontSize: metrics.indexFontSize,
                   height: 1.05,
@@ -556,44 +580,34 @@ class _DataCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = blinkRef == cellRef;
     final focus = selected || isOverlayTarget;
-    final baseBg = zebra ? palette.zebraBg : palette.cellBg;
-    final selectedBg =
-        palette.accent.withOpacity(palette.isLight ? 0.10 : 0.18);
+    final baseBg = zebra ? palette.zebraB : palette.zebraA;
+    final selectedBg = palette.selectionFill;
     final rowSelectedBg =
-        palette.accent.withOpacity(palette.isLight ? 0.05 : 0.12);
+        palette.selectionFill.withValues(alpha: palette.isLight ? 0.55 : 0.70);
     final bg = isActive
         ? palette.blinkBg
         : (selected ? selectedBg : (rowSelected ? rowSelectedBg : baseBg));
 
-    final borderColor = invalid
-        ? Colors.red.withOpacity(palette.isLight ? 0.85 : 0.75)
-        : focus
-            ? palette.accent.withOpacity(palette.isLight ? 0.45 : 0.65)
-            : palette.border.withOpacity(palette.isLight ? 0.55 : 0.40);
+    final borderColor =
+        focus || invalid ? palette.selectionBorder : palette.gridBorder;
+    final lineWidth = math.max(palette.hairline, 1);
 
-    final radius = BorderRadius.circular(10);
+    final radius = BorderRadius.zero;
 
     final decoration = BoxDecoration(
       color: bg,
       borderRadius: radius,
-      border: Border.all(
-          color: borderColor, width: math.max(palette.hairline, 0.8)),
+      border: Border.all(color: borderColor, width: lineWidth),
       boxShadow: focus
           ? [
               BoxShadow(
-                color:
-                    palette.accent.withOpacity(palette.isLight ? 0.10 : 0.16),
+                color: palette.focusRing
+                    .withValues(alpha: palette.isLight ? 0.12 : 0.26),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
             ]
-          : [
-              BoxShadow(
-                color: Colors.black.withOpacity(palette.isLight ? 0.03 : 0.16),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+          : null,
     );
 
     final cellBody = GestureDetector(
@@ -612,6 +626,17 @@ class _DataCell extends StatelessWidget {
             child: Container(
               width: width,
               height: metrics.rowH,
+              foregroundDecoration: focus
+                  ? BoxDecoration(
+                      borderRadius: radius,
+                      border: Border.all(
+                        color: invalid
+                            ? palette.focusRing
+                            : palette.selectionBorder,
+                        width: 2,
+                      ),
+                    )
+                  : null,
               padding: metrics.cellPadding,
               child: _buildCellBody(context),
             ),
@@ -655,7 +680,7 @@ class _DataCell extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: palette.fg,
+                color: palette.cellText,
                 fontSize: metrics.cellFontSize,
                 height: 1.1,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
