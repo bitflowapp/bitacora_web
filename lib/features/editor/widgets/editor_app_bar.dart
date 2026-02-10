@@ -28,6 +28,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onGpsMode,
     required this.onDensity,
     required this.onOpenOfflineQueue,
+    required this.lastLocalSavedAt,
     required this.sensorsEnabled,
   });
 
@@ -63,6 +64,15 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onGpsMode;
   final VoidCallback onDensity;
   final VoidCallback onOpenOfflineQueue;
+  final DateTime? lastLocalSavedAt;
+
+  String _formatLocalSaved(DateTime? value) {
+    if (value == null) return 'Ultimo guardado local: --:--';
+    final local = value.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return 'Ultimo guardado local: $hh:$mm';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +215,16 @@ class _PremiumAppleHeader extends StatelessWidget {
                             onTap: onOpenOfflineQueue,
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _formatLocalSaved(lastLocalSavedAt),
+                        style: TextStyle(
+                          color: palette.fgMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Wrap(
@@ -388,6 +408,7 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.onExport,
     required this.onMenu,
     required this.onOpenOfflineQueue,
+    required this.lastLocalSavedAt,
   });
 
   final _SheetPalette palette;
@@ -398,6 +419,15 @@ class _MobileCompactHeader extends StatelessWidget {
   final VoidCallback onExport;
   final VoidCallback onMenu;
   final VoidCallback onOpenOfflineQueue;
+  final DateTime? lastLocalSavedAt;
+
+  String _formatLocalSaved(DateTime? value) {
+    if (value == null) return 'Ultimo guardado local: --:--';
+    final local = value.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return 'Ultimo guardado local: $hh:$mm';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -431,13 +461,16 @@ class _MobileCompactHeader extends StatelessWidget {
                 ? offline.message!.trim()
                 : 'Sincronizado';
             final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
+            final localLabel =
+                _formatLocalSaved(lastLocalSavedAt ?? snap.savedAt)
+                    .replaceFirst('Ultimo guardado local: ', 'Local: ');
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
               child: AppTopBar(
                 title: label,
                 subtitle:
-                    '$saveLabel$pendingLabel · Sync: $offlineLabel · $modeLabel',
+                    '$saveLabel$pendingLabel · $localLabel · Sync: $offlineLabel · $modeLabel',
                 actions: [
                   AppButton(
                     label: AppStrings.editorSave,

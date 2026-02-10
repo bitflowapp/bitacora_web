@@ -184,6 +184,11 @@ Publicar release Android (1 comando):
   - Si hay versión nueva, aparece banner discreto `Actualizacion disponible`.
   - CTA Android abre `/releases/latest/download/BitFlow-android.apk`.
   - En Web/PWA, CTA `Actualizar` fuerza recarga con limpieza de caches.
+- iPhone Safari (install helper + hardening):
+  - Abrir en Safari iPhone y validar banner `Instalar: Compartir -> Anadir a inicio`.
+  - Tap en `No mostrar mas`, recargar y confirmar que el banner no reaparece.
+  - Editar una celda, volver al inicio y reabrir; confirmar `Ultimo guardado local: hh:mm`.
+  - Instalar como PWA y confirmar que el banner de instalacion ya no aparece.
 2. Offline real (persistente):
 - Conectar red, abrir editor y confirmar chip de sync en toolbar (`Sincronizado`).
 - Desconectar red, crear `+ Registro` y editar celdas; validar chip `Offline/Pendiente`.

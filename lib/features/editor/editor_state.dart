@@ -341,6 +341,7 @@ class _EditorScreenState extends State<EditorScreen>
   String? _lastToastMessage;
   DateTime _lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
   VoidCallback? _vvDetach;
+  VoidCallback? _detachWebFlushSignal;
   int _fillDownCount = 5;
   int _incrementCount = 5;
   int _incrementStep = 1;
@@ -376,6 +377,9 @@ class _EditorScreenState extends State<EditorScreen>
       _vvDetach = vv.attachViewportListener(() {
         if (mounted) setState(() {});
       });
+      _detachWebFlushSignal = WebFlushSignal.attach(
+        _flushLocalStateForBackground,
+      );
     }
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
@@ -501,6 +505,8 @@ class _EditorScreenState extends State<EditorScreen>
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
     _vvDetach?.call();
+    _detachWebFlushSignal?.call();
+    _detachWebFlushSignal = null;
 
     _vScroll.dispose();
     _hScroll.dispose();
@@ -557,12 +563,18 @@ class _EditorScreenState extends State<EditorScreen>
 // Guardar ???duro??? cuando la app pasa a background/inactive.
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      if (_isDirty) {
-        unawaited(_saveLocalNow());
-      }
-      _removeCellEditor();
+      _flushLocalStateForBackground();
     } else if (state == AppLifecycleState.resumed) {
       unawaited(_tickQuickCaptureSync());
+    }
+  }
+
+  void _flushLocalStateForBackground() {
+    if (!mounted) return;
+    _commitActiveEditors();
+    _saveT?.cancel();
+    if (_isDirty || _savePending) {
+      unawaited(_saveLocalNow());
     }
   }
 
@@ -3858,6 +3870,7 @@ class _EditorScreenState extends State<EditorScreen>
                               onGpsMode: () => unawaited(_showGpsModePicker()),
                               onDensity: () => unawaited(_showDensityPicker()),
                               onOpenOfflineQueue: _openOfflineQueueDialog,
+                              lastLocalSavedAt: _lastSavedAt,
                               sensorsEnabled: sensorsEnabled,
                             )
                           else
@@ -3873,6 +3886,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 pal,
                               ),
                               onOpenOfflineQueue: _openOfflineQueueDialog,
+                              lastLocalSavedAt: _lastSavedAt,
                             ),
                           if (_isInAppBrowser)
                             _warningBanner(pal,
