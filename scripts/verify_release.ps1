@@ -46,12 +46,24 @@ if ($null -eq $asset) {
     throw "Asset '$AssetName' was not found in latest release '$($latest.tag_name)'. Assets: $known"
 }
 
-try {
-    $head = Invoke-WebRequest -Method Head -Uri $downloadUrl -MaximumRedirection 0 -ErrorAction Stop
-    $status = [int] $head.StatusCode
-} catch {
-    $resp = $_.Exception.Response
-    $status = if ($resp) { [int] $resp.StatusCode } else { -1 }
+$status = -1
+$curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+if ($null -ne $curl) {
+    $statusRaw = (& curl.exe -L -I -s -o NUL -w "%{http_code}" $downloadUrl).Trim()
+    if (-not [int]::TryParse($statusRaw, [ref] $status)) {
+        throw "Could not parse HTTP status from curl output '$statusRaw'."
+    }
+} else {
+    try {
+        $resp = Invoke-WebRequest -Method Get -Uri $downloadUrl -MaximumRedirection 0 -ErrorAction Stop
+        $status = [int] $resp.StatusCode
+    } catch {
+        if ($_.Exception -and
+            ($_.Exception.PSObject.Properties.Name -contains 'Response') -and
+            $null -ne $_.Exception.Response) {
+            $status = [int] $_.Exception.Response.StatusCode
+        }
+    }
 }
 
 if ($status -lt 200 -or $status -ge 400) {
