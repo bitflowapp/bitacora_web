@@ -102,6 +102,40 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
   - async network/sync second
 5. Update `docs/release_checklist.md` smoke steps.
 
+## Grid Pro (P10)
+- Source of truth:
+  - `_columnPrefsById`: tipo + visibilidad por columna.
+  - `_columnOrder`: orden persistente de columnas de datos.
+  - `_frozenColId`: columna priorizada en orden visual.
+- Entry points:
+  - Menu contextual de header (`_openContextMenu`).
+  - Panel `Columnas` (`_openColumnPanel`).
+  - Command Palette: `Panel de columnas`.
+- Current behavior:
+  - Tipos soportados: Texto, Numero, Fecha, Estado, Checkbox.
+  - Visibilidad por columna con guardrails (siempre queda al menos una visible).
+  - Reordenado por columna (up/down) persistido por planilla.
+  - Ordenar asc/desc por columna con parse por tipo.
+- Integration rule:
+  - Toda lectura/escritura de grilla usa mapeo display->actual (`_displayColumnIndexes`, `_actualColumnFromDisplay`).
+
+## Form mode (P10)
+- Entry points:
+  - Boton `Formulario` en topbar premium.
+  - Command Palette: `Formulario de fila`.
+  - Menu movil: `Formulario`.
+  - `+Registro` (quick capture) abre formulario al finalizar captura.
+- Data flow:
+  1. Resolver fila objetivo (`_resolveFormRowIndex`).
+  2. Renderizar campos por tipo (`_buildFormFieldForColumn`).
+  3. Acciones rapidas del formulario: foto, GPS, timestamp.
+  4. Guardar normaliza por tipo (`_normalizeCellValueForColumn`) y marca dirty.
+- Extension guideline:
+  - Si agregas un nuevo tipo de columna, actualiza:
+    - `_ColType`
+    - `_normalizeCellValueForColumn`
+    - `_recomputeValidation`
+    - `_buildFormFieldForColumn`
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`

@@ -44,6 +44,16 @@ Curvas:
 - Command palette y modales: `modalTransition`.
 - Tooltips y botones: micro feedback, sin rebotes exagerados.
 
+## Aplicacion P10
+- Command palette y barras contextuales:
+  - entrada: `fadeSlide` con `AppMotion.springOut`.
+  - salida: `standardIn` rapido.
+- Form mode:
+  - apertura como bottom-sheet con duracion `medium`.
+  - controles de estado (chips/status/adjuntos) con micro transicion.
+- Grid feedback:
+  - seleccion/focus: cambios de opacidad y borde, sin transforms agresivos.
+  - chips de guardado/sync: cross-fade corto + haptics en mobile.
 ## Guardrails
 - Mantener offsets pequenos (`<= 0.08`).
 - Preferir 120-220 ms para interacciones frecuentes.

@@ -303,6 +303,41 @@ Publicar release Android (1 comando):
 - Validar acciones `No mostrar mas` y cierre por sesion.
 - En desktop, recorrer toolbar/topbar con teclado (Tab/Shift+Tab) y confirmar orden de foco consistente.
 - Probar text scale alto (>= 120%) y confirmar sin overflow en chrome principal del editor.
+## 3.9) P10 smoke test (Grid Pro + Form mode + Report presets)
+1. Column menu and panel:
+- En header de columna, abrir menu contextual y validar:
+  - cambiar tipo (Texto/Numero/Fecha/Estado/Checkbox)
+  - ordenar asc/desc
+  - fijar/desfijar
+  - ocultar/mostrar
+- Abrir `Panel columnas` y validar:
+  - toggle visible
+  - reorder (arriba/abajo)
+  - reset template
+  - persistencia tras cerrar/reabrir planilla.
+2. Form mode:
+- Abrir `Formulario` desde toolbar y editar la fila activa.
+- Verificar inputs por tipo:
+  - fecha (`dd/MM/yyyy`)
+  - numero (acepta `,` y `.`)
+  - estado con chips
+  - checkbox con switch.
+- Validar acciones rapidas dentro del formulario:
+  - `Adjuntar foto`
+  - `Adjuntar GPS`
+  - `Timestamp`.
+- Guardar y confirmar cambios visibles en grilla sin perdida de foco/estado.
+3. Quick capture integration:
+- Ejecutar `+ Registro` y confirmar que, luego de captura, abre formulario de la fila creada.
+- Verificar pre-carga de fecha/hora, foto y GPS cuando aplica.
+4. Premium PDF report + presets:
+- En `Exportar planilla`, seleccionar presets `Reporte PDF`, `Planilla XLSX`, `Paquete ZIP`.
+- Confirmar que el ultimo preset queda recordado al reabrir el modal.
+- Exportar `Reporte PDF` y validar contenido:
+  - header con `Version` y `Build`
+  - resumen de filas/celdas/adjuntos
+  - tabla de datos
+  - seccion de evidencias con metadatos y link `Abrir en mapas` cuando hay GPS.
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`
