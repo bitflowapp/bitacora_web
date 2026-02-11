@@ -6059,6 +6059,54 @@ class _EditorScreenState extends State<EditorScreen>
     _setSelectionAndRefreshGrid(nr, nc, blink: true);
   }
 
+  void _moveSelectionFast({
+    required bool forward,
+    required bool vertical,
+  }) {
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty || _rows.isEmpty) return;
+    var row = _selRow.clamp(0, _rows.length - 1);
+    var col = _selCol;
+    var colIndex = editableCols.indexOf(col);
+    if (colIndex < 0) {
+      colIndex = 0;
+      col = editableCols.first;
+    }
+
+    if (vertical) {
+      row += forward ? 1 : -1;
+      if (row < 0) return;
+      if (row >= _rows.length) {
+        _insertRow(_rows.length);
+        row = _rows.length - 1;
+      }
+    } else {
+      if (forward) {
+        if (colIndex < editableCols.length - 1) {
+          colIndex++;
+        } else {
+          row++;
+          colIndex = 0;
+        }
+      } else {
+        if (colIndex > 0) {
+          colIndex--;
+        } else {
+          row--;
+          colIndex = editableCols.length - 1;
+        }
+      }
+      if (row < 0) return;
+      if (row >= _rows.length) {
+        _insertRow(_rows.length);
+        row = _rows.length - 1;
+      }
+      col = editableCols[colIndex];
+    }
+
+    _setSelectionAndRefreshGrid(row, col, blink: true);
+  }
+
 // ------------------------------ Edici??n Header --------------------------
 
   void _beginEditHeader(
@@ -9150,6 +9198,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     final refsToClear = <_CellRef>[];
     var changed = 0;
+    var touched = 0;
+    const chunkCells = 240;
     for (int dr = 0; dr < grid.length; dr++) {
       final row = grid[dr];
       for (int dc = 0; dc < row.length; dc++) {
@@ -9162,11 +9212,23 @@ class _EditorScreenState extends State<EditorScreen>
         _rememberValueForColumn(cc, normalized);
         refsToClear.add(_CellRef(rr, cc));
         changed++;
+        touched++;
+        if (touched >= chunkCells) {
+          touched = 0;
+          await Future<void>.delayed(Duration.zero);
+          if (!mounted) return;
+        }
       }
     }
 
     if (changed <= 0) return;
     _clearCellDrafts(refsToClear);
+    final lastRow =
+        (startR + grid.length - 1).clamp(0, _rows.length - 1).toInt();
+    final lastCol = (startC + math.max(0, grid.first.length - 1))
+        .clamp(0, maxColsExclusive - 1)
+        .toInt();
+    _setSelection(lastRow, lastCol, preserveRowSelection: true);
     _markDirty(snapshot: true);
   }
 
