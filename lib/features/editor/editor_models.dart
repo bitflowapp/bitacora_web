@@ -85,24 +85,36 @@ class _ColumnPrefs {
     this.hidden = false,
     this.required = false,
     this.enumValues = const <String>[],
+    this.numberMin,
+    this.numberMax,
+    this.regexPattern,
   });
 
   final _ColType type;
   final bool hidden;
   final bool required;
   final List<String> enumValues;
+  final double? numberMin;
+  final double? numberMax;
+  final String? regexPattern;
 
   _ColumnPrefs copyWith({
     _ColType? type,
     bool? hidden,
     bool? required,
     List<String>? enumValues,
+    double? numberMin,
+    double? numberMax,
+    String? regexPattern,
   }) {
     return _ColumnPrefs(
       type: type ?? this.type,
       hidden: hidden ?? this.hidden,
       required: required ?? this.required,
       enumValues: enumValues ?? this.enumValues,
+      numberMin: numberMin ?? this.numberMin,
+      numberMax: numberMax ?? this.numberMax,
+      regexPattern: regexPattern ?? this.regexPattern,
     );
   }
 
@@ -111,6 +123,9 @@ class _ColumnPrefs {
         'hidden': hidden,
         if (required) 'required': true,
         if (enumValues.isNotEmpty) 'enumValues': enumValues,
+        if (numberMin != null) 'numberMin': numberMin,
+        if (numberMax != null) 'numberMax': numberMax,
+        if (regexPattern?.trim().isNotEmpty ?? false) 'regex': regexPattern,
       };
 
   static _ColumnPrefs? fromJson(Object? raw) {
@@ -130,11 +145,17 @@ class _ColumnPrefs {
         enumValues.add(value);
       }
     }
+    final numberMin = (map['numberMin'] as num?)?.toDouble();
+    final numberMax = (map['numberMax'] as num?)?.toDouble();
+    final regex = (map['regex'] ?? '').toString().trim();
     return _ColumnPrefs(
       type: parsedType,
       hidden: hidden,
       required: required,
       enumValues: enumValues,
+      numberMin: numberMin,
+      numberMax: numberMax,
+      regexPattern: regex.isEmpty ? null : regex,
     );
   }
 }

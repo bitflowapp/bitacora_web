@@ -38,6 +38,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.selectedCol,
     required this.selectedRowsCount,
     required this.pendingOfflineCount,
+    required this.errorsCount,
   });
 
   final _SheetPalette palette;
@@ -81,6 +82,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int selectedCol;
   final int selectedRowsCount;
   final int pendingOfflineCount;
+  final int errorsCount;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Ultimo guardado local: --:--';
@@ -279,6 +281,12 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.cloud_upload_outlined,
                                 label: '$pendingOfflineCount en cola',
                                 onTap: onOpenOfflineQueue,
+                              ),
+                            if (errorsCount > 0)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.rule_rounded,
+                                label: '$errorsCount errores',
                               ),
                           ],
                         ),
@@ -633,7 +641,7 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             final pendingLabel =
-                pendingRequired > 0 ? ' | Req: $pendingRequired' : '';
+                pendingRequired > 0 ? ' | Errores: $pendingRequired' : '';
             final queueLabel =
                 pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
             final offlineLabel = offline.message?.trim().isNotEmpty == true

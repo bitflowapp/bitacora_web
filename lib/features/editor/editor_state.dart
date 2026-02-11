@@ -755,7 +755,27 @@ class _EditorScreenState extends State<EditorScreen>
         }
         sanitizedEnums.add(item);
       }
-      out[colId] = pref.copyWith(enumValues: sanitizedEnums);
+      final regex = pref.regexPattern?.trim();
+      final hasValidRegex = (() {
+        final pattern = regex ?? '';
+        if (pattern.isEmpty) return true;
+        try {
+          RegExp(pattern);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      })();
+      final min = pref.numberMin;
+      final max = pref.numberMax;
+      final nextMin = (min != null && max != null && min > max) ? max : min;
+      final nextMax = (min != null && max != null && min > max) ? min : max;
+      out[colId] = pref.copyWith(
+        enumValues: sanitizedEnums,
+        numberMin: nextMin,
+        numberMax: nextMax,
+        regexPattern: hasValidRegex ? regex : null,
+      );
     }
     return out;
   }
@@ -2445,7 +2465,11 @@ class _EditorScreenState extends State<EditorScreen>
       final hh = int.tryParse(slash.group(4) ?? '0') ?? 0;
       final mm = int.tryParse(slash.group(5) ?? '0') ?? 0;
       if (y != null && m != null && d != null) {
-        return DateTime(y, m, d, hh, mm);
+        final date = DateTime(y, m, d, hh, mm);
+        if (date.year == y && date.month == m && date.day == d) {
+          return date;
+        }
+        return null;
       }
     }
     final iso = RegExp(
@@ -2458,7 +2482,11 @@ class _EditorScreenState extends State<EditorScreen>
       final hh = int.tryParse(iso.group(4) ?? '0') ?? 0;
       final mm = int.tryParse(iso.group(5) ?? '0') ?? 0;
       if (y != null && m != null && d != null) {
-        return DateTime(y, m, d, hh, mm);
+        final date = DateTime(y, m, d, hh, mm);
+        if (date.year == y && date.month == m && date.day == d) {
+          return date;
+        }
+        return null;
       }
     }
     return DateTime.tryParse(text);
@@ -2542,38 +2570,55 @@ class _EditorScreenState extends State<EditorScreen>
     return h.startsWith('fecha') || h.startsWith('actividad');
   }
 
+  ColumnValidationRule _columnValidationRule(int col) {
+    final type = _colType(col);
+    final pref = (col >= 0 && col < _colIds.length)
+        ? _columnPrefsById[_colIds[col]]
+        : null;
+    String ruleType;
+    switch (type) {
+      case _ColType.number:
+        ruleType = 'number';
+        break;
+      case _ColType.date:
+        ruleType = 'date';
+        break;
+      case _ColType.status:
+        ruleType = 'status';
+        break;
+      default:
+        ruleType = 'text';
+        break;
+    }
+    return ColumnValidationRule(
+      type: ruleType,
+      required: _isRequired(col),
+      numberMin: pref?.numberMin,
+      numberMax: pref?.numberMax,
+      enumValues: _statusOptionsForCol(col) ?? const <String>[],
+      regexPattern: pref?.regexPattern,
+    );
+  }
+
   String? _validationMessageForValue({
     required int col,
     required String rawValue,
   }) {
     if (col < 0 || col >= _headers.length - 1) return null;
-    final value = rawValue.trim();
-    final required = _isRequired(col);
-    if (required && value.isEmpty) return 'Campo requerido';
-    if (value.isEmpty) return null;
-
-    final type = _colType(col);
-    switch (type) {
-      case _ColType.date:
-        return _parseDateCellValue(value) == null
-            ? 'Fecha invalida (usa dd/MM/yyyy)'
-            : null;
-      case _ColType.number:
-        return _parseNumberCellValue(value) == null ? 'Numero invalido' : null;
-      case _ColType.status:
-        final options = _statusOptionsForCol(col) ?? const <String>[];
-        if (options.isEmpty) return null;
-        final matched =
-            options.any((item) => item.toLowerCase() == value.toLowerCase());
-        if (matched) return null;
-        return 'Valor no permitido. Opciones: ${options.join(', ')}';
-      case _ColType.checkbox:
-        return _parseCheckboxCellValue(value) == null
-            ? 'Valor invalido (usa si/no, true/false, 1/0)'
-            : null;
-      default:
-        return null;
+    if (_colType(col) == _ColType.checkbox) {
+      final value = rawValue.trim();
+      if (value.isEmpty && _isRequired(col)) return 'Campo requerido';
+      if (value.isEmpty) return null;
+      return _parseCheckboxCellValue(value) == null
+          ? 'Valor invalido (usa si/no, true/false, 1/0)'
+          : null;
     }
+    final rule = _columnValidationRule(col);
+    return rule.validate(
+      rawValue,
+      parseDate: _parseDateCellValue,
+      parseNumber: _parseNumberCellValue,
+    );
   }
 
   String? _validationMessageForCell(int row, int col, {String? overrideValue}) {
@@ -5365,13 +5410,14 @@ class _EditorScreenState extends State<EditorScreen>
                               selectedCol: _selCol,
                               selectedRowsCount: _selectedRows.length,
                               pendingOfflineCount: _pendingOfflineCount,
+                              errorsCount: _invalidCells.length,
                             )
                           else
                             _MobileCompactHeader(
                               palette: pal,
                               title: _sheetName,
                               controller: _controller,
-                              pendingRequired: _pendingRequired,
+                              pendingRequired: _invalidCells.length,
                               pendingOfflineCount: _pendingOfflineCount,
                               selectedRow: _selRow,
                               selectedCol: _selCol,
@@ -6534,6 +6580,9 @@ class _EditorScreenState extends State<EditorScreen>
       hidden: hidden,
       required: current?.required ?? _isRequired(col),
       enumValues: current?.enumValues ?? const <String>[],
+      numberMin: current?.numberMin,
+      numberMax: current?.numberMax,
+      regexPattern: current?.regexPattern,
     );
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
@@ -6566,6 +6615,9 @@ class _EditorScreenState extends State<EditorScreen>
       hidden: hidden,
       required: current?.required ?? _isRequired(col),
       enumValues: current?.enumValues ?? const <String>[],
+      numberMin: current?.numberMin,
+      numberMax: current?.numberMax,
+      regexPattern: current?.regexPattern,
     );
     final nextFrozen = (_frozenColId == colId && hidden) ? null : _frozenColId;
     _applyColumnPrefsAndOrder(
@@ -7935,6 +7987,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 required: current?.required ?? false,
                                 enumValues:
                                     current?.enumValues ?? const <String>[],
+                                numberMin: current?.numberMin,
+                                numberMax: current?.numberMax,
+                                regexPattern: current?.regexPattern,
                               );
                             }
                             draftPrefs = next;
@@ -7953,6 +8008,9 @@ class _EditorScreenState extends State<EditorScreen>
                 final hidden = pref?.hidden ?? false;
                 final required = pref?.required ?? _isRequired(col);
                 final enumValues = pref?.enumValues ?? const <String>[];
+                final numberMin = pref?.numberMin;
+                final numberMax = pref?.numberMax;
+                final regexPattern = pref?.regexPattern;
                 final orderIndex = draftOrder.indexOf(colId);
 
                 return Container(
@@ -8029,6 +8087,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       hidden: hidden,
                                       required: required,
                                       enumValues: enumValues,
+                                      numberMin: numberMin,
+                                      numberMax: numberMax,
+                                      regexPattern: regexPattern,
                                     );
                                 });
                               },
@@ -8051,6 +8112,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       hidden: !visible,
                                       required: required,
                                       enumValues: enumValues,
+                                      numberMin: numberMin,
+                                      numberMax: numberMax,
+                                      regexPattern: regexPattern,
                                     );
                                   if (!visible && draftFrozen == colId) {
                                     draftFrozen = null;
@@ -8097,6 +8161,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       hidden: hidden,
                                       required: enabled,
                                       enumValues: enumValues,
+                                      numberMin: numberMin,
+                                      numberMax: numberMax,
+                                      regexPattern: regexPattern,
                                     );
                                 });
                               },
@@ -8128,11 +8195,112 @@ class _EditorScreenState extends State<EditorScreen>
                                   hidden: hidden,
                                   required: required,
                                   enumValues: values,
+                                  numberMin: numberMin,
+                                  numberMax: numberMax,
+                                  regexPattern: regexPattern,
                                 );
                             });
                           },
                         ),
                       ],
+                      if (type == _ColType.number) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                key: ValueKey('num-min-$colId'),
+                                initialValue: numberMin?.toString() ?? '',
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Min',
+                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                  signed: true,
+                                ),
+                                onChanged: (raw) {
+                                  final parsed = double.tryParse(
+                                    raw.trim().replaceAll(',', '.'),
+                                  );
+                                  setModalState(() {
+                                    draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                      ..[colId] = _ColumnPrefs(
+                                        type: type,
+                                        hidden: hidden,
+                                        required: required,
+                                        enumValues: enumValues,
+                                        numberMin: parsed,
+                                        numberMax: numberMax,
+                                        regexPattern: regexPattern,
+                                      );
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                key: ValueKey('num-max-$colId'),
+                                initialValue: numberMax?.toString() ?? '',
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Max',
+                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                  signed: true,
+                                ),
+                                onChanged: (raw) {
+                                  final parsed = double.tryParse(
+                                    raw.trim().replaceAll(',', '.'),
+                                  );
+                                  setModalState(() {
+                                    draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                      ..[colId] = _ColumnPrefs(
+                                        type: type,
+                                        hidden: hidden,
+                                        required: required,
+                                        enumValues: enumValues,
+                                        numberMin: numberMin,
+                                        numberMax: parsed,
+                                        regexPattern: regexPattern,
+                                      );
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        key: ValueKey('regex-$colId'),
+                        initialValue: regexPattern ?? '',
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          labelText: 'Regex (opcional)',
+                          hintText: r'Ej: ^[A-Z]{3}-\d{4}$',
+                        ),
+                        onChanged: (raw) {
+                          final nextRegex =
+                              raw.trim().isEmpty ? null : raw.trim();
+                          setModalState(() {
+                            draftPrefs = _cloneColumnPrefs(draftPrefs)
+                              ..[colId] = _ColumnPrefs(
+                                type: type,
+                                hidden: hidden,
+                                required: required,
+                                enumValues: enumValues,
+                                numberMin: numberMin,
+                                numberMax: numberMax,
+                                regexPattern: nextRegex,
+                              );
+                          });
+                        },
+                      ),
                     ],
                   ),
                 );
@@ -9465,7 +9633,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       actions: [
         AppButton(
-          label: 'Revisar errores',
+          label: 'Ir a errores',
           variant: AppButtonVariant.ghost,
           onPressed: () => Navigator.of(context).pop(false),
         ),
@@ -9916,6 +10084,11 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return true;
     }());
+  }
+
+  @visibleForTesting
+  Future<bool> debugConfirmExportValidationGateForTest() {
+    return _confirmExportWithValidationIfNeeded();
   }
 
   @visibleForTesting
