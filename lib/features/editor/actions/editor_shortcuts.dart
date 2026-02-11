@@ -51,8 +51,13 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      _moveSelectionFast(forward: !isShift, vertical: false);
+      return KeyEventResult.handled;
+    }
+
     if (event.logicalKey == LogicalKeyboardKey.enter) {
-      _beginEditCell(context, _palette(context), _selRow, _selCol, 340);
+      _moveSelectionFast(forward: !isShift, vertical: true);
       return KeyEventResult.handled;
     }
 

@@ -26,6 +26,7 @@ const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
 const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
+const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -361,7 +362,10 @@ class _EditorScreenState extends State<EditorScreen>
   int _incrementCount = 5;
   int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
+  Map<_CellRef, String> _invalidCellMessages = <_CellRef, String>{};
   int _pendingRequired = 0;
+  bool _errorsPanelOpen = false;
+  final List<_ColumnTemplate> _columnTemplates = <_ColumnTemplate>[];
   bool _inlineSearchOpen = false;
   final TextEditingController _inlineSearchEC = TextEditingController();
   final FocusNode _inlineSearchFocus =
@@ -397,6 +401,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _recoveryBannerVisible = false;
   bool _androidInstallHelperHiddenSession = false;
   bool _androidInstallHelperDismissed = false;
+  DateTime _lastBlinkHapticAt = DateTime.fromMillisecondsSinceEpoch(0);
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -488,6 +493,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
+    unawaited(_loadColumnTemplatesPref());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadAndroidInstallHelperPref());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -739,7 +745,17 @@ class _EditorScreenState extends State<EditorScreen>
       final pref = incoming[colId];
       if (pref == null) continue;
       if (pref.type == _ColType.photos) continue;
-      out[colId] = pref;
+      final sanitizedEnums = <String>[];
+      for (final value in pref.enumValues) {
+        final item = value.trim();
+        if (item.isEmpty) continue;
+        if (sanitizedEnums
+            .any((existing) => existing.toLowerCase() == item.toLowerCase())) {
+          continue;
+        }
+        sanitizedEnums.add(item);
+      }
+      out[colId] = pref.copyWith(enumValues: sanitizedEnums);
     }
     return out;
   }
@@ -1849,6 +1865,246 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
+  Future<void> _loadColumnTemplatesPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = (prefs.getString(_kPrefColumnTemplates) ?? '').trim();
+      if (raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final templates = <_ColumnTemplate>[];
+      for (final item in decoded) {
+        final parsed = _ColumnTemplate.fromJson(item);
+        if (parsed == null) continue;
+        templates.add(parsed);
+      }
+      templates.sort((a, b) => b.savedAt.compareTo(a.savedAt));
+      if (!mounted) {
+        _columnTemplates
+          ..clear()
+          ..addAll(templates);
+        return;
+      }
+      setState(() {
+        _columnTemplates
+          ..clear()
+          ..addAll(templates);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistColumnTemplatesPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_columnTemplates.isEmpty) {
+        await prefs.remove(_kPrefColumnTemplates);
+        return;
+      }
+      final payload = _columnTemplates
+          .map((entry) => entry.toJson())
+          .toList(growable: false);
+      await prefs.setString(_kPrefColumnTemplates, jsonEncode(payload));
+    } catch (_) {}
+  }
+
+  _ColumnTemplate _buildColumnTemplate(String name) {
+    final prefsByLabel = <String, _ColumnPrefs>{};
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final label = _headerLabel(c);
+      if (label.trim().isEmpty) continue;
+      final colId = _colIds[c];
+      final pref = _columnPrefsById[colId] ?? _defaultColumnPrefsFor(c);
+      prefsByLabel[label] = pref.copyWith();
+    }
+
+    final orderLabels = <String>[];
+    for (final colId
+        in _normalizeColumnOrder(colIds: _colIds, incoming: _columnOrder)) {
+      final index = _colIds.indexOf(colId);
+      if (index < 0 || index >= _headers.length - 1) continue;
+      final label = _headerLabel(index).trim();
+      if (label.isEmpty) continue;
+      orderLabels.add(label);
+    }
+
+    String? frozenLabel;
+    final frozenId =
+        _normalizeFrozenColId(colIds: _colIds, requested: _frozenColId);
+    if (frozenId != null) {
+      final frozenIndex = _colIds.indexOf(frozenId);
+      if (frozenIndex >= 0 && frozenIndex < _headers.length - 1) {
+        final label = _headerLabel(frozenIndex).trim();
+        if (label.isNotEmpty) frozenLabel = label;
+      }
+    }
+
+    return _ColumnTemplate(
+      name: name.trim(),
+      savedAt: DateTime.now(),
+      prefsByLabel: prefsByLabel,
+      orderLabels: orderLabels,
+      frozenLabel: frozenLabel,
+    );
+  }
+
+  Future<void> _saveCurrentColumnsAsTemplate() async {
+    if (!mounted) return;
+    final controller = TextEditingController(text: _sheetName.trim());
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: 'Guardar columnas como plantilla',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Nombre de plantilla'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            maxLines: 1,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Ej: Checklist diario',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          icon: Icons.bookmark_add_outlined,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final name = controller.text.trim();
+    controller.dispose();
+    if (accepted != true || name.isEmpty) return;
+
+    final template = _buildColumnTemplate(name);
+    setState(() {
+      _columnTemplates.removeWhere(
+        (item) => item.name.toLowerCase() == name.toLowerCase(),
+      );
+      _columnTemplates.insert(0, template);
+    });
+    await _persistColumnTemplatesPref();
+    _showActionSnack(
+      'Plantilla "$name" guardada.',
+      isError: false,
+      icon: Icons.bookmark_added_rounded,
+    );
+  }
+
+  void _applyColumnTemplate(_ColumnTemplate template) {
+    final labelToIndex = <String, int>{};
+    for (int c = 0; c < _headers.length - 1; c++) {
+      labelToIndex[_headerLabel(c).trim().toLowerCase()] = c;
+    }
+
+    final nextPrefs = _cloneColumnPrefs(_columnPrefsById);
+    template.prefsByLabel.forEach((label, pref) {
+      final colIndex = labelToIndex[label.trim().toLowerCase()];
+      if (colIndex == null) return;
+      final colId = _colIds[colIndex];
+      nextPrefs[colId] = pref.copyWith();
+    });
+
+    final nextOrder = <String>[];
+    final seen = <String>{};
+    for (final label in template.orderLabels) {
+      final colIndex = labelToIndex[label.trim().toLowerCase()];
+      if (colIndex == null) continue;
+      final colId = _colIds[colIndex];
+      if (!seen.add(colId)) continue;
+      nextOrder.add(colId);
+    }
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final colId = _colIds[c];
+      if (!seen.add(colId)) continue;
+      nextOrder.add(colId);
+    }
+
+    String? nextFrozen;
+    if (template.frozenLabel != null) {
+      final frozenIndex =
+          labelToIndex[template.frozenLabel!.trim().toLowerCase()];
+      if (frozenIndex != null) {
+        nextFrozen = _colIds[frozenIndex];
+      }
+    }
+
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: nextPrefs,
+      columnOrder: nextOrder,
+      frozenColId: nextFrozen,
+    );
+    _scheduleValidationRecompute(immediate: true);
+    _showActionSnack(
+      'Plantilla "${template.name}" aplicada.',
+      isError: false,
+      icon: Icons.auto_fix_high_rounded,
+    );
+  }
+
+  Future<void> _openApplyColumnTemplateDialog() async {
+    if (!mounted) return;
+    if (_columnTemplates.isEmpty) {
+      _showActionSnack(
+        'No hay plantillas guardadas.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    final selected = await showAppModal<_ColumnTemplate>(
+      context: context,
+      title: 'Aplicar plantilla de columnas',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: _columnTemplates.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 6),
+          itemBuilder: (ctx, index) {
+            final template = _columnTemplates[index];
+            final subtitle =
+                '${template.prefsByLabel.length} columnas · ${_formatDateTimeShort(template.savedAt.toLocal())}';
+            return ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: _palette(ctx).hintBg,
+              title: Text(template.name),
+              subtitle: Text(subtitle),
+              onTap: () => Navigator.of(context).pop(template),
+            );
+          },
+        ),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (selected == null) return;
+    _applyColumnTemplate(selected);
+  }
+
   Future<void> _loadEditorTourPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -2087,9 +2343,18 @@ class _EditorScreenState extends State<EditorScreen>
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.android)) {
-      try {
-        HapticFeedback.selectionClick();
-      } catch (_) {}
+      final now = DateTime.now();
+      if (now.difference(_lastBlinkHapticAt) >=
+          const Duration(milliseconds: 34)) {
+        _lastBlinkHapticAt = now;
+        try {
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            HapticFeedback.lightImpact();
+          } else {
+            HapticFeedback.selectionClick();
+          }
+        } catch (_) {}
+      }
     }
 
     _blinkT = Timer(_blinkDuration, () {
@@ -2153,8 +2418,17 @@ class _EditorScreenState extends State<EditorScreen>
     return _inferColTypeFromHeader(_headerLabel(c));
   }
 
+  _ColumnPrefs _defaultColumnPrefsFor(int c) {
+    return _ColumnPrefs(type: _inferColTypeFromHeader(_headerLabel(c)));
+  }
+
   List<String>? _statusOptionsForCol(int c) {
     if (_colType(c) != _ColType.status) return null;
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      final enums = pref?.enumValues ?? const <String>[];
+      if (enums.isNotEmpty) return enums;
+    }
     return const <String>['OK', 'Obs', 'Urgente'];
   }
 
@@ -2260,8 +2534,76 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   bool _isRequired(int c) {
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      if (pref?.required == true) return true;
+    }
     final h = _headerLabel(c).toLowerCase();
     return h.startsWith('fecha') || h.startsWith('actividad');
+  }
+
+  String? _validationMessageForValue({
+    required int col,
+    required String rawValue,
+  }) {
+    if (col < 0 || col >= _headers.length - 1) return null;
+    final value = rawValue.trim();
+    final required = _isRequired(col);
+    if (required && value.isEmpty) return 'Campo requerido';
+    if (value.isEmpty) return null;
+
+    final type = _colType(col);
+    switch (type) {
+      case _ColType.date:
+        return _parseDateCellValue(value) == null
+            ? 'Fecha invalida (usa dd/MM/yyyy)'
+            : null;
+      case _ColType.number:
+        return _parseNumberCellValue(value) == null ? 'Numero invalido' : null;
+      case _ColType.status:
+        final options = _statusOptionsForCol(col) ?? const <String>[];
+        if (options.isEmpty) return null;
+        final matched =
+            options.any((item) => item.toLowerCase() == value.toLowerCase());
+        if (matched) return null;
+        return 'Valor no permitido. Opciones: ${options.join(', ')}';
+      case _ColType.checkbox:
+        return _parseCheckboxCellValue(value) == null
+            ? 'Valor invalido (usa si/no, true/false, 1/0)'
+            : null;
+      default:
+        return null;
+    }
+  }
+
+  String? _validationMessageForCell(int row, int col, {String? overrideValue}) {
+    if (row < 0 || row >= _rows.length) return null;
+    if (col < 0 || col >= _headers.length - 1) return null;
+    final raw = overrideValue ?? _rows[row].cells[col];
+    return _validationMessageForValue(col: col, rawValue: raw);
+  }
+
+  List<_ValidationIssue> _validationIssues() {
+    if (_invalidCells.isEmpty) return const <_ValidationIssue>[];
+    final list = <_ValidationIssue>[];
+    for (final ref in _invalidCells) {
+      if (ref.r < 0 || ref.r >= _rows.length) continue;
+      if (ref.c < 0 || ref.c >= _headers.length - 1) continue;
+      final message = _invalidCellMessages[ref] ?? 'Valor invalido';
+      list.add(
+        _ValidationIssue(
+          ref: ref,
+          label: _cellLabelRc(ref.r, ref.c),
+          message: message,
+        ),
+      );
+    }
+    list.sort((a, b) {
+      final rowCmp = a.ref.r.compareTo(b.ref.r);
+      if (rowCmp != 0) return rowCmp;
+      return a.ref.c.compareTo(b.ref.c);
+    });
+    return list;
   }
 
   void _recomputeValidation() {
@@ -2271,63 +2613,41 @@ class _EditorScreenState extends State<EditorScreen>
     }
     try {
       final invalid = <_CellRef>{};
+      final messages = <_CellRef, String>{};
       int pending = 0;
 
       for (int r = 0; r < _rows.length; r++) {
         for (int c = 0; c < _headers.length - 1; c++) {
-          final v = _rows[r].cells[c].trim();
-          final type = _colType(c);
-          final required = _isRequired(c);
+          final v = _rows[r].cells[c];
           final ref = _CellRef(r, c);
-
-          if (required && v.isEmpty) {
+          final message = _validationMessageForCell(r, c, overrideValue: v);
+          if (message != null) {
             invalid.add(ref);
-            pending++;
-            continue;
-          }
-          if (v.isEmpty) continue;
-
-          switch (type) {
-            case _ColType.date:
-              if (_parseDateCellValue(v) == null) invalid.add(ref);
-              break;
-            case _ColType.number:
-              if (_parseNumberCellValue(v) == null) invalid.add(ref);
-              break;
-            case _ColType.status:
-              final options = _statusOptionsForCol(c);
-              if (options == null || options.isEmpty) break;
-              var matched = false;
-              for (final item in options) {
-                if (item.toLowerCase() == v.toLowerCase()) {
-                  matched = true;
-                  break;
-                }
-              }
-              if (!matched) invalid.add(ref);
-              break;
-            case _ColType.checkbox:
-              if (_parseCheckboxCellValue(v) == null) invalid.add(ref);
-              break;
-            default:
-              break;
+            messages[ref] = message;
+            if (message == 'Campo requerido') pending++;
           }
         }
       }
 
       final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
-          !_invalidCells.containsAll(invalid);
+          !_invalidCells.containsAll(invalid) ||
+          !mapEquals(_invalidCellMessages, messages);
       if (!hasChanges) return;
 
       if (!mounted) {
         _invalidCells = invalid;
+        _invalidCellMessages = messages;
         _pendingRequired = pending;
         return;
       }
       setState(() {
         _invalidCells = invalid;
+        _invalidCellMessages = messages;
         _pendingRequired = pending;
+        if (_invalidCells.isEmpty) {
+          _errorsPanelOpen = false;
+        }
       });
     } finally {
       if (kDebugMode) {
@@ -5124,6 +5444,20 @@ class _EditorScreenState extends State<EditorScreen>
                                       _syncQuickCaptureQueue(notify: true))
                                   : _openOfflineQueueDialog,
                             ),
+                          if (_invalidCells.isNotEmpty)
+                            _warningBanner(
+                              pal,
+                              text:
+                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
+                              icon: Icons.rule_rounded,
+                              actionLabel: _errorsPanelOpen
+                                  ? 'Ocultar errores'
+                                  : 'Ver errores',
+                              onAction: () {
+                                setState(
+                                    () => _errorsPanelOpen = !_errorsPanelOpen);
+                              },
+                            ),
                           AnimatedSwitcher(
                             duration: AppMotion.medium,
                             switchInCurve: AppMotion.springOut,
@@ -5154,6 +5488,36 @@ class _EditorScreenState extends State<EditorScreen>
                                   )
                                 : const SizedBox.shrink(
                                     key: ValueKey('editor-tour-closed'),
+                                  ),
+                          ),
+                          AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, -0.03),
+                                child: child,
+                              );
+                            },
+                            child: (_errorsPanelOpen &&
+                                    _invalidCells.isNotEmpty)
+                                ? KeyedSubtree(
+                                    key: const ValueKey(
+                                        'validation-errors-open'),
+                                    child: _ValidationErrorsPanel(
+                                      palette: pal,
+                                      issues: _validationIssues(),
+                                      onJump: _jumpToValidationIssue,
+                                      onClose: () {
+                                        setState(
+                                            () => _errorsPanelOpen = false);
+                                      },
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey('validation-errors-closed'),
                                   ),
                           ),
                           if (_photoFlowStatus != null)
@@ -5627,6 +5991,7 @@ class _EditorScreenState extends State<EditorScreen>
                         fieldKey: _mobileFieldKey,
                         isOpen: _mobileEditorOpen,
                         title: _mobileTitle,
+                        validationHint: _mobileValidationHint,
                         controller: _mobileEC,
                         focusNode: _mobileFocus,
                         actions: _mobileActions,
@@ -5702,6 +6067,54 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
     _setSelectionAndRefreshGrid(nr, nc, blink: true);
+  }
+
+  void _moveSelectionFast({
+    required bool forward,
+    required bool vertical,
+  }) {
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty || _rows.isEmpty) return;
+    var row = _selRow.clamp(0, _rows.length - 1);
+    var col = _selCol;
+    var colIndex = editableCols.indexOf(col);
+    if (colIndex < 0) {
+      colIndex = 0;
+      col = editableCols.first;
+    }
+
+    if (vertical) {
+      row += forward ? 1 : -1;
+      if (row < 0) return;
+      if (row >= _rows.length) {
+        _insertRow(_rows.length);
+        row = _rows.length - 1;
+      }
+    } else {
+      if (forward) {
+        if (colIndex < editableCols.length - 1) {
+          colIndex++;
+        } else {
+          row++;
+          colIndex = 0;
+        }
+      } else {
+        if (colIndex > 0) {
+          colIndex--;
+        } else {
+          row--;
+          colIndex = editableCols.length - 1;
+        }
+      }
+      if (row < 0) return;
+      if (row >= _rows.length) {
+        _insertRow(_rows.length);
+        row = _rows.length - 1;
+      }
+      col = editableCols[colIndex];
+    }
+
+    _setSelectionAndRefreshGrid(row, col, blink: true);
   }
 
 // ------------------------------ Edici??n Header --------------------------
@@ -6028,6 +6441,10 @@ class _EditorScreenState extends State<EditorScreen>
         ..write(pref?.hidden == true ? '1' : '0')
         ..write(':')
         ..write(pref?.type.name ?? '')
+        ..write(':')
+        ..write(pref?.required == true ? '1' : '0')
+        ..write(':')
+        ..write((pref?.enumValues ?? const <String>[]).join('~'))
         ..write(';');
     }
     return sb.toString();
@@ -6112,7 +6529,12 @@ class _EditorScreenState extends State<EditorScreen>
     if (current != null && current.type == type) return;
     final next = _cloneColumnPrefs(_columnPrefsById);
     final hidden = current?.hidden ?? false;
-    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    next[colId] = _ColumnPrefs(
+      type: type,
+      hidden: hidden,
+      required: current?.required ?? _isRequired(col),
+      enumValues: current?.enumValues ?? const <String>[],
+    );
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
       columnOrder: _columnOrder,
@@ -6139,7 +6561,12 @@ class _EditorScreenState extends State<EditorScreen>
 
     final next = _cloneColumnPrefs(_columnPrefsById);
     final type = current?.type ?? _colType(col);
-    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    next[colId] = _ColumnPrefs(
+      type: type,
+      hidden: hidden,
+      required: current?.required ?? _isRequired(col),
+      enumValues: current?.enumValues ?? const <String>[],
+    );
     final nextFrozen = (_frozenColId == colId && hidden) ? null : _frozenColId;
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
@@ -6724,6 +7151,17 @@ class _EditorScreenState extends State<EditorScreen>
     return _mobileEditorOpen && !_mobileEditingHeader && _mobileRow >= 0;
   }
 
+  String? get _mobileValidationHint {
+    if (!_mobileEditorOpen || _mobileEditingHeader) return null;
+    if (_mobileRow < 0 || _mobileRow >= _rows.length) return null;
+    if (_mobileCol < 0 || _mobileCol >= _headers.length - 1) return null;
+    return _validationMessageForCell(
+      _mobileRow,
+      _mobileCol,
+      overrideValue: _mobileEC.text,
+    );
+  }
+
   void _mobileCommitDraftToModel() {
     if (!_mobileEditorOpen) return;
 
@@ -7022,6 +7460,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     final metrics = _gridMetricsFor(_gridDensity);
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
+    final activeRow = _overlayTargetCell?.r;
     final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
     final hintText =
         activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
@@ -7187,6 +7626,31 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ],
                             ),
+                            if (activeRow != null && activeCol != null)
+                              ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _cellEC,
+                                builder: (context, value, _) {
+                                  final message = _validationMessageForCell(
+                                    activeRow,
+                                    activeCol,
+                                    overrideValue: value.text,
+                                  );
+                                  if (message == null) {
+                                    return const SizedBox(height: 4);
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      message,
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11.2,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             if (suggestions.isNotEmpty) ...[
                               const SizedBox(height: 8),
                               SingleChildScrollView(
@@ -7412,7 +7876,7 @@ class _EditorScreenState extends State<EditorScreen>
                     runSpacing: 8,
                     children: [
                       AppButton(
-                        label: 'Reset template',
+                        label: 'Restaurar columnas por defecto',
                         icon: Icons.restart_alt_rounded,
                         size: AppButtonSize.sm,
                         variant: AppButtonVariant.ghost,
@@ -7423,8 +7887,32 @@ class _EditorScreenState extends State<EditorScreen>
                               incoming: null,
                             );
                             draftPrefs = <String, _ColumnPrefs>{};
+                            for (int c = 0; c < _headers.length - 1; c++) {
+                              draftPrefs[_colIds[c]] =
+                                  _defaultColumnPrefsFor(c);
+                            }
                             draftFrozen = null;
                           });
+                        },
+                      ),
+                      AppButton(
+                        label: 'Guardar como plantilla',
+                        icon: Icons.bookmark_add_outlined,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () async {
+                          Navigator.of(context).pop(false);
+                          await _saveCurrentColumnsAsTemplate();
+                        },
+                      ),
+                      AppButton(
+                        label: 'Aplicar plantilla',
+                        icon: Icons.auto_fix_high_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () async {
+                          Navigator.of(context).pop(false);
+                          await _openApplyColumnTemplateDialog();
                         },
                       ),
                       AppButton(
@@ -7444,6 +7932,9 @@ class _EditorScreenState extends State<EditorScreen>
                               next[colId] = _ColumnPrefs(
                                 type: current?.type ?? type,
                                 hidden: false,
+                                required: current?.required ?? false,
+                                enumValues:
+                                    current?.enumValues ?? const <String>[],
                               );
                             }
                             draftPrefs = next;
@@ -7460,6 +7951,8 @@ class _EditorScreenState extends State<EditorScreen>
                 final pref = draftPrefs[colId];
                 final type = pref?.type ?? _inferColTypeFromHeader(header);
                 final hidden = pref?.hidden ?? false;
+                final required = pref?.required ?? _isRequired(col);
+                final enumValues = pref?.enumValues ?? const <String>[];
                 final orderIndex = draftOrder.indexOf(colId);
 
                 return Container(
@@ -7534,6 +8027,8 @@ class _EditorScreenState extends State<EditorScreen>
                                     ..[colId] = _ColumnPrefs(
                                       type: nextType,
                                       hidden: hidden,
+                                      required: required,
+                                      enumValues: enumValues,
                                     );
                                 });
                               },
@@ -7554,6 +8049,8 @@ class _EditorScreenState extends State<EditorScreen>
                                     ..[colId] = _ColumnPrefs(
                                       type: type,
                                       hidden: !visible,
+                                      required: required,
+                                      enumValues: enumValues,
                                     );
                                   if (!visible && draftFrozen == colId) {
                                     draftFrozen = null;
@@ -7582,6 +8079,60 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                         ],
                       ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SwitchListTile.adaptive(
+                              value: required,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Requerido',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              onChanged: (enabled) {
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: type,
+                                      hidden: hidden,
+                                      required: enabled,
+                                      enumValues: enumValues,
+                                    );
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (type == _ColType.status) ...[
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          key: ValueKey('enum-$colId'),
+                          initialValue: enumValues.join(', '),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'Enum (separado por coma)',
+                            hintText: 'OK, Obs, Urgente',
+                          ),
+                          onChanged: (raw) {
+                            final values = raw
+                                .split(',')
+                                .map((item) => item.trim())
+                                .where((item) => item.isNotEmpty)
+                                .toSet()
+                                .toList(growable: false);
+                            setModalState(() {
+                              draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                ..[colId] = _ColumnPrefs(
+                                  type: type,
+                                  hidden: hidden,
+                                  required: required,
+                                  enumValues: values,
+                                );
+                            });
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -8657,6 +9208,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     final refsToClear = <_CellRef>[];
     var changed = 0;
+    var touched = 0;
+    const chunkCells = 240;
     for (int dr = 0; dr < grid.length; dr++) {
       final row = grid[dr];
       for (int dc = 0; dc < row.length; dc++) {
@@ -8669,11 +9222,23 @@ class _EditorScreenState extends State<EditorScreen>
         _rememberValueForColumn(cc, normalized);
         refsToClear.add(_CellRef(rr, cc));
         changed++;
+        touched++;
+        if (touched >= chunkCells) {
+          touched = 0;
+          await Future<void>.delayed(Duration.zero);
+          if (!mounted) return;
+        }
       }
     }
 
     if (changed <= 0) return;
     _clearCellDrafts(refsToClear);
+    final lastRow =
+        (startR + grid.length - 1).clamp(0, _rows.length - 1).toInt();
+    final lastCol = (startC + math.max(0, grid.first.length - 1))
+        .clamp(0, maxColsExclusive - 1)
+        .toInt();
+    _setSelection(lastRow, lastCol, preserveRowSelection: true);
     _markDirty(snapshot: true);
   }
 
@@ -8874,6 +9439,51 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   bool _isSearchHit(int r, int c) => _searchHitSet.contains(_CellRef(r, c));
+
+  void _jumpToValidationIssue(_ValidationIssue issue) {
+    _setSelectionAndRefreshGrid(issue.ref.r, issue.ref.c, blink: true);
+    if (mounted) {
+      setState(() => _errorsPanelOpen = true);
+    } else {
+      _errorsPanelOpen = true;
+    }
+    _showActionSnack(
+      '${issue.label}: ${issue.message}',
+      isError: false,
+      icon: Icons.rule_folder_outlined,
+    );
+  }
+
+  Future<bool> _confirmExportWithValidationIfNeeded() async {
+    if (_invalidCells.isEmpty) return true;
+    if (!mounted) return false;
+    final decision = await showAppModal<bool>(
+      context: context,
+      title: 'Hay errores de validacion',
+      child: Text(
+        'Se detectaron ${_invalidCells.length} celdas con error. Puedes exportar igual o revisar antes.',
+      ),
+      actions: [
+        AppButton(
+          label: 'Revisar errores',
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: 'Exportar igual',
+          icon: Icons.ios_share_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (decision != true && mounted) {
+      setState(() => _errorsPanelOpen = true);
+    }
+    return decision == true;
+  }
 
 // ------------------------------ GPS / Maps ------------------------------
 
@@ -9766,6 +10376,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     bool share = false,
   }) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -9835,6 +10447,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     bool share = false,
   }) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -9892,6 +10506,8 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _exportZipBundle({required bool share}) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -12107,6 +12723,7 @@ Este paquete incluye:
     bool Function()? shouldCancel,
   }) async {
     final path = await persistShareTempFile(fileName: name, bytes: bytes);
+    final shareText = 'Export generado por BitFlow: $name';
 
     if (path != null && path.trim().isNotEmpty) {
       try {
@@ -12114,6 +12731,17 @@ Este paquete incluye:
         await Share.shareXFiles(
           <XFile>[XFile(path, mimeType: mime, name: name)],
           subject: 'BitFlow Export',
+          text: shareText,
+        );
+        return true;
+      } catch (_) {}
+
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        await Share.shareXFiles(
+          <XFile>[XFile(path, name: name)],
+          subject: 'BitFlow Export',
+          text: shareText,
         );
         return true;
       } catch (_) {}
@@ -12122,7 +12750,7 @@ Este paquete incluye:
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
           subject: 'BitFlow Export',
-          body: 'Adjunto generado por BitFlow: $name',
+          body: shareText,
           attachmentPaths: <String>[path],
           isHTML: false,
         );
@@ -12136,8 +12764,7 @@ Este paquete incluye:
           scheme: 'mailto',
           queryParameters: <String, String>{
             'subject': 'BitFlow Export',
-            'body':
-                'Adjunto generado por BitFlow: $name\n\nSi tu cliente no adjunta automaticamente, usa:\n$path',
+            'body': '$shareText\n\nRuta local del archivo:\n$path',
           },
         );
         if (await canLaunchUrl(mailto)) {
@@ -12152,6 +12779,7 @@ Este paquete incluye:
       await Share.shareXFiles(
         <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
         subject: 'BitFlow Export',
+        text: shareText,
       );
       return true;
     } catch (_) {
