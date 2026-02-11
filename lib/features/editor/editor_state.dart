@@ -4042,6 +4042,7 @@ class _EditorScreenState extends State<EditorScreen>
     final now = DateTime.now();
     final actor = _reviewActorName();
     var changed = 0;
+    final changedRowIds = <String>[];
     for (final r in targets) {
       final row = _rows[r];
       final nextBy = reviewed ? actor : null;
@@ -4057,6 +4058,7 @@ class _EditorScreenState extends State<EditorScreen>
         reviewedBy: nextBy,
         reviewedAt: nextAt,
       );
+      changedRowIds.add(row.id);
       changed++;
     }
     if (changed <= 0) {
@@ -4069,7 +4071,12 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _markDirty(snapshot: true);
     _invalidateRowViewCache();
-    _bumpGridVersion();
+    for (final rowId in changedRowIds) {
+      _bumpRowVersionById(rowId);
+    }
+    if (_reviewFilterMode != _ReviewFilterMode.all) {
+      _bumpGridVersion();
+    }
     _showActionSnack(
       reviewed
           ? '$changed fila(s) marcadas como revisadas.'
@@ -7683,7 +7690,23 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _rowViewCacheToken() {
     final active = _activeSavedView;
-    final activeToken = active == null ? '' : jsonEncode(active.toJson());
+    final activeToken = active == null
+        ? ''
+        : [
+            active.id,
+            active.statusColId ?? '',
+            active.statusValue ?? '',
+            active.textColId ?? '',
+            active.textContains ?? '',
+            active.dateColId ?? '',
+            active.dateFrom?.millisecondsSinceEpoch.toString() ?? '',
+            active.dateTo?.millisecondsSinceEpoch.toString() ?? '',
+            active.sortColId ?? '',
+            active.sortAscending ? '1' : '0',
+            active.columnOrder.length.toString(),
+            active.columnPrefsById.length.toString(),
+            active.frozenColId ?? '',
+          ].join('|');
     return 'rev=$_rev|rows=${_rows.length}|view=$activeToken|review=${_reviewFilterMode.name}';
   }
 
@@ -7996,6 +8019,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_rows[r].cells[c] == next) return;
 
     _rows[r].cells[c] = next;
+    _bumpRowVersionById(_rows[r].id);
     _rememberValueForColumn(c, next);
     _markDirty(snapshot: true);
   }
@@ -10639,6 +10663,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (changed <= 0) return;
       _rememberValueForColumn(startC, normalized);
       _clearCellDrafts(refsToClear);
+      for (final r in selectedRows) {
+        if (r < 0 || r >= _rows.length) continue;
+        _bumpRowVersionById(_rows[r].id);
+      }
       _setSelection(
         selectedRows.first,
         startC,
@@ -10660,23 +10688,25 @@ class _EditorScreenState extends State<EditorScreen>
 
     final refsToClear = <_CellRef>[];
     var changed = 0;
-    var touched = 0;
+    var processed = 0;
     const chunkCells = 240;
+    final changedRowIds = <String>{};
     for (int dr = 0; dr < grid.length; dr++) {
       final row = grid[dr];
       for (int dc = 0; dc < row.length; dc++) {
         final rr = startR + dr;
         final cc = startC + dc;
         if (cc >= maxColsExclusive) break;
+        processed++;
         final normalized = _normalizeCellValueForColumn(cc, row[dc]);
         if (_rows[rr].cells[cc] == normalized) continue;
         _rows[rr].cells[cc] = normalized;
+        changedRowIds.add(_rows[rr].id);
         _rememberValueForColumn(cc, normalized);
         refsToClear.add(_CellRef(rr, cc));
         changed++;
-        touched++;
-        if (touched >= chunkCells) {
-          touched = 0;
+        if (processed >= chunkCells) {
+          processed = 0;
           await Future<void>.delayed(Duration.zero);
           if (!mounted) return;
         }
@@ -10691,6 +10721,9 @@ class _EditorScreenState extends State<EditorScreen>
         .clamp(0, maxColsExclusive - 1)
         .toInt();
     _setSelection(lastRow, lastCol, preserveRowSelection: true);
+    for (final rowId in changedRowIds) {
+      _bumpRowVersionById(rowId);
+    }
     _markDirty(snapshot: true);
   }
 
