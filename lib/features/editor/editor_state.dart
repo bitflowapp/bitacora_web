@@ -4652,7 +4652,10 @@ class _EditorScreenState extends State<EditorScreen>
 // Evitar escalados raros de texto (iOS / Web).
         final mq = MediaQuery.of(ctx);
         final bottomSafe = mq.padding.bottom;
-        final fixedMq = mq.copyWith(textScaler: const TextScaler.linear(1.0));
+        final requestedScale = mq.textScaler.scale(14) / 14;
+        final boundedScale = requestedScale.clamp(1.0, 1.2).toDouble();
+        final fixedMq =
+            mq.copyWith(textScaler: TextScaler.linear(boundedScale));
 
         _kbController.reportMediaQueryInset(mqInset);
         final vvInset = vv.visualViewportKeyboardInset();
@@ -5037,70 +5040,81 @@ class _EditorScreenState extends State<EditorScreen>
                                 ? Focus(
                                     autofocus: true,
                                     onKeyEvent: _onKeyEvent,
-                                    child: RepaintBoundary(
-                                      child: ValueListenableBuilder<int>(
-                                        valueListenable: _gridVersion,
-                                        builder: (ctx, _, __) {
-                                          return _GridView(
-                                            palette: pal,
-                                            metrics: metrics,
-                                            headers: List<String>.generate(
-                                                _headers.length,
-                                                _effectiveHeader),
-                                            rowModels: _rows,
-                                            cellTextAt: (r, c) =>
-                                                _effectiveCell(r, c),
-                                            cellHasGps: _cellHasGps,
-                                            cellHasAudios: _cellHasAudios,
-                                            cellPhotoThumb: _cellPhotoThumb,
-                                            cellPhotoCount: _cellPhotoCount,
-                                            isInvalid: (r, c) => _invalidCells
-                                                .contains(_CellRef(r, c)),
-                                            isSearchHit: _isSearchHit,
-                                            vScroll: _vScroll,
-                                            hScroll: _hScroll,
-                                            selRow: _selRow,
-                                            selCol: _selCol,
-                                            selectedRows: _selectedRows,
-                                            blink: _blinkCell,
-                                            editorLink: _editorLink,
-                                            overlayTargetCell:
-                                                _overlayTargetCell,
-                                            overlayTargetHeaderCol:
-                                                _overlayTargetHeaderCol,
-                                            onSelect: (r, c) {
-                                              _setSelectionAndRefreshGrid(r, c,
-                                                  blink: true);
+                                    child: FocusTraversalOrder(
+                                      order: const NumericFocusOrder(2.0),
+                                      child: Semantics(
+                                        container: true,
+                                        label: 'Grilla de planilla',
+                                        child: RepaintBoundary(
+                                          child: ValueListenableBuilder<int>(
+                                            valueListenable: _gridVersion,
+                                            builder: (ctx, _, __) {
+                                              return _GridView(
+                                                palette: pal,
+                                                metrics: metrics,
+                                                headers: List<String>.generate(
+                                                    _headers.length,
+                                                    _effectiveHeader),
+                                                rowModels: _rows,
+                                                cellTextAt: (r, c) =>
+                                                    _effectiveCell(r, c),
+                                                cellHasGps: _cellHasGps,
+                                                cellHasAudios: _cellHasAudios,
+                                                cellPhotoThumb: _cellPhotoThumb,
+                                                cellPhotoCount: _cellPhotoCount,
+                                                isInvalid: (r, c) =>
+                                                    _invalidCells.contains(
+                                                        _CellRef(r, c)),
+                                                isSearchHit: _isSearchHit,
+                                                vScroll: _vScroll,
+                                                hScroll: _hScroll,
+                                                selRow: _selRow,
+                                                selCol: _selCol,
+                                                selectedRows: _selectedRows,
+                                                blink: _blinkCell,
+                                                editorLink: _editorLink,
+                                                overlayTargetCell:
+                                                    _overlayTargetCell,
+                                                overlayTargetHeaderCol:
+                                                    _overlayTargetHeaderCol,
+                                                onSelect: (r, c) {
+                                                  _setSelectionAndRefreshGrid(
+                                                      r, c,
+                                                      blink: true);
+                                                },
+                                                onRowIndexTap:
+                                                    _handleRowIndexTap,
+                                                onEditRequested: (r, c, w) =>
+                                                    _beginEditCell(
+                                                        context, pal, r, c, w),
+                                                onHeaderEditRequested: (c, w) =>
+                                                    _beginEditHeader(
+                                                        context, pal, c, w),
+                                                onContextMenu:
+                                                    (pos, r, c, isHeader) =>
+                                                        _openContextMenu(
+                                                            context,
+                                                            pal,
+                                                            pos,
+                                                            r,
+                                                            c,
+                                                            isHeader),
+                                                onDeleteRow: (r) =>
+                                                    _deleteRow(r),
+                                                onPickPhoto: (r) =>
+                                                    _startPhotoFlowForCell(
+                                                  r,
+                                                  _headers.length - 1,
+                                                ),
+                                                onOpenAttachments: (r, c) =>
+                                                    _openAttachmentPanelForCell(
+                                                        r, c),
+                                                rowVersionListenable:
+                                                    _rowVersionListenable,
+                                              );
                                             },
-                                            onRowIndexTap: _handleRowIndexTap,
-                                            onEditRequested: (r, c, w) =>
-                                                _beginEditCell(
-                                                    context, pal, r, c, w),
-                                            onHeaderEditRequested: (c, w) =>
-                                                _beginEditHeader(
-                                                    context, pal, c, w),
-                                            onContextMenu:
-                                                (pos, r, c, isHeader) =>
-                                                    _openContextMenu(
-                                                        context,
-                                                        pal,
-                                                        pos,
-                                                        r,
-                                                        c,
-                                                        isHeader),
-                                            onDeleteRow: (r) => _deleteRow(r),
-                                            onPickPhoto: (r) =>
-                                                _startPhotoFlowForCell(
-                                              r,
-                                              _headers.length - 1,
-                                            ),
-                                            onOpenAttachments: (r, c) =>
-                                                _openAttachmentPanelForCell(
-                                                    r, c),
-                                            rowVersionListenable:
-                                                _rowVersionListenable,
-                                          );
-                                        },
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   )

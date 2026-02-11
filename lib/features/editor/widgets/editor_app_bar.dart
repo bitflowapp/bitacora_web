@@ -161,31 +161,44 @@ class _PremiumAppleHeader extends StatelessWidget {
                     runSpacing: 8,
                     alignment: WrapAlignment.end,
                     children: [
-                      _IconCircleButton(
-                        palette: palette,
-                        icon: palette.isLight
-                            ? Icons.dark_mode_outlined
-                            : Icons.light_mode_outlined,
-                        onTap: onToggleTheme,
-                        tooltip: palette.isLight ? 'Modo oscuro' : 'Modo claro',
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(0.1),
+                        child: _IconCircleButton(
+                          palette: palette,
+                          icon: palette.isLight
+                              ? Icons.dark_mode_outlined
+                              : Icons.light_mode_outlined,
+                          onTap: onToggleTheme,
+                          tooltip:
+                              palette.isLight ? 'Modo oscuro' : 'Modo claro',
+                        ),
                       ),
-                      _IconCircleButton(
-                        palette: palette,
-                        icon: Icons.undo_rounded,
-                        onTap: onUndo,
-                        tooltip: 'Deshacer',
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(0.2),
+                        child: _IconCircleButton(
+                          palette: palette,
+                          icon: Icons.undo_rounded,
+                          onTap: onUndo,
+                          tooltip: 'Deshacer',
+                        ),
                       ),
-                      _IconCircleButton(
-                        palette: palette,
-                        icon: Icons.redo_rounded,
-                        onTap: onRedo,
-                        tooltip: 'Rehacer',
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(0.3),
+                        child: _IconCircleButton(
+                          palette: palette,
+                          icon: Icons.redo_rounded,
+                          onTap: onRedo,
+                          tooltip: 'Rehacer',
+                        ),
                       ),
-                      _IconCircleButton(
-                        palette: palette,
-                        icon: Icons.add_rounded,
-                        onTap: onAddRow,
-                        tooltip: 'Nueva fila',
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(0.4),
+                        child: _IconCircleButton(
+                          palette: palette,
+                          icon: Icons.add_rounded,
+                          onTap: onAddRow,
+                          tooltip: 'Nueva fila',
+                        ),
                       ),
                     ],
                   );
@@ -211,244 +224,271 @@ class _PremiumAppleHeader extends StatelessWidget {
                     ),
                   );
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!compact)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  return FocusTraversalGroup(
+                    policy: OrderedTraversalPolicy(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!compact)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: titleField),
+                              const SizedBox(width: 10),
+                              iconRow,
+                            ],
+                          )
+                        else ...[
+                          titleField,
+                          const SizedBox(height: 10),
+                          Align(
+                              alignment: Alignment.centerRight, child: iconRow),
+                        ],
+                        const SizedBox(height: 2),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            Expanded(child: titleField),
-                            const SizedBox(width: 10),
-                            iconRow,
-                          ],
-                        )
-                      else ...[
-                        titleField,
-                        const SizedBox(height: 10),
-                        Align(alignment: Alignment.centerRight, child: iconRow),
-                      ],
-                      const SizedBox(height: 2),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          SaveStatusChip(
-                            palette: palette,
-                            status: controller.saveStatus,
-                          ),
-                          SyncStatusChip(
-                            palette: palette,
-                            status: controller.offlineStatus,
-                            onTap: onOpenOfflineQueue,
-                          ),
-                          _InlineMetaChip(
-                            palette: palette,
-                            icon: Icons.grid_3x3_rounded,
-                            label: _selectionLabel(),
-                          ),
-                          if (selectedRowsCount > 1)
-                            _InlineMetaChip(
+                            SaveStatusChip(
                               palette: palette,
-                              icon: Icons.checklist_rounded,
-                              label: '$selectedRowsCount filas',
+                              status: controller.saveStatus,
                             ),
-                          if (pendingOfflineCount > 0)
-                            _InlineMetaChip(
+                            SyncStatusChip(
                               palette: palette,
-                              icon: Icons.cloud_upload_outlined,
-                              label: '$pendingOfflineCount en cola',
+                              status: controller.offlineStatus,
                               onTap: onOpenOfflineQueue,
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatLocalSaved(lastLocalSavedAt),
-                        style: TextStyle(
-                          color: palette.fgMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.grid_3x3_rounded,
+                              label: _selectionLabel(),
+                            ),
+                            if (selectedRowsCount > 1)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.checklist_rounded,
+                                label: '$selectedRowsCount filas',
+                              ),
+                            if (pendingOfflineCount > 0)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.cloud_upload_outlined,
+                                label: '$pendingOfflineCount en cola',
+                                onTap: onOpenOfflineQueue,
+                              ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: pillGap,
-                        runSpacing: 10,
-                        children: [
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.check_circle_outline_rounded,
-                            label: AppStrings.editorSave,
-                            semanticsLabel: AppStrings.semEditorSave,
-                            tooltip: 'Guardar cambios locales',
-                            onTap: onSave,
+                        const SizedBox(height: 6),
+                        Text(
+                          _formatLocalSaved(lastLocalSavedAt),
+                          style: TextStyle(
+                            color: palette.fgMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
                           ),
-                          _PillButton(
-                            palette: palette,
-                            filled: true,
-                            icon: Icons.add_box_outlined,
-                            label: '+ Registro',
-                            semanticsLabel: 'Crear registro rapido de campo',
-                            tooltip: 'Crear un registro en modo campo',
-                            onTap: onQuickCapture,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.search_rounded,
-                            label: AppStrings.editorSearch,
-                            semanticsLabel: AppStrings.semEditorSearch,
-                            tooltip: 'Buscar en todas las celdas',
-                            onTap: onSearch,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.pin_drop_outlined,
-                            label: 'Jump to...',
-                            semanticsLabel: 'Ir rapido por fila o ID',
-                            tooltip: 'Ir a fila o ID rapidamente',
-                            onTap: onJumpTo,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.attach_file_rounded,
-                            label: 'Adjuntos',
-                            semanticsLabel: 'Abrir adjuntos de celda activa',
-                            tooltip: 'Abrir panel de adjuntos',
-                            onTap: onAttachments,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.ios_share_rounded,
-                            label: AppStrings.editorExport,
-                            semanticsLabel: AppStrings.semEditorExport,
-                            tooltip: 'Exportar o compartir planilla',
-                            onTap: onExport,
-                          ),
-                          _PillButton(
-                            palette: palette,
-                            filled: false,
-                            icon: Icons.layers_outlined,
-                            label: AppStrings.editorBatchActions,
-                            semanticsLabel: 'Abrir acciones por lote',
-                            tooltip:
-                                'Acciones rapidas para filas seleccionadas',
-                            onTap: onBatch,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      AppleToolbar(
-                        items: [
-                          AppleToolbarItem(
-                            icon: Icons.add_box_outlined,
-                            label: '+ Registro',
-                            onTap: onQuickCapture,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.layers_outlined,
-                            label: 'Acciones',
-                            onTap: onBatch,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.search_rounded,
-                            label: AppStrings.editorSearch,
-                            shortcut: 'Ctrl/Cmd+F',
-                            onTap: onSearch,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.pin_drop_outlined,
-                            label: 'Jump to...',
-                            shortcut: 'Ctrl/Cmd+J',
-                            onTap: onJumpTo,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.my_location_rounded,
-                            label: 'GPS',
-                            shortcut: 'G',
-                            onTap: onGps,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onGps,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.tune_rounded,
-                            label: 'Modo GPS',
-                            onTap: onGpsMode,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.format_line_spacing_rounded,
-                            label: 'Densidad',
-                            onTap: onDensity,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.photo_camera_outlined,
-                            label: 'Camara',
-                            shortcut: 'P',
-                            onTap: onPhoto,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onPhoto,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.videocam_outlined,
-                            label: 'Video',
-                            onTap: onVideo,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.mic_none_rounded,
-                            label: 'Audio',
-                            shortcut: 'A',
-                            onTap: onAudio,
-                            enabled: sensorsEnabled,
-                            onDisabledTap: onAudio,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.attach_file_rounded,
-                            label: 'Adjuntos',
-                            onTap: onAttachments,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.attach_file_rounded,
-                            label: 'Archivo',
-                            onTap: onFile,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.download_rounded,
-                            label: 'Exportar',
-                            shortcut: 'Ctrl/Cmd+E',
-                            onTap: onExport,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.science_outlined,
-                            label: AppStrings.editorDiagnostics,
-                            onTap: onSmokeTest,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.functions_rounded,
-                            label: AppStrings.editorCompute,
-                            onTap: onCompute ?? () {},
-                            enabled: onCompute != null,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.ios_share_rounded,
-                            label: 'Compartir',
-                            shortcut: 'Ctrl/Cmd+Shift+E',
-                            onTap: onShare,
-                          ),
-                          AppleToolbarItem(
-                            icon: Icons.keyboard,
-                            label: 'Atajos',
-                            shortcut: 'Ctrl/Cmd+K',
-                            onTap: onPalette,
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: pillGap,
+                          runSpacing: 10,
+                          children: [
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.0),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.check_circle_outline_rounded,
+                                label: AppStrings.editorSave,
+                                semanticsLabel: AppStrings.semEditorSave,
+                                tooltip: 'Guardar cambios locales',
+                                onTap: onSave,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.1),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: true,
+                                icon: Icons.add_box_outlined,
+                                label: '+ Registro',
+                                semanticsLabel:
+                                    'Crear registro rapido de campo',
+                                tooltip: 'Crear un registro en modo campo',
+                                onTap: onQuickCapture,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.2),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.search_rounded,
+                                label: AppStrings.editorSearch,
+                                semanticsLabel: AppStrings.semEditorSearch,
+                                tooltip: 'Buscar en todas las celdas',
+                                onTap: onSearch,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.3),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.pin_drop_outlined,
+                                label: 'Jump to...',
+                                semanticsLabel: 'Ir rapido por fila o ID',
+                                tooltip: 'Ir a fila o ID rapidamente',
+                                onTap: onJumpTo,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.4),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.attach_file_rounded,
+                                label: 'Adjuntos',
+                                semanticsLabel:
+                                    'Abrir adjuntos de celda activa',
+                                tooltip: 'Abrir panel de adjuntos',
+                                onTap: onAttachments,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.5),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.ios_share_rounded,
+                                label: AppStrings.editorExport,
+                                semanticsLabel: AppStrings.semEditorExport,
+                                tooltip: 'Exportar o compartir planilla',
+                                onTap: onExport,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.6),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.layers_outlined,
+                                label: AppStrings.editorBatchActions,
+                                semanticsLabel: 'Abrir acciones por lote',
+                                tooltip:
+                                    'Acciones rapidas para filas seleccionadas',
+                                onTap: onBatch,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        AppleToolbar(
+                          items: [
+                            AppleToolbarItem(
+                              icon: Icons.add_box_outlined,
+                              label: '+ Registro',
+                              onTap: onQuickCapture,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.layers_outlined,
+                              label: 'Acciones',
+                              onTap: onBatch,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.search_rounded,
+                              label: AppStrings.editorSearch,
+                              shortcut: 'Ctrl/Cmd+F',
+                              onTap: onSearch,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.pin_drop_outlined,
+                              label: 'Jump to...',
+                              shortcut: 'Ctrl/Cmd+J',
+                              onTap: onJumpTo,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.my_location_rounded,
+                              label: 'GPS',
+                              shortcut: 'G',
+                              onTap: onGps,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onGps,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.tune_rounded,
+                              label: 'Modo GPS',
+                              onTap: onGpsMode,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.format_line_spacing_rounded,
+                              label: 'Densidad',
+                              onTap: onDensity,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.photo_camera_outlined,
+                              label: 'Camara',
+                              shortcut: 'P',
+                              onTap: onPhoto,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onPhoto,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.videocam_outlined,
+                              label: 'Video',
+                              onTap: onVideo,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.mic_none_rounded,
+                              label: 'Audio',
+                              shortcut: 'A',
+                              onTap: onAudio,
+                              enabled: sensorsEnabled,
+                              onDisabledTap: onAudio,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.attach_file_rounded,
+                              label: 'Adjuntos',
+                              onTap: onAttachments,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.attach_file_rounded,
+                              label: 'Archivo',
+                              onTap: onFile,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.download_rounded,
+                              label: 'Exportar',
+                              shortcut: 'Ctrl/Cmd+E',
+                              onTap: onExport,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.science_outlined,
+                              label: AppStrings.editorDiagnostics,
+                              onTap: onSmokeTest,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.functions_rounded,
+                              label: AppStrings.editorCompute,
+                              onTap: onCompute ?? () {},
+                              enabled: onCompute != null,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.ios_share_rounded,
+                              label: 'Compartir',
+                              shortcut: 'Ctrl/Cmd+Shift+E',
+                              onTap: onShare,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.keyboard,
+                              label: 'Atajos',
+                              shortcut: 'Ctrl/Cmd+K',
+                              onTap: onPalette,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
