@@ -1,4 +1,4 @@
-# BitFlow User Guide (P13)
+# BitFlow User Guide (P14)
 
 ## 1) Flujo recomendado (ahorro de tiempo real)
 1. Crea/abre planilla y captura con `+ Registro` (quick capture).
@@ -134,3 +134,18 @@
   - workflow de revision cuando aplica
 - Antes de crear:
   - preview de columnas, reglas, vistas y tags del template.
+
+## 12) Editor premium fluido + previews inline (P14)
+- Escritura ultra fluida:
+  - el editor evita rebuild global al tipear en una celda.
+  - input/scroll y foco se mantienen estables en grillas grandes.
+- Previews inline de adjuntos:
+  - si una celda tiene adjuntos, muestra mini preview sin click.
+  - imagenes usan thumbnail comprimido (no full-res) y badge `+N`.
+  - PDF/doc muestran icono monocromo + nombre + tamano cuando no hay thumbnail.
+- Toggle de performance:
+  - `Preferencias de editor > Previews en celdas` (ON por defecto).
+  - desactivar si priorizas menor uso de memoria en grillas muy grandes.
+- Motion iOS-style:
+  - micro-animaciones cortas (120-180ms) en barras/acciones del editor.
+  - comportamiento visual monocromo consistente (sin acentos azules).

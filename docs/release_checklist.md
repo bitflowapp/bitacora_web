@@ -451,3 +451,28 @@ Publicar release Android (1 comando):
 3. Terms (`Terminos`)
 4. Diagnostics (`Diagnostico / Soporte`)
 5. Licenses (`Licencias`)
+
+## 3.13) P14 smoke test (120Hz editor + inline previews + Android stable)
+1. Typing/scroll perf (desktop + mobile):
+- Abrir planilla grande (>= 120 filas) y editar rapido varias celdas consecutivas.
+- Confirmar sin perdida de foco/caret ni reconstrucciones visibles de toda la grilla.
+- Hacer scroll mientras editas y validar ausencia de jank perceptible.
+2. Inline previews en celdas:
+- Adjuntar imagen en una celda de datos (no columna Fotos) y verificar mini preview inmediato.
+- Adjuntar multiples archivos y validar badge `+N`.
+- Adjuntar PDF/doc y validar fallback monocromo (icono + nombre + tamano).
+- Verificar que tocar el preview abre adjuntos sin bloquear typing.
+3. Preferencias de editor:
+- Abrir `Preferencias de editor` y confirmar toggle `Previews en celdas` ON por defecto.
+- Desactivar y validar que la celda vuelve a render de texto/chips sin preview inline.
+4. Motion premium:
+- Revisar toolbar, quick actions y panel inline mobile:
+  - transiciones cortas (120-180ms)
+  - fade/scale/slide sutiles sin latencia.
+5. Android release estable:
+- Verificar workflow `.github/workflows/android_release.yml` en tag `v*`:
+  - adjunta `BitFlow-android.apk`
+  - marca release como `latest`
+  - valida URL estable.
+- Probar descarga:
+  - `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`

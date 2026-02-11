@@ -286,6 +286,37 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
 - Objetivo:
   - onboarding comercial (templates listos para uso de campo/obra/relevamiento).
 
+## Editor Perf Instrumentation (P14)
+- Flag de runtime:
+  - `BITFLOW_DEBUG_EDITOR_PERF`.
+- Mide hot-path sin ruido por defecto:
+  - builds de grid/fila/celda
+  - eventos de input
+  - latencia input -> rebuild de fila (avg/p95/max)
+- Objetivo:
+  - detectar regresiones de typing/scroll sin afectar release UX.
+
+## Inline Cell Previews (P14)
+- Fuente de verdad:
+  - metadata de adjuntos por celda (`cellMeta`).
+- Render en grilla:
+  - desktop `grid_host.dart`
+  - mobile `mobile_notes_grid.dart`
+- Estrategia:
+  - thumbnails comprimidos al adjuntar (downscale)
+  - decode lazy + cache LRU en memoria para evitar decodificacion repetida
+  - fallback monocromo para docs/PDF cuando no hay thumb usable
+- Guardrails:
+  - toggle `cellInlinePreviewsEnabled` persistido en preferencias de editor
+  - previews nunca bloquean typing ni fuerzan rebuild global.
+
+## Sheet Key Hygiene (P14 bugfix)
+- `SheetStore.list()` ahora ignora claves de metadata por planilla:
+  - `<id>:backup`
+  - `<id>:bk:list`
+  - `<id>:bk:<timestamp>`
+- Evita que backups internos aparezcan como planillas fantasma en listados/tests.
+
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`
