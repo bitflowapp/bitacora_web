@@ -27,6 +27,14 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openSearchDialog()),
         ),
         CommandAction(
+          id: 'search_everywhere',
+          label: 'Search Everywhere',
+          subtitle: 'Buscar en esta planilla o en todas',
+          shortcut: 'Ctrl/Cmd+Shift+F',
+          icon: Icons.travel_explore_rounded,
+          onSelected: () => unawaited(_openSearchEverywhereDialog()),
+        ),
+        CommandAction(
           id: 'jump_to',
           label: 'Jump to...',
           subtitle: 'Ir rapido por fila o ID',

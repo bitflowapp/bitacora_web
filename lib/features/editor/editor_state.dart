@@ -98,6 +98,8 @@ class EditorScreen extends StatefulWidget {
     this.initialRows,
     this.engineBaseUrl,
     this.engineApiKey,
+    this.initialSelectionRow,
+    this.initialSelectionCol,
     this.isLight, // compat StartPage
     this.onToggleTheme, // compat StartPage
   });
@@ -108,6 +110,8 @@ class EditorScreen extends StatefulWidget {
   final List<List<String>>? initialRows;
   final String? engineBaseUrl;
   final String? engineApiKey;
+  final int? initialSelectionRow;
+  final int? initialSelectionCol;
 
   /// Si StartPage te lo pasa (modo controlado), se respeta.
   final bool? isLight;
@@ -475,10 +479,12 @@ class _EditorScreenState extends State<EditorScreen>
       requested: initial.frozenColId,
     );
     _rows = initial.rows;
+    _selRow = (widget.initialSelectionRow ?? 0).clamp(0, _rows.length - 1);
+    _selCol = (widget.initialSelectionCol ?? 0).clamp(0, _headers.length - 1);
     _selectedRows
       ..clear()
-      ..add(0);
-    _rowSelectionAnchor = 0;
+      ..add(_selRow);
+    _rowSelectionAnchor = _selRow;
     _syncRowVersionNotifiers();
     _resetMobileRowCaches();
     _scheduleValidationRecompute(immediate: true);
@@ -6520,6 +6526,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                               onSearch: () => unawaited(_openSearchDialog()),
+                              onSearchEverywhere: () =>
+                                  unawaited(_openSearchEverywhereDialog()),
                               onJumpTo: () => unawaited(_openJumpToDialog()),
                               onColumns: () => unawaited(_openColumnPanel()),
                               onHistory: () => unawaited(_openHistoryPanel()),
@@ -10928,6 +10936,315 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _openSearchDialog() async {
     _openInlineSearch();
+  }
+
+  Future<List<_GlobalSearchResult>> _searchSheetRows({
+    required String sheetId,
+    required String sheetTitle,
+    required List<String> headers,
+    required List<List<String>> rows,
+    required String query,
+  }) async {
+    final parsed = SearchEverywhereQuery.parse(query);
+    if (parsed.isEmpty) return const <_GlobalSearchResult>[];
+    final needle = parsed.needle;
+    final targetCol =
+        parsed.hasColumnFilter ? parsed.resolveColumnIndex(headers) : null;
+
+    final out = <_GlobalSearchResult>[];
+    var processed = 0;
+    for (int r = 0; r < rows.length; r++) {
+      if (targetCol != null) {
+        if (targetCol < 0 || targetCol >= rows[r].length) continue;
+        final value = rows[r][targetCol].trim();
+        if (value.toLowerCase().contains(needle)) {
+          out.add(
+            _GlobalSearchResult(
+              sheetId: sheetId,
+              sheetTitle: sheetTitle,
+              row: r,
+              col: targetCol,
+              header: targetCol < headers.length
+                  ? headers[targetCol]
+                  : 'Col ${targetCol + 1}',
+              value: value,
+              reason: targetCol < headers.length
+                  ? '${headers[targetCol]} contiene "$needle"'
+                  : 'Coincidencia',
+            ),
+          );
+        }
+      } else {
+        for (int c = 0; c < rows[r].length && c < headers.length; c++) {
+          final value = rows[r][c].trim();
+          if (value.toLowerCase().contains(needle)) {
+            out.add(
+              _GlobalSearchResult(
+                sheetId: sheetId,
+                sheetTitle: sheetTitle,
+                row: r,
+                col: c,
+                header: headers[c],
+                value: value,
+                reason: '${headers[c]} contiene "$needle"',
+              ),
+            );
+          }
+        }
+      }
+      processed++;
+      if (processed >= 140) {
+        processed = 0;
+        await Future<void>.delayed(Duration.zero);
+      }
+      if (out.length >= 220) break;
+    }
+    return out;
+  }
+
+  Future<List<_GlobalSearchResult>> _searchEverywhere(
+    String query, {
+    required bool includeAllSheets,
+  }) async {
+    final headers = List<String>.generate(_headers.length - 1, _headerLabel);
+    final currentRows = <List<String>>[
+      for (final row in _rows)
+        [
+          for (int c = 0; c < _headers.length - 1; c++)
+            c < row.cells.length ? row.cells[c] : '',
+        ],
+    ];
+    final current = await _searchSheetRows(
+      sheetId: widget.sheetId,
+      sheetTitle:
+          _sheetName.trim().isEmpty ? 'Planilla actual' : _sheetName.trim(),
+      headers: headers,
+      rows: currentRows,
+      query: query,
+    );
+    if (!includeAllSheets) return current;
+
+    final out = <_GlobalSearchResult>[...current];
+    final metas = SheetStore.list();
+    for (final meta in metas) {
+      if (meta.id == widget.sheetId) continue;
+      final table = SheetStore.load(meta.id);
+      if (table == null) continue;
+      final otherHeaders = table.headers.isNotEmpty
+          ? table.headers
+              .take(math.max(0, table.headers.length - 1))
+              .toList(growable: false)
+          : const <String>[];
+      final rows = <List<String>>[
+        for (final row in table.rows)
+          row
+              .take(otherHeaders.length)
+              .map((e) => e.toString())
+              .toList(growable: false),
+      ];
+      final matches = await _searchSheetRows(
+        sheetId: meta.id,
+        sheetTitle: meta.title.trim().isEmpty ? meta.id : meta.title.trim(),
+        headers: otherHeaders,
+        rows: rows,
+        query: query,
+      );
+      out.addAll(matches);
+      if (out.length >= 260) break;
+    }
+    return out;
+  }
+
+  Future<void> _openSearchEverywhereDialog() async {
+    if (!mounted) return;
+    final ec = TextEditingController();
+    bool includeAllSheets = false;
+    bool searching = false;
+    Timer? debounceT;
+    List<_GlobalSearchResult> results = const <_GlobalSearchResult>[];
+
+    Future<void> runSearch(StateSetter setModalState) async {
+      final q = ec.text.trim();
+      if (q.isEmpty) {
+        setModalState(() {
+          searching = false;
+          results = const <_GlobalSearchResult>[];
+        });
+        return;
+      }
+      setModalState(() => searching = true);
+      final found = await _searchEverywhere(
+        q,
+        includeAllSheets: includeAllSheets,
+      );
+      if (!mounted) return;
+      setModalState(() {
+        results = found;
+        searching = false;
+      });
+    }
+
+    await showAppModal<void>(
+      context: context,
+      title: 'Search Everywhere',
+      child: StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 470),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ec,
+                  autofocus: true,
+                  maxLines: 1,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'Texto o col:valor (ej: Estado:Urgente)',
+                  ),
+                  onChanged: (_) {
+                    debounceT?.cancel();
+                    debounceT = Timer(const Duration(milliseconds: 180), () {
+                      unawaited(runSearch(setModalState));
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Buscar en todas las planillas'),
+                  value: includeAllSheets,
+                  onChanged: (value) {
+                    setModalState(() => includeAllSheets = value);
+                    unawaited(runSearch(setModalState));
+                  },
+                ),
+                const SizedBox(height: 6),
+                if (searching)
+                  const LinearProgressIndicator(minHeight: 2)
+                else
+                  Text(
+                    '${results.length} resultado(s)',
+                    style: TextStyle(
+                      color: _palette(ctx).fgMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: results.isEmpty
+                      ? const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Sin resultados.'),
+                        )
+                      : Builder(
+                          builder: (ctx) {
+                            final grouped =
+                                <String, List<_GlobalSearchResult>>{};
+                            for (final result in results) {
+                              grouped
+                                  .putIfAbsent(
+                                    result.sheetTitle,
+                                    () => <_GlobalSearchResult>[],
+                                  )
+                                  .add(result);
+                            }
+                            return ListView(
+                              children: [
+                                for (final entry in grouped.entries) ...[
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(2, 4, 2, 6),
+                                    child: Text(
+                                      '${entry.key} (${entry.value.length})',
+                                      style: TextStyle(
+                                        color: _palette(ctx).fgMuted,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  for (final result in entry.value) ...[
+                                    ListTile(
+                                      tileColor: _palette(ctx).hintBg,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      title: Text(
+                                        '${result.header} | Fila ${result.row + 1}',
+                                      ),
+                                      subtitle: Text(
+                                        '${result.value}\n${result.reason}',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      onTap: () async {
+                                        final targetSheetId = result.sheetId;
+                                        final targetRow = result.row;
+                                        final targetCol = result.col;
+                                        if (targetSheetId == widget.sheetId) {
+                                          Navigator.of(ctx).pop();
+                                          _setSelectionAndRefreshGrid(
+                                            targetRow,
+                                            targetCol,
+                                            blink: true,
+                                          );
+                                          return;
+                                        }
+                                        final table =
+                                            SheetStore.load(targetSheetId);
+                                        Navigator.of(ctx).pop();
+                                        if (!mounted) return;
+                                        await Navigator.of(context)
+                                            .pushReplacement(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) => EditorScreen(
+                                              sheetId: targetSheetId,
+                                              initialName:
+                                                  table?.headers.isNotEmpty ==
+                                                          true
+                                                      ? null
+                                                      : result.sheetTitle,
+                                              initialSelectionRow: targetRow,
+                                              initialSelectionCol: targetCol,
+                                              engineBaseUrl:
+                                                  widget.engineBaseUrl,
+                                              engineApiKey: widget.engineApiKey,
+                                              isLight: widget.isLight,
+                                              onToggleTheme:
+                                                  widget.onToggleTheme,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
+                                ],
+                              ],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    debounceT?.cancel();
+    ec.dispose();
   }
 
   void _openInlineSearch() {

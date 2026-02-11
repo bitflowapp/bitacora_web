@@ -14,6 +14,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onQuickCapture,
     required this.onForm,
     required this.onSearch,
+    required this.onSearchEverywhere,
     required this.onJumpTo,
     required this.onColumns,
     required this.onHistory,
@@ -66,6 +67,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onQuickCapture;
   final VoidCallback onForm;
   final VoidCallback onSearch;
+  final VoidCallback onSearchEverywhere;
   final VoidCallback onJumpTo;
   final VoidCallback onColumns;
   final VoidCallback onHistory;
@@ -418,6 +420,19 @@ class _PremiumAppleHeader extends StatelessWidget {
                               ),
                             ),
                             FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.27),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.travel_explore_rounded,
+                                label: 'Buscar global',
+                                semanticsLabel:
+                                    'Buscar en esta planilla o en todas',
+                                tooltip: 'Search Everywhere (Ctrl/Cmd+Shift+F)',
+                                onTap: onSearchEverywhere,
+                              ),
+                            ),
+                            FocusTraversalOrder(
                               order: const NumericFocusOrder(1.3),
                               child: _PillButton(
                                 palette: palette,
@@ -544,6 +559,12 @@ class _PremiumAppleHeader extends StatelessWidget {
                               label: AppStrings.editorSearch,
                               shortcut: 'Ctrl/Cmd+F',
                               onTap: onSearch,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.travel_explore_rounded,
+                              label: 'Buscar global',
+                              shortcut: 'Ctrl/Cmd+Shift+F',
+                              onTap: onSearchEverywhere,
                             ),
                             AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,

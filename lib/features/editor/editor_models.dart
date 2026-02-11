@@ -985,6 +985,85 @@ class _SavedView {
   }
 }
 
+class SearchEverywhereQuery {
+  const SearchEverywhereQuery({
+    required this.raw,
+    required this.needle,
+    this.columnToken,
+  });
+
+  final String raw;
+  final String needle;
+  final String? columnToken;
+
+  bool get isEmpty => needle.isEmpty;
+
+  bool get hasColumnFilter => (columnToken ?? '').trim().isNotEmpty;
+
+  static SearchEverywhereQuery parse(String input) {
+    final raw = input.trim();
+    if (raw.isEmpty) {
+      return const SearchEverywhereQuery(raw: '', needle: '');
+    }
+    if (raw.contains(':')) {
+      final idx = raw.indexOf(':');
+      final token = raw.substring(0, idx).trim();
+      final value = raw.substring(idx + 1).trim().toLowerCase();
+      if (token.isNotEmpty && value.isNotEmpty) {
+        return SearchEverywhereQuery(
+          raw: raw,
+          needle: value,
+          columnToken: token,
+        );
+      }
+    }
+    return SearchEverywhereQuery(raw: raw, needle: raw.toLowerCase());
+  }
+
+  int? resolveColumnIndex(List<String> headers) {
+    final token = (columnToken ?? '').trim().toLowerCase();
+    if (token.isEmpty) return null;
+    for (int c = 0; c < headers.length; c++) {
+      final label = headers[c].trim().toLowerCase();
+      if (label == token) return c;
+      if (label.contains(token)) return c;
+    }
+    if (token == 'estado' || token == 'status') {
+      for (int c = 0; c < headers.length; c++) {
+        final label = headers[c].toLowerCase();
+        if (label.contains('estado') || label.contains('status')) return c;
+      }
+    }
+    if (token == 'fecha' || token == 'date') {
+      for (int c = 0; c < headers.length; c++) {
+        final label = headers[c].toLowerCase();
+        if (label.contains('fecha') || label.contains('date')) return c;
+      }
+    }
+    return null;
+  }
+}
+
+class _GlobalSearchResult {
+  const _GlobalSearchResult({
+    required this.sheetId,
+    required this.sheetTitle,
+    required this.row,
+    required this.col,
+    required this.header,
+    required this.value,
+    required this.reason,
+  });
+
+  final String sheetId;
+  final String sheetTitle;
+  final int row;
+  final int col;
+  final String header;
+  final String value;
+  final String reason;
+}
+
 class _CellRef {
   const _CellRef(this.r, this.c);
   final int r;
