@@ -13,6 +13,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onAddRow,
     required this.onQuickCapture,
     required this.onSearch,
+    required this.onJumpTo,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -52,6 +53,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onAddRow;
   final VoidCallback onQuickCapture;
   final VoidCallback onSearch;
+  final VoidCallback onJumpTo;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -302,6 +304,14 @@ class _PremiumAppleHeader extends StatelessWidget {
                           _PillButton(
                             palette: palette,
                             filled: false,
+                            icon: Icons.pin_drop_outlined,
+                            label: 'Jump to...',
+                            semanticsLabel: 'Ir rapido por fila o ID',
+                            onTap: onJumpTo,
+                          ),
+                          _PillButton(
+                            palette: palette,
+                            filled: false,
                             icon: Icons.attach_file_rounded,
                             label: 'Adjuntos',
                             semanticsLabel: 'Abrir adjuntos de celda activa',
@@ -343,6 +353,12 @@ class _PremiumAppleHeader extends StatelessWidget {
                             label: AppStrings.editorSearch,
                             shortcut: 'Ctrl/Cmd+F',
                             onTap: onSearch,
+                          ),
+                          AppleToolbarItem(
+                            icon: Icons.pin_drop_outlined,
+                            label: 'Jump to...',
+                            shortcut: 'Ctrl/Cmd+J',
+                            onTap: onJumpTo,
                           ),
                           AppleToolbarItem(
                             icon: Icons.my_location_rounded,

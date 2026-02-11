@@ -20,6 +20,234 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
+class _InlineSearchBar extends StatelessWidget {
+  const _InlineSearchBar({
+    required this.palette,
+    required this.controller,
+    required this.focusNode,
+    required this.totalHits,
+    required this.activeIndex,
+    required this.onChanged,
+    required this.onPrev,
+    required this.onNext,
+    required this.onClose,
+  });
+
+  final _SheetPalette palette;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final int totalHits;
+  final int activeIndex;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    final counterText = totalHits <= 0 ? '0' : '${activeIndex + 1}/$totalHits';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: AppleCard(
+        radius: t.radii.xl,
+        color: t.colors.surfaceElevated
+            .withValues(alpha: palette.isLight ? 0.95 : 0.84),
+        borderColor: t.colors.borderStrong,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.search_rounded, size: 18, color: palette.fgMuted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                autofocus: false,
+                onChanged: onChanged,
+                onSubmitted: (_) => onNext(),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  hintText: 'Buscar en celdas...',
+                  hintStyle: TextStyle(color: palette.fgMuted),
+                ),
+                style: TextStyle(
+                  color: palette.fg,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: palette.hintBg,
+                borderRadius: BorderRadius.circular(999),
+                border:
+                    Border.all(color: palette.border, width: palette.hairline),
+              ),
+              child: Text(
+                counterText,
+                style: TextStyle(
+                  color: palette.fgMuted,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            _MobilePanelIconButton(
+              icon: Icons.keyboard_arrow_up_rounded,
+              tooltip: 'Anterior',
+              onTap: onPrev,
+              palette: palette,
+              iconSize: 20,
+              splashRadius: 17,
+            ),
+            _MobilePanelIconButton(
+              icon: Icons.keyboard_arrow_down_rounded,
+              tooltip: 'Siguiente',
+              onTap: onNext,
+              palette: palette,
+              iconSize: 20,
+              splashRadius: 17,
+            ),
+            _MobilePanelIconButton(
+              icon: Icons.close_rounded,
+              tooltip: 'Cerrar busqueda',
+              onTap: onClose,
+              palette: palette,
+              iconSize: 18,
+              splashRadius: 17,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionQuickActionsBar extends StatelessWidget {
+  const _SelectionQuickActionsBar({
+    required this.palette,
+    required this.selectionLabel,
+    required this.selectedRowsCount,
+    required this.canMarkStatus,
+    required this.onApplyValue,
+    required this.onDuplicateRows,
+    required this.onAttachPhoto,
+    required this.onAttachGps,
+    required this.onJumpTo,
+    required this.onMarkStatus,
+  });
+
+  final _SheetPalette palette;
+  final String selectionLabel;
+  final int selectedRowsCount;
+  final bool canMarkStatus;
+  final VoidCallback onApplyValue;
+  final VoidCallback onDuplicateRows;
+  final VoidCallback onAttachPhoto;
+  final VoidCallback onAttachGps;
+  final VoidCallback onJumpTo;
+  final ValueChanged<String> onMarkStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final rowsLabel =
+        selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: AppleCard(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        radius: 16,
+        color: palette.menuBg.withValues(alpha: palette.isLight ? 0.94 : 0.82),
+        borderColor: palette.borderStrong,
+        shadows: const <BoxShadow>[],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Acciones rapidas · $rowsLabel · $selectionLabel',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.fgMuted,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                AppButton(
+                  label: 'Pegar valor',
+                  icon: Icons.format_color_text_rounded,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onApplyValue,
+                ),
+                AppButton(
+                  label: 'Duplicar fila',
+                  icon: Icons.copy_all_outlined,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onDuplicateRows,
+                ),
+                AppButton(
+                  label: 'Adjuntar foto',
+                  icon: Icons.photo_camera_outlined,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onAttachPhoto,
+                ),
+                AppButton(
+                  label: 'Adjuntar GPS',
+                  icon: Icons.my_location_rounded,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onAttachGps,
+                ),
+                AppButton(
+                  label: 'Jump to...',
+                  icon: Icons.pin_drop_outlined,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.ghost,
+                  onPressed: onJumpTo,
+                ),
+              ],
+            ),
+            if (canMarkStatus) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final status in const <String>['OK', 'Obs', 'Urgente'])
+                    AppButton(
+                      label: status,
+                      icon: Icons.flag_outlined,
+                      size: AppButtonSize.sm,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: () => onMarkStatus(status),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileQuickActionsBar extends StatelessWidget {
   const _MobileQuickActionsBar({
     required this.palette,

@@ -90,6 +90,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyJ) {
+      unawaited(_openJumpToDialog());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyN) {
       _insertRow(_rows.length);
       return KeyEventResult.handled;

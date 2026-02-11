@@ -68,6 +68,7 @@ class _GridView extends StatelessWidget {
     required this.cellPhotoThumb,
     required this.cellPhotoCount,
     required this.isInvalid,
+    required this.isSearchHit,
     required this.vScroll,
     required this.hScroll,
     required this.selRow,
@@ -98,6 +99,7 @@ class _GridView extends StatelessWidget {
   final String Function(int r, int c) cellPhotoThumb;
   final int Function(int r, int c) cellPhotoCount;
   final bool Function(int r, int c) isInvalid;
+  final bool Function(int r, int c) isSearchHit;
 
   final ScrollController vScroll;
   final ScrollController hScroll;
@@ -279,6 +281,8 @@ class _GridView extends StatelessWidget {
                                                       blinkRef: blinkRef,
                                                       cellRef: ref,
                                                       invalid: invalid,
+                                                      searchHit:
+                                                          isSearchHit(r, col),
                                                       isOverlayTarget:
                                                           overlayTargetCell ==
                                                               ref,
@@ -562,6 +566,7 @@ class _DataCell extends StatelessWidget {
     required this.selected,
     required this.rowSelected,
     required this.invalid,
+    required this.searchHit,
     required this.isPhotos,
     required this.blinkRef,
     required this.cellRef,
@@ -588,6 +593,7 @@ class _DataCell extends StatelessWidget {
   final bool selected;
   final bool rowSelected;
   final bool invalid;
+  final bool searchHit;
   final bool isPhotos;
 
   final _CellRef? blinkRef;
@@ -612,12 +618,25 @@ class _DataCell extends StatelessWidget {
     final selectedBg = palette.selectionFill;
     final rowSelectedBg =
         palette.selectionFill.withValues(alpha: palette.isLight ? 0.5 : 0.66);
+    final searchBg = Color.lerp(
+          baseBg,
+          palette.focusRing.withValues(alpha: palette.isLight ? 0.16 : 0.22),
+          0.6,
+        ) ??
+        baseBg;
     final bg = isActive
         ? palette.blinkBg
-        : (selected ? selectedBg : (rowSelected ? rowSelectedBg : baseBg));
+        : (selected
+            ? selectedBg
+            : (rowSelected ? rowSelectedBg : (searchHit ? searchBg : baseBg)));
 
-    final borderColor =
-        focus || invalid ? palette.selectionBorder : palette.gridBorder;
+    final borderColor = focus || invalid
+        ? palette.selectionBorder
+        : (searchHit
+            ? palette.selectionBorder.withValues(
+                alpha: palette.isLight ? 0.52 : 0.7,
+              )
+            : palette.gridBorder);
     final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final radius = BorderRadius.zero;

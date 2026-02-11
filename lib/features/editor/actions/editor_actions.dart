@@ -21,10 +21,18 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'search',
           label: 'Buscar',
-          subtitle: 'Buscar texto en la planilla',
+          subtitle: 'Busqueda inline con resaltado',
           shortcut: 'Ctrl/Cmd+F',
           icon: Icons.search_rounded,
           onSelected: () => unawaited(_openSearchDialog()),
+        ),
+        CommandAction(
+          id: 'jump_to',
+          label: 'Jump to...',
+          subtitle: 'Ir rapido por fila o ID',
+          shortcut: 'Ctrl/Cmd+J',
+          icon: Icons.pin_drop_outlined,
+          onSelected: () => unawaited(_openJumpToDialog()),
         ),
         CommandAction(
           id: 'quick_capture',

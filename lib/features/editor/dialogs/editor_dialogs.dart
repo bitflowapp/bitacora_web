@@ -12,6 +12,7 @@ extension _EditorDialogs on _EditorScreenState {
         children: const [
           Text('Ctrl/Cmd+S - Guardar'),
           Text('Ctrl/Cmd+F - Buscar'),
+          Text('Ctrl/Cmd+J - Jump to fila/ID'),
           Text('Ctrl/Cmd+K - Paleta de comandos'),
           Text('Ctrl/Cmd+Z - Deshacer'),
           Text('Ctrl/Cmd+Y - Rehacer'),

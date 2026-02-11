@@ -347,6 +347,14 @@ class _EditorScreenState extends State<EditorScreen>
   int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
   int _pendingRequired = 0;
+  bool _inlineSearchOpen = false;
+  final TextEditingController _inlineSearchEC = TextEditingController();
+  final FocusNode _inlineSearchFocus =
+      FocusNode(debugLabel: 'InlineSearchFocus');
+  Timer? _inlineSearchDebounceT;
+  List<_CellRef> _searchMatches = <_CellRef>[];
+  Set<_CellRef> _searchHitSet = <_CellRef>{};
+  int _searchMatchIndex = -1;
   String _lastSearchQuery = '';
   _CellRef? _lastSearchHit;
   static const int _maxRecentValuesPerColumn = 8;
@@ -497,6 +505,7 @@ class _EditorScreenState extends State<EditorScreen>
     _saveT?.cancel();
     _validationDebounceT?.cancel();
     _nameDebounceT?.cancel();
+    _inlineSearchDebounceT?.cancel();
     _blinkT?.cancel();
     _kbEnsureDebounceT?.cancel();
     _mobileEnsureLateT?.cancel();
@@ -541,6 +550,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     _nameEC.dispose();
     _nameFocus.dispose();
+    _inlineSearchEC.dispose();
+    _inlineSearchFocus.dispose();
     _engineApi.dispose();
     _backupTimer?.cancel();
     unawaited(_audioService.dispose());
@@ -1320,11 +1331,20 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _undoOnce() {
-    if (_undo.length <= 1) return;
+    if (_undo.length <= 1) {
+      _showActionSnack(
+        'No hay mas cambios para deshacer.',
+        isError: false,
+        icon: Icons.undo_rounded,
+      );
+      return;
+    }
     final current = _undo.removeLast();
     _redo.add(current);
 
     final prev = _undo.last;
+    final maxRow = math.max(0, _rows.length - 1);
+    final maxCol = math.max(0, _headers.length - 1);
 
     setState(() {
       _sheetName = prev.name;
@@ -1335,8 +1355,8 @@ class _EditorScreenState extends State<EditorScreen>
         ..clear()
         ..addAll(_cloneCellMeta(prev.cellMeta));
       _setSelection(
-        prev.selRow.clamp(0, _rows.length - 1),
-        prev.selCol.clamp(0, _headers.length - 1),
+        prev.selRow.clamp(0, maxRow),
+        prev.selCol.clamp(0, maxCol),
       );
 
       _isDirty = true;
@@ -1354,12 +1374,22 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     _queueSave();
+    AppHaptics.selection();
   }
 
   void _redoOnce() {
-    if (_redo.isEmpty) return;
+    if (_redo.isEmpty) {
+      _showActionSnack(
+        'No hay cambios para rehacer.',
+        isError: false,
+        icon: Icons.redo_rounded,
+      );
+      return;
+    }
     final snap = _redo.removeLast();
     _undo.add(snap);
+    final maxRow = math.max(0, _rows.length - 1);
+    final maxCol = math.max(0, _headers.length - 1);
 
     setState(() {
       _sheetName = snap.name;
@@ -1370,8 +1400,8 @@ class _EditorScreenState extends State<EditorScreen>
         ..clear()
         ..addAll(_cloneCellMeta(snap.cellMeta));
       _setSelection(
-        snap.selRow.clamp(0, _rows.length - 1),
-        snap.selCol.clamp(0, _headers.length - 1),
+        snap.selRow.clamp(0, maxRow),
+        snap.selCol.clamp(0, maxCol),
       );
 
       _isDirty = true;
@@ -1389,8 +1419,8 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     _queueSave();
+    AppHaptics.selection();
   }
-
 // ------------------------------ Tema / Paleta ---------------------------
 
   _SheetPalette _palette(BuildContext context) {
@@ -2227,6 +2257,209 @@ class _EditorScreenState extends State<EditorScreen>
     return _resolveQuickCaptureDateColumn().clamp(0, lastDataCol);
   }
 
+  String _selectionLabelForQuickActions() {
+    if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
+    final col = _headerLabel(_selCol);
+    return '$col · fila ${_selRow + 1}';
+  }
+
+  int? _statusColumnForBatchActions() {
+    final dataCols = _headers.length - 1;
+    for (int c = 0; c < dataCols; c++) {
+      if (_colType(c) == _ColType.status) return c;
+    }
+    return null;
+  }
+
+  Future<void> _applyStatusToSelectedRows(String status) async {
+    final rows = _batchTargetRows();
+    if (rows.isEmpty || _headers.length < 2) return;
+    final statusCol = _statusColumnForBatchActions();
+    if (statusCol == null) {
+      _showActionSnack(
+        'No se encontro columna Estado.',
+        isError: true,
+        icon: Icons.flag_outlined,
+      );
+      return;
+    }
+
+    final normalized = _normalizeCellValueForColumn(statusCol, status);
+    _rememberValueForColumn(statusCol, normalized);
+    final refsToClear = <_CellRef>[];
+    var changed = 0;
+    for (final r in rows) {
+      if (r < 0 || r >= _rows.length) continue;
+      if (_rows[r].cells[statusCol] == normalized) continue;
+      _rows[r].cells[statusCol] = normalized;
+      refsToClear.add(_CellRef(r, statusCol));
+      changed++;
+    }
+
+    if (changed == 0) {
+      _showActionSnack(
+        'Sin cambios para aplicar.',
+        isError: false,
+        icon: Icons.flag_outlined,
+      );
+      return;
+    }
+
+    _clearCellDrafts(refsToClear);
+    _setSelection(
+      rows.first,
+      statusCol,
+      preserveRowSelection: true,
+      blink: true,
+    );
+    _markDirty(snapshot: true);
+    AppHaptics.light();
+    _showActionSnack(
+      'Estado "$normalized" aplicado a $changed fila(s).',
+      isError: false,
+      icon: Icons.flag_outlined,
+    );
+  }
+
+  int? _resolveJumpIdColumn() {
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return null;
+    for (int c = 0; c < dataCols; c++) {
+      final h = _headerLabel(c).toLowerCase();
+      if (h.contains('id') ||
+          h.contains('progres') ||
+          h.contains('codigo') ||
+          h.contains('code') ||
+          h.contains('ref')) {
+        return c;
+      }
+    }
+    return 0;
+  }
+
+  Future<void> _openJumpToDialog() async {
+    if (!mounted) return;
+    final rowCtrl = TextEditingController(
+      text: _selRow >= 0 ? (_selRow + 1).toString() : '',
+    );
+    final idCtrl = TextEditingController();
+    final idCol = _resolveJumpIdColumn();
+    String? error;
+
+    final targetRow = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return AlertDialog(
+              title: const Text('Jump to...'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: rowCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Fila (1-based)',
+                      hintText: 'Ej: 42',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: idCtrl,
+                    decoration: InputDecoration(
+                      labelText: idCol == null
+                          ? 'ID (no disponible)'
+                          : 'ID / Progresiva',
+                      hintText: idCol == null
+                          ? 'No hay columna de ID'
+                          : 'Buscar en ${_headerLabel(idCol)}',
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: _palette(ctx).selectionBorder,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final rowRaw = rowCtrl.text.trim();
+                    final idRaw = idCtrl.text.trim();
+                    if (rowRaw.isEmpty && idRaw.isEmpty) {
+                      setModalState(() => error = 'Ingresa fila o ID.');
+                      return;
+                    }
+
+                    if (rowRaw.isNotEmpty) {
+                      final parsed = int.tryParse(rowRaw);
+                      if (parsed == null ||
+                          parsed <= 0 ||
+                          parsed > _rows.length) {
+                        setModalState(() => error = 'Fila fuera de rango.');
+                        return;
+                      }
+                      Navigator.of(ctx).pop(parsed - 1);
+                      return;
+                    }
+
+                    if (idCol == null) {
+                      setModalState(
+                          () => error = 'No hay columna para buscar ID.');
+                      return;
+                    }
+
+                    final needle = idRaw.toLowerCase();
+                    for (int r = 0; r < _rows.length; r++) {
+                      final value = _effectiveCell(r, idCol).toLowerCase();
+                      if (value.contains(needle)) {
+                        Navigator.of(ctx).pop(r);
+                        return;
+                      }
+                    }
+                    setModalState(() => error = 'No se encontro "$idRaw".');
+                  },
+                  child: const Text('Ir'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    rowCtrl.dispose();
+    idCtrl.dispose();
+    if (!mounted || targetRow == null) return;
+
+    final dataCols = _headers.length - 1;
+    final targetCol = dataCols > 0 ? (_selCol.clamp(0, dataCols - 1)) : 0;
+    _setSelectionAndRefreshGrid(
+      targetRow.clamp(0, math.max(0, _rows.length - 1)),
+      targetCol,
+      blink: true,
+    );
+    AppHaptics.selection();
+    _showActionSnack(
+      'Foco en fila ${targetRow + 1}.',
+      isError: false,
+      icon: Icons.pin_drop_outlined,
+    );
+  }
+
   void _handleRowIndexTap(int row) {
     if (row < 0 || row >= _rows.length) return;
     final keyboard = HardwareKeyboard.instance;
@@ -2281,6 +2514,7 @@ class _EditorScreenState extends State<EditorScreen>
     final count = selected.length;
     final targetCol = _resolveBatchTargetColumn();
     final columnLabel = _headerLabel(targetCol);
+    final statusCol = _statusColumnForBatchActions();
 
     await showAppModal<void>(
       context: context,
@@ -2331,6 +2565,34 @@ class _EditorScreenState extends State<EditorScreen>
               unawaited(_applyGpsToSelectedRows());
             },
           ),
+          if (statusCol != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Marcar Estado',
+              style: TextStyle(
+                color: _palette(context).fgMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final status in const <String>['OK', 'Obs', 'Urgente'])
+                  AppButton(
+                    label: status,
+                    icon: Icons.flag_outlined,
+                    size: AppButtonSize.sm,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      unawaited(_applyStatusToSelectedRows(status));
+                    },
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           AppButton(
             label: 'Duplicar fila(s)',
@@ -3890,6 +4152,9 @@ class _EditorScreenState extends State<EditorScreen>
         final bodyBottomPad = isDesktop
             ? 0.0
             : (editorActive ? panelH + keyboardInset : quickBarH);
+        final showSelectionQuickActions =
+            !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
+        final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
 
         if (isMobile) {
           if (_engineStatusIsError && _engineStatus != null) {
@@ -3943,6 +4208,7 @@ class _EditorScreenState extends State<EditorScreen>
                               onQuickCapture: () =>
                                   unawaited(_startQuickCaptureFlow()),
                               onSearch: () => unawaited(_openSearchDialog()),
+                              onJumpTo: () => unawaited(_openJumpToDialog()),
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -4092,6 +4358,39 @@ class _EditorScreenState extends State<EditorScreen>
                                 ],
                               ),
                             ),
+                          if (_inlineSearchOpen)
+                            _InlineSearchBar(
+                              palette: pal,
+                              controller: _inlineSearchEC,
+                              focusNode: _inlineSearchFocus,
+                              totalHits: _searchMatches.length,
+                              activeIndex:
+                                  _searchMatchIndex < 0 ? 0 : _searchMatchIndex,
+                              onChanged: _onInlineSearchChanged,
+                              onPrev: () => _goToSearchHitDelta(-1),
+                              onNext: () => _goToSearchHitDelta(1),
+                              onClose: () => _closeInlineSearch(),
+                            ),
+                          if (showSelectionQuickActions)
+                            _SelectionQuickActionsBar(
+                              palette: pal,
+                              selectionLabel: _selectionLabelForQuickActions(),
+                              selectedRowsCount: _batchTargetRows().length,
+                              canMarkStatus: canMarkSelectionStatus,
+                              onApplyValue: () =>
+                                  unawaited(_promptBatchApplyValue()),
+                              onDuplicateRows: _duplicateSelectedRows,
+                              onAttachPhoto: () => unawaited(
+                                _startPhotoFlowForCell(_selRow, _selCol),
+                              ),
+                              onAttachGps: () => unawaited(
+                                _requestGpsForCell(_selRow, _selCol,
+                                    forceWriteText: true),
+                              ),
+                              onJumpTo: () => unawaited(_openJumpToDialog()),
+                              onMarkStatus: (value) =>
+                                  unawaited(_applyStatusToSelectedRows(value)),
+                            ),
                           if (isDesktop && _smokeStatus != null)
                             _StatusBar(
                               text: _smokeStatus!,
@@ -4132,6 +4431,7 @@ class _EditorScreenState extends State<EditorScreen>
                                             cellPhotoCount: _cellPhotoCount,
                                             isInvalid: (r, c) => _invalidCells
                                                 .contains(_CellRef(r, c)),
+                                            isSearchHit: _isSearchHit,
                                             vScroll: _vScroll,
                                             hScroll: _hScroll,
                                             selRow: _selRow,
@@ -6153,86 +6453,156 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _openSearchDialog() async {
-    if (!mounted) return;
-    final controller = TextEditingController(text: _lastSearchQuery);
-    final query = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Buscar'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Texto a buscar en la planilla',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onSubmitted: (value) => Navigator.of(ctx).pop(value),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text),
-              child: const Text('Buscar'),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    if (!mounted || query == null) return;
-    final q = query.trim();
-    if (q.isEmpty) return;
-    final continueFromLast = _lastSearchQuery == q;
-    if (!continueFromLast) {
-      _lastSearchHit = null;
-    }
-    _lastSearchQuery = q;
+    _openInlineSearch();
+  }
 
-    if (_jumpToSearchMatch(q, continueFromLast: continueFromLast)) return;
-    _showActionSnack(
-      'Sin resultados para "$q".',
-      isError: false,
-      icon: Icons.search_off_rounded,
+  void _openInlineSearch() {
+    if (!mounted) return;
+    if (!_inlineSearchOpen) {
+      setState(() => _inlineSearchOpen = true);
+    }
+    if (_inlineSearchEC.text.trim().isEmpty && _lastSearchQuery.isNotEmpty) {
+      _inlineSearchEC.text = _lastSearchQuery;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _inlineSearchFocus.requestFocus();
+      _inlineSearchEC.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _inlineSearchEC.text.length,
+      );
+    });
+
+    _refreshSearchMatches(
+      _inlineSearchEC.text,
+      jumpToFirst: _searchMatchIndex < 0,
+      announceEmpty: false,
     );
   }
 
-  bool _jumpToSearchMatch(String query, {bool continueFromLast = true}) {
-    final needle = query.toLowerCase();
+  void _closeInlineSearch({bool clearQuery = false}) {
+    _inlineSearchDebounceT?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _inlineSearchOpen = false;
+      _searchMatches = <_CellRef>[];
+      _searchHitSet = <_CellRef>{};
+      _searchMatchIndex = -1;
+      _lastSearchHit = null;
+      if (clearQuery) {
+        _inlineSearchEC.clear();
+        _lastSearchQuery = '';
+      }
+    });
+  }
+
+  void _onInlineSearchChanged(String query) {
+    _inlineSearchDebounceT?.cancel();
+    _inlineSearchDebounceT = Timer(const Duration(milliseconds: 120), () {
+      _refreshSearchMatches(query, jumpToFirst: true, announceEmpty: false);
+    });
+  }
+
+  void _refreshSearchMatches(
+    String query, {
+    required bool jumpToFirst,
+    required bool announceEmpty,
+  }) {
+    final q = query.trim();
     final rows = _rows.length;
     final cols = _headers.length - 1;
-    if (rows <= 0 || cols <= 0) return false;
+    if (!mounted || rows <= 0 || cols <= 0) return;
 
-    final max = rows * cols;
-    final selectedLinear = (_selRow * cols) + _selCol.clamp(0, cols - 1);
-    var startLinear = selectedLinear + 1;
-
-    if (continueFromLast && _lastSearchHit != null) {
-      final hit = _lastSearchHit!;
-      startLinear = (hit.r * cols) + hit.c + 1;
+    if (q.isEmpty) {
+      setState(() {
+        _searchMatches = <_CellRef>[];
+        _searchHitSet = <_CellRef>{};
+        _searchMatchIndex = -1;
+        _lastSearchHit = null;
+        _lastSearchQuery = '';
+      });
+      return;
     }
 
-    for (int i = 0; i < max; i++) {
-      final idx = (startLinear + i) % max;
-      final r = idx ~/ cols;
-      final c = idx % cols;
-      final text = _effectiveCell(r, c).toLowerCase();
-      if (!text.contains(needle)) continue;
-      _lastSearchHit = _CellRef(r, c);
-      _setSelectionAndRefreshGrid(r, c, blink: true);
+    final needle = q.toLowerCase();
+    final nextMatches = <_CellRef>[];
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        final text = _effectiveCell(r, c).toLowerCase();
+        if (!text.contains(needle)) continue;
+        nextMatches.add(_CellRef(r, c));
+      }
+    }
+
+    _lastSearchQuery = q;
+    if (nextMatches.isEmpty) {
+      setState(() {
+        _searchMatches = <_CellRef>[];
+        _searchHitSet = <_CellRef>{};
+        _searchMatchIndex = -1;
+        _lastSearchHit = null;
+      });
+      if (announceEmpty) {
+        _showActionSnack(
+          'Sin resultados para "$q".',
+          isError: false,
+          icon: Icons.search_off_rounded,
+        );
+      }
+      return;
+    }
+
+    final previousHit = _lastSearchHit;
+    var nextIndex = 0;
+    if (previousHit != null) {
+      final found = nextMatches.indexOf(previousHit);
+      if (found >= 0) nextIndex = found;
+    }
+    if (jumpToFirst && previousHit == null) {
+      nextIndex = 0;
+    }
+
+    setState(() {
+      _searchMatches = nextMatches;
+      _searchHitSet = nextMatches.toSet();
+      _searchMatchIndex = nextIndex.clamp(0, nextMatches.length - 1);
+      _lastSearchHit = _searchMatches[_searchMatchIndex];
+    });
+
+    if (jumpToFirst) {
+      _goToSearchHitIndex(_searchMatchIndex, announce: false);
+    }
+  }
+
+  void _goToSearchHitDelta(int delta) {
+    if (_searchMatches.isEmpty) return;
+    final count = _searchMatches.length;
+    final current = _searchMatchIndex < 0 ? 0 : _searchMatchIndex;
+    final next = (current + delta) % count;
+    final normalized = next < 0 ? next + count : next;
+    _goToSearchHitIndex(normalized, announce: false);
+  }
+
+  void _goToSearchHitIndex(int index, {required bool announce}) {
+    if (_searchMatches.isEmpty) return;
+    final safe = index.clamp(0, _searchMatches.length - 1);
+    final hit = _searchMatches[safe];
+    setState(() {
+      _searchMatchIndex = safe;
+      _lastSearchHit = hit;
+    });
+    _setSelectionAndRefreshGrid(hit.r, hit.c, blink: true);
+    if (announce) {
       _showActionSnack(
-        'Coincidencia en fila ${r + 1}, columna ${_headerLabel(c)}.',
+        'Coincidencia ${safe + 1}/${_searchMatches.length} en fila ${hit.r + 1}, columna ${_headerLabel(hit.c)}.',
         isError: false,
         icon: Icons.search_rounded,
       );
-      return true;
     }
-    _lastSearchHit = null;
-    return false;
   }
+
+  bool _isSearchHit(int r, int c) => _searchHitSet.contains(_CellRef(r, c));
 
 // ------------------------------ GPS / Maps ------------------------------
 
