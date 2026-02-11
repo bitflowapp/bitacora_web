@@ -132,6 +132,12 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_showDensityPicker()),
         ),
         CommandAction(
+          id: 'editor_defaults',
+          label: 'Preferencias de editor',
+          icon: Icons.tune_rounded,
+          onSelected: () => unawaited(_openEditorDefaultsDialog()),
+        ),
+        CommandAction(
           id: 'export_xlsx',
           label: 'Exportar XLSX',
           shortcut: 'Ctrl/Cmd+E',

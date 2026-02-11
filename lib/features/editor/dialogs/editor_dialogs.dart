@@ -1,6 +1,87 @@
 part of '../editor_screen.dart';
 
 extension _EditorDialogs on _EditorScreenState {
+  Future<void> _openEditorDefaultsDialog() async {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    var dateDefault = _defaultDateTodayEnabled;
+    var statusDefault = _defaultStatusOkEnabled;
+    var autoIncrement = _autoIncrementIdEnabled;
+
+    final result = await showAppModal<_EditorDefaultsConfig>(
+      context: context,
+      title: 'Preferencias de editor',
+      child: StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                value: dateDefault,
+                onChanged: (value) => setModalState(() => dateDefault = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Fecha: completar con hoy al crear fila'),
+                subtitle: const Text('Aplica en columnas Fecha/Hora'),
+              ),
+              SwitchListTile(
+                value: statusDefault,
+                onChanged: (value) =>
+                    setModalState(() => statusDefault = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Estado: default OK'),
+                subtitle: const Text('Aplica en columnas Estado'),
+              ),
+              SwitchListTile(
+                value: autoIncrement,
+                onChanged: (value) =>
+                    setModalState(() => autoIncrement = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('ID/Progresiva: autoincrement'),
+                subtitle: const Text(
+                  'Toma el ultimo valor numerico y suma +1',
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          variant: AppButtonVariant.primary,
+          onPressed: () {
+            Navigator.of(context).pop(
+              _EditorDefaultsConfig(
+                dateDefault: dateDefault,
+                statusDefault: statusDefault,
+                autoIncrement: autoIncrement,
+              ),
+            );
+          },
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (result == null) return;
+    await _setEditorDefaultRules(
+      defaultDateTodayEnabled: result.dateDefault,
+      defaultStatusOkEnabled: result.statusDefault,
+      autoIncrementIdEnabled: result.autoIncrement,
+    );
+    if (!mounted) return;
+    _showActionSnack(
+      'Preferencias de editor actualizadas.',
+      isError: false,
+      icon: Icons.tune_rounded,
+    );
+  }
+
   Future<void> _openShortcutsHelp() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -194,4 +275,16 @@ class _ShortcutLine extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EditorDefaultsConfig {
+  const _EditorDefaultsConfig({
+    required this.dateDefault,
+    required this.statusDefault,
+    required this.autoIncrement,
+  });
+
+  final bool dateDefault;
+  final bool statusDefault;
+  final bool autoIncrement;
 }

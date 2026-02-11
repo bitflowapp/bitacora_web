@@ -359,8 +359,13 @@ class _EditorScreenState extends State<EditorScreen>
   int _searchMatchIndex = -1;
   String _lastSearchQuery = '';
   _CellRef? _lastSearchHit;
-  static const int _maxRecentValuesPerColumn = 8;
+  static const int _maxRecentValuesPerColumn = 10;
+  static const int _maxPersistedRecentValuesPerColumn = 10;
   final Map<int, List<String>> _recentValuesByCol = <int, List<String>>{};
+  Timer? _recentValuesSaveT;
+  bool _defaultDateTodayEnabled = true;
+  bool _defaultStatusOkEnabled = true;
+  bool _autoIncrementIdEnabled = false;
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -450,6 +455,8 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGpsMode());
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
+    unawaited(_loadEditorDefaultsPrefs());
+    unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection()
@@ -511,6 +518,7 @@ class _EditorScreenState extends State<EditorScreen>
     _validationDebounceT?.cancel();
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
+    _recentValuesSaveT?.cancel();
     _blinkT?.cancel();
     _kbEnsureDebounceT?.cancel();
     _mobileEnsureLateT?.cancel();
@@ -846,6 +854,8 @@ class _EditorScreenState extends State<EditorScreen>
   String get _prefsKeyBackup => '$_prefsKey:backup';
   String get _prefsKeyStaging => '$_prefsKey:staging';
   String get _backupListKey => '$_prefsKey:bk:list';
+  String get _prefsRecentValuesKey => '$_prefsKey:recent_values.v1';
+  String get _prefsEditorDefaultsKey => '$_prefsKey:defaults.v1';
   String _backupKey(DateTime ts) =>
       '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
 
@@ -1092,6 +1102,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _seedRecentValuesFromRows() {
+    final previous = <int, List<String>>{};
+    _recentValuesByCol.forEach((col, values) {
+      previous[col] = List<String>.from(values);
+    });
     _recentValuesByCol.clear();
     if (_headers.length < 2) return;
     final dataCols = _headers.length - 1;
@@ -1101,6 +1115,11 @@ class _EditorScreenState extends State<EditorScreen>
         _rememberValueForColumn(c, row.cells[c]);
       }
     }
+    previous.forEach((col, values) {
+      for (final value in values) {
+        _rememberValueForColumn(col, value);
+      }
+    });
   }
 
   void _rememberValueForColumn(int c, String value) {
@@ -1113,6 +1132,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (list.length > _maxRecentValuesPerColumn) {
       list.removeRange(_maxRecentValuesPerColumn, list.length);
     }
+    _scheduleRecentValuesPersist();
   }
 
   List<String> _recentValuesForColumn(int c, {String? excluding}) {
@@ -1495,6 +1515,160 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefGridDensity, density.name);
+    } catch (_) {}
+  }
+
+  bool _isAutoIncrementColumn(int c) {
+    if (c < 0 || c >= _headers.length - 1) return false;
+    final h = _headerLabel(c).toLowerCase();
+    return h.contains('progres') ||
+        h.contains('codigo') ||
+        h.contains('code') ||
+        h.contains('folio') ||
+        RegExp(r'(^|[^a-z])id([^a-z]|$)').hasMatch(h);
+  }
+
+  Future<void> _loadEditorDefaultsPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsEditorDefaultsKey);
+      if (raw == null || raw.trim().isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final nextDate = (decoded['defaultDateTodayEnabled'] as bool?) ?? true;
+      final nextStatus = (decoded['defaultStatusOkEnabled'] as bool?) ?? true;
+      final nextAutoIncrement =
+          (decoded['autoIncrementIdEnabled'] as bool?) ?? false;
+      if (!mounted) {
+        _defaultDateTodayEnabled = nextDate;
+        _defaultStatusOkEnabled = nextStatus;
+        _autoIncrementIdEnabled = nextAutoIncrement;
+        return;
+      }
+      setState(() {
+        _defaultDateTodayEnabled = nextDate;
+        _defaultStatusOkEnabled = nextStatus;
+        _autoIncrementIdEnabled = nextAutoIncrement;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveEditorDefaultsPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _prefsEditorDefaultsKey,
+        jsonEncode(<String, dynamic>{
+          'defaultDateTodayEnabled': _defaultDateTodayEnabled,
+          'defaultStatusOkEnabled': _defaultStatusOkEnabled,
+          'autoIncrementIdEnabled': _autoIncrementIdEnabled,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _setEditorDefaultRules({
+    bool? defaultDateTodayEnabled,
+    bool? defaultStatusOkEnabled,
+    bool? autoIncrementIdEnabled,
+  }) async {
+    final nextDate = defaultDateTodayEnabled ?? _defaultDateTodayEnabled;
+    final nextStatus = defaultStatusOkEnabled ?? _defaultStatusOkEnabled;
+    final nextAutoIncrement = autoIncrementIdEnabled ?? _autoIncrementIdEnabled;
+    if (nextDate == _defaultDateTodayEnabled &&
+        nextStatus == _defaultStatusOkEnabled &&
+        nextAutoIncrement == _autoIncrementIdEnabled) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _defaultDateTodayEnabled = nextDate;
+        _defaultStatusOkEnabled = nextStatus;
+        _autoIncrementIdEnabled = nextAutoIncrement;
+      });
+    } else {
+      _defaultDateTodayEnabled = nextDate;
+      _defaultStatusOkEnabled = nextStatus;
+      _autoIncrementIdEnabled = nextAutoIncrement;
+    }
+    await _saveEditorDefaultsPrefs();
+  }
+
+  Future<void> _loadRecentValuesFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsRecentValuesKey);
+      if (raw == null || raw.trim().isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      decoded.forEach((key, value) {
+        final col = int.tryParse(key.toString());
+        if (col == null || col < 0 || col >= _headers.length - 1) return;
+        if (value is! List) return;
+        final sanitized = <String>[];
+        for (final item in value) {
+          final text = item.toString().trim();
+          if (text.isEmpty) continue;
+          if (sanitized.any(
+              (existing) => existing.toLowerCase() == text.toLowerCase())) {
+            continue;
+          }
+          sanitized.add(text);
+          if (sanitized.length >= _maxPersistedRecentValuesPerColumn) break;
+        }
+        if (sanitized.isEmpty) return;
+        final current = _recentValuesByCol[col] ?? <String>[];
+        final merged = <String>[...current];
+        for (final entry in sanitized) {
+          if (merged.any(
+              (existing) => existing.toLowerCase() == entry.toLowerCase())) {
+            continue;
+          }
+          merged.add(entry);
+        }
+        _recentValuesByCol[col] = merged;
+      });
+    } catch (_) {}
+  }
+
+  void _scheduleRecentValuesPersist() {
+    _recentValuesSaveT?.cancel();
+    _recentValuesSaveT = Timer(const Duration(milliseconds: 450), () {
+      unawaited(_persistRecentValuesNow());
+    });
+  }
+
+  Future<void> _persistRecentValuesNow() async {
+    if (_recentValuesByCol.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_prefsRecentValuesKey);
+      } catch (_) {}
+      return;
+    }
+    try {
+      final payload = <String, List<String>>{};
+      _recentValuesByCol.forEach((col, items) {
+        final cleaned = <String>[];
+        for (final item in items) {
+          final text = item.trim();
+          if (text.isEmpty) continue;
+          if (cleaned.any(
+              (existing) => existing.toLowerCase() == text.toLowerCase())) {
+            continue;
+          }
+          cleaned.add(text);
+          if (cleaned.length >= _maxPersistedRecentValuesPerColumn) break;
+        }
+        if (cleaned.isEmpty) return;
+        payload['$col'] = cleaned;
+      });
+      final prefs = await SharedPreferences.getInstance();
+      if (payload.isEmpty) {
+        await prefs.remove(_prefsRecentValuesKey);
+      } else {
+        await prefs.setString(_prefsRecentValuesKey, jsonEncode(payload));
+      }
     } catch (_) {}
   }
 
@@ -2718,7 +2892,7 @@ class _EditorScreenState extends State<EditorScreen>
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    for (final item in suggestions.take(6))
+                    for (final item in suggestions.take(10))
                       ActionChip(
                         label: Text(
                           item,
@@ -5807,7 +5981,7 @@ class _EditorScreenState extends State<EditorScreen>
     final suggestions = activeCol == null
         ? const <String>[]
         : _recentValuesForColumn(activeCol, excluding: initial)
-            .take(4)
+            .take(10)
             .toList(growable: false);
     final overlay = Overlay.of(context, rootOverlay: true);
 
@@ -6421,11 +6595,73 @@ class _EditorScreenState extends State<EditorScreen>
     _cellMeta.addAll(updates);
   }
 
+  String _nextAutoIncrementValueForColumn(int c) {
+    if (c < 0 || c >= _headers.length - 1) return '';
+    String? seed;
+    for (int r = _rows.length - 1; r >= 0; r--) {
+      final value = _rows[r].cells[c].trim();
+      if (value.isEmpty) continue;
+      seed = value;
+      break;
+    }
+    if (seed != null) {
+      final match = RegExp(r'^(.*?)(\d+)$').firstMatch(seed);
+      if (match != null) {
+        final prefix = match.group(1) ?? '';
+        final digits = match.group(2) ?? '';
+        final parsed = int.tryParse(digits);
+        if (parsed != null) {
+          final next = (parsed + 1).toString().padLeft(digits.length, '0');
+          return '$prefix$next';
+        }
+      }
+      final asInt = int.tryParse(seed);
+      if (asInt != null) return (asInt + 1).toString();
+    }
+
+    var maxParsed = 0;
+    var foundAny = false;
+    for (final row in _rows) {
+      final value = row.cells[c].trim();
+      if (value.isEmpty) continue;
+      final match = RegExp(r'(\d+)$').firstMatch(value);
+      final parsed = int.tryParse(match?.group(1) ?? '');
+      if (parsed == null) continue;
+      foundAny = true;
+      if (parsed > maxParsed) maxParsed = parsed;
+    }
+    if (foundAny) return (maxParsed + 1).toString();
+    return (_rows.length + 1).toString();
+  }
+
+  _RowModel _buildSmartDefaultRow() {
+    final row = _RowModel.empty(_headers.length, id: _genStableId('r_'));
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return row;
+
+    final dateValue = _formatDateCellValue(DateTime.now());
+    for (int c = 0; c < dataCols; c++) {
+      if (_defaultDateTodayEnabled && _colType(c) == _ColType.date) {
+        row.cells[c] = dateValue;
+      }
+      if (_defaultStatusOkEnabled && _colType(c) == _ColType.status) {
+        row.cells[c] = 'OK';
+      }
+      if (_autoIncrementIdEnabled && _isAutoIncrementColumn(c)) {
+        row.cells[c] = _nextAutoIncrementValueForColumn(c);
+      }
+      if (row.cells[c].trim().isNotEmpty) {
+        _rememberValueForColumn(c, row.cells[c]);
+      }
+    }
+    return row;
+  }
+
   void _insertRow(int index) {
     final idx = index.clamp(0, _rows.length);
+    final row = _buildSmartDefaultRow();
     setState(() {
-      _rows.insert(
-          idx, _RowModel.empty(_headers.length, id: _genStableId('r_')));
+      _rows.insert(idx, row);
       _setSelection(idx, _selCol);
       _isDirty = true;
       _rev++;
@@ -6548,6 +6784,30 @@ class _EditorScreenState extends State<EditorScreen>
     final startR = _selRow;
     final startC = math.min(_selCol, _headers.length - 2);
     final maxColsExclusive = _headers.length - 1; // no pegamos sobre Photos
+    final selectedRows = _batchTargetRows();
+
+    if (grid.length == 1 && grid.first.length == 1 && selectedRows.length > 1) {
+      final normalized = _normalizeCellValueForColumn(startC, grid.first.first);
+      final refsToClear = <_CellRef>[];
+      var changed = 0;
+      for (final r in selectedRows) {
+        if (r < 0 || r >= _rows.length) continue;
+        if (_rows[r].cells[startC] == normalized) continue;
+        _rows[r].cells[startC] = normalized;
+        refsToClear.add(_CellRef(r, startC));
+        changed++;
+      }
+      if (changed <= 0) return;
+      _rememberValueForColumn(startC, normalized);
+      _clearCellDrafts(refsToClear);
+      _setSelection(
+        selectedRows.first,
+        startC,
+        preserveRowSelection: true,
+      );
+      _markDirty(snapshot: true);
+      return;
+    }
 
 // Extender filas si hace falta
     final neededRows = startR + grid.length;
@@ -6559,16 +6819,25 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _ensureMobileRowCachesLength();
 
+    final refsToClear = <_CellRef>[];
+    var changed = 0;
     for (int dr = 0; dr < grid.length; dr++) {
       final row = grid[dr];
       for (int dc = 0; dc < row.length; dc++) {
         final rr = startR + dr;
         final cc = startC + dc;
         if (cc >= maxColsExclusive) break;
-        _rows[rr].cells[cc] = row[dc];
+        final normalized = _normalizeCellValueForColumn(cc, row[dc]);
+        if (_rows[rr].cells[cc] == normalized) continue;
+        _rows[rr].cells[cc] = normalized;
+        _rememberValueForColumn(cc, normalized);
+        refsToClear.add(_CellRef(rr, cc));
+        changed++;
       }
     }
 
+    if (changed <= 0) return;
+    _clearCellDrafts(refsToClear);
     _markDirty(snapshot: true);
   }
 
@@ -6580,9 +6849,37 @@ class _EditorScreenState extends State<EditorScreen>
     final out = <List<String>>[];
     for (final line in lines) {
       final hasTab = line.contains('\t');
-      final parts = hasTab ? line.split('\t') : line.split(',');
+      final parts = hasTab
+          ? line.split('\t')
+          : (line.contains(',') ? _parseCsvLine(line) : <String>[line]);
       out.add(parts.map((e) => e.trimRight()).toList());
     }
+    return out;
+  }
+
+  List<String> _parseCsvLine(String line) {
+    final out = <String>[];
+    var buffer = StringBuffer();
+    var inQuotes = false;
+    for (int i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == '"') {
+        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+          buffer.write('"');
+          i++;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (!inQuotes && ch == ',') {
+        out.add(buffer.toString());
+        buffer = StringBuffer();
+        continue;
+      }
+      buffer.write(ch);
+    }
+    out.add(buffer.toString());
     return out;
   }
 

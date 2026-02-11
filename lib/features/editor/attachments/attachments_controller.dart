@@ -3100,6 +3100,16 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Preferencias de editor',
+            icon: Icons.tune_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openEditorDefaultsDialog());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Deshacer',
             icon: Icons.undo_rounded,
             variant: AppButtonVariant.secondary,
