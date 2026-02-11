@@ -163,6 +163,8 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.onPickPhoto,
     required this.onDeleteRow,
     required this.onOpenAttachments,
+    required this.onRowBuild,
+    required this.onCellBuild,
   });
 
   final _SheetPalette palette;
@@ -195,14 +197,17 @@ class _MobileNotesGrid extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
   final ValueChanged<int> onDeleteRow;
   final void Function(int r, int c) onOpenAttachments;
+  final ValueChanged<String> onRowBuild;
+  final VoidCallback onCellBuild;
 
   @override
   Widget build(BuildContext context) {
     assert(rowScrollControllers.length >= rowModels.length);
     assert(rowKeys.length >= rowModels.length);
     final shellRadius = BorderRadius.circular(22);
-    final shellShadow =
-        palette.cellText.withValues(alpha: palette.isLight ? 0.06 : 0.24);
+    final shellShadow = palette.cellText.withValues(
+      alpha: palette.isLight ? 0.06 : 0.24,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
@@ -227,8 +232,12 @@ class _MobileNotesGrid extends StatelessWidget {
           child: ListView.separated(
             controller: verticalController,
             physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(0, _mobileListPadTop(density), 0,
-                _mobileListPadBottom(density)),
+            padding: EdgeInsets.fromLTRB(
+              0,
+              _mobileListPadTop(density),
+              0,
+              _mobileListPadBottom(density),
+            ),
             itemCount: rowModels.length + 1,
             separatorBuilder: (_, __) =>
                 SizedBox(height: _mobileRowSpacing(density)),
@@ -265,8 +274,9 @@ class _MobileNotesGrid extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(
-              horizontal: _mobileRowPadH(density),
-              vertical: _mobileRowPadV(density)),
+            horizontal: _mobileRowPadH(density),
+            vertical: _mobileRowPadV(density),
+          ),
           itemCount: headers.length,
           separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
           itemBuilder: (ctx, col) {
@@ -302,6 +312,7 @@ class _MobileNotesGrid extends StatelessWidget {
   }
 
   Widget _buildDataRow(BuildContext context, int row) {
+    onRowBuild(rowModels[row].id);
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
     return SizedBox(
       height: _mobileRowH(density),
@@ -315,11 +326,13 @@ class _MobileNotesGrid extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(
-              horizontal: _mobileRowPadH(density),
-              vertical: _mobileRowPadV(density)),
+            horizontal: _mobileRowPadH(density),
+            vertical: _mobileRowPadV(density),
+          ),
           itemCount: headers.length,
           separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
           itemBuilder: (ctx, col) {
+            onCellBuild();
             final isPhotos = col == headers.length - 1;
             final isActive =
                 !activeIsHeader && activeRow == row && activeCol == col;
@@ -405,14 +418,16 @@ class _MobileNotesGrid extends StatelessWidget {
     required Widget child,
   }) {
     final headerBg = palette.headerBg;
-    final baseBg =
-        isHeader ? headerBg : (zebra ? palette.zebraB : palette.zebraA);
+    final baseBg = isHeader
+        ? headerBg
+        : (zebra ? palette.zebraB : palette.zebraA);
     final activeBg = palette.selectionFill;
     final selectedBg = palette.selectionFill;
     final bg = isActive ? activeBg : (isSelected ? selectedBg : baseBg);
 
-    final borderColor =
-        (isActive || isSelected) ? palette.selectionBorder : palette.gridBorder;
+    final borderColor = (isActive || isSelected)
+        ? palette.selectionBorder
+        : palette.gridBorder;
     final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     final radius = 6.0;
@@ -462,11 +477,7 @@ class _MobileNotesGrid extends StatelessWidget {
       } else if (hasPhoto) {
         badges.add(
           badge(
-            Icon(
-              Icons.photo_rounded,
-              size: 12,
-              color: palette.chipText,
-            ),
+            Icon(Icons.photo_rounded, size: 12, color: palette.chipText),
             onTap: onAttachmentsTap,
           ),
         );
@@ -475,11 +486,7 @@ class _MobileNotesGrid extends StatelessWidget {
     if (hasAudio) {
       badges.add(
         badge(
-          Icon(
-            Icons.graphic_eq_rounded,
-            size: 12,
-            color: palette.chipText,
-          ),
+          Icon(Icons.graphic_eq_rounded, size: 12, color: palette.chipText),
           onTap: onAttachmentsTap,
         ),
       );
@@ -487,11 +494,7 @@ class _MobileNotesGrid extends StatelessWidget {
     if (hasGps) {
       badges.add(
         badge(
-          Icon(
-            Icons.my_location_rounded,
-            size: 12,
-            color: palette.chipText,
-          ),
+          Icon(Icons.my_location_rounded, size: 12, color: palette.chipText),
           onTap: onAttachmentsTap,
         ),
       );
@@ -538,29 +541,17 @@ class _MobileNotesGrid extends StatelessWidget {
               color: bg,
               borderRadius: BorderRadius.circular(radius),
               border: Border.all(color: borderColor, width: lineWidth),
-              boxShadow: (isActive || isSelected)
-                  ? [
-                      BoxShadow(
-                        color: palette.focusRing
-                            .withValues(alpha: palette.isLight ? 0.10 : 0.20),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(
-                  horizontal: _mobileCardPadH(density),
-                  vertical: _mobileCardPadV(density)),
+                horizontal: _mobileCardPadH(density),
+                vertical: _mobileCardPadV(density),
+              ),
               child: Container(
                 foregroundDecoration: (isActive || isSelected)
                     ? BoxDecoration(
                         borderRadius: BorderRadius.circular(radius),
-                        border: Border.all(
-                          color: palette.focusRing,
-                          width: 2,
-                        ),
+                        border: Border.all(color: palette.focusRing, width: 2),
                       )
                     : null,
                 child: decoratedChild,
