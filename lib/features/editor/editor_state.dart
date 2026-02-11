@@ -2218,7 +2218,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == '1' ||
         value == 'true' ||
         value == 'si' ||
-        value == 'sÃ­' ||
+        value == 'sí' ||
         value == 'ok' ||
         value == 'x') {
       return true;
