@@ -21,8 +21,8 @@ class AppMotion {
   }) {
     return CurvedAnimation(
       parent: animation,
-      curve: curve,
-      reverseCurve: reverseCurve,
+      curve: _SafeCurve(curve),
+      reverseCurve: _SafeCurve(reverseCurve),
     );
   }
 
@@ -96,5 +96,18 @@ class AppMotion {
       end,
       velocity,
     );
+  }
+}
+
+class _SafeCurve extends Curve {
+  const _SafeCurve(this.inner);
+
+  final Curve inner;
+
+  @override
+  double transform(double t) {
+    final safeT = t.clamp(0.0, 1.0).toDouble();
+    final transformed = inner.transform(safeT);
+    return transformed.clamp(0.0, 1.0).toDouble();
   }
 }
