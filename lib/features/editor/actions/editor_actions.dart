@@ -28,7 +28,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'search_everywhere',
-          label: 'Search Everywhere',
+          label: 'Busqueda global',
           subtitle: 'Buscar en esta planilla o en todas',
           shortcut: 'Ctrl/Cmd+Shift+F',
           icon: Icons.travel_explore_rounded,

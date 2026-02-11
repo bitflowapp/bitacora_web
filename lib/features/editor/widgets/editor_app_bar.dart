@@ -430,7 +430,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: 'Buscar global',
                                 semanticsLabel:
                                     'Buscar en esta planilla o en todas',
-                                tooltip: 'Search Everywhere (Ctrl/Cmd+Shift+F)',
+                                tooltip: 'Busqueda global (Ctrl/Cmd+Shift+F)',
                                 onTap: onSearchEverywhere,
                               ),
                             ),

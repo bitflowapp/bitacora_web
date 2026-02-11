@@ -11059,6 +11059,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _openSearchEverywhereDialog() async {
     if (!mounted) return;
+    AppHaptics.selection();
     final ec = TextEditingController();
     bool includeAllSheets = false;
     bool searching = false;
@@ -11088,7 +11089,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     await showAppModal<void>(
       context: context,
-      title: 'Search Everywhere',
+      title: 'Busqueda global',
       child: StatefulBuilder(
         builder: (ctx, setModalState) {
           return ConstrainedBox(
@@ -11119,6 +11120,7 @@ class _EditorScreenState extends State<EditorScreen>
                   value: includeAllSheets,
                   onChanged: (value) {
                     setModalState(() => includeAllSheets = value);
+                    AppHaptics.selection();
                     unawaited(runSearch(setModalState));
                   },
                 ),
@@ -11136,99 +11138,109 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: results.isEmpty
-                      ? const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('Sin resultados.'),
-                        )
-                      : Builder(
-                          builder: (ctx) {
-                            final grouped =
-                                <String, List<_GlobalSearchResult>>{};
-                            for (final result in results) {
-                              grouped
-                                  .putIfAbsent(
-                                    result.sheetTitle,
-                                    () => <_GlobalSearchResult>[],
-                                  )
-                                  .add(result);
-                            }
-                            return ListView(
-                              children: [
-                                for (final entry in grouped.entries) ...[
-                                  Padding(
-                                    padding:
-                                        const EdgeInsets.fromLTRB(2, 4, 2, 6),
-                                    child: Text(
-                                      '${entry.key} (${entry.value.length})',
-                                      style: TextStyle(
-                                        color: _palette(ctx).fgMuted,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
+                  child: AnimatedSwitcher(
+                    duration: AppMotion.quick,
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: results.isEmpty
+                        ? const Align(
+                            key: ValueKey('search-empty'),
+                            alignment: Alignment.centerLeft,
+                            child: Text('Sin resultados.'),
+                          )
+                        : Builder(
+                            key: const ValueKey('search-results'),
+                            builder: (ctx) {
+                              final grouped =
+                                  <String, List<_GlobalSearchResult>>{};
+                              for (final result in results) {
+                                grouped
+                                    .putIfAbsent(
+                                      result.sheetTitle,
+                                      () => <_GlobalSearchResult>[],
+                                    )
+                                    .add(result);
+                              }
+                              return ListView(
+                                children: [
+                                  for (final entry in grouped.entries) ...[
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.fromLTRB(2, 4, 2, 6),
+                                      child: Text(
+                                        '${entry.key} (${entry.value.length})',
+                                        style: TextStyle(
+                                          color: _palette(ctx).fgMuted,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  for (final result in entry.value) ...[
-                                    ListTile(
-                                      tileColor: _palette(ctx).hintBg,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      title: Text(
-                                        '${result.header} | Fila ${result.row + 1}',
-                                      ),
-                                      subtitle: Text(
-                                        '${result.value}\n${result.reason}',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      onTap: () async {
-                                        final targetSheetId = result.sheetId;
-                                        final targetRow = result.row;
-                                        final targetCol = result.col;
-                                        if (targetSheetId == widget.sheetId) {
+                                    for (final result in entry.value) ...[
+                                      ListTile(
+                                        tileColor: _palette(ctx).hintBg,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        title: Text(
+                                          '${result.header} | Fila ${result.row + 1}',
+                                        ),
+                                        subtitle: Text(
+                                          '${result.value}\n${result.reason}',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        onTap: () async {
+                                          AppHaptics.selection();
+                                          final targetSheetId = result.sheetId;
+                                          final targetRow = result.row;
+                                          final targetCol = result.col;
+                                          if (targetSheetId == widget.sheetId) {
+                                            Navigator.of(ctx).pop();
+                                            _setSelectionAndRefreshGrid(
+                                              targetRow,
+                                              targetCol,
+                                              blink: true,
+                                            );
+                                            return;
+                                          }
+                                          final table =
+                                              SheetStore.load(targetSheetId);
                                           Navigator.of(ctx).pop();
-                                          _setSelectionAndRefreshGrid(
-                                            targetRow,
-                                            targetCol,
-                                            blink: true,
-                                          );
-                                          return;
-                                        }
-                                        final table =
-                                            SheetStore.load(targetSheetId);
-                                        Navigator.of(ctx).pop();
-                                        if (!mounted) return;
-                                        await Navigator.of(context)
-                                            .pushReplacement(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) => EditorScreen(
-                                              sheetId: targetSheetId,
-                                              initialName:
-                                                  table?.headers.isNotEmpty ==
-                                                          true
-                                                      ? null
-                                                      : result.sheetTitle,
-                                              initialSelectionRow: targetRow,
-                                              initialSelectionCol: targetCol,
-                                              engineBaseUrl:
-                                                  widget.engineBaseUrl,
-                                              engineApiKey: widget.engineApiKey,
-                                              isLight: widget.isLight,
-                                              onToggleTheme:
-                                                  widget.onToggleTheme,
+                                          if (!mounted) return;
+                                          await Navigator.of(context)
+                                              .pushReplacement(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) => EditorScreen(
+                                                sheetId: targetSheetId,
+                                                initialName:
+                                                    table?.headers.isNotEmpty ==
+                                                            true
+                                                        ? null
+                                                        : result.sheetTitle,
+                                                initialSelectionRow: targetRow,
+                                                initialSelectionCol: targetCol,
+                                                engineBaseUrl:
+                                                    widget.engineBaseUrl,
+                                                engineApiKey:
+                                                    widget.engineApiKey,
+                                                isLight: widget.isLight,
+                                                onToggleTheme:
+                                                    widget.onToggleTheme,
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 6),
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 6),
+                                    ],
                                   ],
                                 ],
-                              ],
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
+                  ),
                 ),
               ],
             ),
