@@ -191,6 +191,12 @@ extension _EditorActions on _EditorScreenState {
           icon: Icons.keyboard,
           onSelected: () => unawaited(_openShortcutsHelp()),
         ),
+        CommandAction(
+          id: 'tour',
+          label: 'Ver tour rapido',
+          icon: Icons.explore_outlined,
+          onSelected: _reopenEditorTour,
+        ),
       ],
     );
   }

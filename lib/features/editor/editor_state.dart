@@ -19,6 +19,8 @@ const String _kPrefCameraRationaleSeen =
 const String _kPrefMicrophoneRationaleSeen =
     'bitflow.permission_rationale.microphone.v1';
 const String _kPrefQuickCaptureQueue = 'bitflow.quick_capture_queue.v1';
+const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
+const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -370,6 +372,8 @@ class _EditorScreenState extends State<EditorScreen>
   DateTime? _offlineRetryAt;
   Timer? _quickCaptureSyncTimer;
   bool _lastOnlineState = true;
+  bool _editorTourVisible = false;
+  bool _editorTourDismissed = false;
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -446,6 +450,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGpsMode());
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
+    unawaited(_loadEditorTourPrefs());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection()
         .whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -1491,6 +1496,57 @@ class _EditorScreenState extends State<EditorScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefGridDensity, density.name);
     } catch (_) {}
+  }
+
+  Future<void> _loadEditorTourPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seen = prefs.getBool(_kPrefEditorTourSeen) ?? false;
+      final dismissed = prefs.getBool(_kPrefEditorTourDismissed) ?? false;
+      final shouldShow = !seen && !dismissed;
+      if (!mounted) {
+        _editorTourDismissed = dismissed;
+        _editorTourVisible = shouldShow;
+        return;
+      }
+      setState(() {
+        _editorTourDismissed = dismissed;
+        _editorTourVisible = shouldShow;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _closeEditorTour({required bool dontShowAgain}) async {
+    if (mounted) {
+      setState(() {
+        _editorTourVisible = false;
+        if (dontShowAgain) _editorTourDismissed = true;
+      });
+    } else {
+      _editorTourVisible = false;
+      if (dontShowAgain) _editorTourDismissed = true;
+    }
+    AppHaptics.selection();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPrefEditorTourSeen, true);
+      if (dontShowAgain) {
+        await prefs.setBool(_kPrefEditorTourDismissed, true);
+      }
+    } catch (_) {}
+  }
+
+  void _reopenEditorTour() {
+    if (_editorTourDismissed) {
+      _showActionSnack(
+        'El tour esta desactivado en este dispositivo.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _editorTourVisible = true);
   }
 
   // _showDensityPicker movido a dialogs/editor_dialogs.dart
@@ -4305,6 +4361,38 @@ class _EditorScreenState extends State<EditorScreen>
                                       _syncQuickCaptureQueue(notify: true))
                                   : _openOfflineQueueDialog,
                             ),
+                          AnimatedSwitcher(
+                            duration: AppMotion.medium,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, -0.03),
+                                child: child,
+                              );
+                            },
+                            child: _editorTourVisible
+                                ? KeyedSubtree(
+                                    key: const ValueKey('editor-tour-open'),
+                                    child: _EditorFirstRunTourBanner(
+                                      palette: pal,
+                                      onAcknowledge: () => unawaited(
+                                        _closeEditorTour(
+                                          dontShowAgain: false,
+                                        ),
+                                      ),
+                                      onDismissForever: () => unawaited(
+                                        _closeEditorTour(
+                                          dontShowAgain: true,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey('editor-tour-closed'),
+                                  ),
+                          ),
                           if (_photoFlowStatus != null)
                             Container(
                               margin: const EdgeInsets.only(bottom: 6),

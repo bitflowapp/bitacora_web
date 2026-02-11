@@ -10,23 +10,47 @@ extension _EditorDialogs on _EditorScreenState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          Text('Ctrl/Cmd+S - Guardar'),
-          Text('Ctrl/Cmd+F - Buscar'),
-          Text('Ctrl/Cmd+J - Jump to fila/ID'),
-          Text('Ctrl/Cmd+K - Paleta de comandos'),
-          Text('Ctrl/Cmd+Z - Deshacer'),
-          Text('Ctrl/Cmd+Y - Rehacer'),
-          Text('Ctrl/Cmd+E - Exportar XLSX'),
-          Text('Ctrl/Cmd+Shift+E - Exportar paquete'),
-          Text('Ctrl/Cmd+Shift+I - Importar paquete'),
-          Text('Ctrl/Cmd+Shift+B - Aplicar valor a seleccion'),
-          Text('Ctrl/Cmd+Shift+L - Abrir cola offline'),
-          Text('Ctrl/Cmd+N - Crear fila'),
-          Text('Ctrl/Cmd+G - GPS en celda'),
-          Text('Ctrl/Cmd+Shift+A - Audio en celda'),
-          Text('Ctrl/Cmd+P - Foto en celda'),
-          Text('Enter - Editar/confirmar'),
-          Text('Esc - Cancelar'),
+          Text(
+            'Atajos clave',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          SizedBox(height: 6),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+K', label: 'Paleta de comandos'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+S', label: 'Guardar'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+F', label: 'Buscar inline'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Jump to fila/ID'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Z', label: 'Deshacer'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Y', label: 'Rehacer'),
+          SizedBox(height: 10),
+          Text(
+            'Productividad',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          SizedBox(height: 6),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+N', label: 'Crear fila'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+B', label: 'Aplicar valor'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+L', label: 'Cola offline'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Exportar XLSX'),
+          _ShortcutLine(
+              shortcut: 'Ctrl/Cmd+Shift+E', label: 'Exportar paquete'),
+          _ShortcutLine(
+              shortcut: 'Ctrl/Cmd+Shift+I', label: 'Importar paquete'),
+          SizedBox(height: 10),
+          Text(
+            'Campo',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          SizedBox(height: 6),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+G', label: 'Adjuntar GPS'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+P', label: 'Adjuntar foto'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+A', label: 'Audio en celda'),
+          _ShortcutLine(shortcut: 'Enter', label: 'Editar o confirmar'),
+          _ShortcutLine(shortcut: 'Esc', label: 'Cerrar/Cancelar'),
+          SizedBox(height: 10),
+          Text(
+            'Tip: usa Ctrl/Cmd+K para ejecutar acciones sin mover la mano del teclado.',
+            style: TextStyle(fontSize: 12),
+          ),
         ],
       ),
       actions: [
@@ -126,5 +150,48 @@ extension _EditorDialogs on _EditorScreenState {
     if (picked != null) {
       await _setGpsMode(picked);
     }
+  }
+}
+
+class _ShortcutLine extends StatelessWidget {
+  const _ShortcutLine({
+    required this.shortcut,
+    required this.label,
+  });
+
+  final String shortcut;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1.5),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.of(context).colors.border),
+              color: AppTheme.of(context).colors.surfaceMuted,
+            ),
+            child: Text(
+              shortcut,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: AppTheme.of(context).colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

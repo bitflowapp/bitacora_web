@@ -283,6 +283,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.check_circle_outline_rounded,
                             label: AppStrings.editorSave,
                             semanticsLabel: AppStrings.semEditorSave,
+                            tooltip: 'Guardar cambios locales',
                             onTap: onSave,
                           ),
                           _PillButton(
@@ -291,6 +292,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.add_box_outlined,
                             label: '+ Registro',
                             semanticsLabel: 'Crear registro rapido de campo',
+                            tooltip: 'Crear un registro en modo campo',
                             onTap: onQuickCapture,
                           ),
                           _PillButton(
@@ -299,6 +301,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.search_rounded,
                             label: AppStrings.editorSearch,
                             semanticsLabel: AppStrings.semEditorSearch,
+                            tooltip: 'Buscar en todas las celdas',
                             onTap: onSearch,
                           ),
                           _PillButton(
@@ -307,6 +310,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.pin_drop_outlined,
                             label: 'Jump to...',
                             semanticsLabel: 'Ir rapido por fila o ID',
+                            tooltip: 'Ir a fila o ID rapidamente',
                             onTap: onJumpTo,
                           ),
                           _PillButton(
@@ -315,6 +319,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.attach_file_rounded,
                             label: 'Adjuntos',
                             semanticsLabel: 'Abrir adjuntos de celda activa',
+                            tooltip: 'Abrir panel de adjuntos',
                             onTap: onAttachments,
                           ),
                           _PillButton(
@@ -323,6 +328,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.ios_share_rounded,
                             label: AppStrings.editorExport,
                             semanticsLabel: AppStrings.semEditorExport,
+                            tooltip: 'Exportar o compartir planilla',
                             onTap: onExport,
                           ),
                           _PillButton(
@@ -331,6 +337,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                             icon: Icons.layers_outlined,
                             label: AppStrings.editorBatchActions,
                             semanticsLabel: 'Abrir acciones por lote',
+                            tooltip:
+                                'Acciones rapidas para filas seleccionadas',
                             onTap: onBatch,
                           ),
                         ],
@@ -754,6 +762,7 @@ class _PillButton extends StatefulWidget {
     required this.label,
     required this.onTap,
     required this.semanticsLabel,
+    this.tooltip,
   });
 
   final _SheetPalette palette;
@@ -762,6 +771,7 @@ class _PillButton extends StatefulWidget {
   final String label;
   final String semanticsLabel;
   final VoidCallback? onTap;
+  final String? tooltip;
 
   @override
   State<_PillButton> createState() => _PillButtonState();
@@ -795,7 +805,7 @@ class _PillButtonState extends State<_PillButton> {
 
     final fg = widget.filled ? widget.palette.gridBg : widget.palette.fg;
 
-    return Opacity(
+    final button = Opacity(
       opacity: disabled ? 0.45 : 1.0,
       child: MouseRegion(
         onEnter: disabled ? null : (_) => _setHovered(true),
@@ -859,6 +869,9 @@ class _PillButtonState extends State<_PillButton> {
         ),
       ),
     );
+    final tip = widget.tooltip?.trim() ?? '';
+    if (tip.isEmpty) return button;
+    return Tooltip(message: tip, child: button);
   }
 }
 

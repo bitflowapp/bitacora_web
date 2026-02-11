@@ -3040,6 +3040,26 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Ver atajos',
+            icon: Icons.keyboard_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openShortcutsHelp());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Ver tour rapido',
+            icon: Icons.explore_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _reopenEditorTour();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Importar paquete',
             icon: Icons.file_open_rounded,
             variant: AppButtonVariant.secondary,

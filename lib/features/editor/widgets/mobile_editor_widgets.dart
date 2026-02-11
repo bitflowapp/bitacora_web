@@ -20,6 +20,138 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
+class _EditorFirstRunTourBanner extends StatelessWidget {
+  const _EditorFirstRunTourBanner({
+    required this.palette,
+    required this.onAcknowledge,
+    required this.onDismissForever,
+  });
+
+  final _SheetPalette palette;
+  final VoidCallback onAcknowledge;
+  final VoidCallback onDismissForever;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: AppleCard(
+        radius: 16,
+        color: palette.menuBg.withValues(alpha: palette.isLight ? 0.96 : 0.82),
+        borderColor: palette.borderStrong,
+        shadows: const <BoxShadow>[],
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tour rapido del editor',
+              style: TextStyle(
+                color: palette.fg,
+                fontWeight: FontWeight.w800,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'En 30 segundos: +Registro, Command Palette (Ctrl/Cmd+K), acciones rapidas, adjuntos, exportar/compartir y estado offline.',
+              style: TextStyle(
+                color: palette.fgMuted,
+                fontSize: 12.2,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: const [
+                _TourHintChip(icon: Icons.add_box_outlined, label: '+Registro'),
+                _TourHintChip(
+                    icon: Icons.keyboard_rounded, label: 'Ctrl/Cmd+K'),
+                _TourHintChip(
+                    icon: Icons.flash_on_outlined, label: 'Quick Actions'),
+                _TourHintChip(
+                    icon: Icons.attach_file_rounded, label: 'Adjuntos'),
+                _TourHintChip(
+                    icon: Icons.ios_share_rounded, label: 'Exportar/Share'),
+                _TourHintChip(
+                    icon: Icons.cloud_off_outlined, label: 'Offline chip'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Entendido',
+                    icon: Icons.check_rounded,
+                    size: AppButtonSize.sm,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: onAcknowledge,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppButton(
+                    label: 'No mostrar mas',
+                    icon: Icons.visibility_off_outlined,
+                    size: AppButtonSize.sm,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: onDismissForever,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TourHintChip extends StatelessWidget {
+  const _TourHintChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _SheetPalette.fromApp(
+      AppTheme.of(context),
+      hairline: math.max(0.5, 1 / MediaQuery.of(context).devicePixelRatio),
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: pal.hintBg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: pal.border, width: pal.hairline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: pal.fgMuted),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: pal.fgMuted,
+              fontSize: 11.8,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InlineSearchBar extends StatelessWidget {
   const _InlineSearchBar({
     required this.palette,
