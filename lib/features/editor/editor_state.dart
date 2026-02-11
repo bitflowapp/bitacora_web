@@ -12723,6 +12723,7 @@ Este paquete incluye:
     bool Function()? shouldCancel,
   }) async {
     final path = await persistShareTempFile(fileName: name, bytes: bytes);
+    final shareText = 'Export generado por BitFlow: $name';
 
     if (path != null && path.trim().isNotEmpty) {
       try {
@@ -12730,6 +12731,17 @@ Este paquete incluye:
         await Share.shareXFiles(
           <XFile>[XFile(path, mimeType: mime, name: name)],
           subject: 'BitFlow Export',
+          text: shareText,
+        );
+        return true;
+      } catch (_) {}
+
+      try {
+        _throwIfOperationCancelledBy(shouldCancel);
+        await Share.shareXFiles(
+          <XFile>[XFile(path, name: name)],
+          subject: 'BitFlow Export',
+          text: shareText,
         );
         return true;
       } catch (_) {}
@@ -12738,7 +12750,7 @@ Este paquete incluye:
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
           subject: 'BitFlow Export',
-          body: 'Adjunto generado por BitFlow: $name',
+          body: shareText,
           attachmentPaths: <String>[path],
           isHTML: false,
         );
@@ -12752,8 +12764,7 @@ Este paquete incluye:
           scheme: 'mailto',
           queryParameters: <String, String>{
             'subject': 'BitFlow Export',
-            'body':
-                'Adjunto generado por BitFlow: $name\n\nSi tu cliente no adjunta automaticamente, usa:\n$path',
+            'body': '$shareText\n\nRuta local del archivo:\n$path',
           },
         );
         if (await canLaunchUrl(mailto)) {
@@ -12768,6 +12779,7 @@ Este paquete incluye:
       await Share.shareXFiles(
         <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
         subject: 'BitFlow Export',
+        text: shareText,
       );
       return true;
     } catch (_) {
