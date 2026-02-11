@@ -2260,7 +2260,7 @@ class _EditorScreenState extends State<EditorScreen>
   String _selectionLabelForQuickActions() {
     if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
     final col = _headerLabel(_selCol);
-    return '$col · fila ${_selRow + 1}';
+    return '$col | fila ${_selRow + 1}';
   }
 
   int? _statusColumnForBatchActions() {
@@ -4358,39 +4358,85 @@ class _EditorScreenState extends State<EditorScreen>
                                 ],
                               ),
                             ),
-                          if (_inlineSearchOpen)
-                            _InlineSearchBar(
-                              palette: pal,
-                              controller: _inlineSearchEC,
-                              focusNode: _inlineSearchFocus,
-                              totalHits: _searchMatches.length,
-                              activeIndex:
-                                  _searchMatchIndex < 0 ? 0 : _searchMatchIndex,
-                              onChanged: _onInlineSearchChanged,
-                              onPrev: () => _goToSearchHitDelta(-1),
-                              onNext: () => _goToSearchHitDelta(1),
-                              onClose: () => _closeInlineSearch(),
-                            ),
-                          if (showSelectionQuickActions)
-                            _SelectionQuickActionsBar(
-                              palette: pal,
-                              selectionLabel: _selectionLabelForQuickActions(),
-                              selectedRowsCount: _batchTargetRows().length,
-                              canMarkStatus: canMarkSelectionStatus,
-                              onApplyValue: () =>
-                                  unawaited(_promptBatchApplyValue()),
-                              onDuplicateRows: _duplicateSelectedRows,
-                              onAttachPhoto: () => unawaited(
-                                _startPhotoFlowForCell(_selRow, _selCol),
-                              ),
-                              onAttachGps: () => unawaited(
-                                _requestGpsForCell(_selRow, _selCol,
-                                    forceWriteText: true),
-                              ),
-                              onJumpTo: () => unawaited(_openJumpToDialog()),
-                              onMarkStatus: (value) =>
-                                  unawaited(_applyStatusToSelectedRows(value)),
-                            ),
+                          AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, 0.08),
+                                curve: AppMotion.springOut,
+                                child: child,
+                              );
+                            },
+                            child: _inlineSearchOpen
+                                ? KeyedSubtree(
+                                    key: const ValueKey('inline-search-open'),
+                                    child: _InlineSearchBar(
+                                      palette: pal,
+                                      controller: _inlineSearchEC,
+                                      focusNode: _inlineSearchFocus,
+                                      totalHits: _searchMatches.length,
+                                      activeIndex: _searchMatchIndex < 0
+                                          ? 0
+                                          : _searchMatchIndex,
+                                      onChanged: _onInlineSearchChanged,
+                                      onPrev: () => _goToSearchHitDelta(-1),
+                                      onNext: () => _goToSearchHitDelta(1),
+                                      onClose: () => _closeInlineSearch(),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey('inline-search-closed'),
+                                  ),
+                          ),
+                          AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, 0.08),
+                                curve: AppMotion.springOut,
+                                child: child,
+                              );
+                            },
+                            child: showSelectionQuickActions
+                                ? KeyedSubtree(
+                                    key: const ValueKey(
+                                        'selection-quick-actions-open'),
+                                    child: _SelectionQuickActionsBar(
+                                      palette: pal,
+                                      selectionLabel:
+                                          _selectionLabelForQuickActions(),
+                                      selectedRowsCount:
+                                          _batchTargetRows().length,
+                                      canMarkStatus: canMarkSelectionStatus,
+                                      onApplyValue: () =>
+                                          unawaited(_promptBatchApplyValue()),
+                                      onDuplicateRows: _duplicateSelectedRows,
+                                      onAttachPhoto: () => unawaited(
+                                        _startPhotoFlowForCell(
+                                            _selRow, _selCol),
+                                      ),
+                                      onAttachGps: () => unawaited(
+                                        _requestGpsForCell(_selRow, _selCol,
+                                            forceWriteText: true),
+                                      ),
+                                      onJumpTo: () =>
+                                          unawaited(_openJumpToDialog()),
+                                      onMarkStatus: (value) => unawaited(
+                                        _applyStatusToSelectedRows(value),
+                                      ),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey(
+                                        'selection-quick-actions-closed'),
+                                  ),
+                          ),
                           if (isDesktop && _smokeStatus != null)
                             _StatusBar(
                               text: _smokeStatus!,
@@ -6460,6 +6506,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
     if (!_inlineSearchOpen) {
       setState(() => _inlineSearchOpen = true);
+      AppHaptics.selection();
     }
     if (_inlineSearchEC.text.trim().isEmpty && _lastSearchQuery.isNotEmpty) {
       _inlineSearchEC.text = _lastSearchQuery;
@@ -6484,6 +6531,7 @@ class _EditorScreenState extends State<EditorScreen>
   void _closeInlineSearch({bool clearQuery = false}) {
     _inlineSearchDebounceT?.cancel();
     if (!mounted) return;
+    final wasOpen = _inlineSearchOpen;
     setState(() {
       _inlineSearchOpen = false;
       _searchMatches = <_CellRef>[];
@@ -6495,6 +6543,7 @@ class _EditorScreenState extends State<EditorScreen>
         _lastSearchQuery = '';
       }
     });
+    if (wasOpen) AppHaptics.selection();
   }
 
   void _onInlineSearchChanged(String query) {
@@ -6582,6 +6631,7 @@ class _EditorScreenState extends State<EditorScreen>
     final next = (current + delta) % count;
     final normalized = next < 0 ? next + count : next;
     _goToSearchHitIndex(normalized, announce: false);
+    AppHaptics.selection();
   }
 
   void _goToSearchHitIndex(int index, {required bool announce}) {

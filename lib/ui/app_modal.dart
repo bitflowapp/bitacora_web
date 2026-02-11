@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_card.dart';
+import 'app_motion.dart';
 import 'app_tokens.dart';
 
 class AppModal extends StatelessWidget {
@@ -91,15 +92,25 @@ Future<T?> showAppModal<T>({
   double maxWidth = 560,
   bool barrierDismissible = false,
 }) {
-  return showDialog<T>(
+  return showGeneralDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder: (_) => AppModal(
+    barrierLabel: 'app_modal',
+    barrierColor: Colors.black.withValues(alpha: 0.22),
+    transitionDuration: AppMotion.modal,
+    pageBuilder: (_, __, ___) => AppModal(
       title: title,
       child: child,
       actions: actions,
       showClose: showClose,
       maxWidth: maxWidth,
     ),
+    transitionBuilder: (ctx, animation, _, modal) {
+      return AppMotion.modalTransition(
+        context: ctx,
+        animation: animation,
+        child: modal,
+      );
+    },
   );
 }

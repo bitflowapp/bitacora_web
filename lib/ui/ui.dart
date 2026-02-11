@@ -2,6 +2,7 @@ export 'app_tokens.dart';
 export 'app_text_styles.dart';
 export 'app_strings.dart';
 export 'app_haptics.dart';
+export 'app_motion.dart';
 export 'ui_theme.dart';
 export 'app_button.dart';
 export 'app_card.dart';

@@ -22,27 +22,10 @@ class SaveStatusChip extends StatelessWidget {
             '${snap.state.name}-${snap.savedAt?.millisecondsSinceEpoch ?? 0}';
 
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, anim) {
-            final offset = Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(anim);
-            final scale = Tween<double>(
-              begin: 0.97,
-              end: 1.0,
-            ).animate(
-                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: offset,
-                child: ScaleTransition(scale: scale, child: child),
-              ),
-            );
-          },
+          duration: AppMotion.quick,
+          switchInCurve: AppMotion.springOut,
+          switchOutCurve: AppMotion.standardIn,
+          transitionBuilder: _chipTransition,
           child: _StatusChipShell(
             key: ValueKey(key),
             palette: palette,
@@ -55,6 +38,18 @@ class SaveStatusChip extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _chipTransition(Widget child, Animation<double> animation) {
+    final scale = Tween<double>(begin: 0.97, end: 1).animate(
+      AppMotion.curved(animation, curve: AppMotion.springOut),
+    );
+    return AppMotion.fadeSlide(
+      animation: animation,
+      begin: const Offset(0, 0.08),
+      curve: AppMotion.springOut,
+      child: ScaleTransition(scale: scale, child: child),
     );
   }
 
@@ -71,7 +66,6 @@ class SaveStatusChip extends StatelessWidget {
         final mm = d.minute.toString().padLeft(2, '0');
         return 'Guardado $hh:$mm';
       case EditorSaveState.idle:
-      default:
         return 'Listo';
     }
   }
@@ -85,7 +79,6 @@ class SaveStatusChip extends StatelessWidget {
       case EditorSaveState.saved:
         return Icons.check_circle_outline_rounded;
       case EditorSaveState.idle:
-      default:
         return Icons.check_rounded;
     }
   }
@@ -112,7 +105,6 @@ class SaveStatusChip extends StatelessWidget {
           palette.accent,
         );
       case EditorSaveState.idle:
-      default:
         return (
           palette.hintBg,
           palette.border,
@@ -144,30 +136,14 @@ class SyncStatusChip extends StatelessWidget {
         final busy = snap.state == OfflineSyncState.syncing;
 
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, anim) {
-            final offset = Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(anim);
-            final scale = Tween<double>(
-              begin: 0.97,
-              end: 1.0,
-            ).animate(
-                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: offset,
-                child: ScaleTransition(scale: scale, child: child),
-              ),
-            );
-          },
+          duration: AppMotion.quick,
+          switchInCurve: AppMotion.springOut,
+          switchOutCurve: AppMotion.standardIn,
+          transitionBuilder: _chipTransition,
           child: InkWell(
             key: ValueKey(
-                '${snap.state.name}-${snap.pendingCount}-${snap.updatedAt?.millisecondsSinceEpoch ?? 0}'),
+              '${snap.state.name}-${snap.pendingCount}-${snap.updatedAt?.millisecondsSinceEpoch ?? 0}',
+            ),
             onTap: onTap,
             borderRadius: BorderRadius.circular(999),
             child: _StatusChipShell(
@@ -182,6 +158,18 @@ class SyncStatusChip extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _chipTransition(Widget child, Animation<double> animation) {
+    final scale = Tween<double>(begin: 0.97, end: 1).animate(
+      AppMotion.curved(animation, curve: AppMotion.springOut),
+    );
+    return AppMotion.fadeSlide(
+      animation: animation,
+      begin: const Offset(0, 0.08),
+      curve: AppMotion.springOut,
+      child: ScaleTransition(scale: scale, child: child),
     );
   }
 
@@ -276,8 +264,8 @@ class _StatusChipShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 140),
-      curve: Curves.easeOutCubic,
+      duration: AppMotion.micro,
+      curve: AppMotion.standardOut,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: bg,

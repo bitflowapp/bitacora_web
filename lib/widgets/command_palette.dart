@@ -1,4 +1,4 @@
-// lib/widgets/command_palette.dart
+import 'package:bitacora_web/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,7 +6,7 @@ class CommandAction {
   final String id;
   final String label;
   final String? subtitle;
-  final String? shortcut; // Ej: "Ctrl+N"
+  final String? shortcut;
   final IconData? icon;
   final VoidCallback onSelected;
 
@@ -20,15 +20,14 @@ class CommandAction {
   });
 }
 
-/// Paleta de comandos con búsqueda, ↑/↓ y Enter. Cierra con Esc.
-/// Llamar desde AppBar o atajo global (Ctrl+K / Ctrl+/).
+/// Paleta de comandos con busqueda, flechas y Enter. Cierra con Esc.
 Future<void> showCommandPalette(
   BuildContext context, {
   required List<CommandAction> actions,
   String title = 'Acciones',
 }) async {
   final queryCtl = TextEditingController();
-  final focusNode = FocusNode();
+  final focusNode = FocusNode(debugLabel: 'CommandPaletteSearch');
 
   List<CommandAction> filter(String q) {
     if (q.isEmpty) return actions;
@@ -40,26 +39,30 @@ Future<void> showCommandPalette(
     }).toList(growable: false);
   }
 
-  await showDialog<void>(
+  await showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) {
+    barrierLabel: 'command_palette',
+    barrierColor: Colors.black.withValues(alpha: 0.22),
+    transitionDuration: AppMotion.modal,
+    pageBuilder: (ctx, _, __) {
       final listCtl = ScrollController();
-      int selected = 0;
-      List<CommandAction> results = filter('');
+      var selected = 0;
+      var results = filter('');
 
       void ensureSelectedVisible() {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!listCtl.hasClients) return;
-          const itemH = 56.0;
+          const itemH = 58.0;
           final target = selected * itemH;
           final viewTop = listCtl.offset;
           final viewBot = viewTop + listCtl.position.viewportDimension;
           if (target < viewTop) {
             listCtl.jumpTo(target);
           } else if (target + itemH > viewBot) {
-            listCtl
-                .jumpTo((target + itemH) - listCtl.position.viewportDimension);
+            listCtl.jumpTo(
+              (target + itemH) - listCtl.position.viewportDimension,
+            );
           }
         });
       }
@@ -67,6 +70,7 @@ Future<void> showCommandPalette(
       void runSelected() {
         if (results.isEmpty) return;
         final action = results[selected.clamp(0, results.length - 1)];
+        AppHaptics.light();
         Navigator.of(ctx).pop();
         Future.microtask(action.onSelected);
       }
@@ -78,16 +82,27 @@ Future<void> showCommandPalette(
             setState(() {
               selected = (selected + delta).clamp(0, results.length - 1);
             });
+            AppHaptics.selection();
             ensureSelectedVisible();
           }
 
+          final theme = Theme.of(ctx);
+          final light = theme.brightness == Brightness.light;
+          final fg = theme.textTheme.bodyLarge?.color ??
+              (light ? const Color(0xFF111111) : Colors.white);
+          final selectedBg = fg.withValues(alpha: light ? 0.08 : 0.16);
+
           return Dialog(
             insetPadding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side:
+                  BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
+            ),
             child: RawKeyboardListener(
-              focusNode: FocusNode()..requestFocus(),
+              focusNode: FocusNode(debugLabel: 'CommandPaletteKeys')
+                ..requestFocus(),
               onKey: (RawKeyEvent e) {
                 if (e is! RawKeyDownEvent) return;
                 final k = e.logicalKey;
@@ -103,14 +118,13 @@ Future<void> showCommandPalette(
               },
               child: ConstrainedBox(
                 constraints:
-                    const BoxConstraints(maxWidth: 720, maxHeight: 480),
+                    const BoxConstraints(maxWidth: 760, maxHeight: 520),
                 child: Material(
-                  color: Theme.of(ctx).cardColor,
-                  borderRadius: BorderRadius.circular(14),
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(18),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Header + búsqueda
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                         child: Column(
@@ -123,6 +137,7 @@ Future<void> showCommandPalette(
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 16,
+                                      letterSpacing: -0.2,
                                     ),
                                   ),
                                 ),
@@ -136,8 +151,8 @@ Future<void> showCommandPalette(
                               focusNode: focusNode,
                               autofocus: true,
                               decoration: const InputDecoration(
-                                prefixIcon: Icon(Icons.search),
-                                hintText: 'Escribe para filtrar…',
+                                prefixIcon: Icon(Icons.search_rounded),
+                                hintText: 'Escribe para filtrar...',
                               ),
                               onChanged: (q) {
                                 setState(() {
@@ -151,7 +166,6 @@ Future<void> showCommandPalette(
                         ),
                       ),
                       const Divider(height: 0),
-                      // Resultados
                       Flexible(
                         child: results.isEmpty
                             ? Padding(
@@ -159,13 +173,13 @@ Future<void> showCommandPalette(
                                 child: Center(
                                   child: Text(
                                     'Sin resultados',
-                                    style: Theme.of(ctx).textTheme.bodyMedium,
+                                    style: theme.textTheme.bodyMedium,
                                   ),
                                 ),
                               )
                             : ListView.builder(
                                 controller: listCtl,
-                                itemExtent: 56,
+                                itemExtent: 58,
                                 itemCount: results.length,
                                 itemBuilder: (c, i) {
                                   final a = results[i];
@@ -175,13 +189,12 @@ Future<void> showCommandPalette(
                                       setState(() => selected = i);
                                       runSelected();
                                     },
-                                    child: Container(
+                                    child: AnimatedContainer(
+                                      duration: AppMotion.micro,
+                                      curve: AppMotion.standardOut,
                                       decoration: BoxDecoration(
                                         color: sel
-                                            ? Theme.of(ctx)
-                                                .colorScheme
-                                                .primary
-                                                .withOpacity(0.08)
+                                            ? selectedBg
                                             : Colors.transparent,
                                       ),
                                       padding: const EdgeInsets.symmetric(
@@ -192,10 +205,8 @@ Future<void> showCommandPalette(
                                             a.icon ?? Icons.bolt_outlined,
                                             size: 20,
                                             color: sel
-                                                ? Theme.of(ctx)
-                                                    .colorScheme
-                                                    .primary
-                                                : Theme.of(ctx).iconTheme.color,
+                                                ? fg
+                                                : theme.iconTheme.color,
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
@@ -211,7 +222,8 @@ Future<void> showCommandPalette(
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                   style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
+                                                    fontWeight: FontWeight.w700,
+                                                    height: 1.1,
                                                   ),
                                                 ),
                                                 if ((a.subtitle ?? '')
@@ -221,9 +233,8 @@ Future<void> showCommandPalette(
                                                     maxLines: 1,
                                                     overflow:
                                                         TextOverflow.ellipsis,
-                                                    style: Theme.of(ctx)
-                                                        .textTheme
-                                                        .bodySmall,
+                                                    style: theme
+                                                        .textTheme.bodySmall,
                                                   ),
                                               ],
                                             ),
@@ -250,6 +261,13 @@ Future<void> showCommandPalette(
         },
       );
     },
+    transitionBuilder: (ctx, animation, _, child) {
+      return AppMotion.modalTransition(
+        context: ctx,
+        animation: animation,
+        child: child,
+      );
+    },
   );
 
   queryCtl.dispose();
@@ -258,6 +276,7 @@ Future<void> showCommandPalette(
 
 class _Kbd extends StatelessWidget {
   const _Kbd(this.text);
+
   final String text;
 
   @override
