@@ -16,6 +16,11 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onSearch,
     required this.onJumpTo,
     required this.onColumns,
+    required this.onSaveView,
+    required this.onSelectView,
+    required this.onManageViews,
+    required this.onMarkReviewed,
+    required this.onTogglePendingReviewView,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -38,6 +43,10 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.selectedCol,
     required this.selectedRowsCount,
     required this.pendingOfflineCount,
+    required this.errorsCount,
+    required this.savedViews,
+    required this.activeViewId,
+    required this.pendingReviewViewActive,
   });
 
   final _SheetPalette palette;
@@ -58,6 +67,11 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onJumpTo;
   final VoidCallback onColumns;
+  final VoidCallback onSaveView;
+  final ValueChanged<String?> onSelectView;
+  final VoidCallback onManageViews;
+  final VoidCallback onMarkReviewed;
+  final VoidCallback onTogglePendingReviewView;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -81,6 +95,10 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int selectedCol;
   final int selectedRowsCount;
   final int pendingOfflineCount;
+  final int errorsCount;
+  final List<_SavedView> savedViews;
+  final String? activeViewId;
+  final bool pendingReviewViewActive;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Ultimo guardado local: --:--';
@@ -280,6 +298,57 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: '$pendingOfflineCount en cola',
                                 onTap: onOpenOfflineQueue,
                               ),
+                            if (errorsCount > 0)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.rule_rounded,
+                                label: '$errorsCount errores',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.table_view_rounded,
+                              label: 'Vista base',
+                              onTap: () => onSelectView(null),
+                            ),
+                            for (final view in savedViews.take(5))
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: view.id == activeViewId
+                                    ? Icons.visibility_rounded
+                                    : Icons.visibility_outlined,
+                                label: view.name,
+                                onTap: () => onSelectView(view.id),
+                              ),
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.bookmark_add_outlined,
+                              label: 'Guardar vista',
+                              onTap: onSaveView,
+                            ),
+                            if (savedViews.isNotEmpty)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.more_horiz_rounded,
+                                label: 'Gestionar vistas',
+                                onTap: onManageViews,
+                              ),
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: pendingReviewViewActive
+                                  ? Icons.pending_actions_rounded
+                                  : Icons.fact_check_outlined,
+                              label: pendingReviewViewActive
+                                  ? 'Pendientes'
+                                  : 'Ver pendientes',
+                              onTap: onTogglePendingReviewView,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -409,6 +478,19 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 onTap: onBatch,
                               ),
                             ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.65),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.verified_rounded,
+                                label: 'Marcar revisado',
+                                semanticsLabel:
+                                    'Marcar filas seleccionadas como revisadas',
+                                tooltip: 'Workflow de revision',
+                                onTap: onMarkReviewed,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -428,6 +510,20 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.layers_outlined,
                               label: 'Acciones',
                               onTap: onBatch,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.verified_rounded,
+                              label: 'Revisado',
+                              onTap: onMarkReviewed,
+                            ),
+                            AppleToolbarItem(
+                              icon: pendingReviewViewActive
+                                  ? Icons.pending_actions_rounded
+                                  : Icons.fact_check_outlined,
+                              label: pendingReviewViewActive
+                                  ? 'Pendientes'
+                                  : 'Ver pendientes',
+                              onTap: onTogglePendingReviewView,
                             ),
                             AppleToolbarItem(
                               icon: Icons.search_rounded,
@@ -633,7 +729,7 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             final pendingLabel =
-                pendingRequired > 0 ? ' | Req: $pendingRequired' : '';
+                pendingRequired > 0 ? ' | Errores: $pendingRequired' : '';
             final queueLabel =
                 pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
             final offlineLabel = offline.message?.trim().isNotEmpty == true

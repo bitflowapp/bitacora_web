@@ -58,6 +58,7 @@ import 'package:bitacora_web/services/export_xlsx_with_photos.dart';
 import 'package:bitacora_web/state/grid_selection_controller.dart';
 import 'package:bitacora_web/theme/app_theme.dart';
 import 'package:bitacora_web/ui/ui.dart';
+import 'package:bitacora_web/features/editor/validation/validation_rules.dart';
 import 'package:bitacora_web/utils/location_format.dart';
 import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 import 'package:bitacora_web/widgets/apple_ui.dart';

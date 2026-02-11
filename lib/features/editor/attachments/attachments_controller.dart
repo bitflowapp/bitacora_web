@@ -3115,12 +3115,86 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Marcar revisado',
+            icon: Icons.verified_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_markSelectedRowsReviewed());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: _reviewFilterMode == _ReviewFilterMode.pending
+                ? 'Quitar vista pendientes'
+                : 'Vista pendientes',
+            icon: _reviewFilterMode == _ReviewFilterMode.pending
+                ? Icons.filter_alt_off_rounded
+                : Icons.pending_actions_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _togglePendingReviewView();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Vista urgentes',
+            icon: Icons.priority_high_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_activateUrgentViewShortcut());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Auto-ID',
+            icon: Icons.tag_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _applyAutoIdQuick();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Ir a errores',
+            icon: Icons.rule_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _jumpToFirstValidationIssue();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Panel columnas',
             icon: Icons.view_column_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
               unawaited(_openColumnPanel());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Guardar vista',
+            icon: Icons.bookmark_add_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openSaveViewDialog());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Gestionar vistas',
+            icon: Icons.table_view_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openSavedViewsManager());
             },
           ),
           const SizedBox(height: 8),

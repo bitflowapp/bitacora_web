@@ -85,24 +85,36 @@ class _ColumnPrefs {
     this.hidden = false,
     this.required = false,
     this.enumValues = const <String>[],
+    this.numberMin,
+    this.numberMax,
+    this.regexPattern,
   });
 
   final _ColType type;
   final bool hidden;
   final bool required;
   final List<String> enumValues;
+  final double? numberMin;
+  final double? numberMax;
+  final String? regexPattern;
 
   _ColumnPrefs copyWith({
     _ColType? type,
     bool? hidden,
     bool? required,
     List<String>? enumValues,
+    double? numberMin,
+    double? numberMax,
+    String? regexPattern,
   }) {
     return _ColumnPrefs(
       type: type ?? this.type,
       hidden: hidden ?? this.hidden,
       required: required ?? this.required,
       enumValues: enumValues ?? this.enumValues,
+      numberMin: numberMin ?? this.numberMin,
+      numberMax: numberMax ?? this.numberMax,
+      regexPattern: regexPattern ?? this.regexPattern,
     );
   }
 
@@ -111,6 +123,9 @@ class _ColumnPrefs {
         'hidden': hidden,
         if (required) 'required': true,
         if (enumValues.isNotEmpty) 'enumValues': enumValues,
+        if (numberMin != null) 'numberMin': numberMin,
+        if (numberMax != null) 'numberMax': numberMax,
+        if (regexPattern?.trim().isNotEmpty ?? false) 'regex': regexPattern,
       };
 
   static _ColumnPrefs? fromJson(Object? raw) {
@@ -130,11 +145,17 @@ class _ColumnPrefs {
         enumValues.add(value);
       }
     }
+    final numberMin = (map['numberMin'] as num?)?.toDouble();
+    final numberMax = (map['numberMax'] as num?)?.toDouble();
+    final regex = (map['regex'] ?? '').toString().trim();
     return _ColumnPrefs(
       type: parsedType,
       hidden: hidden,
       required: required,
       enumValues: enumValues,
+      numberMin: numberMin,
+      numberMax: numberMax,
+      regexPattern: regex.isEmpty ? null : regex,
     );
   }
 }
@@ -263,6 +284,9 @@ class _RowModel {
     this.gpsAccuracyM,
     this.gpsTs,
     this.gpsIsLastKnown = false,
+    this.reviewed = false,
+    this.reviewedBy,
+    this.reviewedAt,
   });
 
   final String id;
@@ -273,6 +297,9 @@ class _RowModel {
   final double? gpsAccuracyM;
   final DateTime? gpsTs;
   final bool gpsIsLastKnown;
+  final bool reviewed;
+  final String? reviewedBy;
+  final DateTime? reviewedAt;
 
   factory _RowModel.empty(int cols, {String id = ''}) => _RowModel(
         id: id,
@@ -292,6 +319,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
 // ??? Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
@@ -304,6 +334,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
   _RowModel copyWithCells(List<String> newCells) => _RowModel(
@@ -315,6 +348,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
   _RowModel copyWithLocation({
@@ -333,6 +369,28 @@ class _RowModel {
         gpsAccuracyM: accuracyM,
         gpsTs: ts,
         gpsIsLastKnown: isLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
+      );
+
+  _RowModel copyWithReview({
+    required bool reviewed,
+    String? reviewedBy,
+    DateTime? reviewedAt,
+  }) =>
+      _RowModel(
+        id: id,
+        cells: List<String>.from(cells),
+        photos: photos.map((p) => p.copy()).toList(),
+        gpsLat: gpsLat,
+        gpsLng: gpsLng,
+        gpsAccuracyM: gpsAccuracyM,
+        gpsTs: gpsTs,
+        gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewed ? reviewedBy : null,
+        reviewedAt: reviewed ? reviewedAt : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -350,6 +408,14 @@ class _RowModel {
             'ts': gpsTs?.toIso8601String(),
             'lastKnown': gpsIsLastKnown,
           },
+        if (reviewed ||
+            (reviewedBy?.trim().isNotEmpty ?? false) ||
+            reviewedAt != null)
+          'review': {
+            'done': reviewed,
+            if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
+            if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
+          },
       };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
@@ -363,6 +429,16 @@ class _RowModel {
       if (it is Map) photos.add(_RowPhoto.fromJson(it.cast<String, dynamic>()));
     }
     final gps = map['gps'];
+    final review = map['review'];
+    final reviewed = review is Map ? (review['done'] as bool? ?? false) : false;
+    final reviewedBy = review is Map
+        ? (review['by'] ?? '').toString().trim().isEmpty
+            ? null
+            : (review['by'] ?? '').toString().trim()
+        : null;
+    final reviewedAt = review is Map
+        ? DateTime.tryParse((review['at'] ?? '').toString())
+        : null;
     if (gps is Map) {
       return _RowModel(
         id: id,
@@ -373,9 +449,19 @@ class _RowModel {
         gpsAccuracyM: (gps['accuracyM'] as num?)?.toDouble(),
         gpsTs: DateTime.tryParse((gps['ts'] ?? '').toString()),
         gpsIsLastKnown: (gps['lastKnown'] as bool?) ?? false,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
     }
-    return _RowModel(id: id, cells: cells, photos: photos);
+    return _RowModel(
+      id: id,
+      cells: cells,
+      photos: photos,
+      reviewed: reviewed,
+      reviewedBy: reviewedBy,
+      reviewedAt: reviewedAt,
+    );
   }
 }
 
@@ -693,6 +779,126 @@ class _ValidationIssue {
   final _CellRef ref;
   final String label;
   final String message;
+}
+
+class _SavedView {
+  const _SavedView({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    this.statusColId,
+    this.statusValue,
+    this.textColId,
+    this.textContains,
+    this.dateColId,
+    this.dateFrom,
+    this.dateTo,
+    this.sortColId,
+    this.sortAscending = true,
+    this.columnPrefsById = const <String, _ColumnPrefs>{},
+    this.columnOrder = const <String>[],
+    this.frozenColId,
+  });
+
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final String? statusColId;
+  final String? statusValue;
+  final String? textColId;
+  final String? textContains;
+  final String? dateColId;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+  final String? sortColId;
+  final bool sortAscending;
+  final Map<String, _ColumnPrefs> columnPrefsById;
+  final List<String> columnOrder;
+  final String? frozenColId;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'createdAt': createdAt.toIso8601String(),
+      if (statusColId?.trim().isNotEmpty ?? false) 'statusColId': statusColId,
+      if (statusValue?.trim().isNotEmpty ?? false) 'statusValue': statusValue,
+      if (textColId?.trim().isNotEmpty ?? false) 'textColId': textColId,
+      if (textContains?.trim().isNotEmpty ?? false)
+        'textContains': textContains,
+      if (dateColId?.trim().isNotEmpty ?? false) 'dateColId': dateColId,
+      if (dateFrom != null) 'dateFrom': dateFrom!.toIso8601String(),
+      if (dateTo != null) 'dateTo': dateTo!.toIso8601String(),
+      if (sortColId?.trim().isNotEmpty ?? false) 'sortColId': sortColId,
+      if (!sortAscending) 'sortAscending': false,
+      if (columnPrefsById.isNotEmpty)
+        'columnPrefsById': columnPrefsById.map(
+          (key, value) => MapEntry(key, value.toJson()),
+        ),
+      if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
+      if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
+    };
+  }
+
+  static _SavedView? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final id = (map['id'] ?? '').toString().trim();
+    final name = (map['name'] ?? '').toString().trim();
+    if (id.isEmpty || name.isEmpty) return null;
+    final createdAt = DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final prefs = <String, _ColumnPrefs>{};
+    final prefsRaw = map['columnPrefsById'];
+    if (prefsRaw is Map) {
+      prefsRaw.forEach((key, value) {
+        final pref = _ColumnPrefs.fromJson(value);
+        if (pref == null) return;
+        final colId = key.toString().trim();
+        if (colId.isEmpty) return;
+        prefs[colId] = pref;
+      });
+    }
+    final order = <String>[];
+    final orderRaw = map['columnOrder'];
+    if (orderRaw is List) {
+      for (final item in orderRaw) {
+        final value = (item ?? '').toString().trim();
+        if (value.isEmpty) continue;
+        order.add(value);
+      }
+    }
+    final frozenRaw = (map['frozenColId'] ?? '').toString().trim();
+    return _SavedView(
+      id: id,
+      name: name,
+      createdAt: createdAt,
+      statusColId: (map['statusColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['statusColId'] ?? '').toString().trim(),
+      statusValue: (map['statusValue'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['statusValue'] ?? '').toString().trim(),
+      textColId: (map['textColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['textColId'] ?? '').toString().trim(),
+      textContains: (map['textContains'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['textContains'] ?? '').toString().trim(),
+      dateColId: (map['dateColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['dateColId'] ?? '').toString().trim(),
+      dateFrom: DateTime.tryParse((map['dateFrom'] ?? '').toString()),
+      dateTo: DateTime.tryParse((map['dateTo'] ?? '').toString()),
+      sortColId: (map['sortColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['sortColId'] ?? '').toString().trim(),
+      sortAscending: map['sortAscending'] as bool? ?? true,
+      columnPrefsById: prefs,
+      columnOrder: order,
+      frozenColId: frozenRaw.isEmpty ? null : frozenRaw,
+    );
+  }
 }
 
 class _CellRef {
