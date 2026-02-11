@@ -5583,6 +5583,12 @@ class _EditorScreenState extends State<EditorScreen>
                           sensorsEnabled: sensorsEnabled,
                           onQuickCapture: () =>
                               unawaited(_startQuickCaptureFlow()),
+                          onForm: () => unawaited(
+                            _openRowFormMode(
+                              rowIndex: _selRow,
+                              createNew: false,
+                            ),
+                          ),
                           onBatch: () => unawaited(_openBatchActionsSheet()),
                           onGps: () => unawaited(_requestGpsForCell(
                               _selRow, _selCol,

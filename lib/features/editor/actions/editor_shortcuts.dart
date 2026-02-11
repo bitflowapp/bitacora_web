@@ -95,6 +95,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyM) {
+      unawaited(_openRowFormMode(rowIndex: _selRow, createNew: false));
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyN) {
       _insertRow(_rows.length);
       return KeyEventResult.handled;

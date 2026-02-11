@@ -394,6 +394,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
     required this.palette,
     required this.sensorsEnabled,
     required this.onQuickCapture,
+    required this.onForm,
     required this.onBatch,
     required this.onGps,
     required this.onPhoto,
@@ -408,6 +409,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
   final _SheetPalette palette;
   final bool sensorsEnabled;
   final VoidCallback onQuickCapture;
+  final VoidCallback onForm;
   final VoidCallback onBatch;
   final VoidCallback onGps;
   final VoidCallback onPhoto;
@@ -442,6 +444,14 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 dense: true,
                 onPressed: onQuickCapture,
                 variant: AppleButtonVariant.filled,
+              ),
+              const SizedBox(width: 8),
+              AppleButton(
+                icon: Icons.description_outlined,
+                label: 'Formulario',
+                dense: true,
+                onPressed: onForm,
+                variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
               AppleButton(

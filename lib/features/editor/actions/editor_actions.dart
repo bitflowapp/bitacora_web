@@ -52,6 +52,7 @@ extension _EditorActions on _EditorScreenState {
           id: 'form_mode',
           label: 'Formulario de fila',
           subtitle: 'Editar fila activa con inputs por tipo',
+          shortcut: 'Ctrl/Cmd+Shift+M',
           icon: Icons.description_outlined,
           onSelected: () => unawaited(
             _openRowFormMode(
