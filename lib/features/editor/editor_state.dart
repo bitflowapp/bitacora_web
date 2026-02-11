@@ -8850,16 +8850,16 @@ class _EditorScreenState extends State<EditorScreen>
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.medium,
+          curve: AppMotion.standardOut,
           alignment: 0.06,
           alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         );
       } else {
         _vScroll.animateTo(
           _vScroll.position.minScrollExtent,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.medium,
+          curve: AppMotion.standardOut,
         );
       }
       _ensureColumnVisibleForMobile();
@@ -8871,8 +8871,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (rowCtx != null) {
       Scrollable.ensureVisible(
         rowCtx,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
+        duration: AppMotion.medium,
+        curve: AppMotion.standardOut,
         alignment: 0.06,
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
       );
@@ -8887,8 +8887,8 @@ class _EditorScreenState extends State<EditorScreen>
           _vScroll.position.minScrollExtent,
           clamped.toDouble() - panelMargin,
         ),
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
+        duration: AppMotion.medium,
+        curve: AppMotion.standardOut,
       );
     }
 
@@ -8938,8 +8938,8 @@ class _EditorScreenState extends State<EditorScreen>
     if ((clamped - controller.offset).abs() < 6.0) return;
     controller.animateTo(
       clamped.toDouble(),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
+      duration: AppMotion.medium,
+      curve: AppMotion.standardOut,
     );
   }
 

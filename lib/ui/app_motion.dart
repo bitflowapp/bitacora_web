@@ -7,8 +7,8 @@ class AppMotion {
 
   static const Duration micro = Duration(milliseconds: 120);
   static const Duration quick = Duration(milliseconds: 160);
-  static const Duration medium = Duration(milliseconds: 220);
-  static const Duration modal = Duration(milliseconds: 280);
+  static const Duration medium = Duration(milliseconds: 180);
+  static const Duration modal = Duration(milliseconds: 180);
 
   static const Curve standardOut = Curves.easeOutCubic;
   static const Curve standardIn = Curves.easeInCubic;

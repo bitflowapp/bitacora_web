@@ -416,9 +416,8 @@ class _SelectionQuickActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowsLabel = selectedRowsCount <= 1
-        ? '1 fila'
-        : '$selectedRowsCount filas';
+    final rowsLabel =
+        selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -744,8 +743,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
       right: 0,
       bottom: 0,
       child: AnimatedPadding(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
+        duration: AppMotion.quick,
+        curve: AppMotion.standardOut,
         padding: EdgeInsets.only(bottom: keyboardInset),
         child: SafeArea(
           top: false,
@@ -753,8 +752,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
           child: AbsorbPointer(
             absorbing: !isOpen,
             child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 140),
-              curve: Curves.easeOut,
+              duration: AppMotion.quick,
+              curve: AppMotion.standardOut,
               opacity: opacity,
               child: CallbackShortcuts(
                 bindings: bindings,
@@ -948,9 +947,8 @@ class _MobileEditorField extends StatelessWidget {
       maxLines: 2,
       enabled: true,
       textAlignVertical: TextAlignVertical.center,
-      textInputAction: onNext == null
-          ? TextInputAction.done
-          : TextInputAction.next,
+      textInputAction:
+          onNext == null ? TextInputAction.done : TextInputAction.next,
       keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
       scrollPadding: EdgeInsets.zero,
       autocorrect: false,

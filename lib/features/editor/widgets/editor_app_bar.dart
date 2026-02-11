@@ -943,12 +943,12 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
         onEnter: (_) => _setHovered(true),
         onExit: (_) => _setHovered(false),
         child: AnimatedScale(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
+          duration: AppMotion.quick,
+          curve: AppMotion.standardOut,
           scale: _pressed ? 0.97 : (_hovered ? 1.05 : 1.0),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
+            duration: AppMotion.quick,
+            curve: AppMotion.standardOut,
             decoration: BoxDecoration(
               boxShadow: _hovered
                   ? [
@@ -1047,12 +1047,12 @@ class _PillButtonState extends State<_PillButton> {
         onEnter: disabled ? null : (_) => _setHovered(true),
         onExit: disabled ? null : (_) => _setHovered(false),
         child: AnimatedScale(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
+          duration: AppMotion.quick,
+          curve: AppMotion.standardOut,
           scale: _pressed ? 0.985 : (_hovered ? 1.03 : 1.0),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
+            duration: AppMotion.quick,
+            curve: AppMotion.standardOut,
             decoration: BoxDecoration(
               boxShadow: _hovered
                   ? [

@@ -454,6 +454,8 @@ class SheetStore {
       if (key.startsWith(_sheetPrefix)) {
         if (key.contains(_backupMarker)) continue;
         final id = key.substring(_sheetPrefix.length);
+        // Ignore per-sheet metadata keys (e.g. "<id>:backup", "<id>:bk:list").
+        if (id.contains(':')) continue;
         if (id.isEmpty) continue;
         ids[id] = true;
       }

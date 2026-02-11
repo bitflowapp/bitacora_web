@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bitacora_web/services/sheet_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,5 +66,29 @@ void main() {
     expect(normalized['columnPrefs'], isA<Map>());
     expect(normalized['columnOrder'], isA<List>());
     expect(normalized['frozenColId'], 'c_status');
+  });
+
+  test('list ignores backup metadata keys under bitflow:sheet prefix', () async {
+    final now = DateTime(2026, 2, 11, 12, 0).toIso8601String();
+    final model = jsonEncode(<String, dynamic>{
+      'name': 'Demo',
+      'savedAt': now,
+      'headers': const ['A', 'Photos'],
+      'colIds': const ['c_a', 'col_photos'],
+      'rows': const <Map<String, dynamic>>[],
+    });
+
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow:sheet:demo_1': model,
+      'bitflow:sheet:demo_1:backup': model,
+      'bitflow:sheet:demo_1:bk:list': const <String>[
+        'bitflow:sheet:demo_1:bk:1739275200000',
+      ],
+      'bitflow:sheet:demo_1:bk:1739275200000': model,
+    });
+    await SheetStore.init();
+
+    final listedIds = SheetStore.list().map((s) => s.id).toList(growable: false);
+    expect(listedIds, ['demo_1']);
   });
 }
