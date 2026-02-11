@@ -3139,6 +3139,36 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Vista urgentes',
+            icon: Icons.priority_high_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_activateUrgentViewShortcut());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Auto-ID',
+            icon: Icons.tag_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _applyAutoIdQuick();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Ir a errores',
+            icon: Icons.rule_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _jumpToFirstValidationIssue();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Panel columnas',
             icon: Icons.view_column_rounded,
             variant: AppButtonVariant.secondary,

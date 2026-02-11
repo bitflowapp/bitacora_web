@@ -4125,6 +4125,160 @@ class _EditorScreenState extends State<EditorScreen>
     _setReviewFilterMode(_ReviewFilterMode.pending);
   }
 
+  void _jumpToFirstValidationIssue() {
+    final issues = _validationIssues();
+    if (issues.isEmpty) {
+      _showActionSnack(
+        'No hay errores de validacion.',
+        isError: false,
+        icon: Icons.task_alt_rounded,
+      );
+      return;
+    }
+    _jumpToValidationIssue(issues.first);
+  }
+
+  Future<void> _activateUrgentViewShortcut() async {
+    _SavedView? urgentView;
+    for (final view in _savedViews) {
+      if (view.name.toLowerCase().contains('urgente')) {
+        urgentView = view;
+        break;
+      }
+    }
+    if (urgentView != null) {
+      await _applySavedView(urgentView.id);
+      return;
+    }
+    final statusCol = _statusColumnForBatchActions();
+    if (statusCol == null) {
+      _showActionSnack(
+        'No se encontro columna Estado para vista urgente.',
+        isError: true,
+        icon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
+    final autoView = _SavedView(
+      id: _genStableId('view_'),
+      name: 'Vista Urgentes',
+      createdAt: DateTime.now(),
+      statusColId: _colIds[statusCol],
+      statusValue: 'Urgente',
+      columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
+      columnOrder: List<String>.from(_columnOrder),
+      frozenColId: _frozenColId,
+    );
+    setState(() {
+      _savedViews.insert(0, autoView);
+      _applySavedViewColumns(
+        autoView.id,
+        announce: false,
+        persistActive: false,
+      );
+    });
+    await _persistSavedViewsPref();
+    _showActionSnack(
+      'Vista Urgentes activada.',
+      isError: false,
+      icon: Icons.priority_high_rounded,
+    );
+  }
+
+  void _duplicateLastRowQuick() {
+    if (_rows.isEmpty) {
+      _insertRow(0);
+      return;
+    }
+    _duplicateRow(_rows.length - 1);
+  }
+
+  void _applyAutoIdQuick() {
+    if (_headers.length < 2 || _rows.isEmpty) {
+      _showActionSnack(
+        'No hay filas para autocompletar ID.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    int? targetCol;
+    if (_selCol >= 0 &&
+        _selCol < _headers.length - 1 &&
+        _isAutoIncrementColumn(_selCol)) {
+      targetCol = _selCol;
+    } else {
+      for (int c = 0; c < _headers.length - 1; c++) {
+        if (_isAutoIncrementColumn(c)) {
+          targetCol = c;
+          break;
+        }
+      }
+    }
+    if (targetCol == null) {
+      _showActionSnack(
+        'No hay columna ID/Progresiva configurada.',
+        isError: true,
+        icon: Icons.tag_outlined,
+      );
+      return;
+    }
+    final rows = _batchTargetRows();
+    if (rows.isEmpty) return;
+    var changed = 0;
+    for (final r in rows) {
+      if (r < 0 || r >= _rows.length) continue;
+      final current = _rows[r].cells[targetCol].trim();
+      if (current.isNotEmpty) continue;
+      _rows[r].cells[targetCol] = _nextAutoIncrementValueForColumn(targetCol);
+      changed++;
+    }
+    if (changed <= 0) {
+      _showActionSnack(
+        'Las filas seleccionadas ya tienen ID.',
+        isError: false,
+        icon: Icons.tag_rounded,
+      );
+      return;
+    }
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _showActionSnack(
+      'Auto-ID aplicado a $changed fila(s).',
+      isError: false,
+      icon: Icons.tag_rounded,
+    );
+  }
+
+  void _useLastValueForSelectedCell() {
+    if (_selRow < 0 || _selRow >= _rows.length) return;
+    if (_selCol < 0 || _selCol >= _headers.length - 1) return;
+    final suggestions = _recentValuesForColumn(_selCol);
+    if (suggestions.isEmpty) {
+      _showActionSnack(
+        'Sin historial para esta columna.',
+        isError: false,
+        icon: Icons.history_toggle_off_rounded,
+      );
+      return;
+    }
+    final current = _rows[_selRow].cells[_selCol].trim().toLowerCase();
+    String? next;
+    for (final candidate in suggestions) {
+      if (candidate.trim().toLowerCase() == current) continue;
+      next = candidate;
+      break;
+    }
+    next ??= suggestions.first;
+    _setCell(_selRow, _selCol, next);
+    _bumpGridVersion();
+    _showActionSnack(
+      'Ultimo valor aplicado en ${_headerLabel(_selCol)}.',
+      isError: false,
+      icon: Icons.history_rounded,
+    );
+  }
+
   int? _resolveJumpIdColumn() {
     final dataCols = _headers.length - 1;
     if (dataCols <= 0) return null;
@@ -4443,6 +4597,17 @@ class _EditorScreenState extends State<EditorScreen>
             onPressed: () {
               Navigator.of(context).pop();
               _togglePendingReviewView();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Auto-ID en seleccion',
+            icon: Icons.tag_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _applyAutoIdQuick();
             },
           ),
         ],
