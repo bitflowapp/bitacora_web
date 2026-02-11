@@ -3000,6 +3000,21 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Formulario',
+            icon: Icons.description_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(
+                _openRowFormMode(
+                  rowIndex: _selRow,
+                  createNew: false,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Adjuntar en celda activa',
             icon: Icons.attach_file_rounded,
             variant: AppButtonVariant.secondary,
@@ -3096,6 +3111,16 @@ extension _EditorAttachments on _EditorScreenState {
             onPressed: () {
               Navigator.of(context).pop();
               unawaited(_openBatchActionsSheet());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Panel columnas',
+            icon: Icons.view_column_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openColumnPanel());
             },
           ),
           const SizedBox(height: 8),

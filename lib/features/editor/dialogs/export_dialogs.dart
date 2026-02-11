@@ -4,7 +4,9 @@ extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    var format = 'xlsx';
+    var preset =
+        _isValidExportPreset(_lastExportPreset) ? _lastExportPreset : 'pdf';
+    var format = preset == 'xlsx' ? 'xlsx' : 'pdf';
     var includeAttachments = true;
 
     await showAppModal<void>(
@@ -13,12 +15,13 @@ extension _EditorExportDialogs on _EditorScreenState {
       child: StatefulBuilder(
         builder: (context, setModalState) {
           final fileName = _buildCommercialExportFileName(format);
+          final isZipPreset = preset == 'zip';
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Formato',
+                'Preset',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -29,30 +32,82 @@ extension _EditorExportDialogs on _EditorScreenState {
                 runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('XLSX'),
-                    selected: format == 'xlsx',
-                    onSelected: (_) => setModalState(() => format = 'xlsx'),
+                    label: const Text('Reporte PDF'),
+                    selected: preset == 'pdf',
+                    onSelected: (_) => setModalState(() {
+                      preset = 'pdf';
+                      format = 'pdf';
+                    }),
                   ),
                   ChoiceChip(
-                    label: const Text('PDF'),
-                    selected: format == 'pdf',
-                    onSelected: (_) => setModalState(() => format = 'pdf'),
+                    label: const Text('Planilla XLSX'),
+                    selected: preset == 'xlsx',
+                    onSelected: (_) => setModalState(() {
+                      preset = 'xlsx';
+                      format = 'xlsx';
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Paquete ZIP'),
+                    selected: preset == 'zip',
+                    onSelected: (_) => setModalState(() {
+                      preset = 'zip';
+                    }),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Incluir adjuntos'),
-                subtitle: const Text('Fotos, audio y GPS en el export.'),
-                value: includeAttachments,
-                onChanged: (value) {
-                  setModalState(() => includeAttachments = value);
-                },
-              ),
+              if (!isZipPreset) ...[
+                Text(
+                  'Formato',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('XLSX'),
+                      selected: format == 'xlsx',
+                      onSelected: (_) => setModalState(() {
+                        format = 'xlsx';
+                        preset = 'xlsx';
+                      }),
+                    ),
+                    ChoiceChip(
+                      label: const Text('PDF'),
+                      selected: format == 'pdf',
+                      onSelected: (_) => setModalState(() {
+                        format = 'pdf';
+                        preset = 'pdf';
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Incluir adjuntos'),
+                  subtitle: const Text('Fotos, audio y GPS en el export.'),
+                  value: includeAttachments,
+                  onChanged: (value) {
+                    setModalState(() => includeAttachments = value);
+                  },
+                ),
+              ] else ...[
+                const Text(
+                  'Incluye estado completo + adjuntos para backup/restore.',
+                ),
+                const SizedBox(height: 8),
+              ],
               const SizedBox(height: 6),
               Text(
-                'Archivo: $fileName',
+                isZipPreset
+                    ? 'Archivo: ${_buildCommercialExportFileName('bitflow.zip')}'
+                    : 'Archivo: $fileName',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
@@ -62,6 +117,12 @@ extension _EditorExportDialogs on _EditorScreenState {
                 variant: AppButtonVariant.primary,
                 onPressed: () {
                   Navigator.of(context).pop();
+                  unawaited(_setExportPresetPref(preset));
+                  if (isZipPreset) {
+                    unawaited(_setExportPresetPref('zip'));
+                    unawaited(_exportZipBundle(share: false));
+                    return;
+                  }
                   _triggerSheetExport(
                     format: format,
                     includeAttachments: includeAttachments,
@@ -76,6 +137,12 @@ extension _EditorExportDialogs on _EditorScreenState {
                 variant: AppButtonVariant.secondary,
                 onPressed: () {
                   Navigator.of(context).pop();
+                  unawaited(_setExportPresetPref(preset));
+                  if (isZipPreset) {
+                    unawaited(_setExportPresetPref('zip'));
+                    unawaited(_exportZipBundle(share: true));
+                    return;
+                  }
                   _triggerSheetExport(
                     format: format,
                     includeAttachments: includeAttachments,
@@ -97,6 +164,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                     size: AppButtonSize.sm,
                     onPressed: () {
                       Navigator.of(context).pop();
+                      unawaited(_setExportPresetPref('zip'));
                       unawaited(_exportZipBundle(share: false));
                     },
                   ),
@@ -107,6 +175,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                     size: AppButtonSize.sm,
                     onPressed: () {
                       Navigator.of(context).pop();
+                      unawaited(_setExportPresetPref('zip'));
                       unawaited(_exportZipBundle(share: true));
                     },
                   ),
@@ -163,6 +232,7 @@ extension _EditorExportDialogs on _EditorScreenState {
     required bool includeAttachments,
     required bool share,
   }) {
+    unawaited(_setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx'));
     if (format == 'pdf') {
       unawaited(
         _exportPdf(

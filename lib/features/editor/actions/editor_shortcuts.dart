@@ -119,6 +119,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyD) {
+      unawaited(_promptFillDown(context, _selRow, _selCol));
+      return KeyEventResult.handled;
+    }
+
     if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyL) {
       unawaited(_openOfflineQueueDialog());
       return KeyEventResult.handled;

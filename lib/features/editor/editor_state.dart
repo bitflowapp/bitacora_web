@@ -9,6 +9,8 @@ const double _kMobileQuickBarH = 62.0;
 const int _kMaxPhotosPerCell = 6;
 const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
 const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
+const bool _kDebugGridBuildCounter =
+    bool.fromEnvironment('BITFLOW_DEBUG_GRID_REBUILDS', defaultValue: false);
 
 // ??? Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
 const bool _kPersistPhotoThumbs = true;
@@ -23,6 +25,7 @@ const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
 const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
 const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
+const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -129,6 +132,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   late List<String> _headers;
   late List<String> _colIds;
+  late Map<String, _ColumnPrefs> _columnPrefsById;
+  late List<String> _columnOrder;
+  String? _frozenColId;
   late List<_RowModel> _rows;
 
   bool _isLight = true;
@@ -224,6 +230,8 @@ class _EditorScreenState extends State<EditorScreen>
   final ValueNotifier<int> _gridVersion = ValueNotifier<int>(0);
   final Map<String, ValueNotifier<int>> _rowVersionById =
       <String, ValueNotifier<int>>{};
+  int _debugGridBuilds = 0;
+  DateTime _debugGridBuildsWindowStart = DateTime.now();
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -368,6 +376,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _defaultDateTodayEnabled = true;
   bool _defaultStatusOkEnabled = true;
   bool _autoIncrementIdEnabled = false;
+  String _lastExportPreset = 'pdf';
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -429,6 +438,18 @@ class _EditorScreenState extends State<EditorScreen>
     final initial = _buildInitialState();
     _headers = initial.headers;
     _colIds = initial.colIds;
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: initial.columnPrefsById,
+    );
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: initial.columnOrder,
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: initial.frozenColId,
+    );
     _rows = initial.rows;
     _selectedRows
       ..clear()
@@ -462,6 +483,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
     unawaited(_loadEditorDefaultsPrefs());
+    unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadAndroidInstallHelperPref());
@@ -644,6 +666,7 @@ class _EditorScreenState extends State<EditorScreen>
       rows: rowModels,
       name: _sheetName,
       savedAt: _lastSavedAt,
+      columnOrder: _normalizeColumnOrder(colIds: colIds, incoming: null),
     );
   }
 
@@ -701,6 +724,60 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
     return out;
+  }
+
+  Map<String, _ColumnPrefs> _normalizeColumnPrefs({
+    required List<String> colIds,
+    required Map<String, _ColumnPrefs> incoming,
+  }) {
+    final out = <String, _ColumnPrefs>{};
+    for (final colId in colIds) {
+      if (colId == kPhotosColId) continue;
+      final pref = incoming[colId];
+      if (pref == null) continue;
+      if (pref.type == _ColType.photos) continue;
+      out[colId] = pref;
+    }
+    return out;
+  }
+
+  List<String> _normalizeColumnOrder({
+    required List<String> colIds,
+    required List<String>? incoming,
+  }) {
+    final dataColIds = <String>[
+      for (final id in colIds)
+        if (id != kPhotosColId) id,
+    ];
+    if (dataColIds.isEmpty) return const <String>[];
+    final seen = <String>{};
+    final out = <String>[];
+
+    if (incoming != null) {
+      for (final raw in incoming) {
+        final id = raw.trim();
+        if (id.isEmpty) continue;
+        if (!dataColIds.contains(id)) continue;
+        if (!seen.add(id)) continue;
+        out.add(id);
+      }
+    }
+
+    for (final id in dataColIds) {
+      if (!seen.add(id)) continue;
+      out.add(id);
+    }
+    return out;
+  }
+
+  String? _normalizeFrozenColId({
+    required List<String> colIds,
+    required String? requested,
+  }) {
+    final value = requested?.trim() ?? '';
+    if (value.isEmpty || value == kPhotosColId) return null;
+    if (!colIds.contains(value)) return null;
+    return value;
   }
 
 // ??? Acepta List<String>, List<dynamic>, etc.
@@ -1050,6 +1127,18 @@ class _EditorScreenState extends State<EditorScreen>
 
     final loadedHeaders = _normalizeHeaders(loaded.headers);
     final colIds = _normalizeColIds(loadedHeaders, loaded.colIds);
+    final columnPrefs = _normalizeColumnPrefs(
+      colIds: colIds,
+      incoming: loaded.columnPrefsById,
+    );
+    final columnOrder = _normalizeColumnOrder(
+      colIds: colIds,
+      incoming: loaded.columnOrder,
+    );
+    final frozenColId = _normalizeFrozenColId(
+      colIds: colIds,
+      requested: loaded.frozenColId,
+    );
     final normalizedRows =
         _normalizeRowModels(loaded.rows, loadedHeaders.length);
     final migratedMeta = _migrateLegacyRowGps(
@@ -1074,6 +1163,9 @@ class _EditorScreenState extends State<EditorScreen>
           : _sheetName;
       _headers = loadedHeaders;
       _colIds = colIds;
+      _columnPrefsById = columnPrefs;
+      _columnOrder = columnOrder;
+      _frozenColId = frozenColId;
       _rows = normalizedRows.isNotEmpty
           ? normalizedRows
           : <_RowModel>[
@@ -1176,6 +1268,9 @@ class _EditorScreenState extends State<EditorScreen>
           .toList(growable: false),
       cellMeta: _cloneCellMeta(_cellMeta),
       savedAt: savedAt,
+      columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
+      columnOrder: List<String>.from(_columnOrder),
+      frozenColId: _frozenColId,
     );
   }
 
@@ -1346,10 +1441,24 @@ class _EditorScreenState extends State<EditorScreen>
     return out;
   }
 
+  Map<String, _ColumnPrefs> _cloneColumnPrefs(
+    Map<String, _ColumnPrefs> source,
+  ) {
+    if (source.isEmpty) return <String, _ColumnPrefs>{};
+    final out = <String, _ColumnPrefs>{};
+    source.forEach((key, value) {
+      out[key] = value.copyWith();
+    });
+    return out;
+  }
+
   _SheetSnapshot _snapshot() => _SheetSnapshot(
         name: _sheetName,
         headers: List<String>.from(_headers),
         colIds: List<String>.from(_colIds),
+        columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
+        columnOrder: List<String>.from(_columnOrder),
+        frozenColId: _frozenColId,
 // ??? Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
         rowModels:
             _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
@@ -1384,6 +1493,18 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = prev.name;
       _headers = List<String>.from(prev.headers);
       _colIds = List<String>.from(prev.colIds);
+      _columnPrefsById = _normalizeColumnPrefs(
+        colIds: _colIds,
+        incoming: prev.columnPrefsById,
+      );
+      _columnOrder = _normalizeColumnOrder(
+        colIds: _colIds,
+        incoming: prev.columnOrder,
+      );
+      _frozenColId = _normalizeFrozenColId(
+        colIds: _colIds,
+        requested: prev.frozenColId,
+      );
       _rows = prev.rowModels.map((r) => r.copyForSnapshot()).toList();
       _cellMeta
         ..clear()
@@ -1429,6 +1550,18 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = snap.name;
       _headers = List<String>.from(snap.headers);
       _colIds = List<String>.from(snap.colIds);
+      _columnPrefsById = _normalizeColumnPrefs(
+        colIds: _colIds,
+        incoming: snap.columnPrefsById,
+      );
+      _columnOrder = _normalizeColumnOrder(
+        colIds: _colIds,
+        incoming: snap.columnOrder,
+      );
+      _frozenColId = _normalizeFrozenColId(
+        colIds: _colIds,
+        requested: snap.frozenColId,
+      );
       _rows = snap.rowModels.map((r) => r.copyForSnapshot()).toList();
       _cellMeta
         ..clear()
@@ -1601,6 +1734,38 @@ class _EditorScreenState extends State<EditorScreen>
       _autoIncrementIdEnabled = nextAutoIncrement;
     }
     await _saveEditorDefaultsPrefs();
+  }
+
+  bool _isValidExportPreset(String preset) {
+    return preset == 'pdf' || preset == 'xlsx' || preset == 'zip';
+  }
+
+  Future<void> _loadExportPresetPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = (prefs.getString(_kPrefExportPreset) ?? '').trim();
+      if (!_isValidExportPreset(raw)) return;
+      if (!mounted) {
+        _lastExportPreset = raw;
+        return;
+      }
+      setState(() => _lastExportPreset = raw);
+    } catch (_) {}
+  }
+
+  Future<void> _setExportPresetPref(String preset) async {
+    if (!_isValidExportPreset(preset)) return;
+    if (preset != _lastExportPreset) {
+      if (mounted) {
+        setState(() => _lastExportPreset = preset);
+      } else {
+        _lastExportPreset = preset;
+      }
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefExportPreset, preset);
+    } catch (_) {}
   }
 
   Future<void> _loadRecentValuesFromPrefs() async {
@@ -1957,9 +2122,11 @@ class _EditorScreenState extends State<EditorScreen>
     _validationDebounceT = Timer(_validationDebounce, _recomputeValidation);
   }
 
-  _ColType _colType(int c) {
-    if (c == _headers.length - 1) return _ColType.photos;
-    final h = _headerLabel(c).toLowerCase();
+  _ColType _inferColTypeFromHeader(String header) {
+    final h = header.trim().toLowerCase();
+    if (h.contains('check') || h.contains('bool') || h.contains('verif')) {
+      return _ColType.checkbox;
+    }
     if (h.contains('estado') || h.contains('status')) return _ColType.status;
     if (h.contains('fecha') || h.contains('date')) return _ColType.date;
     if (h.contains('hora') || h.contains('time')) return _ColType.date;
@@ -1973,6 +2140,16 @@ class _EditorScreenState extends State<EditorScreen>
     return _ColType.text;
   }
 
+  _ColType _colType(int c) {
+    if (c == _headers.length - 1) return _ColType.photos;
+    if (c >= 0 && c < _colIds.length) {
+      final colId = _colIds[c];
+      final pref = _columnPrefsById[colId];
+      if (pref != null) return pref.type;
+    }
+    return _inferColTypeFromHeader(_headerLabel(c));
+  }
+
   List<String>? _statusOptionsForCol(int c) {
     if (_colType(c) != _ColType.status) return null;
     return const <String>['OK', 'Obs', 'Urgente'];
@@ -1981,15 +2158,28 @@ class _EditorScreenState extends State<EditorScreen>
   DateTime? _parseDateCellValue(String raw) {
     final text = raw.trim();
     if (text.isEmpty) return null;
-    final match = RegExp(
-      r'^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?$',
+    final slash = RegExp(
+      r'^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?$',
     ).firstMatch(text);
-    if (match != null) {
-      final y = int.tryParse(match.group(1) ?? '');
-      final m = int.tryParse(match.group(2) ?? '');
-      final d = int.tryParse(match.group(3) ?? '');
-      final hh = int.tryParse(match.group(4) ?? '0') ?? 0;
-      final mm = int.tryParse(match.group(5) ?? '0') ?? 0;
+    if (slash != null) {
+      final d = int.tryParse(slash.group(1) ?? '');
+      final m = int.tryParse(slash.group(2) ?? '');
+      final y = int.tryParse(slash.group(3) ?? '');
+      final hh = int.tryParse(slash.group(4) ?? '0') ?? 0;
+      final mm = int.tryParse(slash.group(5) ?? '0') ?? 0;
+      if (y != null && m != null && d != null) {
+        return DateTime(y, m, d, hh, mm);
+      }
+    }
+    final iso = RegExp(
+      r'^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?$',
+    ).firstMatch(text);
+    if (iso != null) {
+      final y = int.tryParse(iso.group(1) ?? '');
+      final m = int.tryParse(iso.group(2) ?? '');
+      final d = int.tryParse(iso.group(3) ?? '');
+      final hh = int.tryParse(iso.group(4) ?? '0') ?? 0;
+      final mm = int.tryParse(iso.group(5) ?? '0') ?? 0;
       if (y != null && m != null && d != null) {
         return DateTime(y, m, d, hh, mm);
       }
@@ -1999,7 +2189,41 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _formatDateCellValue(DateTime value) {
     final local = value.toLocal();
-    return '${local.year}-${_two(local.month)}-${_two(local.day)} ${_two(local.hour)}:${_two(local.minute)}';
+    return '${_two(local.day)}/${_two(local.month)}/${local.year}';
+  }
+
+  double? _parseNumberCellValue(String raw) {
+    final normalized = raw.trim().replaceAll(' ', '').replaceAll(',', '.');
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+
+  String _formatNumberCellValue(double value) {
+    final rounded = value.roundToDouble();
+    if ((value - rounded).abs() < 0.0000001) {
+      return rounded.toInt().toString();
+    }
+    final fixed = value.toStringAsFixed(6);
+    return fixed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  bool? _parseCheckboxCellValue(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (value == '1' ||
+        value == 'true' ||
+        value == 'si' ||
+        value == 'sÃ­' ||
+        value == 'ok' ||
+        value == 'x') {
+      return true;
+    }
+    if (value == '0' || value == 'false' || value == 'no' || value == 'off') {
+      return false;
+    }
+    return null;
   }
 
   String _normalizeCellValueForColumn(int c, String value) {
@@ -2019,6 +2243,14 @@ class _EditorScreenState extends State<EditorScreen>
         final parsed = _parseDateCellValue(trimmed);
         if (parsed == null) return trimmed;
         return _formatDateCellValue(parsed);
+      case _ColType.number:
+        final parsed = _parseNumberCellValue(trimmed);
+        if (parsed == null) return trimmed;
+        return _formatNumberCellValue(parsed);
+      case _ColType.checkbox:
+        final parsed = _parseCheckboxCellValue(trimmed);
+        if (parsed == null) return trimmed;
+        return parsed ? '1' : '0';
       default:
         return trimmed;
     }
@@ -2057,7 +2289,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (_parseDateCellValue(v) == null) invalid.add(ref);
               break;
             case _ColType.number:
-              if (double.tryParse(v) == null) invalid.add(ref);
+              if (_parseNumberCellValue(v) == null) invalid.add(ref);
               break;
             case _ColType.status:
               final options = _statusOptionsForCol(c);
@@ -2070,6 +2302,9 @@ class _EditorScreenState extends State<EditorScreen>
                 }
               }
               if (!matched) invalid.add(ref);
+              break;
+            case _ColType.checkbox:
+              if (_parseCheckboxCellValue(v) == null) invalid.add(ref);
               break;
             default:
               break;
@@ -2156,6 +2391,19 @@ class _EditorScreenState extends State<EditorScreen>
     for (final id in activeIds) {
       _rowVersionById.putIfAbsent(id, () => ValueNotifier<int>(0));
     }
+  }
+
+  void _trackGridHostBuild(String surface) {
+    if (!kDebugMode || !_kDebugGridBuildCounter) return;
+    _debugGridBuilds++;
+    final now = DateTime.now();
+    final elapsed = now.difference(_debugGridBuildsWindowStart);
+    if (elapsed < const Duration(seconds: 2)) return;
+    debugPrint(
+      '[editor_perf] grid_host_builds[$surface]: $_debugGridBuilds/${elapsed.inMilliseconds}ms',
+    );
+    _debugGridBuilds = 0;
+    _debugGridBuildsWindowStart = now;
   }
 
   String _effectiveHeader(int c) {
@@ -4207,6 +4455,9 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
 
+    await _openRowFormMode(rowIndex: inserted.rowIndex);
+    if (!mounted) return;
+
     _showActionSnack(
       'Registro creado en fila ${inserted.rowIndex + 1}.',
       isError: false,
@@ -4679,6 +4930,14 @@ class _EditorScreenState extends State<EditorScreen>
         final showSelectionQuickActions =
             !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
+        final displayColumns = _displayColumnIndexes();
+        final displayHeaders = List<String>.generate(
+          displayColumns.length,
+          (i) => _effectiveHeader(displayColumns[i]),
+          growable: false,
+        );
+        final selectedDisplayCol =
+            _displayColumnIndexForActual(_selCol, displayColumns);
 
         if (isMobile) {
           if (_engineStatusIsError && _engineStatus != null) {
@@ -4731,8 +4990,15 @@ class _EditorScreenState extends State<EditorScreen>
                               onAddRow: () => _insertRow(_rows.length),
                               onQuickCapture: () =>
                                   unawaited(_startQuickCaptureFlow()),
+                              onForm: () => unawaited(
+                                _openRowFormMode(
+                                  rowIndex: _selRow,
+                                  createNew: false,
+                                ),
+                              ),
                               onSearch: () => unawaited(_openSearchDialog()),
                               onJumpTo: () => unawaited(_openJumpToDialog()),
+                              onColumns: () => unawaited(_openColumnPanel()),
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -4998,6 +5264,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       canMarkStatus: canMarkSelectionStatus,
                                       onApplyValue: () =>
                                           unawaited(_promptBatchApplyValue()),
+                                      onFillDown: () => unawaited(
+                                          _promptFillDown(
+                                              context, _selRow, _selCol)),
                                       onDuplicateRows: _duplicateSelectedRows,
                                       onAttachPhoto: () => unawaited(
                                         _startPhotoFlowForCell(
@@ -5049,56 +5318,128 @@ class _EditorScreenState extends State<EditorScreen>
                                           child: ValueListenableBuilder<int>(
                                             valueListenable: _gridVersion,
                                             builder: (ctx, _, __) {
+                                              _trackGridHostBuild('desktop');
                                               return _GridView(
                                                 palette: pal,
                                                 metrics: metrics,
-                                                headers: List<String>.generate(
-                                                    _headers.length,
-                                                    _effectiveHeader),
+                                                headers: displayHeaders,
                                                 rowModels: _rows,
-                                                cellTextAt: (r, c) =>
-                                                    _effectiveCell(r, c),
-                                                cellHasGps: _cellHasGps,
-                                                cellHasAudios: _cellHasAudios,
-                                                cellPhotoThumb: _cellPhotoThumb,
-                                                cellPhotoCount: _cellPhotoCount,
-                                                isInvalid: (r, c) =>
-                                                    _invalidCells.contains(
-                                                        _CellRef(r, c)),
-                                                isSearchHit: _isSearchHit,
+                                                cellTextAt: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _effectiveCell(
+                                                      r, actualCol);
+                                                },
+                                                cellHasGps: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _cellHasGps(
+                                                      r, actualCol);
+                                                },
+                                                cellHasAudios: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _cellHasAudios(
+                                                      r, actualCol);
+                                                },
+                                                cellPhotoThumb: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _cellPhotoThumb(
+                                                      r, actualCol);
+                                                },
+                                                cellPhotoCount: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _cellPhotoCount(
+                                                      r, actualCol);
+                                                },
+                                                isInvalid: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _invalidCells.contains(
+                                                      _CellRef(r, actualCol));
+                                                },
+                                                isSearchHit: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _isSearchHit(
+                                                      r, actualCol);
+                                                },
                                                 vScroll: _vScroll,
                                                 hScroll: _hScroll,
                                                 selRow: _selRow,
-                                                selCol: _selCol,
+                                                selCol: selectedDisplayCol,
                                                 selectedRows: _selectedRows,
                                                 blink: _blinkCell,
                                                 editorLink: _editorLink,
                                                 overlayTargetCell:
-                                                    _overlayTargetCell,
+                                                    _overlayTargetCell == null
+                                                        ? null
+                                                        : _CellRef(
+                                                            _overlayTargetCell!
+                                                                .r,
+                                                            _displayColumnIndexForActual(
+                                                              _overlayTargetCell!
+                                                                  .c,
+                                                              displayColumns,
+                                                            ),
+                                                          ),
                                                 overlayTargetHeaderCol:
-                                                    _overlayTargetHeaderCol,
+                                                    _overlayTargetHeaderCol ==
+                                                            null
+                                                        ? null
+                                                        : _displayColumnIndexForActual(
+                                                            _overlayTargetHeaderCol!,
+                                                            displayColumns,
+                                                          ),
                                                 onSelect: (r, c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
                                                   _setSelectionAndRefreshGrid(
-                                                      r, c,
+                                                      r, actualCol,
                                                       blink: true);
                                                 },
                                                 onRowIndexTap:
                                                     _handleRowIndexTap,
-                                                onEditRequested: (r, c, w) =>
-                                                    _beginEditCell(
-                                                        context, pal, r, c, w),
-                                                onHeaderEditRequested: (c, w) =>
-                                                    _beginEditHeader(
-                                                        context, pal, c, w),
+                                                onEditRequested: (r, c, w) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _beginEditCell(context,
+                                                      pal, r, actualCol, w);
+                                                },
+                                                onHeaderEditRequested: (c, w) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  return _beginEditHeader(
+                                                      context,
+                                                      pal,
+                                                      actualCol,
+                                                      w);
+                                                },
                                                 onContextMenu:
-                                                    (pos, r, c, isHeader) =>
-                                                        _openContextMenu(
-                                                            context,
-                                                            pal,
-                                                            pos,
-                                                            r,
-                                                            c,
-                                                            isHeader),
+                                                    (pos, r, c, isHeader) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  unawaited(_openContextMenu(
+                                                      context,
+                                                      pal,
+                                                      pos,
+                                                      r,
+                                                      actualCol,
+                                                      isHeader));
+                                                },
                                                 onDeleteRow: (r) =>
                                                     _deleteRow(r),
                                                 onPickPhoto: (r) =>
@@ -5108,7 +5449,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 ),
                                                 onOpenAttachments: (r, c) =>
                                                     _openAttachmentPanelForCell(
-                                                        r, c),
+                                                        r,
+                                                        _actualColumnFromDisplay(
+                                                            c, displayColumns)),
                                                 rowVersionListenable:
                                                     _rowVersionListenable,
                                               );
@@ -5125,19 +5468,44 @@ class _EditorScreenState extends State<EditorScreen>
                                         _ensureMobileRowCachesLength();
                                         final cardW = _mobileCardWidthForScreen(
                                             MediaQuery.of(ctx).size.width);
+                                        _trackGridHostBuild('mobile');
                                         return _MobileNotesGrid(
                                           palette: pal,
                                           density: _gridDensity,
-                                          headers: List<String>.generate(
-                                              _headers.length,
-                                              _effectiveHeader),
+                                          headers: displayHeaders,
                                           rowModels: _rows,
-                                          cellTextAt: (r, c) =>
-                                              _effectiveCell(r, c),
-                                          cellHasGps: _cellHasGps,
-                                          cellHasAudios: _cellHasAudios,
-                                          cellPhotoThumb: _cellPhotoThumb,
-                                          cellPhotoCount: _cellPhotoCount,
+                                          cellTextAt: (r, c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                                    c, displayColumns);
+                                            return _effectiveCell(r, actualCol);
+                                          },
+                                          cellHasGps: (r, c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                                    c, displayColumns);
+                                            return _cellHasGps(r, actualCol);
+                                          },
+                                          cellHasAudios: (r, c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                                    c, displayColumns);
+                                            return _cellHasAudios(r, actualCol);
+                                          },
+                                          cellPhotoThumb: (r, c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                                    c, displayColumns);
+                                            return _cellPhotoThumb(
+                                                r, actualCol);
+                                          },
+                                          cellPhotoCount: (r, c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                                    c, displayColumns);
+                                            return _cellPhotoCount(
+                                                r, actualCol);
+                                          },
                                           verticalController: _vScroll,
                                           headerScrollController:
                                               _mobileHeaderScroll,
@@ -5146,13 +5514,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           headerKey: _mobileHeaderKey,
                                           rowKeys: _mobileRowKeys,
                                           selectedRow: _selRow,
-                                          selectedCol: _selCol,
+                                          selectedCol: selectedDisplayCol,
                                           activeRow: _mobileEditorOpen &&
                                                   !_mobileEditingHeader
                                               ? _mobileRow
                                               : -1,
                                           activeCol: _mobileEditorOpen
-                                              ? _mobileCol
+                                              ? _displayColumnIndexForActual(
+                                                  _mobileCol, displayColumns)
                                               : -1,
                                           activeIsHeader: _mobileEditorOpen &&
                                               _mobileEditingHeader,
@@ -5161,14 +5530,29 @@ class _EditorScreenState extends State<EditorScreen>
                                               _syncMobileHorizontal,
                                           onCellTap: (cellCtx, r, c) =>
                                               _beginEditCell(
-                                                  cellCtx, pal, r, c, cardW),
+                                                  cellCtx,
+                                                  pal,
+                                                  r,
+                                                  _actualColumnFromDisplay(
+                                                      c, displayColumns),
+                                                  cardW),
                                           onHeaderTap: (cellCtx, c) =>
                                               _beginEditHeader(
-                                                  cellCtx, pal, c, cardW),
+                                                  cellCtx,
+                                                  pal,
+                                                  _actualColumnFromDisplay(
+                                                      c, displayColumns),
+                                                  cardW),
                                           onContextMenu:
                                               (pos, r, c, isHeader) =>
-                                                  _openContextMenu(ctx, pal,
-                                                      pos, r, c, isHeader),
+                                                  _openContextMenu(
+                                                      ctx,
+                                                      pal,
+                                                      pos,
+                                                      r,
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns),
+                                                      isHeader),
                                           onDeleteRow: (r) => _deleteRow(r),
                                           onPickPhoto: (r) =>
                                               _startPhotoFlowForCell(
@@ -5176,7 +5560,10 @@ class _EditorScreenState extends State<EditorScreen>
                                             _headers.length - 1,
                                           ),
                                           onOpenAttachments: (r, c) =>
-                                              _openAttachmentPanelForCell(r, c),
+                                              _openAttachmentPanelForCell(
+                                                  r,
+                                                  _actualColumnFromDisplay(
+                                                      c, displayColumns)),
                                         );
                                       },
                                     ),
@@ -5285,8 +5672,26 @@ class _EditorScreenState extends State<EditorScreen>
 // Movido a lib/features/editor/actions/editor_shortcuts.dart
 
   void _moveSel({int dRow = 0, int dCol = 0}) {
-    final nr = (_selRow + dRow).clamp(0, _rows.length - 1);
-    final nc = (_selCol + dCol).clamp(0, _headers.length - 1);
+    final nr = (_selRow + dRow).clamp(0, _rows.length - 1).toInt();
+    var nc = _selCol.clamp(0, math.max(0, _headers.length - 1)).toInt();
+    if (dCol != 0) {
+      final displayColumns = _displayColumnIndexes();
+      if (displayColumns.isNotEmpty) {
+        var displayIndex = displayColumns.indexOf(nc);
+        if (displayIndex < 0) {
+          displayIndex = _displayColumnIndexForActual(nc, displayColumns);
+        }
+        final nextDisplay = (displayIndex + dCol)
+            .clamp(
+              0,
+              displayColumns.length - 1,
+            )
+            .toInt();
+        nc = displayColumns[nextDisplay];
+      } else {
+        nc = (nc + dCol).clamp(0, _headers.length - 1).toInt();
+      }
+    }
     _setSelectionAndRefreshGrid(nr, nc, blink: true);
   }
 
@@ -5527,6 +5932,240 @@ class _EditorScreenState extends State<EditorScreen>
     if (t.isNotEmpty) return t;
     if (c == _headers.length - 1) return kPhotosHeader;
     return 'Col ${c + 1}';
+  }
+
+  List<int> _orderedDataColumnIndexes() {
+    if (_headers.length <= 1) return const <int>[];
+    final dataColIds = <String>[
+      for (final id in _colIds)
+        if (id != kPhotosColId) id,
+    ];
+    final normalizedOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: _columnOrder,
+    );
+    if (!listEquals(normalizedOrder, _columnOrder)) {
+      _columnOrder = normalizedOrder;
+    }
+
+    final seen = <String>{};
+    final orderedIds = <String>[];
+    final frozen = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: _frozenColId,
+    );
+    if (frozen != null && seen.add(frozen)) {
+      orderedIds.add(frozen);
+    }
+    for (final id in normalizedOrder) {
+      if (!dataColIds.contains(id)) continue;
+      if (!seen.add(id)) continue;
+      orderedIds.add(id);
+    }
+    for (final id in dataColIds) {
+      if (!seen.add(id)) continue;
+      orderedIds.add(id);
+    }
+
+    final out = <int>[];
+    for (final id in orderedIds) {
+      final index = _colIds.indexOf(id);
+      if (index < 0 || index >= _headers.length - 1) continue;
+      out.add(index);
+    }
+    return out;
+  }
+
+  bool _isColumnHidden(int col) {
+    if (col < 0 || col >= _colIds.length) return false;
+    final colId = _colIds[col];
+    if (colId == kPhotosColId) return false;
+    return _columnPrefsById[colId]?.hidden ?? false;
+  }
+
+  List<int> _visibleDataColumnIndexes() {
+    final ordered = _orderedDataColumnIndexes();
+    final visible = <int>[];
+    for (final c in ordered) {
+      if (_isColumnHidden(c)) continue;
+      visible.add(c);
+    }
+    if (visible.isEmpty && ordered.isNotEmpty) {
+      visible.add(ordered.first);
+    }
+    return visible;
+  }
+
+  List<int> _displayColumnIndexes() {
+    if (_headers.isEmpty) return const <int>[];
+    final visible = _visibleDataColumnIndexes();
+    final photosCol = _headers.length - 1;
+    return <int>[...visible, photosCol];
+  }
+
+  int _displayColumnIndexForActual(int actualCol, List<int> displayColumns) {
+    if (displayColumns.isEmpty) return 0;
+    final index = displayColumns.indexOf(actualCol);
+    if (index >= 0) return index;
+    final photosIndex = displayColumns.length - 1;
+    if (actualCol >= _headers.length - 1) return photosIndex;
+    return 0;
+  }
+
+  int _actualColumnFromDisplay(int displayCol, List<int> displayColumns) {
+    if (displayColumns.isEmpty) return _selCol;
+    final safe = displayCol.clamp(0, displayColumns.length - 1);
+    return displayColumns[safe];
+  }
+
+  void _applyColumnPrefsAndOrder({
+    required Map<String, _ColumnPrefs> columnPrefsById,
+    required List<String> columnOrder,
+    required String? frozenColId,
+    bool snapshot = true,
+  }) {
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: columnPrefsById,
+    );
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: columnOrder,
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: frozenColId,
+    );
+    final displayColumns = _displayColumnIndexes();
+    if (displayColumns.isNotEmpty && !displayColumns.contains(_selCol)) {
+      _setSelection(_selRow, displayColumns.first, preserveRowSelection: true);
+    }
+    _markDirty(snapshot: snapshot);
+    _bumpGridVersion();
+  }
+
+  void _setColumnTypeForIndex(int col, _ColType type) {
+    if (col < 0 || col >= _headers.length - 1) return;
+    if (type == _ColType.photos) return;
+    final colId = _colIds[col];
+    final current = _columnPrefsById[colId];
+    if (current != null && current.type == type) return;
+    final next = _cloneColumnPrefs(_columnPrefsById);
+    final hidden = current?.hidden ?? false;
+    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: next,
+      columnOrder: _columnOrder,
+      frozenColId: _frozenColId,
+    );
+    _scheduleValidationRecompute(immediate: true);
+  }
+
+  void _setColumnHidden(int col, bool hidden) {
+    if (col < 0 || col >= _headers.length - 1) return;
+    final colId = _colIds[col];
+    final current = _columnPrefsById[colId];
+    final currentHidden = current?.hidden ?? false;
+    if (currentHidden == hidden) return;
+    final visibleBefore = _visibleDataColumnIndexes();
+    if (hidden && visibleBefore.length <= 1 && visibleBefore.contains(col)) {
+      _showActionSnack(
+        'Debe quedar al menos una columna visible.',
+        isError: false,
+        icon: Icons.view_column_rounded,
+      );
+      return;
+    }
+
+    final next = _cloneColumnPrefs(_columnPrefsById);
+    final type = current?.type ?? _colType(col);
+    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    final nextFrozen = (_frozenColId == colId && hidden) ? null : _frozenColId;
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: next,
+      columnOrder: _columnOrder,
+      frozenColId: nextFrozen,
+    );
+  }
+
+  void _setFrozenColumnByIndex(int? col) {
+    if (col == null || col < 0 || col >= _headers.length - 1) {
+      if (_frozenColId == null) return;
+      _applyColumnPrefsAndOrder(
+        columnPrefsById: _columnPrefsById,
+        columnOrder: _columnOrder,
+        frozenColId: null,
+      );
+      return;
+    }
+    final colId = _colIds[col];
+    if (_frozenColId == colId) return;
+    final nextPrefs = _cloneColumnPrefs(_columnPrefsById);
+    final pref = nextPrefs[colId] ?? _ColumnPrefs(type: _colType(col));
+    nextPrefs[colId] = pref.copyWith(hidden: false);
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: nextPrefs,
+      columnOrder: _columnOrder,
+      frozenColId: colId,
+    );
+  }
+
+  void _sortRowsByColumn(int col, {required bool ascending}) {
+    if (col < 0 || col >= _headers.length - 1) return;
+    if (_rows.isEmpty) return;
+    final currentSelId =
+        (_selRow >= 0 && _selRow < _rows.length) ? _rows[_selRow].id : null;
+    final type = _colType(col);
+
+    int cmpValue(String a, String b) {
+      final left = a.trim();
+      final right = b.trim();
+      if (left.isEmpty && right.isEmpty) return 0;
+      if (left.isEmpty) return 1;
+      if (right.isEmpty) return -1;
+      switch (type) {
+        case _ColType.number:
+          final ln = _parseNumberCellValue(left);
+          final rn = _parseNumberCellValue(right);
+          if (ln == null && rn == null) return left.compareTo(right);
+          if (ln == null) return 1;
+          if (rn == null) return -1;
+          return ln.compareTo(rn);
+        case _ColType.date:
+          final ld = _parseDateCellValue(left);
+          final rd = _parseDateCellValue(right);
+          if (ld == null && rd == null) return left.compareTo(right);
+          if (ld == null) return 1;
+          if (rd == null) return -1;
+          return ld.compareTo(rd);
+        case _ColType.checkbox:
+          final lb = _parseCheckboxCellValue(left);
+          final rb = _parseCheckboxCellValue(right);
+          if (lb == null && rb == null) return left.compareTo(right);
+          if (lb == null) return 1;
+          if (rb == null) return -1;
+          return lb == rb ? 0 : (lb ? -1 : 1);
+        default:
+          return left.toLowerCase().compareTo(right.toLowerCase());
+      }
+    }
+
+    _rows.sort((a, b) {
+      final av = (col < a.cells.length) ? a.cells[col] : '';
+      final bv = (col < b.cells.length) ? b.cells[col] : '';
+      final base = cmpValue(av, bv);
+      if (base == 0) return a.id.compareTo(b.id);
+      return ascending ? base : -base;
+    });
+
+    if (currentSelId != null) {
+      final nextSel = _rows.indexWhere((row) => row.id == currentSelId);
+      if (nextSel >= 0) {
+        _setSelection(nextSel, _selCol, preserveRowSelection: false);
+      }
+    }
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
   }
 
   String _mobileCellLabel(int r, int c) {
@@ -5986,7 +6625,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
     final stride = cardW + _mobileCardGap(_gridDensity);
-    final col = _mobileCol;
+    final displayColumns = _displayColumnIndexes();
+    final col = _displayColumnIndexForActual(_mobileCol, displayColumns);
     final cardLeft = _mobileRowPadH(_gridDensity) + (col * stride);
     final cardRight = cardLeft + cardW;
 
@@ -6015,14 +6655,14 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   bool get _canMobileNav {
-    return _mobileEditorOpen && !_mobileEditingHeader && _headers.length >= 2;
+    return _mobileEditorOpen &&
+        !_mobileEditingHeader &&
+        _visibleDataColumnIndexes().isNotEmpty;
   }
 
   bool get _canMobileGps {
     return _mobileEditorOpen && !_mobileEditingHeader && _mobileRow >= 0;
   }
-
-  int get _lastEditableCol => math.max(0, _headers.length - 2);
 
   void _mobileCommitDraftToModel() {
     if (!_mobileEditorOpen) return;
@@ -6042,20 +6682,24 @@ class _EditorScreenState extends State<EditorScreen>
 
     _mobileCommitDraftToModel();
 
-    int r = _mobileRow;
-    int c = _mobileCol;
-    final last = _lastEditableCol;
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty) return;
 
-    if (c < last) {
-      c += 1;
+    int r = _mobileRow;
+    final currentIndex = editableCols.indexOf(_mobileCol);
+    int cIndex = currentIndex < 0 ? 0 : currentIndex;
+
+    if (cIndex < editableCols.length - 1) {
+      cIndex += 1;
     } else {
       r += 1;
-      c = 0;
+      cIndex = 0;
       if (r >= _rows.length) {
         _insertRow(_rows.length);
       }
       if (r >= _rows.length) return;
     }
+    final c = editableCols[cIndex];
 
     setState(() {
       _setSelection(r, c);
@@ -6088,19 +6732,23 @@ class _EditorScreenState extends State<EditorScreen>
 
     _mobileCommitDraftToModel();
 
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty) return;
+
     int r = _mobileRow;
-    int c = _mobileCol;
-    final last = _lastEditableCol;
+    final currentIndex = editableCols.indexOf(_mobileCol);
+    int cIndex = currentIndex < 0 ? 0 : currentIndex;
 
-    if (r <= 0 && c <= 0) return;
+    if (r <= 0 && cIndex <= 0) return;
 
-    if (c > 0) {
-      c -= 1;
+    if (cIndex > 0) {
+      cIndex -= 1;
     } else {
       r -= 1;
       if (r < 0) return;
-      c = last;
+      cIndex = editableCols.length - 1;
     }
+    final c = editableCols[cIndex];
 
     setState(() {
       _setSelection(r, c);
@@ -6219,23 +6867,26 @@ class _EditorScreenState extends State<EditorScreen>
 
 // Header: Tab -> next/prev header. Enter -> baja a row 0 misma col.
     if (currentHeader != null) {
-      final lastHeaderCol = math.max(0, _headers.length - 2); // sin Photos
-      int nextC = currentHeader;
+      final editableCols = _visibleDataColumnIndexes();
+      if (editableCols.isEmpty) return;
+      final currentIndex = editableCols.indexOf(currentHeader);
+      var nextIndex = currentIndex < 0 ? 0 : currentIndex;
 
       if (move == _OverlayMove.next) {
-        nextC = (currentHeader + 1).clamp(0, lastHeaderCol);
+        nextIndex = (nextIndex + 1).clamp(0, editableCols.length - 1);
       }
       if (move == _OverlayMove.prev) {
-        nextC = (currentHeader - 1).clamp(0, lastHeaderCol);
+        nextIndex = (nextIndex - 1).clamp(0, editableCols.length - 1);
       }
+      final nextC = editableCols[nextIndex];
 
       if (move == _OverlayMove.down) {
         if (_rows.isEmpty) {
           _rows.add(_RowModel.empty(_headers.length, id: _genStableId('r_')));
           _ensureMobileRowCachesLength();
         }
-        _beginEditCell(
-            context, pal, 0, currentHeader.clamp(0, lastHeaderCol), width);
+        final targetCol = currentIndex < 0 ? nextC : currentHeader;
+        _beginEditCell(context, pal, 0, targetCol, width);
         return;
       }
 
@@ -6250,24 +6901,29 @@ class _EditorScreenState extends State<EditorScreen>
 
 // Celda normal.
     if (currentCell == null) return;
-
-    final lastCol = math.max(0, _headers.length - 2); // sin Photos
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty) return;
     int r = currentCell.r;
-    int c = currentCell.c.clamp(0, lastCol);
+    int c = currentCell.c;
+    var cIndex = editableCols.indexOf(c);
+    if (cIndex < 0) {
+      cIndex = 0;
+      c = editableCols.first;
+    }
 
     if (move == _OverlayMove.next) {
-      if (c < lastCol) {
-        c += 1;
+      if (cIndex < editableCols.length - 1) {
+        cIndex += 1;
       } else {
         r += 1;
-        c = 0;
+        cIndex = 0;
       }
     } else if (move == _OverlayMove.prev) {
-      if (c > 0) {
-        c -= 1;
+      if (cIndex > 0) {
+        cIndex -= 1;
       } else {
         r -= 1;
-        c = lastCol;
+        cIndex = editableCols.length - 1;
       }
     } else if (move == _OverlayMove.down) {
       r += 1;
@@ -6283,7 +6939,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     r = r.clamp(0, _rows.length - 1);
-    c = c.clamp(0, lastCol);
+    c = editableCols[cIndex.clamp(0, editableCols.length - 1)];
 
     _beginEditCell(context, pal, r, c, width);
   }
@@ -6559,6 +7215,359 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  String _columnTypeLabel(_ColType type) {
+    switch (type) {
+      case _ColType.text:
+        return 'Texto';
+      case _ColType.number:
+        return 'Numero';
+      case _ColType.date:
+        return 'Fecha';
+      case _ColType.status:
+        return 'Estado';
+      case _ColType.checkbox:
+        return 'Checkbox';
+      case _ColType.photos:
+        return 'Adjuntos';
+    }
+  }
+
+  Future<void> _openColumnTypePicker(int col) async {
+    if (col < 0 || col >= _headers.length - 1) return;
+    final current = _colType(col);
+    final picked = await showModalBottomSheet<_ColType>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pal.border, width: pal.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.category_outlined, color: pal.fg),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tipo de columna',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                for (final type in const <_ColType>[
+                  _ColType.text,
+                  _ColType.number,
+                  _ColType.date,
+                  _ColType.status,
+                  _ColType.checkbox,
+                ])
+                  ListTile(
+                    leading: Icon(
+                      current == type
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: pal.fgMuted,
+                    ),
+                    title: Text(_columnTypeLabel(type)),
+                    onTap: () => Navigator.of(ctx).pop(type),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || picked == null) return;
+    _setColumnTypeForIndex(col, picked);
+  }
+
+  Future<void> _openColumnPanel() async {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final dataOrder = List<String>.from(_normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: _columnOrder,
+    ));
+    var draftOrder = List<String>.from(dataOrder);
+    var draftPrefs = _cloneColumnPrefs(_columnPrefsById);
+    String? draftFrozen = _frozenColId;
+
+    final applied = await showAppModal<bool>(
+      context: context,
+      title: 'Columnas',
+      child: StatefulBuilder(
+        builder: (ctx, setModalState) {
+          List<int> orderedIndexes() {
+            final out = <int>[];
+            for (final colId in draftOrder) {
+              final index = _colIds.indexOf(colId);
+              if (index < 0 || index >= _headers.length - 1) continue;
+              out.add(index);
+            }
+            return out;
+          }
+
+          void swapOrder(int i, int j) {
+            if (i < 0 ||
+                j < 0 ||
+                i >= draftOrder.length ||
+                j >= draftOrder.length) {
+              return;
+            }
+            final next = List<String>.from(draftOrder);
+            final temp = next[i];
+            next[i] = next[j];
+            next[j] = temp;
+            setModalState(() => draftOrder = next);
+          }
+
+          final ordered = orderedIndexes();
+          return ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: ordered.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (itemCtx, index) {
+                if (index == 0) {
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppButton(
+                        label: 'Reset template',
+                        icon: Icons.restart_alt_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () {
+                          setModalState(() {
+                            draftOrder = _normalizeColumnOrder(
+                              colIds: _colIds,
+                              incoming: null,
+                            );
+                            draftPrefs = <String, _ColumnPrefs>{};
+                            draftFrozen = null;
+                          });
+                        },
+                      ),
+                      AppButton(
+                        label: 'Mostrar todas',
+                        icon: Icons.visibility_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () {
+                          setModalState(() {
+                            final next = _cloneColumnPrefs(draftPrefs);
+                            for (final colId in draftOrder) {
+                              final idx = _colIds.indexOf(colId);
+                              final type = idx >= 0
+                                  ? _inferColTypeFromHeader(_headerLabel(idx))
+                                  : _ColType.text;
+                              final current = next[colId];
+                              next[colId] = _ColumnPrefs(
+                                type: current?.type ?? type,
+                                hidden: false,
+                              );
+                            }
+                            draftPrefs = next;
+                          });
+                        },
+                      ),
+                    ],
+                  );
+                }
+
+                final col = ordered[index - 1];
+                final colId = _colIds[col];
+                final header = _headerLabel(col);
+                final pref = draftPrefs[colId];
+                final type = pref?.type ?? _inferColTypeFromHeader(header);
+                final hidden = pref?.hidden ?? false;
+                final orderIndex = draftOrder.indexOf(colId);
+
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _palette(itemCtx).menuBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _palette(itemCtx).border,
+                      width: _palette(itemCtx).hairline,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              header,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _palette(itemCtx).fg,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Mover arriba',
+                            onPressed: orderIndex > 0
+                                ? () => swapOrder(orderIndex, orderIndex - 1)
+                                : null,
+                            icon: const Icon(Icons.arrow_upward_rounded),
+                          ),
+                          IconButton(
+                            tooltip: 'Mover abajo',
+                            onPressed: orderIndex >= 0 &&
+                                    orderIndex < draftOrder.length - 1
+                                ? () => swapOrder(orderIndex, orderIndex + 1)
+                                : null,
+                            icon: const Icon(Icons.arrow_downward_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<_ColType>(
+                              value: type,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                labelText: 'Tipo',
+                              ),
+                              items: const <_ColType>[
+                                _ColType.text,
+                                _ColType.number,
+                                _ColType.date,
+                                _ColType.status,
+                                _ColType.checkbox,
+                              ].map((entry) {
+                                return DropdownMenuItem<_ColType>(
+                                  value: entry,
+                                  child: Text(_columnTypeLabel(entry)),
+                                );
+                              }).toList(growable: false),
+                              onChanged: (nextType) {
+                                if (nextType == null) return;
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: nextType,
+                                      hidden: hidden,
+                                    );
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SwitchListTile.adaptive(
+                              value: !hidden,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Visible',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              onChanged: (visible) {
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: type,
+                                      hidden: !visible,
+                                    );
+                                  if (!visible && draftFrozen == colId) {
+                                    draftFrozen = null;
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SwitchListTile.adaptive(
+                              value: draftFrozen == colId,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Fijada',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              onChanged: hidden
+                                  ? null
+                                  : (enabled) {
+                                      setModalState(() {
+                                        draftFrozen = enabled ? colId : null;
+                                      });
+                                    },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+
+    if (applied != true || !mounted) return;
+    var visibleCount = 0;
+    for (final colId in draftOrder) {
+      final hidden = draftPrefs[colId]?.hidden ?? false;
+      if (!hidden) visibleCount++;
+    }
+    if (visibleCount <= 0) {
+      _showActionSnack(
+        'Debe quedar al menos una columna visible.',
+        isError: false,
+        icon: Icons.view_column_rounded,
+      );
+      return;
+    }
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: draftPrefs,
+      columnOrder: draftOrder,
+      frozenColId: draftFrozen,
+    );
+    _scheduleValidationRecompute(immediate: true);
+  }
+
 // ------------------------------ Context Menu ----------------------------
 
   Future<void> _openContextMenu(
@@ -6575,13 +7584,52 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (isHeader) {
       if (c >= 0 && c < _headers.length - 1) {
+        final colType = _colType(c);
+        final hidden = _isColumnHidden(c);
+        final frozen = _frozenColId == _colIds[c];
         actions.add(_CtxAction('Editar encabezado', Icons.edit_outlined,
             () => _beginEditHeader(context, pal, c, 220)));
+        actions.add(_CtxAction(
+            'Renombrar columna',
+            Icons.drive_file_rename_outline,
+            () => _beginEditHeader(context, pal, c, 240)));
         actions.add(_CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
           if (_headers[c].isEmpty) return;
           _headers[c] = '';
           _markDirty(snapshot: true);
         }));
+        actions.add(_CtxAction(
+          'Tipo: ${_columnTypeLabel(colType)}',
+          Icons.category_outlined,
+          () => unawaited(_openColumnTypePicker(c)),
+          runOnTap: true,
+        ));
+        actions.add(_CtxAction(
+          'Ordenar ascendente',
+          Icons.arrow_upward_rounded,
+          () => _sortRowsByColumn(c, ascending: true),
+        ));
+        actions.add(_CtxAction(
+          'Ordenar descendente',
+          Icons.arrow_downward_rounded,
+          () => _sortRowsByColumn(c, ascending: false),
+        ));
+        actions.add(_CtxAction(
+          frozen ? 'Desfijar columna' : 'Fijar columna',
+          frozen ? Icons.push_pin : Icons.push_pin_outlined,
+          () => _setFrozenColumnByIndex(frozen ? null : c),
+        ));
+        actions.add(_CtxAction(
+          hidden ? 'Mostrar columna' : 'Ocultar columna',
+          hidden ? Icons.visibility_rounded : Icons.visibility_off_outlined,
+          () => _setColumnHidden(c, !hidden),
+        ));
+        actions.add(_CtxAction(
+          'Panel Columnas',
+          Icons.view_column_rounded,
+          () => unawaited(_openColumnPanel()),
+          runOnTap: true,
+        ));
       }
     } else {
       actions.add(_CtxAction('Copiar', Icons.copy_rounded,
@@ -6590,6 +7638,8 @@ class _EditorScreenState extends State<EditorScreen>
           () => unawaited(_pasteFromClipboard())));
       actions.add(_CtxAction(
           'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
+      actions.add(_CtxAction('Duplicar N veces', Icons.copy_all_rounded,
+          () => unawaited(_promptDuplicateRowCount(r))));
 
       if (_batchTargetRows().length > 1) {
         actions.add(_CtxAction(
@@ -6678,31 +7728,81 @@ class _EditorScreenState extends State<EditorScreen>
 // ------------------------------ Automatizaciones ------------------------
 
   void _duplicateRow(int r) {
+    _duplicateRowMultiple(r, times: 1);
+  }
+
+  void _duplicateRowMultiple(int r, {required int times}) {
     if (r < 0 || r >= _rows.length) return;
+    if (times <= 0) return;
+    final safeTimes = times.clamp(1, 100);
     final src = _rows[r];
-    final newId = _genStableId('r_');
-    final copy = _RowModel(
-      id: newId,
-      cells: List<String>.from(src.cells),
-      photos: src.photos.map((p) => p.copy()).toList(),
-      gpsLat: src.gpsLat,
-      gpsLng: src.gpsLng,
-      gpsAccuracyM: src.gpsAccuracyM,
-      gpsTs: src.gpsTs,
-      gpsIsLastKnown: src.gpsIsLastKnown,
-    );
+    final copies = <_RowModel>[];
+    for (int i = 0; i < safeTimes; i++) {
+      final newId = _genStableId('r_');
+      final copy = _RowModel(
+        id: newId,
+        cells: List<String>.from(src.cells),
+        photos: src.photos.map((p) => p.copy()).toList(),
+        gpsLat: src.gpsLat,
+        gpsLng: src.gpsLng,
+        gpsAccuracyM: src.gpsAccuracyM,
+        gpsTs: src.gpsTs,
+        gpsIsLastKnown: src.gpsIsLastKnown,
+      );
+      _duplicateCellMetaRow(src.id, newId);
+      copies.add(copy);
+    }
     final insertAt = (r + 1).clamp(0, _rows.length);
-    _duplicateCellMetaRow(src.id, newId);
     setState(() {
-      _rows.insert(insertAt, copy);
+      _rows.insertAll(insertAt, copies);
       _setSelection(insertAt, _selCol);
       _isDirty = true;
       _rev++;
     });
     _updateSaveStatus();
-    _insertMobileRowCache(insertAt);
+    for (int i = 0; i < copies.length; i++) {
+      _insertMobileRowCache(insertAt + i);
+    }
     _pushUndoSnapshot();
     _queueSave();
+  }
+
+  Future<void> _promptDuplicateRowCount(int row) async {
+    if (row < 0 || row >= _rows.length) return;
+    final controller = TextEditingController(text: '2');
+    final count = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Duplicar fila'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Cantidad de copias',
+              helperText: 'Min 1, max 100',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                final parsed = int.tryParse(controller.text.trim());
+                Navigator.of(ctx).pop(parsed);
+              },
+              child: const Text('Duplicar'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || count == null) return;
+    final safe = count.clamp(1, 100);
+    _duplicateRowMultiple(row, times: safe);
   }
 
   void _insertNowInCell(int r, int c) {
@@ -6853,7 +7953,7 @@ class _EditorScreenState extends State<EditorScreen>
             !_mobileEditingHeader)
         ? _mobileEC.text
         : _effectiveCell(r, c);
-    final base = double.tryParse(baseRaw.trim());
+    final base = _parseNumberCellValue(baseRaw);
     if (base == null) return;
     if (count <= 0) return;
 
@@ -7001,6 +8101,351 @@ class _EditorScreenState extends State<EditorScreen>
     _insertMobileRowCache(idx);
     _pushUndoSnapshot();
     _queueSave();
+  }
+
+  int _resolveFormRowIndex({int? rowIndex, required bool createNew}) {
+    if (_rows.isEmpty) {
+      _rows.add(_buildSmartDefaultRow());
+      _insertMobileRowCache(0);
+    }
+    if (createNew) {
+      final insertAt = _rows.length;
+      _insertRow(insertAt);
+      return insertAt.clamp(0, _rows.length - 1);
+    }
+    if (rowIndex != null) {
+      return rowIndex.clamp(0, _rows.length - 1);
+    }
+    return _selRow.clamp(0, _rows.length - 1);
+  }
+
+  int? _firstColumnByType(_ColType type) {
+    for (int c = 0; c < _headers.length - 1; c++) {
+      if (_colType(c) == type) return c;
+    }
+    return null;
+  }
+
+  Future<void> _openRowFormMode({
+    int? rowIndex,
+    bool createNew = false,
+  }) async {
+    if (!mounted || _headers.length <= 1) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final targetRow = _resolveFormRowIndex(
+      rowIndex: rowIndex,
+      createNew: createNew,
+    );
+    if (targetRow < 0 || targetRow >= _rows.length) return;
+
+    final orderedCols = _orderedDataColumnIndexes();
+    if (orderedCols.isEmpty) return;
+
+    final controllers = <int, TextEditingController>{};
+    for (final col in orderedCols) {
+      final value = col < _rows[targetRow].cells.length
+          ? _rows[targetRow].cells[col]
+          : '';
+      controllers[col] = TextEditingController(text: value);
+    }
+
+    final dateCol = _firstColumnByType(_ColType.date);
+    final gpsCol = (_resolveQuickCaptureGpsColumn(dateCol ?? 0))
+        .clamp(0, _headers.length - 2);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        var saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            Future<void> runPhoto() async {
+              setModalState(() => saving = true);
+              await _startPhotoFlowForCell(targetRow, _headers.length - 1);
+              if (!ctx.mounted) return;
+              setModalState(() => saving = false);
+            }
+
+            Future<void> runGps() async {
+              setModalState(() => saving = true);
+              await _requestGpsForCell(targetRow, gpsCol, forceWriteText: true);
+              if (!ctx.mounted) return;
+              setModalState(() => saving = false);
+            }
+
+            void applyTimestampNow() {
+              final now = DateTime.now();
+              final text = dateCol != null
+                  ? _formatDateCellValue(now)
+                  : _quickCaptureTimestampText(now);
+              final targetCol = dateCol ?? orderedCols.first;
+              final ctrl = controllers[targetCol];
+              if (ctrl == null) return;
+              ctrl.value = ctrl.value.copyWith(
+                text: text,
+                selection: TextSelection.collapsed(offset: text.length),
+                composing: TextRange.empty,
+              );
+            }
+
+            return SafeArea(
+              top: false,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  top: 12,
+                  bottom: MediaQuery.viewInsetsOf(ctx).bottom + 12,
+                ),
+                decoration: BoxDecoration(
+                  color: pal.menuBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: pal.border, width: pal.hairline),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Formulario - fila ${targetRow + 1}',
+                            style: TextStyle(
+                              color: pal.fg,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Cerrar',
+                          onPressed:
+                              saving ? null : () => Navigator.of(ctx).pop(),
+                          icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppButton(
+                          label: 'Adjuntar foto',
+                          icon: Icons.photo_camera_outlined,
+                          size: AppButtonSize.sm,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: saving ? null : runPhoto,
+                        ),
+                        AppButton(
+                          label: 'Adjuntar GPS',
+                          icon: Icons.my_location_rounded,
+                          size: AppButtonSize.sm,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: saving ? null : runGps,
+                        ),
+                        AppButton(
+                          label: 'Timestamp',
+                          icon: Icons.schedule_rounded,
+                          size: AppButtonSize.sm,
+                          variant: AppButtonVariant.ghost,
+                          onPressed: saving ? null : applyTimestampNow,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            for (final col in orderedCols)
+                              _buildFormFieldForColumn(
+                                context: ctx,
+                                palette: pal,
+                                col: col,
+                                controller: controllers[col]!,
+                                setModalState: setModalState,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppButton(
+                            label: AppStrings.cancel,
+                            variant: AppButtonVariant.ghost,
+                            onPressed:
+                                saving ? null : () => Navigator.of(ctx).pop(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppButton(
+                            label: AppStrings.save,
+                            icon: Icons.check_rounded,
+                            variant: AppButtonVariant.primary,
+                            onPressed: saving
+                                ? null
+                                : () {
+                                    final refsToClear = <_CellRef>[];
+                                    var changed = false;
+                                    for (final col in orderedCols) {
+                                      final next = _normalizeCellValueForColumn(
+                                        col,
+                                        controllers[col]!.text,
+                                      );
+                                      if (_rows[targetRow].cells[col] == next) {
+                                        continue;
+                                      }
+                                      _rows[targetRow].cells[col] = next;
+                                      _rememberValueForColumn(col, next);
+                                      refsToClear.add(_CellRef(targetRow, col));
+                                      changed = true;
+                                    }
+                                    if (changed) {
+                                      _clearCellDrafts(refsToClear);
+                                      _setSelection(
+                                        targetRow,
+                                        _selCol.clamp(0, _headers.length - 1),
+                                      );
+                                      _markDirty(snapshot: true);
+                                    }
+                                    Navigator.of(ctx).pop();
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+  }
+
+  Widget _buildFormFieldForColumn({
+    required BuildContext context,
+    required _SheetPalette palette,
+    required int col,
+    required TextEditingController controller,
+    required StateSetter setModalState,
+  }) {
+    final type = _colType(col);
+    final label = _headerLabel(col);
+    final border = Border.all(color: palette.border, width: palette.hairline);
+
+    Widget field;
+    switch (type) {
+      case _ColType.status:
+        final current = controller.text.trim();
+        field = Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final status in const <String>['OK', 'Obs', 'Urgente'])
+              ChoiceChip(
+                label: Text(status),
+                selected: current.toLowerCase() == status.toLowerCase(),
+                onSelected: (_) {
+                  controller.value = controller.value.copyWith(
+                    text: status,
+                    selection: TextSelection.collapsed(offset: status.length),
+                    composing: TextRange.empty,
+                  );
+                  setModalState(() {});
+                },
+              ),
+          ],
+        );
+        break;
+      case _ColType.checkbox:
+        final value = _parseCheckboxCellValue(controller.text) ?? false;
+        field = SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: value,
+          title: Text(value ? 'Marcado' : 'Sin marcar'),
+          onChanged: (next) {
+            controller.text = next ? '1' : '0';
+            setModalState(() {});
+          },
+        );
+        break;
+      case _ColType.number:
+        field = TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            hintText: 'Numero (acepta , y .)',
+            border: InputBorder.none,
+            isDense: true,
+          ),
+        );
+        break;
+      case _ColType.date:
+        field = TextField(
+          controller: controller,
+          keyboardType: TextInputType.datetime,
+          decoration: const InputDecoration(
+            hintText: 'dd/MM/yyyy',
+            border: InputBorder.none,
+            isDense: true,
+          ),
+        );
+        break;
+      default:
+        field = TextField(
+          controller: controller,
+          keyboardType: TextInputType.text,
+          decoration: const InputDecoration(
+            hintText: 'Escribir...',
+            border: InputBorder.none,
+            isDense: true,
+          ),
+        );
+        break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: palette.hintBg,
+          borderRadius: BorderRadius.circular(12),
+          border: border,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: palette.fgMuted,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 4),
+            field,
+          ],
+        ),
+      ),
+    );
   }
 
   void _deleteRow(int r) {
@@ -8943,27 +10388,115 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final doc = pw.Document();
+    final appVersion = await _readAppVersionForExport();
+    final buildId = BuildInfo.buildIdLabel;
     final now = DateTime.now().toLocal();
     final exportedAt =
         '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
 
     final attachmentRows = <List<String>>[];
+    final evidenceItems = <({
+      String cell,
+      String kind,
+      String caption,
+      String date,
+      String? mapUrl,
+      Uint8List? thumb,
+    })>[];
+    var photoCount = 0;
+    var audioCount = 0;
+    var gpsCount = 0;
+
     if (includeAttachments) {
       final entries = _cellMeta.entries.toList(growable: false);
+      entries.sort((a, b) => a.key.compareTo(b.key));
       for (final entry in entries) {
+        _throwIfOperationCancelledBy(shouldCancel);
         final meta = entry.value;
         if (meta.isEmpty) continue;
         final ref = CellRef.fromKey(entry.key, defaultSheetId: widget.sheetId);
-        final cellLabel =
-            ref?.rowId.trim().isNotEmpty == true ? ref!.rowId : entry.key;
-        attachmentRows.add(<String>[
-          cellLabel,
-          '${meta.photos.length}',
-          '${meta.audios.length}',
-          meta.hasGps ? 'Si' : 'No',
-        ]);
+        final cellLabel = _cellLabelForRef(ref);
+
+        if (meta.gps != null) {
+          final gps = meta.gps!;
+          gpsCount++;
+          final mapUrl =
+              'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}';
+          attachmentRows.add(<String>[
+            cellLabel,
+            'GPS',
+            '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}',
+            _formatDateTimeShort(gps.timestamp.toLocal()),
+          ]);
+          evidenceItems.add((
+            cell: cellLabel,
+            kind: 'GPS',
+            caption:
+                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
+            date: _formatDateTimeShort(gps.timestamp.toLocal()),
+            mapUrl: mapUrl,
+            thumb: null,
+          ));
+        }
+
+        for (final photo in meta.photos) {
+          _throwIfOperationCancelledBy(shouldCancel);
+          photoCount++;
+          final caption = photo.caption.trim().isNotEmpty
+              ? photo.caption.trim()
+              : photo.filename.trim();
+          final mapUrl = (photo.lat != null && photo.lon != null)
+              ? 'https://www.google.com/maps/search/?api=1&query=${photo.lat},${photo.lon}'
+              : null;
+          final dateText = _formatDateTimeShort(photo.addedAt.toLocal());
+          attachmentRows.add(<String>[
+            cellLabel,
+            'Foto',
+            caption.isEmpty ? photo.filename : caption,
+            dateText,
+          ]);
+
+          Uint8List? thumb;
+          final bytes =
+              await _loadPhotoBytesFromAttachment(photo, preferThumb: true);
+          if (bytes != null && bytes.isNotEmpty) {
+            thumb = _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
+                bytes;
+          }
+          evidenceItems.add((
+            cell: cellLabel,
+            kind: 'Foto',
+            caption: caption.isEmpty ? photo.filename : caption,
+            date: dateText,
+            mapUrl: mapUrl,
+            thumb: thumb,
+          ));
+        }
+
+        for (final audio in meta.audios) {
+          audioCount++;
+          final dateText = _formatDateTimeShort(audio.addedAt.toLocal());
+          attachmentRows.add(<String>[
+            cellLabel,
+            'Audio',
+            audio.filename.trim().isEmpty ? 'audio' : audio.filename.trim(),
+            dateText,
+          ]);
+          evidenceItems.add((
+            cell: cellLabel,
+            kind: 'Audio',
+            caption:
+                'Duracion ${(audio.durationMs / 1000).toStringAsFixed(1)}s',
+            date: dateText,
+            mapUrl: null,
+            thumb: null,
+          ));
+        }
       }
     }
+
+    final totalAttachments = photoCount + audioCount;
+    final evidencePreview = evidenceItems.take(24).toList(growable: false);
 
     doc.addPage(
       pw.MultiPage(
@@ -8972,9 +10505,36 @@ class _EditorScreenState extends State<EditorScreen>
           margin: const pw.EdgeInsets.all(20),
         ),
         build: (context) {
+          pw.Widget metricChip(String label, String value) {
+            return pw.Container(
+              padding:
+                  const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey200,
+                borderRadius: pw.BorderRadius.circular(10),
+              ),
+              child: pw.Row(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text(
+                    '$label: ',
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    value,
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                ],
+              ),
+            );
+          }
+
           final content = <pw.Widget>[
             pw.Text(
-              'BitFlow - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
               style: pw.TextStyle(
                 fontSize: 18,
                 fontWeight: pw.FontWeight.bold,
@@ -8985,6 +10545,24 @@ class _EditorScreenState extends State<EditorScreen>
               'Exportado: $exportedAt',
               style: const pw.TextStyle(fontSize: 10),
             ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'Version: $appVersion · Build: $buildId',
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                metricChip('Filas', '${_rows.length}'),
+                metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
+                metricChip('Adjuntos', '$totalAttachments'),
+                metricChip('Fotos', '$photoCount'),
+                metricChip('Audios', '$audioCount'),
+                metricChip('GPS', '$gpsCount'),
+              ],
+            ),
             pw.SizedBox(height: 12),
           ];
 
@@ -8994,8 +10572,8 @@ class _EditorScreenState extends State<EditorScreen>
                 headers: headers,
                 data: rows,
                 headerStyle: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
                   fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
                 ),
                 cellStyle: const pw.TextStyle(fontSize: 8),
                 headerDecoration: const pw.BoxDecoration(
@@ -9034,7 +10612,12 @@ class _EditorScreenState extends State<EditorScreen>
             } else {
               content.add(
                 pw.TableHelper.fromTextArray(
-                  headers: const <String>['Celda', 'Fotos', 'Audio', 'GPS'],
+                  headers: const <String>[
+                    'Celda',
+                    'Tipo',
+                    'Detalle',
+                    'Fecha',
+                  ],
                   data: attachmentRows,
                   headerStyle: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
@@ -9046,6 +10629,93 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                 ),
               );
+            }
+
+            if (evidencePreview.isNotEmpty) {
+              content
+                ..add(pw.SizedBox(height: 12))
+                ..add(
+                  pw.Text(
+                    'Evidencias',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                )
+                ..add(pw.SizedBox(height: 6))
+                ..add(
+                  pw.Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final item in evidencePreview)
+                        pw.Container(
+                          width: 220,
+                          padding: const pw.EdgeInsets.all(8),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColors.grey100,
+                            borderRadius: pw.BorderRadius.circular(8),
+                            border: pw.Border.all(
+                              color: PdfColors.grey400,
+                              width: 0.6,
+                            ),
+                          ),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                '${item.kind} · ${item.cell}',
+                                style: pw.TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              if (item.thumb != null &&
+                                  item.thumb!.isNotEmpty) ...[
+                                pw.SizedBox(height: 6),
+                                pw.ClipRRect(
+                                  horizontalRadius: 6,
+                                  verticalRadius: 6,
+                                  child: pw.Image(
+                                    pw.MemoryImage(item.thumb!),
+                                    height: 70,
+                                    width: double.infinity,
+                                    fit: pw.BoxFit.cover,
+                                  ),
+                                ),
+                              ],
+                              pw.SizedBox(height: 5),
+                              pw.Text(
+                                item.caption,
+                                maxLines: 2,
+                                style: const pw.TextStyle(fontSize: 8),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                item.date,
+                                style: const pw.TextStyle(fontSize: 7.5),
+                              ),
+                              if (item.mapUrl != null) ...[
+                                pw.SizedBox(height: 2),
+                                pw.UrlLink(
+                                  destination: item.mapUrl!,
+                                  child: pw.Text(
+                                    'Abrir en mapas',
+                                    style: pw.TextStyle(
+                                      fontSize: 7.5,
+                                      color: PdfColors.blue700,
+                                      decoration: pw.TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                );
             }
           }
           return content;

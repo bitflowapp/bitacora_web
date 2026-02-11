@@ -79,6 +79,41 @@ class _EngineComputeOutcome {
 
 // ============================== Modelo =====================================
 
+class _ColumnPrefs {
+  const _ColumnPrefs({
+    required this.type,
+    this.hidden = false,
+  });
+
+  final _ColType type;
+  final bool hidden;
+
+  _ColumnPrefs copyWith({
+    _ColType? type,
+    bool? hidden,
+  }) {
+    return _ColumnPrefs(
+      type: type ?? this.type,
+      hidden: hidden ?? this.hidden,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'type': type.name,
+        'hidden': hidden,
+      };
+
+  static _ColumnPrefs? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final typeRaw = (map['type'] ?? '').toString();
+    final parsedType = _colTypeFromStorageName(typeRaw);
+    if (parsedType == null || parsedType == _ColType.photos) return null;
+    final hidden = map['hidden'] as bool? ?? false;
+    return _ColumnPrefs(type: parsedType, hidden: hidden);
+  }
+}
+
 class _SheetModel {
   _SheetModel({
     required this.headers,
@@ -87,6 +122,9 @@ class _SheetModel {
     this.name,
     this.savedAt,
     this.cellMeta = const <String, CellMeta>{},
+    this.columnPrefsById = const <String, _ColumnPrefs>{},
+    this.columnOrder = const <String>[],
+    this.frozenColId,
   });
 
   final String? name;
@@ -95,6 +133,9 @@ class _SheetModel {
   final List<String> colIds;
   final List<_RowModel> rows;
   final Map<String, CellMeta> cellMeta;
+  final Map<String, _ColumnPrefs> columnPrefsById;
+  final List<String> columnOrder;
+  final String? frozenColId;
 
   Map<String, dynamic> toJson() => {
         'name': name,
@@ -106,6 +147,12 @@ class _SheetModel {
           'cellMeta': cellMeta.map(
             (key, value) => MapEntry(key, value.toJson()),
           ),
+        if (columnPrefsById.isNotEmpty)
+          'columnPrefs': columnPrefsById.map(
+            (key, value) => MapEntry(key, value.toJson()),
+          ),
+        if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
+        if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
       };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
@@ -142,6 +189,31 @@ class _SheetModel {
       });
     }
 
+    final prefsRaw = map['columnPrefs'];
+    final columnPrefsById = <String, _ColumnPrefs>{};
+    if (prefsRaw is Map) {
+      prefsRaw.forEach((key, value) {
+        final parsed = _ColumnPrefs.fromJson(value);
+        if (parsed != null) {
+          columnPrefsById[key.toString()] = parsed;
+        }
+      });
+    }
+
+    final columnOrder = <String>[];
+    final orderRaw = map['columnOrder'];
+    if (orderRaw is List) {
+      for (final item in orderRaw) {
+        final value = (item ?? '').toString().trim();
+        if (value.isNotEmpty) {
+          columnOrder.add(value);
+        }
+      }
+    }
+
+    final frozenRaw = (map['frozenColId'] ?? '').toString().trim();
+    final frozenColId = frozenRaw.isEmpty ? null : frozenRaw;
+
     return _SheetModel(
       name: name,
       savedAt: savedAt,
@@ -149,6 +221,9 @@ class _SheetModel {
       colIds: colIds,
       rows: rowModels,
       cellMeta: cellMeta,
+      columnPrefsById: columnPrefsById,
+      columnOrder: columnOrder,
+      frozenColId: frozenColId,
     );
   }
 }
@@ -491,6 +566,9 @@ class _SheetSnapshot {
     required this.name,
     required this.headers,
     required this.colIds,
+    required this.columnPrefsById,
+    required this.columnOrder,
+    required this.frozenColId,
     required this.rowModels,
     required this.cellMeta,
     required this.selRow,
@@ -500,6 +578,9 @@ class _SheetSnapshot {
   final String name;
   final List<String> headers;
   final List<String> colIds;
+  final Map<String, _ColumnPrefs> columnPrefsById;
+  final List<String> columnOrder;
+  final String? frozenColId;
   final List<_RowModel> rowModels;
   final Map<String, CellMeta> cellMeta;
   final int selRow;
@@ -519,7 +600,16 @@ class _CellRef {
   int get hashCode => Object.hash(r, c);
 }
 
-enum _ColType { text, number, date, status, photos }
+enum _ColType { text, number, date, status, checkbox, photos }
+
+_ColType? _colTypeFromStorageName(String raw) {
+  final normalized = raw.trim().toLowerCase();
+  if (normalized.isEmpty) return null;
+  for (final value in _ColType.values) {
+    if (value.name == normalized) return value;
+  }
+  return null;
+}
 
 Uint8List? _tryDecodeB64(String raw) {
   try {

@@ -35,11 +35,30 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openJumpToDialog()),
         ),
         CommandAction(
+          id: 'columns_panel',
+          label: 'Panel de columnas',
+          subtitle: 'Tipo, visibilidad, orden y fijada',
+          icon: Icons.view_column_rounded,
+          onSelected: () => unawaited(_openColumnPanel()),
+        ),
+        CommandAction(
           id: 'quick_capture',
           label: 'Modo campo (+Registro)',
           subtitle: 'Alta rapida para relevamiento',
           icon: Icons.add_box_outlined,
           onSelected: () => unawaited(_startQuickCaptureFlow()),
+        ),
+        CommandAction(
+          id: 'form_mode',
+          label: 'Formulario de fila',
+          subtitle: 'Editar fila activa con inputs por tipo',
+          icon: Icons.description_outlined,
+          onSelected: () => unawaited(
+            _openRowFormMode(
+              rowIndex: _selRow,
+              createNew: false,
+            ),
+          ),
         ),
         CommandAction(
           id: 'create_row',
@@ -69,6 +88,15 @@ extension _EditorActions on _EditorScreenState {
           subtitle: 'Carga rapida por columna activa',
           icon: Icons.format_color_text_rounded,
           onSelected: () => unawaited(_promptBatchApplyValue()),
+        ),
+        CommandAction(
+          id: 'fill_down',
+          label: 'Rellenar hacia abajo',
+          subtitle: 'Repetir valor de la celda activa',
+          shortcut: 'Ctrl/Cmd+D',
+          icon: Icons.vertical_align_bottom_rounded,
+          onSelected: () =>
+              unawaited(_promptFillDown(context, _selRow, _selCol)),
         ),
         CommandAction(
           id: 'open_attachments',

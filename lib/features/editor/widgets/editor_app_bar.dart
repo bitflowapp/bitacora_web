@@ -12,8 +12,10 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onRedo,
     required this.onAddRow,
     required this.onQuickCapture,
+    required this.onForm,
     required this.onSearch,
     required this.onJumpTo,
+    required this.onColumns,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -52,8 +54,10 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onRedo;
   final VoidCallback onAddRow;
   final VoidCallback onQuickCapture;
+  final VoidCallback onForm;
   final VoidCallback onSearch;
   final VoidCallback onJumpTo;
+  final VoidCallback onColumns;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -323,6 +327,18 @@ class _PremiumAppleHeader extends StatelessWidget {
                               child: _PillButton(
                                 palette: palette,
                                 filled: false,
+                                icon: Icons.description_outlined,
+                                label: 'Formulario',
+                                semanticsLabel: 'Abrir modo formulario',
+                                tooltip: 'Editar fila en modo formulario',
+                                onTap: onForm,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.25),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
                                 icon: Icons.search_rounded,
                                 label: AppStrings.editorSearch,
                                 semanticsLabel: AppStrings.semEditorSearch,
@@ -344,6 +360,19 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             FocusTraversalOrder(
                               order: const NumericFocusOrder(1.4),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.view_column_rounded,
+                                label: 'Columnas',
+                                semanticsLabel:
+                                    'Abrir panel de configuracion de columnas',
+                                tooltip: 'Tipos, orden, visibilidad y fijar',
+                                onTap: onColumns,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.45),
                               child: _PillButton(
                                 palette: palette,
                                 filled: false,
@@ -391,6 +420,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onQuickCapture,
                             ),
                             AppleToolbarItem(
+                              icon: Icons.description_outlined,
+                              label: 'Formulario',
+                              onTap: onForm,
+                            ),
+                            AppleToolbarItem(
                               icon: Icons.layers_outlined,
                               label: 'Acciones',
                               onTap: onBatch,
@@ -406,6 +440,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               label: 'Jump to...',
                               shortcut: 'Ctrl/Cmd+J',
                               onTap: onJumpTo,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.view_column_rounded,
+                              label: 'Columnas',
+                              onTap: onColumns,
                             ),
                             AppleToolbarItem(
                               icon: Icons.my_location_rounded,

@@ -270,6 +270,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
     required this.selectedRowsCount,
     required this.canMarkStatus,
     required this.onApplyValue,
+    required this.onFillDown,
     required this.onDuplicateRows,
     required this.onAttachPhoto,
     required this.onAttachGps,
@@ -282,6 +283,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
   final int selectedRowsCount;
   final bool canMarkStatus;
   final VoidCallback onApplyValue;
+  final VoidCallback onFillDown;
   final VoidCallback onDuplicateRows;
   final VoidCallback onAttachPhoto;
   final VoidCallback onAttachGps;
@@ -325,6 +327,13 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.secondary,
                   onPressed: onApplyValue,
+                ),
+                AppButton(
+                  label: 'Rellenar',
+                  icon: Icons.vertical_align_bottom_rounded,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onFillDown,
                 ),
                 AppButton(
                   label: 'Duplicar fila',
