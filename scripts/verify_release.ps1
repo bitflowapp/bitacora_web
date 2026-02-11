@@ -1,11 +1,11 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-
 param(
     [string] $Owner = 'marcoluna-nqn',
     [string] $Repo = 'bitacora_web',
     [string] $AssetName = 'BitFlow-android.apk'
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
 $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
 $downloadUrl = "https://github.com/$Owner/$Repo/releases/latest/download/$AssetName"
