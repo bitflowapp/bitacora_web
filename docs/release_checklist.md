@@ -278,6 +278,35 @@ Publicar release Android (1 comando):
 1. First-run onboarding and help:
 - Abrir editor en una planilla nueva y confirmar banner `Tour rapido del editor`.
 - Tap en `Entendido`: se oculta para la sesion.
+
+## 3.11) P11 smoke test (persistencia + validacion premium + editor rapido)
+1. Persistencia de columnas por planilla:
+- Abrir `Columnas`, cambiar tipo/required/enum, ocultar, fijar y reordenar.
+- Guardar como plantilla y aplicar plantilla en la misma planilla.
+- Refrescar web y confirmar que toda la configuracion persiste.
+- En Android: cerrar y reabrir app; confirmar persistencia.
+- En iOS PWA standalone: cerrar/reabrir y confirmar persistencia.
+2. Validacion premium:
+- Dejar un campo requerido vacio y cargar valores invalidos en numero/fecha/estado.
+- Confirmar:
+  - resaltado sutil monocromo de celdas invalidas
+  - hints inline al editar
+  - panel `Errores` con salto a celda al tocar item
+- Intentar exportar y validar modal: `Exportar igual / Revisar errores`.
+3. Edicion ultrarrapida:
+- Navegar con `Tab`/`Shift+Tab` y `Enter`/`Shift+Enter`.
+- Pegar bloque multi-celda grande (TSV/CSV) y confirmar que la UI no se congela.
+- Verificar sugerencias de historial por columna en editor.
+4. Export/share Android premium:
+- Exportar y compartir `XLSX`, `PDF` y `ZIP`.
+- Confirmar archivo real en share sheet (WhatsApp/correo).
+- Verificar fallback a mail/share cuando el cliente principal falla.
+5. Release Android estable:
+- Publicar tag `vX.Y.Z` (workflow `Android Release`).
+- Verificar asset estable en release latest:
+  - `BitFlow-android.apk`
+- Verificar URL estable:
+  - `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`
 - Reabrir editor en primera ejecucion y usar `No mostrar mas`: confirmar persistencia.
 - Abrir Command Palette (`Ctrl/Cmd+K`) y ejecutar `Ver atajos`; validar modal de cheat sheet.
 2. Defaults inteligentes y autocomplete:

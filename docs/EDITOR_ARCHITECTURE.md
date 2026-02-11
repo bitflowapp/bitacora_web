@@ -136,6 +136,54 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
     - `_normalizeCellValueForColumn`
     - `_recomputeValidation`
     - `_buildFormFieldForColumn`
+
+## Column Config Persistence (P11)
+- Persistencia por planilla en `_SheetModel`:
+  - `columnPrefsById`
+  - `columnOrder`
+  - `frozenColId`
+- Persistencia adicional de plantillas de columnas:
+  - SharedPreferences key: `bitflow.editor.column_templates.v1`
+  - Payload: `_ColumnTemplate` (prefs por label, orden, columna fijada, timestamp).
+- Migracion suave:
+  - `sheet_store_io/web` preserva claves de configuracion de columnas al normalizar/guardar (`columnPrefs`, `columnOrder`, `frozenColId`).
+  - Modelos legacy siguen siendo legibles.
+
+## Validation UX (P11)
+- Reglas soportadas:
+  - required
+  - number
+  - date
+  - enum/dropdown (`status` con `enumValues`)
+- Motor central:
+  - `_validationMessageForValue`
+  - `_recomputeValidation`
+- Superficie UX:
+  - resaltado de celda invalida monocromo en grilla
+  - hint inline en editor desktop/mobile
+  - panel opcional `Errores` con salto directo a celda
+  - modal de confirmacion de export cuando hay errores
+
+## Perf Strategy (P11)
+- Navegacion rapida por teclado:
+  - `Tab`/`Shift+Tab`
+  - `Enter`/`Shift+Enter`
+  - movimiento sobre columnas editables visibles
+- Smart paste chunked:
+  - pegado multi-celda procesado en lotes con yield de event loop (`Future.delayed(Duration.zero)`).
+  - evita freezes con payloads grandes.
+- Rebuild guardrails:
+  - `ValueNotifier` por fila + `_gridVersion`
+  - contadores debug siguen detras del flag `BITFLOW_DEBUG_GRID_REBUILDS`.
+
+## Motion System (P11)
+- Tokens base en `lib/ui/app_motion.dart`.
+- Aplicaciones en editor:
+  - transiciones de paneles (`AnimatedSwitcher` + `AppMotion.fadeSlide`)
+  - microanimaciones en celdas (`AnimatedContainer`, `AnimatedScale`)
+  - feedback tactil afinado con throttling en `_blink` (iOS/Android)
+- Objetivo visual:
+  - monocromo premium, bordes redondeados consistentes y sombras suaves.
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`
