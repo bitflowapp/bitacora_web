@@ -3169,6 +3169,16 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Historial',
+            icon: Icons.history_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openHistoryPanel());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Panel columnas',
             icon: Icons.view_column_rounded,
             variant: AppButtonVariant.secondary,

@@ -53,6 +53,7 @@ import 'package:flutter/material.dart'
         PageController,
         Curves,
         Theme,
+        Material,
         IconButton,
         Ink,
         InkWell,
@@ -120,11 +121,304 @@ enum _CreateSheetChoice {
   checklist,
 }
 
+class _PackColumnSpec {
+  const _PackColumnSpec({
+    required this.label,
+    required this.type,
+    this.required = false,
+    this.enumValues = const <String>[],
+    this.numberMin,
+    this.numberMax,
+    this.defaultValue,
+  });
+
+  final String label;
+  final String type;
+  final bool required;
+  final List<String> enumValues;
+  final double? numberMin;
+  final double? numberMax;
+  final String? defaultValue;
+}
+
+class _PackViewPreset {
+  const _PackViewPreset({
+    required this.name,
+    this.statusValue,
+    this.textContains,
+  });
+
+  final String name;
+  final String? statusValue;
+  final String? textContains;
+}
+
+class _PackTemplateSpec {
+  const _PackTemplateSpec({
+    required this.id,
+    required this.pack,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.tags,
+    required this.columns,
+    required this.views,
+    this.workflowReview = false,
+  });
+
+  final String id;
+  final String pack;
+  final String name;
+  final String description;
+  final IconData icon;
+  final List<String> tags;
+  final List<_PackColumnSpec> columns;
+  final List<_PackViewPreset> views;
+  final bool workflowReview;
+}
+
 class _StartPageOperationCancelled implements Exception {
   const _StartPageOperationCancelled();
 }
 
 class _StartPageState extends State<StartPage> {
+  static const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
+  static const List<_PackTemplateSpec> _commercialTemplates =
+      <_PackTemplateSpec>[
+    _PackTemplateSpec(
+      id: 'campo_inspeccion_general',
+      pack: 'Campo/Inspeccion',
+      name: 'Inspeccion general',
+      description: 'Checklist de campo con estados y responsables.',
+      icon: CupertinoIcons.doc_text_search,
+      tags: <String>['Campo', 'Control', 'Rapido'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
+          'Pendiente',
+          'En progreso',
+          'Completado',
+          'Urgente'
+        ]),
+        _PackColumnSpec(label: 'Sector', type: 'text', required: true),
+        _PackColumnSpec(label: 'Hallazgo', type: 'text', required: true),
+        _PackColumnSpec(label: 'Responsable', type: 'text'),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'campo_checklist_seguridad',
+      pack: 'Campo/Inspeccion',
+      name: 'Checklist seguridad',
+      description: 'Verificacion de seguridad por item y fecha.',
+      icon: CupertinoIcons.shield,
+      tags: <String>['Seguridad', 'Checklist', 'Cumplimiento'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Item', type: 'text', required: true),
+        _PackColumnSpec(
+            label: 'Estado',
+            type: 'status',
+            enumValues: <String>['Pendiente', 'OK', 'No cumple', 'Urgente']),
+        _PackColumnSpec(label: 'Evidencia', type: 'text'),
+        _PackColumnSpec(label: 'Observacion', type: 'text'),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'campo_mantenimiento_rapido',
+      pack: 'Campo/Inspeccion',
+      name: 'Mantenimiento rapido',
+      description: 'Tareas de mantenimiento con proxima fecha.',
+      icon: CupertinoIcons.wrench,
+      tags: <String>['Mantenimiento', 'Equipo', 'Servicio'],
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Equipo', type: 'text', required: true),
+        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
+          'Pendiente',
+          'En progreso',
+          'Completado',
+          'Urgente'
+        ]),
+        _PackColumnSpec(label: 'Proxima fecha', type: 'date'),
+        _PackColumnSpec(label: 'Observacion', type: 'text'),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'obra_avance_diario',
+      pack: 'Obra/Avance',
+      name: 'Avance diario',
+      description: 'Seguimiento de frente de obra y porcentaje.',
+      icon: CupertinoIcons.building_2_fill,
+      tags: <String>['Obra', 'Avance', 'Diario'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Frente', type: 'text', required: true),
+        _PackColumnSpec(
+            label: '% Avance', type: 'number', numberMin: 0, numberMax: 100),
+        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
+          'Pendiente',
+          'En progreso',
+          'Completado',
+          'Urgente'
+        ]),
+        _PackColumnSpec(label: 'Responsable', type: 'text'),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'obra_control_materiales',
+      pack: 'Obra/Avance',
+      name: 'Control de materiales',
+      description: 'Ingreso y uso de materiales por jornada.',
+      icon: CupertinoIcons.cube_box_fill,
+      tags: <String>['Materiales', 'Stock', 'Obra'],
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Material', type: 'text', required: true),
+        _PackColumnSpec(
+            label: 'Cantidad', type: 'number', required: true, numberMin: 0),
+        _PackColumnSpec(label: 'Unidad', type: 'text', defaultValue: 'u'),
+        _PackColumnSpec(
+            label: 'Estado',
+            type: 'status',
+            enumValues: <String>['Pendiente', 'En progreso', 'Completado']),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', textContains: 'faltante'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'obra_partes_trabajo',
+      pack: 'Obra/Avance',
+      name: 'Partes de trabajo',
+      description: 'Parte diario por OT, actividad y horas.',
+      icon: CupertinoIcons.doc_append,
+      tags: <String>['Parte', 'OT', 'Horas'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'OT ID', type: 'text', required: true),
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Actividad', type: 'text', required: true),
+        _PackColumnSpec(label: 'Horas', type: 'number', numberMin: 0),
+        _PackColumnSpec(
+            label: 'Estado',
+            type: 'status',
+            enumValues: <String>['Pendiente', 'En progreso', 'Completado']),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'gps_puntos',
+      pack: 'Relevamiento/GPS',
+      name: 'Puntos GPS',
+      description: 'Captura de puntos y estado en terreno.',
+      icon: CupertinoIcons.location_solid,
+      tags: <String>['GPS', 'Puntos', 'Terreno'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Punto ID', type: 'text', required: true),
+        _PackColumnSpec(label: 'Latitud', type: 'number', required: true),
+        _PackColumnSpec(label: 'Longitud', type: 'number', required: true),
+        _PackColumnSpec(
+            label: 'Estado',
+            type: 'status',
+            enumValues: <String>['Pendiente', 'Validado', 'Urgente']),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'gps_relevamiento_foto',
+      pack: 'Relevamiento/GPS',
+      name: 'Relevamiento foto',
+      description: 'Registro de ubicacion, estado y observacion.',
+      icon: CupertinoIcons.photo_on_rectangle,
+      tags: <String>['Relevamiento', 'Foto', 'Ubicacion'],
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(label: 'Ubicacion', type: 'text', required: true),
+        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
+          'Pendiente',
+          'Revisar',
+          'Completado',
+          'Urgente'
+        ]),
+        _PackColumnSpec(label: 'Observacion', type: 'text'),
+        _PackColumnSpec(label: 'Referencia', type: 'text'),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Revisar'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+    _PackTemplateSpec(
+      id: 'gps_incidencias_ruta',
+      pack: 'Relevamiento/GPS',
+      name: 'Incidencias en ruta',
+      description: 'Incidencias con progresiva y prioridad.',
+      icon: CupertinoIcons.map_pin_ellipse,
+      tags: <String>['Ruta', 'Incidencias', 'Prioridad'],
+      workflowReview: true,
+      columns: <_PackColumnSpec>[
+        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+        _PackColumnSpec(
+            label: 'Km/Progresiva',
+            type: 'number',
+            required: true,
+            numberMin: 0),
+        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
+          'Pendiente',
+          'En progreso',
+          'Resuelto',
+          'Urgente'
+        ]),
+        _PackColumnSpec(
+            label: 'Prioridad',
+            type: 'status',
+            enumValues: <String>['Baja', 'Media', 'Alta', 'Urgente']),
+        _PackColumnSpec(label: 'Detalle', type: 'text', required: true),
+      ],
+      views: <_PackViewPreset>[
+        _PackViewPreset(name: 'Campo'),
+        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+      ],
+    ),
+  ];
+
   // --------------------- Data ---------------------
   List<SheetMeta> _items = <SheetMeta>[];
   String _q = '';
@@ -850,6 +1144,281 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
+  Future<bool> _showTemplatePackPreview(_PackTemplateSpec template) async {
+    if (!mounted) return false;
+    final pal = _ApplePalette(isLight: widget.isLight);
+    return (await showAppModal<bool>(
+          context: context,
+          title: template.name,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${template.pack} · ${template.description}',
+                style: TextStyle(color: pal.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final tag in template.tags)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: pal.separator),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          color: pal.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Columnas y reglas',
+                style: TextStyle(
+                  color: pal.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final col in template.columns)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '- ${col.label} (${col.type})'
+                    '${col.required ? ' · obligatorio' : ''}'
+                    '${col.enumValues.isNotEmpty ? ' · ${col.enumValues.join('/')}' : ''}',
+                    style: TextStyle(color: pal.textSecondary, fontSize: 12),
+                  ),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                'Vistas preconfiguradas',
+                style: TextStyle(
+                  color: pal.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                template.views.map((e) => e.name).join(' · '),
+                style: TextStyle(color: pal.textSecondary, fontSize: 12),
+              ),
+              if (template.workflowReview) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Incluye workflow de revision/firmado.',
+                  style: TextStyle(color: pal.textSecondary, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            AppButton(
+              label: AppStrings.cancel,
+              variant: AppButtonVariant.ghost,
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            AppButton(
+              label: 'Crear desde template',
+              variant: AppButtonVariant.primary,
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+          showClose: false,
+          barrierDismissible: true,
+        )) ??
+        false;
+  }
+
+  Future<_PackTemplateSpec?> _showTemplatePackGallery() async {
+    if (!mounted) return null;
+    final pal = _ApplePalette(isLight: widget.isLight);
+    return showModalBottomSheet<_PackTemplateSpec>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final border =
+            !pal.isLight ? const Color(0xFF3A3A3C) : const Color(0xFFD9D9DE);
+        final grouped = <String, List<_PackTemplateSpec>>{};
+        for (final template in _commercialTemplates) {
+          grouped.putIfAbsent(template.pack, () => <_PackTemplateSpec>[]).add(
+                template,
+              );
+        }
+
+        Widget card(_PackTemplateSpec template) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                final create = await _showTemplatePackPreview(template);
+                if (!mounted || !create) return;
+                Navigator.of(ctx).pop(template);
+              },
+              child: Ink(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: pal.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: border),
+                  boxShadow: [pal.subtleShadow],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: !pal.isLight
+                            ? const Color(0xFFF4F4F6)
+                            : const Color(0xFF111114),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Icon(
+                        template.icon,
+                        size: 17,
+                        color: !pal.isLight
+                            ? const Color(0xFF111114)
+                            : const Color(0xFFFFFFFF),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      template.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: pal.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        template.description,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: pal.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: template.tags
+                          .map(
+                            (tag) => Text(
+                              '#$tag',
+                              style: TextStyle(
+                                color: pal.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: pal.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border),
+              boxShadow: [pal.subtleShadow],
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Template Packs',
+                        style: TextStyle(
+                          color: pal.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: Icon(CupertinoIcons.xmark,
+                            color: pal.textSecondary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Selecciona un template premium y revisa preview antes de crear.',
+                    style: TextStyle(color: pal.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final entry in grouped.entries) ...[
+                    Text(
+                      entry.key,
+                      style: TextStyle(
+                        color: pal.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.2,
+                      children: [
+                        for (final template in entry.value) card(template),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _createAndOpenSheet({TemplateKind? template}) async {
     if (_busy) return;
 
@@ -881,6 +1450,150 @@ class _StartPageState extends State<StartPage> {
     _reload();
   }
 
+  String _packColId(String label, int index) {
+    final normalized = label
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    if (normalized.isEmpty) return 'col_${index + 1}';
+    return 'col_$normalized';
+  }
+
+  Map<String, dynamic> _buildPackModel(_PackTemplateSpec template) {
+    final headers = <String>[for (final col in template.columns) col.label];
+    final colIds = <String>[
+      for (int i = 0; i < template.columns.length; i++)
+        _packColId(template.columns[i].label, i),
+    ];
+    final columnPrefs = <String, dynamic>{};
+    final rowDefaults = <String>[
+      for (final col in template.columns) col.defaultValue?.trim() ?? '',
+    ];
+
+    for (int i = 0; i < template.columns.length; i++) {
+      final col = template.columns[i];
+      final colId = colIds[i];
+      final pref = <String, dynamic>{
+        'type': col.type,
+      };
+      if (col.required) pref['required'] = true;
+      if (col.enumValues.isNotEmpty) pref['enumValues'] = col.enumValues;
+      if (col.numberMin != null) pref['numberMin'] = col.numberMin;
+      if (col.numberMax != null) pref['numberMax'] = col.numberMax;
+      columnPrefs[colId] = pref;
+    }
+
+    return <String, dynamic>{
+      'name': template.name,
+      'savedAt': DateTime.now().toIso8601String(),
+      'headers': headers,
+      'colIds': colIds,
+      'rows': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'r_1',
+          'cells': rowDefaults,
+        },
+      ],
+      'columnPrefs': columnPrefs,
+      'columnOrder': colIds,
+      'templateKind': template.id,
+      'templatePack': template.pack,
+      if (template.workflowReview) 'workflowPreset': 'review',
+    };
+  }
+
+  Future<void> _seedTemplateSavedViews({
+    required String sheetId,
+    required _PackTemplateSpec template,
+    required List<String> colIds,
+    required List<String> headers,
+  }) async {
+    if (template.views.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'bitflow:sheet:$sheetId:$_kPrefSavedViews';
+      int? statusIndex;
+      int? textIndex;
+      int? dateIndex;
+      for (int i = 0; i < headers.length; i++) {
+        final h = headers[i].toLowerCase();
+        if (statusIndex == null &&
+            (h.contains('estado') || h.contains('status'))) {
+          statusIndex = i;
+        }
+        if (textIndex == null &&
+            (h.contains('detalle') ||
+                h.contains('hallazgo') ||
+                h.contains('observ'))) {
+          textIndex = i;
+        }
+        if (dateIndex == null && h.contains('fecha')) {
+          dateIndex = i;
+        }
+      }
+      final now = DateTime.now();
+      final payload = <Map<String, dynamic>>[];
+      for (int i = 0; i < template.views.length; i++) {
+        final view = template.views[i];
+        payload.add(<String, dynamic>{
+          'id': 'view_${template.id}_${i + 1}',
+          'name': view.name,
+          'createdAt': now.subtract(Duration(minutes: i)).toIso8601String(),
+          if (statusIndex != null &&
+              (view.statusValue?.trim().isNotEmpty ?? false))
+            'statusColId': colIds[statusIndex],
+          if (view.statusValue?.trim().isNotEmpty ?? false)
+            'statusValue': view.statusValue,
+          if (textIndex != null &&
+              (view.textContains?.trim().isNotEmpty ?? false))
+            'textColId': colIds[textIndex],
+          if (view.textContains?.trim().isNotEmpty ?? false)
+            'textContains': view.textContains,
+          if (dateIndex != null) 'dateColId': colIds[dateIndex],
+        });
+      }
+      await prefs.setString(key, jsonEncode(payload));
+    } catch (_) {}
+  }
+
+  Future<void> _createAndOpenPackTemplate(_PackTemplateSpec template) async {
+    if (_busy) return;
+    final model = _buildPackModel(template);
+    final id = SheetStore.createFromModel(model);
+    _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
+    if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
+      _sheetFolder[id] = _selectedFolderId;
+    }
+    await _saveOrg();
+    await _seedTemplateSavedViews(
+      sheetId: id,
+      template: template,
+      colIds: (model['colIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const <String>[],
+      headers: (model['headers'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const <String>[],
+    );
+    _reload();
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      CupertinoPageRoute(
+        builder: (_) => EditorScreen(
+          isLight: widget.isLight,
+          onToggleTheme: widget.onToggleTheme,
+          sheetId: id,
+          engineBaseUrl: _engineBaseForEditor(),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _reload();
+  }
+
   Future<void> _newSheet() async {
     if (_busy) return;
     final choice = await _showCreateSheetGallery(includeBlank: true);
@@ -891,11 +1604,9 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _newTemplateSheet() async {
     if (_busy) return;
-    final choice = await _showCreateSheetGallery(includeBlank: false);
-    if (!mounted || choice == null) return;
-    final template = _templateFromChoice(choice);
-    if (template == null) return;
-    await _createAndOpenSheet(template: template);
+    final template = await _showTemplatePackGallery();
+    if (!mounted || template == null) return;
+    await _createAndOpenPackTemplate(template);
   }
 
   Future<void> _openDiagnostics() async {

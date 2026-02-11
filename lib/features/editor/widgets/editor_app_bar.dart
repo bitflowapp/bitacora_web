@@ -14,8 +14,10 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onQuickCapture,
     required this.onForm,
     required this.onSearch,
+    required this.onSearchEverywhere,
     required this.onJumpTo,
     required this.onColumns,
+    required this.onHistory,
     required this.onSaveView,
     required this.onSelectView,
     required this.onManageViews,
@@ -33,6 +35,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onFile,
     required this.onAttachments,
     required this.onShare,
+    required this.onCollaborate,
     required this.onPalette,
     required this.onGpsMode,
     required this.onDensity,
@@ -65,8 +68,10 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onQuickCapture;
   final VoidCallback onForm;
   final VoidCallback onSearch;
+  final VoidCallback onSearchEverywhere;
   final VoidCallback onJumpTo;
   final VoidCallback onColumns;
+  final VoidCallback onHistory;
   final VoidCallback onSaveView;
   final ValueChanged<String?> onSelectView;
   final VoidCallback onManageViews;
@@ -86,6 +91,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onFile;
   final VoidCallback onAttachments;
   final VoidCallback onShare;
+  final VoidCallback onCollaborate;
   final VoidCallback onPalette;
   final VoidCallback onGpsMode;
   final VoidCallback onDensity;
@@ -416,6 +422,19 @@ class _PremiumAppleHeader extends StatelessWidget {
                               ),
                             ),
                             FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.27),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.travel_explore_rounded,
+                                label: 'Buscar global',
+                                semanticsLabel:
+                                    'Buscar en esta planilla o en todas',
+                                tooltip: 'Busqueda global (Ctrl/Cmd+Shift+F)',
+                                onTap: onSearchEverywhere,
+                              ),
+                            ),
+                            FocusTraversalOrder(
                               order: const NumericFocusOrder(1.3),
                               child: _PillButton(
                                 palette: palette,
@@ -451,6 +470,32 @@ class _PremiumAppleHeader extends StatelessWidget {
                                     'Abrir adjuntos de celda activa',
                                 tooltip: 'Abrir panel de adjuntos',
                                 onTap: onAttachments,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.47),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.history_rounded,
+                                label: 'Historial',
+                                semanticsLabel: 'Abrir historial de cambios',
+                                tooltip: 'Auditoria de cambios',
+                                onTap: onHistory,
+                              ),
+                            ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.49),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.group_work_outlined,
+                                label: 'Colaborar',
+                                semanticsLabel:
+                                    'Flujo de colaboracion por paquete',
+                                tooltip:
+                                    'Exportar, importar y mergear paquetes',
+                                onTap: onCollaborate,
                               ),
                             ),
                             FocusTraversalOrder(
@@ -532,6 +577,12 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onSearch,
                             ),
                             AppleToolbarItem(
+                              icon: Icons.travel_explore_rounded,
+                              label: 'Buscar global',
+                              shortcut: 'Ctrl/Cmd+Shift+F',
+                              onTap: onSearchEverywhere,
+                            ),
+                            AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,
                               label: 'Jump to...',
                               shortcut: 'Ctrl/Cmd+J',
@@ -541,6 +592,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.view_column_rounded,
                               label: 'Columnas',
                               onTap: onColumns,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.history_rounded,
+                              label: 'Historial',
+                              onTap: onHistory,
                             ),
                             AppleToolbarItem(
                               icon: Icons.my_location_rounded,
@@ -590,6 +646,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.attach_file_rounded,
                               label: 'Archivo',
                               onTap: onFile,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.group_work_outlined,
+                              label: 'Colaborar',
+                              onTap: onCollaborate,
                             ),
                             AppleToolbarItem(
                               icon: Icons.download_rounded,

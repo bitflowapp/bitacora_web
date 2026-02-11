@@ -40,6 +40,11 @@ extension _EditorImportDialogs on _EditorScreenState {
     }
     if (!mounted) return;
 
+    final sourceSheetId = (bundle.preview.sourceSheetId ?? '').trim();
+    final sourceSheetName = (bundle.preview.sourceSheetName ?? '').trim();
+    final sameSheet =
+        sourceSheetId.isNotEmpty && sourceSheetId == widget.sheetId;
+
     final mode = await showAppModal<_PackageImportMode>(
       context: context,
       title: 'Importar paquete',
@@ -79,6 +84,15 @@ extension _EditorImportDialogs on _EditorScreenState {
               style: TextStyle(color: _palette(context).fgMuted),
             ),
           ],
+          if (sourceSheetId.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              sourceSheetName.isNotEmpty
+                  ? 'Planilla origen: $sourceSheetName ($sourceSheetId)'
+                  : 'Planilla origen: $sourceSheetId',
+              style: TextStyle(color: _palette(context).fgMuted),
+            ),
+          ],
           const SizedBox(height: 14),
           AppButton(
             label: 'Crear nueva (recomendado)',
@@ -87,6 +101,16 @@ extension _EditorImportDialogs on _EditorScreenState {
             onPressed: () =>
                 Navigator.of(context).pop(_PackageImportMode.createNew),
           ),
+          if (sameSheet) ...[
+            const SizedBox(height: 8),
+            AppButton(
+              label: 'Merge con actual',
+              icon: Icons.merge_type_rounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () =>
+                  Navigator.of(context).pop(_PackageImportMode.mergeCurrent),
+            ),
+          ],
           const SizedBox(height: 8),
           AppButton(
             label: 'Reemplazar actual',
@@ -97,7 +121,9 @@ extension _EditorImportDialogs on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           Text(
-            'Restauracion atomica: adjuntos primero, luego planilla.',
+            sameSheet
+                ? 'Merge: combina cambios y resuelve conflictos de celda.'
+                : 'Restauracion atomica: adjuntos primero, luego planilla.',
             style: TextStyle(
               color: _palette(context).fgMuted,
               fontSize: 12,
@@ -146,7 +172,7 @@ extension _EditorImportDialogs on _EditorScreenState {
 
     await _importPackageBundle(
       bundle,
-      replaceCurrent: mode == _PackageImportMode.replaceCurrent,
+      mode: mode,
     );
   }
 }

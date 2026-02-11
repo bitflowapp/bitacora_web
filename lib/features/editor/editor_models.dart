@@ -614,7 +614,88 @@ class _BackupBundle {
   final List<_BackupAsset> assets;
 }
 
-enum _PackageImportMode { createNew, replaceCurrent }
+enum _PackageImportMode { createNew, mergeCurrent, replaceCurrent }
+
+enum PackageMergeConflictPolicy { keepLocal, useImported }
+
+class PackageMergeConflict {
+  const PackageMergeConflict({
+    required this.key,
+    required this.localValue,
+    required this.importedValue,
+  });
+
+  final String key;
+  final String localValue;
+  final String importedValue;
+}
+
+class PackageMergeResult {
+  const PackageMergeResult({
+    required this.merged,
+    required this.conflicts,
+    required this.importedApplied,
+    required this.autoMerged,
+  });
+
+  final Map<String, String> merged;
+  final List<PackageMergeConflict> conflicts;
+  final int importedApplied;
+  final int autoMerged;
+}
+
+class PackageMergeEngine {
+  static PackageMergeResult mergeMaps({
+    required Map<String, String> local,
+    required Map<String, String> imported,
+    required PackageMergeConflictPolicy conflictPolicy,
+  }) {
+    final merged = Map<String, String>.from(local);
+    final conflicts = <PackageMergeConflict>[];
+    var importedApplied = 0;
+    var autoMerged = 0;
+
+    for (final entry in imported.entries) {
+      final key = entry.key;
+      final importedValue = entry.value;
+      final hasLocal = merged.containsKey(key);
+      if (!hasLocal) {
+        merged[key] = importedValue;
+        importedApplied++;
+        continue;
+      }
+      final localValue = merged[key] ?? '';
+      if (localValue == importedValue) continue;
+      if (localValue.trim().isEmpty && importedValue.trim().isNotEmpty) {
+        merged[key] = importedValue;
+        importedApplied++;
+        autoMerged++;
+        continue;
+      }
+      if (importedValue.trim().isEmpty) {
+        continue;
+      }
+      conflicts.add(
+        PackageMergeConflict(
+          key: key,
+          localValue: localValue,
+          importedValue: importedValue,
+        ),
+      );
+      if (conflictPolicy == PackageMergeConflictPolicy.useImported) {
+        merged[key] = importedValue;
+        importedApplied++;
+      }
+    }
+
+    return PackageMergeResult(
+      merged: merged,
+      conflicts: conflicts,
+      importedApplied: importedApplied,
+      autoMerged: autoMerged,
+    );
+  }
+}
 
 class _PackageImportPreview {
   const _PackageImportPreview({
@@ -626,6 +707,8 @@ class _PackageImportPreview {
     this.exportedAt,
     this.appVersion,
     this.buildId,
+    this.sourceSheetId,
+    this.sourceSheetName,
   });
 
   final String formatLabel;
@@ -636,6 +719,8 @@ class _PackageImportPreview {
   final DateTime? exportedAt;
   final String? appVersion;
   final String? buildId;
+  final String? sourceSheetId;
+  final String? sourceSheetName;
 }
 
 class _PackageImportBundle {
@@ -781,6 +866,90 @@ class _ValidationIssue {
   final String message;
 }
 
+class HistoryEventRecord {
+  const HistoryEventRecord({
+    required this.id,
+    required this.at,
+    required this.type,
+    required this.message,
+    required this.origin,
+    this.row,
+    this.col,
+    this.beforeValue,
+    this.afterValue,
+  });
+
+  final String id;
+  final DateTime at;
+  final String type;
+  final String message;
+  final String origin;
+  final int? row;
+  final int? col;
+  final String? beforeValue;
+  final String? afterValue;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'at': at.toIso8601String(),
+      'type': type,
+      'message': message,
+      'origin': origin,
+      if (row != null) 'row': row,
+      if (col != null) 'col': col,
+      if (beforeValue != null) 'beforeValue': beforeValue,
+      if (afterValue != null) 'afterValue': afterValue,
+    };
+  }
+
+  static HistoryEventRecord? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final id = (map['id'] ?? '').toString().trim();
+    final type = (map['type'] ?? '').toString().trim();
+    final message = (map['message'] ?? '').toString().trim();
+    final origin = (map['origin'] ?? '').toString().trim();
+    final at = DateTime.tryParse((map['at'] ?? '').toString());
+    if (id.isEmpty ||
+        type.isEmpty ||
+        message.isEmpty ||
+        origin.isEmpty ||
+        at == null) {
+      return null;
+    }
+    return HistoryEventRecord(
+      id: id,
+      at: at,
+      type: type,
+      message: message,
+      origin: origin,
+      row: (map['row'] as num?)?.toInt(),
+      col: (map['col'] as num?)?.toInt(),
+      beforeValue: map['beforeValue']?.toString(),
+      afterValue: map['afterValue']?.toString(),
+    );
+  }
+
+  static List<HistoryEventRecord> trim(
+    List<HistoryEventRecord> input, {
+    int maxEvents = 600,
+    int maxDays = 45,
+    DateTime? now,
+  }) {
+    if (input.isEmpty) return const <HistoryEventRecord>[];
+    final refNow = (now ?? DateTime.now()).toUtc();
+    final minAt = refNow.subtract(Duration(days: maxDays));
+    final filtered =
+        input.where((event) => event.at.toUtc().isAfter(minAt)).toList();
+    filtered.sort((a, b) => b.at.compareTo(a.at));
+    if (filtered.length > maxEvents) {
+      filtered.removeRange(maxEvents, filtered.length);
+    }
+    return filtered;
+  }
+}
+
 class _SavedView {
   const _SavedView({
     required this.id,
@@ -899,6 +1068,85 @@ class _SavedView {
       frozenColId: frozenRaw.isEmpty ? null : frozenRaw,
     );
   }
+}
+
+class SearchEverywhereQuery {
+  const SearchEverywhereQuery({
+    required this.raw,
+    required this.needle,
+    this.columnToken,
+  });
+
+  final String raw;
+  final String needle;
+  final String? columnToken;
+
+  bool get isEmpty => needle.isEmpty;
+
+  bool get hasColumnFilter => (columnToken ?? '').trim().isNotEmpty;
+
+  static SearchEverywhereQuery parse(String input) {
+    final raw = input.trim();
+    if (raw.isEmpty) {
+      return const SearchEverywhereQuery(raw: '', needle: '');
+    }
+    if (raw.contains(':')) {
+      final idx = raw.indexOf(':');
+      final token = raw.substring(0, idx).trim();
+      final value = raw.substring(idx + 1).trim().toLowerCase();
+      if (token.isNotEmpty && value.isNotEmpty) {
+        return SearchEverywhereQuery(
+          raw: raw,
+          needle: value,
+          columnToken: token,
+        );
+      }
+    }
+    return SearchEverywhereQuery(raw: raw, needle: raw.toLowerCase());
+  }
+
+  int? resolveColumnIndex(List<String> headers) {
+    final token = (columnToken ?? '').trim().toLowerCase();
+    if (token.isEmpty) return null;
+    for (int c = 0; c < headers.length; c++) {
+      final label = headers[c].trim().toLowerCase();
+      if (label == token) return c;
+      if (label.contains(token)) return c;
+    }
+    if (token == 'estado' || token == 'status') {
+      for (int c = 0; c < headers.length; c++) {
+        final label = headers[c].toLowerCase();
+        if (label.contains('estado') || label.contains('status')) return c;
+      }
+    }
+    if (token == 'fecha' || token == 'date') {
+      for (int c = 0; c < headers.length; c++) {
+        final label = headers[c].toLowerCase();
+        if (label.contains('fecha') || label.contains('date')) return c;
+      }
+    }
+    return null;
+  }
+}
+
+class _GlobalSearchResult {
+  const _GlobalSearchResult({
+    required this.sheetId,
+    required this.sheetTitle,
+    required this.row,
+    required this.col,
+    required this.header,
+    required this.value,
+    required this.reason,
+  });
+
+  final String sheetId;
+  final String sheetTitle;
+  final int row;
+  final int col;
+  final String header;
+  final String value;
+  final String reason;
 }
 
 class _CellRef {

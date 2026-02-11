@@ -239,6 +239,53 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
   - bump por fila (`_bumpRowVersionById`) y rebuild global solo cuando afecta vista.
 - Saved views:
   - cache token liviano para evitar `jsonEncode` en cada build.
+
+## Audit History (P13)
+- Modelo:
+  - `HistoryEventRecord` en `editor_models.dart`.
+- Persistencia:
+  - `SharedPreferences` por planilla (`_kPrefHistoryLog`).
+  - recorte por politica rolling (`HistoryEventRecord.trim`).
+- UX:
+  - panel `Historial` con filtros (`hoy`, `semana`, `tipo`) y jump-to-cell.
+  - entradas desde toolbar y command palette.
+- Integracion:
+  - hooks en mutaciones relevantes (`edit_cell`, `insert/delete`, `batch`, `quick_capture`, `review`, `import/merge`).
+
+## Search Everywhere (P13)
+- Query parser:
+  - `SearchEverywhereQuery` (plain text + `col:valor` + alias de columnas).
+- Motor:
+  - `_searchSheetRows` + `_searchEverywhere`.
+  - chunking/yield para no bloquear UI.
+  - debounce en modal de busqueda global.
+- UX:
+  - resultados agrupados por planilla.
+  - jump directo a celda en la planilla actual o al abrir otra planilla.
+
+## Async Collaboration (P13)
+- Export paquete:
+  - snapshot full + metadata colaborativa (`snapshotMode: full`, revision origen).
+- Import paquete:
+  - `createNew`, `replaceCurrent`, `mergeCurrent`.
+  - merge sobre celdas por `rowId::colId`.
+  - politica de conflicto: `keepLocal` o `useImported`.
+- Motor reusable:
+  - `PackageMergeEngine.mergeMaps`.
+  - tests unitarios en `test/package_merge_engine_test.dart`.
+- Auditoria:
+  - eventos `package_import_*` y `package_merge`.
+
+## Template Packs (P13)
+- Start page:
+  - galeria por packs + preview antes de crear.
+  - creacion via `SheetStore.createFromModel`.
+- Presets:
+  - `columnPrefs` (tipos/validacion/defaults).
+  - seed de vistas guardadas por planilla en key editor (`bitflow:sheet:<id>:bitflow.editor.saved_views.v1`).
+- Objetivo:
+  - onboarding comercial (templates listos para uso de campo/obra/relevamiento).
+
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`

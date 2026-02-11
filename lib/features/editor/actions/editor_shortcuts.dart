@@ -90,6 +90,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyF) {
+      unawaited(_openSearchEverywhereDialog());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyF) {
       unawaited(_openSearchDialog());
       return KeyEventResult.handled;

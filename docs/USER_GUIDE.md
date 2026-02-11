@@ -1,4 +1,4 @@
-# BitFlow User Guide (P12)
+# BitFlow User Guide (P13)
 
 ## 1) Flujo recomendado (ahorro de tiempo real)
 1. Crea/abre planilla y captura con `+ Registro` (quick capture).
@@ -80,3 +80,57 @@
   - `Campo` (captura)
   - `Revision` (control)
   - `Urgentes` (prioridad)
+
+## 8) Historial y auditoria (P13)
+- Abrir `Historial` desde toolbar o `Ctrl/Cmd+K`.
+- Se registran eventos clave:
+  - edicion de celda
+  - insertar/eliminar fila
+  - batch/paste/quick capture
+  - revision/firmado
+  - import/merge de paquetes
+- Filtros:
+  - `Hoy`
+  - `Semana`
+  - `Tipo`
+- Cada evento permite `Ir a celda`.
+- Retencion:
+  - rolling log (limite por cantidad y ventana de dias).
+
+## 9) Busqueda global (P13)
+- `Ctrl/Cmd+F`: busqueda inline en planilla actual.
+- `Ctrl/Cmd+Shift+F`: busqueda global.
+- Query soportada:
+  - texto libre (`urgente`)
+  - `col:valor` (`Estado:Urgente`)
+  - alias comunes (`status`, `fecha`).
+- En resultados:
+  - agrupado por planilla
+  - click/tap para saltar a celda (incluye cambio de planilla con foco en destino).
+
+## 10) Colaboracion asincronica por paquetes (P13)
+- Abrir `Colaborar` desde toolbar o palette.
+- Flujo:
+  - exportar paquete (snapshot completo + metadata colaborativa)
+  - compartir paquete
+  - importar paquete
+- Import con merge:
+  - detecta planilla origen
+  - merge automatico si cambian celdas distintas
+  - conflicto si misma celda cambia distinto:
+    - `Mantener local`
+    - `Usar importado`
+- Todo merge/import queda registrado en `Historial`.
+
+## 11) Template Packs premium (P13)
+- En `Nueva plantilla`, usar galeria `Template Packs`.
+- Packs incluidos (3x3):
+  - `Campo/Inspeccion`
+  - `Obra/Avance`
+  - `Relevamiento/GPS`
+- Cada template incluye:
+  - columnas + tipos + validaciones + defaults
+  - vistas guardadas iniciales (`Campo`, `Revision`, `Urgentes`)
+  - workflow de revision cuando aplica
+- Antes de crear:
+  - preview de columnas, reglas, vistas y tags del template.
