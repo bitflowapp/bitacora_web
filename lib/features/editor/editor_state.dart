@@ -31,6 +31,8 @@ const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
+enum _ReviewFilterMode { all, pending, reviewed }
+
 enum _GridDensity { compact, normal, roomy }
 
 enum _MobileEditPhase { closed, opening, open, switching, closing }
@@ -400,6 +402,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _editorTourDismissed = false;
   final List<_SavedView> _savedViews = <_SavedView>[];
   String? _activeSavedViewId;
+  _ReviewFilterMode _reviewFilterMode = _ReviewFilterMode.all;
   String _rowViewCacheKey = '';
   List<int> _visibleRowIndexesCache = const <int>[];
   Map<int, int> _displayRowToActualCache = const <int, int>{};
@@ -4014,6 +4017,114 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  String _reviewActorName() {
+    if (kIsWeb) return 'Usuario web';
+    return 'Usuario app';
+  }
+
+  Future<void> _setReviewedForRows(
+    Iterable<int> rows, {
+    required bool reviewed,
+  }) async {
+    final targets = rows
+        .where((r) => r >= 0 && r < _rows.length)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+    if (targets.isEmpty) {
+      _showActionSnack(
+        'Selecciona al menos una fila.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final now = DateTime.now();
+    final actor = _reviewActorName();
+    var changed = 0;
+    for (final r in targets) {
+      final row = _rows[r];
+      final nextBy = reviewed ? actor : null;
+      final nextAt = reviewed ? now : null;
+      if (row.reviewed == reviewed &&
+          (row.reviewedBy ?? '') == (nextBy ?? '') &&
+          (row.reviewedAt?.millisecondsSinceEpoch ?? -1) ==
+              (nextAt?.millisecondsSinceEpoch ?? -1)) {
+        continue;
+      }
+      _rows[r] = row.copyWithReview(
+        reviewed: reviewed,
+        reviewedBy: nextBy,
+        reviewedAt: nextAt,
+      );
+      changed++;
+    }
+    if (changed <= 0) {
+      _showActionSnack(
+        'Sin cambios para aplicar.',
+        isError: false,
+        icon: reviewed ? Icons.verified_rounded : Icons.pending_actions_rounded,
+      );
+      return;
+    }
+    _markDirty(snapshot: true);
+    _invalidateRowViewCache();
+    _bumpGridVersion();
+    _showActionSnack(
+      reviewed
+          ? '$changed fila(s) marcadas como revisadas.'
+          : '$changed fila(s) marcadas como pendientes.',
+      isError: false,
+      icon: reviewed ? Icons.verified_rounded : Icons.pending_actions_rounded,
+    );
+  }
+
+  Future<void> _markSelectedRowsReviewed() =>
+      _setReviewedForRows(_batchTargetRows(), reviewed: true);
+
+  Future<void> _markSelectedRowsPendingReview() =>
+      _setReviewedForRows(_batchTargetRows(), reviewed: false);
+
+  void _setReviewFilterMode(_ReviewFilterMode mode) {
+    if (_reviewFilterMode == mode) return;
+    setState(() {
+      _reviewFilterMode = mode;
+      _invalidateRowViewCache();
+    });
+    _bumpGridVersion();
+    switch (mode) {
+      case _ReviewFilterMode.pending:
+        _showActionSnack(
+          'Vista pendiente de revision activa.',
+          isError: false,
+          icon: Icons.pending_actions_rounded,
+        );
+        break;
+      case _ReviewFilterMode.reviewed:
+        _showActionSnack(
+          'Vista solo revisadas activa.',
+          isError: false,
+          icon: Icons.verified_rounded,
+        );
+        break;
+      case _ReviewFilterMode.all:
+        _showActionSnack(
+          'Vista de revision limpia.',
+          isError: false,
+          icon: Icons.table_view_rounded,
+        );
+        break;
+    }
+  }
+
+  void _togglePendingReviewView() {
+    if (_reviewFilterMode == _ReviewFilterMode.pending) {
+      _setReviewFilterMode(_ReviewFilterMode.all);
+      return;
+    }
+    _setReviewFilterMode(_ReviewFilterMode.pending);
+  }
+
   int? _resolveJumpIdColumn() {
     final dataCols = _headers.length - 1;
     if (dataCols <= 0) return null;
@@ -4295,6 +4406,43 @@ class _EditorScreenState extends State<EditorScreen>
             onPressed: () {
               Navigator.of(context).pop();
               _duplicateSelectedRows();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Marcar revisado',
+            icon: Icons.verified_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_markSelectedRowsReviewed());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Marcar pendiente',
+            icon: Icons.pending_actions_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_markSelectedRowsPendingReview());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: _reviewFilterMode == _ReviewFilterMode.pending
+                ? 'Quitar vista pendientes'
+                : 'Vista pendientes de revision',
+            icon: _reviewFilterMode == _ReviewFilterMode.pending
+                ? Icons.filter_alt_off_rounded
+                : Icons.pending_actions_rounded,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _togglePendingReviewView();
             },
           ),
         ],
@@ -6089,6 +6237,10 @@ class _EditorScreenState extends State<EditorScreen>
                                   unawaited(_applySavedView(viewId)),
                               onManageViews: () =>
                                   unawaited(_openSavedViewsManager()),
+                              onMarkReviewed: () =>
+                                  unawaited(_markSelectedRowsReviewed()),
+                              onTogglePendingReviewView:
+                                  _togglePendingReviewView,
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -6135,6 +6287,8 @@ class _EditorScreenState extends State<EditorScreen>
                               errorsCount: _invalidCells.length,
                               savedViews: _savedViews,
                               activeViewId: _activeSavedViewId,
+                              pendingReviewViewActive: _reviewFilterMode ==
+                                  _ReviewFilterMode.pending,
                             )
                           else
                             _MobileCompactHeader(
@@ -7365,7 +7519,7 @@ class _EditorScreenState extends State<EditorScreen>
   String _rowViewCacheToken() {
     final active = _activeSavedView;
     final activeToken = active == null ? '' : jsonEncode(active.toJson());
-    return 'rev=$_rev|rows=${_rows.length}|view=$activeToken';
+    return 'rev=$_rev|rows=${_rows.length}|view=$activeToken|review=${_reviewFilterMode.name}';
   }
 
   List<int> _visibleRowIndexes() {
@@ -7394,6 +7548,13 @@ class _EditorScreenState extends State<EditorScreen>
             : null);
 
     for (int r = 0; r < _rows.length; r++) {
+      if (_reviewFilterMode == _ReviewFilterMode.pending && _rows[r].reviewed) {
+        continue;
+      }
+      if (_reviewFilterMode == _ReviewFilterMode.reviewed &&
+          !_rows[r].reviewed) {
+        continue;
+      }
       if (statusCol != null && statusFilter.isNotEmpty) {
         final value = (statusCol < _rows[r].cells.length)
             ? _rows[r].cells[statusCol].trim().toLowerCase()
@@ -9367,6 +9528,16 @@ class _EditorScreenState extends State<EditorScreen>
           'Duplicar fila', Icons.copy_all_outlined, () => _duplicateRow(r)));
       actions.add(_CtxAction('Duplicar N veces', Icons.copy_all_rounded,
           () => unawaited(_promptDuplicateRowCount(r))));
+      actions.add(_CtxAction(
+        'Marcar revisado',
+        Icons.verified_rounded,
+        () => unawaited(_setReviewedForRows(<int>[r], reviewed: true)),
+      ));
+      actions.add(_CtxAction(
+        'Marcar pendiente',
+        Icons.pending_actions_rounded,
+        () => unawaited(_setReviewedForRows(<int>[r], reviewed: false)),
+      ));
 
       if (_batchTargetRows().length > 1) {
         actions.add(_CtxAction(
@@ -12173,13 +12344,33 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final dataCols = math.max(0, _headers.length - 1);
+    final includeReviewColumns = _rows.any((row) =>
+        row.reviewed ||
+        (row.reviewedBy?.trim().isNotEmpty ?? false) ||
+        row.reviewedAt != null);
     final headers = List<String>.generate(dataCols, (i) => _headerLabel(i));
+    if (includeReviewColumns) {
+      headers
+        ..add('Revisado')
+        ..add('Revisado por')
+        ..add('Revisado en');
+    }
     final rows = <List<String>>[];
+    var reviewedCount = 0;
     for (final row in _rows) {
       _throwIfOperationCancelledBy(shouldCancel);
       final values = <String>[];
       for (int c = 0; c < dataCols && c < row.cells.length; c++) {
         values.add(row.cells[c]);
+      }
+      if (includeReviewColumns) {
+        final reviewed = row.reviewed;
+        if (reviewed) reviewedCount++;
+        values.add(reviewed ? 'Si' : 'No');
+        values.add(row.reviewedBy ?? '');
+        values.add(row.reviewedAt == null
+            ? ''
+            : _formatDateTimeShort(row.reviewedAt!.toLocal()));
       }
       rows.add(values);
     }
@@ -12358,6 +12549,8 @@ class _EditorScreenState extends State<EditorScreen>
                 metricChip('Fotos', '$photoCount'),
                 metricChip('Audios', '$audioCount'),
                 metricChip('GPS', '$gpsCount'),
+                if (includeReviewColumns)
+                  metricChip('Revisadas', '$reviewedCount/${_rows.length}'),
               ],
             ),
             pw.SizedBox(height: 12),

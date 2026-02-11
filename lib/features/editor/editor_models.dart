@@ -284,6 +284,9 @@ class _RowModel {
     this.gpsAccuracyM,
     this.gpsTs,
     this.gpsIsLastKnown = false,
+    this.reviewed = false,
+    this.reviewedBy,
+    this.reviewedAt,
   });
 
   final String id;
@@ -294,6 +297,9 @@ class _RowModel {
   final double? gpsAccuracyM;
   final DateTime? gpsTs;
   final bool gpsIsLastKnown;
+  final bool reviewed;
+  final String? reviewedBy;
+  final DateTime? reviewedAt;
 
   factory _RowModel.empty(int cols, {String id = ''}) => _RowModel(
         id: id,
@@ -313,6 +319,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
 // ??? Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
@@ -325,6 +334,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
   _RowModel copyWithCells(List<String> newCells) => _RowModel(
@@ -336,6 +348,9 @@ class _RowModel {
         gpsAccuracyM: gpsAccuracyM,
         gpsTs: gpsTs,
         gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
 
   _RowModel copyWithLocation({
@@ -354,6 +369,28 @@ class _RowModel {
         gpsAccuracyM: accuracyM,
         gpsTs: ts,
         gpsIsLastKnown: isLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
+      );
+
+  _RowModel copyWithReview({
+    required bool reviewed,
+    String? reviewedBy,
+    DateTime? reviewedAt,
+  }) =>
+      _RowModel(
+        id: id,
+        cells: List<String>.from(cells),
+        photos: photos.map((p) => p.copy()).toList(),
+        gpsLat: gpsLat,
+        gpsLng: gpsLng,
+        gpsAccuracyM: gpsAccuracyM,
+        gpsTs: gpsTs,
+        gpsIsLastKnown: gpsIsLastKnown,
+        reviewed: reviewed,
+        reviewedBy: reviewed ? reviewedBy : null,
+        reviewedAt: reviewed ? reviewedAt : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -371,6 +408,14 @@ class _RowModel {
             'ts': gpsTs?.toIso8601String(),
             'lastKnown': gpsIsLastKnown,
           },
+        if (reviewed ||
+            (reviewedBy?.trim().isNotEmpty ?? false) ||
+            reviewedAt != null)
+          'review': {
+            'done': reviewed,
+            if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
+            if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
+          },
       };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
@@ -384,6 +429,16 @@ class _RowModel {
       if (it is Map) photos.add(_RowPhoto.fromJson(it.cast<String, dynamic>()));
     }
     final gps = map['gps'];
+    final review = map['review'];
+    final reviewed = review is Map ? (review['done'] as bool? ?? false) : false;
+    final reviewedBy = review is Map
+        ? (review['by'] ?? '').toString().trim().isEmpty
+            ? null
+            : (review['by'] ?? '').toString().trim()
+        : null;
+    final reviewedAt = review is Map
+        ? DateTime.tryParse((review['at'] ?? '').toString())
+        : null;
     if (gps is Map) {
       return _RowModel(
         id: id,
@@ -394,9 +449,19 @@ class _RowModel {
         gpsAccuracyM: (gps['accuracyM'] as num?)?.toDouble(),
         gpsTs: DateTime.tryParse((gps['ts'] ?? '').toString()),
         gpsIsLastKnown: (gps['lastKnown'] as bool?) ?? false,
+        reviewed: reviewed,
+        reviewedBy: reviewedBy,
+        reviewedAt: reviewedAt,
       );
     }
-    return _RowModel(id: id, cells: cells, photos: photos);
+    return _RowModel(
+      id: id,
+      cells: cells,
+      photos: photos,
+      reviewed: reviewed,
+      reviewedBy: reviewedBy,
+      reviewedAt: reviewedAt,
+    );
   }
 }
 

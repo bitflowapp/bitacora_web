@@ -19,6 +19,8 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onSaveView,
     required this.onSelectView,
     required this.onManageViews,
+    required this.onMarkReviewed,
+    required this.onTogglePendingReviewView,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -44,6 +46,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.errorsCount,
     required this.savedViews,
     required this.activeViewId,
+    required this.pendingReviewViewActive,
   });
 
   final _SheetPalette palette;
@@ -67,6 +70,8 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onSaveView;
   final ValueChanged<String?> onSelectView;
   final VoidCallback onManageViews;
+  final VoidCallback onMarkReviewed;
+  final VoidCallback onTogglePendingReviewView;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -93,6 +98,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int errorsCount;
   final List<_SavedView> savedViews;
   final String? activeViewId;
+  final bool pendingReviewViewActive;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Ultimo guardado local: --:--';
@@ -333,6 +339,16 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: 'Gestionar vistas',
                                 onTap: onManageViews,
                               ),
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: pendingReviewViewActive
+                                  ? Icons.pending_actions_rounded
+                                  : Icons.fact_check_outlined,
+                              label: pendingReviewViewActive
+                                  ? 'Pendientes'
+                                  : 'Ver pendientes',
+                              onTap: onTogglePendingReviewView,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -462,6 +478,19 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 onTap: onBatch,
                               ),
                             ),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.65),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.verified_rounded,
+                                label: 'Marcar revisado',
+                                semanticsLabel:
+                                    'Marcar filas seleccionadas como revisadas',
+                                tooltip: 'Workflow de revision',
+                                onTap: onMarkReviewed,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -481,6 +510,20 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.layers_outlined,
                               label: 'Acciones',
                               onTap: onBatch,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.verified_rounded,
+                              label: 'Revisado',
+                              onTap: onMarkReviewed,
+                            ),
+                            AppleToolbarItem(
+                              icon: pendingReviewViewActive
+                                  ? Icons.pending_actions_rounded
+                                  : Icons.fact_check_outlined,
+                              label: pendingReviewViewActive
+                                  ? 'Pendientes'
+                                  : 'Ver pendientes',
+                              onTap: onTogglePendingReviewView,
                             ),
                             AppleToolbarItem(
                               icon: Icons.search_rounded,

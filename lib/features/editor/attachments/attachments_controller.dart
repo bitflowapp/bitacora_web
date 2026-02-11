@@ -3115,6 +3115,30 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Marcar revisado',
+            icon: Icons.verified_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_markSelectedRowsReviewed());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: _reviewFilterMode == _ReviewFilterMode.pending
+                ? 'Quitar vista pendientes'
+                : 'Vista pendientes',
+            icon: _reviewFilterMode == _ReviewFilterMode.pending
+                ? Icons.filter_alt_off_rounded
+                : Icons.pending_actions_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _togglePendingReviewView();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Panel columnas',
             icon: Icons.view_column_rounded,
             variant: AppButtonVariant.secondary,
