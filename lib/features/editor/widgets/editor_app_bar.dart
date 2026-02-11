@@ -35,6 +35,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onFile,
     required this.onAttachments,
     required this.onShare,
+    required this.onCollaborate,
     required this.onPalette,
     required this.onGpsMode,
     required this.onDensity,
@@ -90,6 +91,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onFile;
   final VoidCallback onAttachments;
   final VoidCallback onShare;
+  final VoidCallback onCollaborate;
   final VoidCallback onPalette;
   final VoidCallback onGpsMode;
   final VoidCallback onDensity;
@@ -483,6 +485,20 @@ class _PremiumAppleHeader extends StatelessWidget {
                               ),
                             ),
                             FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.49),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.group_work_outlined,
+                                label: 'Colaborar',
+                                semanticsLabel:
+                                    'Flujo de colaboracion por paquete',
+                                tooltip:
+                                    'Exportar, importar y mergear paquetes',
+                                onTap: onCollaborate,
+                              ),
+                            ),
+                            FocusTraversalOrder(
                               order: const NumericFocusOrder(1.5),
                               child: _PillButton(
                                 palette: palette,
@@ -630,6 +646,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.attach_file_rounded,
                               label: 'Archivo',
                               onTap: onFile,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.group_work_outlined,
+                              label: 'Colaborar',
+                              onTap: onCollaborate,
                             ),
                             AppleToolbarItem(
                               icon: Icons.download_rounded,

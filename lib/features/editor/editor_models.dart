@@ -614,7 +614,88 @@ class _BackupBundle {
   final List<_BackupAsset> assets;
 }
 
-enum _PackageImportMode { createNew, replaceCurrent }
+enum _PackageImportMode { createNew, mergeCurrent, replaceCurrent }
+
+enum PackageMergeConflictPolicy { keepLocal, useImported }
+
+class PackageMergeConflict {
+  const PackageMergeConflict({
+    required this.key,
+    required this.localValue,
+    required this.importedValue,
+  });
+
+  final String key;
+  final String localValue;
+  final String importedValue;
+}
+
+class PackageMergeResult {
+  const PackageMergeResult({
+    required this.merged,
+    required this.conflicts,
+    required this.importedApplied,
+    required this.autoMerged,
+  });
+
+  final Map<String, String> merged;
+  final List<PackageMergeConflict> conflicts;
+  final int importedApplied;
+  final int autoMerged;
+}
+
+class PackageMergeEngine {
+  static PackageMergeResult mergeMaps({
+    required Map<String, String> local,
+    required Map<String, String> imported,
+    required PackageMergeConflictPolicy conflictPolicy,
+  }) {
+    final merged = Map<String, String>.from(local);
+    final conflicts = <PackageMergeConflict>[];
+    var importedApplied = 0;
+    var autoMerged = 0;
+
+    for (final entry in imported.entries) {
+      final key = entry.key;
+      final importedValue = entry.value;
+      final hasLocal = merged.containsKey(key);
+      if (!hasLocal) {
+        merged[key] = importedValue;
+        importedApplied++;
+        continue;
+      }
+      final localValue = merged[key] ?? '';
+      if (localValue == importedValue) continue;
+      if (localValue.trim().isEmpty && importedValue.trim().isNotEmpty) {
+        merged[key] = importedValue;
+        importedApplied++;
+        autoMerged++;
+        continue;
+      }
+      if (importedValue.trim().isEmpty) {
+        continue;
+      }
+      conflicts.add(
+        PackageMergeConflict(
+          key: key,
+          localValue: localValue,
+          importedValue: importedValue,
+        ),
+      );
+      if (conflictPolicy == PackageMergeConflictPolicy.useImported) {
+        merged[key] = importedValue;
+        importedApplied++;
+      }
+    }
+
+    return PackageMergeResult(
+      merged: merged,
+      conflicts: conflicts,
+      importedApplied: importedApplied,
+      autoMerged: autoMerged,
+    );
+  }
+}
 
 class _PackageImportPreview {
   const _PackageImportPreview({
@@ -626,6 +707,8 @@ class _PackageImportPreview {
     this.exportedAt,
     this.appVersion,
     this.buildId,
+    this.sourceSheetId,
+    this.sourceSheetName,
   });
 
   final String formatLabel;
@@ -636,6 +719,8 @@ class _PackageImportPreview {
   final DateTime? exportedAt;
   final String? appVersion;
   final String? buildId;
+  final String? sourceSheetId;
+  final String? sourceSheetName;
 }
 
 class _PackageImportBundle {

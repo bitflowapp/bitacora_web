@@ -6574,6 +6574,8 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                               onShare: () =>
                                   unawaited(_exportZipBundle(share: true)),
+                              onCollaborate: () =>
+                                  unawaited(_openCollaborateFlowDialog()),
                               onPalette: () => unawaited(_openCommandPalette()),
                               onGpsMode: () => unawaited(_showGpsModePicker()),
                               onDensity: () => unawaited(_showDensityPicker()),
@@ -13857,6 +13859,10 @@ class _EditorScreenState extends State<EditorScreen>
 
     return <String, dynamic>{
       'format': 'bitflow_package_v1',
+      'collaboration': {
+        'snapshotMode': 'full',
+        'supportsMerge': true,
+      },
       'appVersion': appVersion,
       'buildId': BuildInfo.buildIdLabel,
       'exportedAt': exportedAtUtc.toIso8601String(),
@@ -13889,6 +13895,8 @@ class _EditorScreenState extends State<EditorScreen>
     json['packageMeta'] = <String, dynamic>{
       'format': 'bitflow_package_v1',
       'exportedAt': exportedAtUtc.toIso8601String(),
+      'snapshotMode': 'full',
+      'sourceRevision': _rev,
     };
     return json;
   }
@@ -14028,6 +14036,8 @@ class _EditorScreenState extends State<EditorScreen>
       final photos = assets.where((a) => a['kind'] == 'photo').length;
       final audios = assets.where((a) => a['kind'] == 'audio').length;
       final rows = ((sheetRaw as Map)['rows'] as List?)?.length ?? 0;
+      final sourceSheetId = (sheetRaw['sheetId'] ?? '').toString().trim();
+      final sourceSheetName = (sheetRaw['name'] ?? '').toString().trim();
       return _PackageImportBundle(
         format: 'backup_legacy',
         sheetRaw: Map<String, dynamic>.from(sheetRaw),
@@ -14040,6 +14050,8 @@ class _EditorScreenState extends State<EditorScreen>
           photos: photos,
           audios: audios,
           exportedAt: DateTime.tryParse((root['exportedAt'] ?? '').toString()),
+          sourceSheetId: sourceSheetId.isEmpty ? null : sourceSheetId,
+          sourceSheetName: sourceSheetName.isEmpty ? null : sourceSheetName,
         ),
       );
     }
@@ -14112,6 +14124,19 @@ class _EditorScreenState extends State<EditorScreen>
     final attachmentsCount =
         ((counts is Map ? counts['attachments'] : null) as num?)?.toInt() ??
             assets.length;
+    final manifestSheet = manifest['sheet'];
+    final sourceSheetId = ((manifestSheet is Map
+                ? (manifestSheet['id'] ?? sheetRaw['sheetId'])
+                : sheetRaw['sheetId']) ??
+            '')
+        .toString()
+        .trim();
+    final sourceSheetName = ((manifestSheet is Map
+                ? (manifestSheet['name'] ?? sheetRaw['name'])
+                : sheetRaw['name']) ??
+            '')
+        .toString()
+        .trim();
 
     return _PackageImportBundle(
       format: (manifest['format'] ?? 'bitflow_package').toString(),
@@ -14128,13 +14153,15 @@ class _EditorScreenState extends State<EditorScreen>
             DateTime.tryParse((manifest['exportedAt'] ?? '').toString()),
         appVersion: (manifest['appVersion'] ?? '').toString(),
         buildId: (manifest['buildId'] ?? '').toString(),
+        sourceSheetId: sourceSheetId.isEmpty ? null : sourceSheetId,
+        sourceSheetName: sourceSheetName.isEmpty ? null : sourceSheetName,
       ),
     );
   }
 
   Future<void> _importPackageBundle(
     _PackageImportBundle bundle, {
-    required bool replaceCurrent,
+    required _PackageImportMode mode,
   }) async {
     _beginLongOperation(
       message: AppStrings.progressImportingBackup,
@@ -14143,7 +14170,9 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       _throwIfLongOperationCancelled();
       final normalized = SheetStore.normalizeModel(bundle.sheetRaw);
-      final targetSheetId = replaceCurrent
+      final replaceCurrent = mode == _PackageImportMode.replaceCurrent;
+      final mergeCurrent = mode == _PackageImportMode.mergeCurrent;
+      final targetSheetId = (replaceCurrent || mergeCurrent)
           ? widget.sheetId
           : DateTime.now().millisecondsSinceEpoch.toString();
       normalized['savedAt'] = DateTime.now().toIso8601String();
@@ -14158,12 +14187,59 @@ class _EditorScreenState extends State<EditorScreen>
       _throwIfLongOperationCancelled();
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
+      if (mergeCurrent) {
+        final loaded = _SheetModel.fromJson(imported.model);
+        final previewPlan = _computePackageMergePlan(
+          imported: loaded,
+          conflictPolicy: PackageMergeConflictPolicy.keepLocal,
+        );
+        var policy = PackageMergeConflictPolicy.keepLocal;
+        if (previewPlan.conflicts > 0) {
+          _clearLongOperation();
+          final picked = await _showPackageMergeConflictDialog(
+            conflicts: previewPlan.conflicts,
+            applied: previewPlan.importedApplied,
+          );
+          if (picked == null || !mounted) return;
+          policy = picked;
+          _beginLongOperation(
+            message: AppStrings.progressImportingBackup,
+            cancellable: true,
+          );
+        }
+        final applied = _computePackageMergePlan(
+          imported: loaded,
+          conflictPolicy: policy,
+        );
+        _applyPackageMergePlan(applied);
+        await _saveLocalNow();
+        _addHistoryEvent(
+          type: 'package_merge',
+          message:
+              'Merge paquete: +${applied.appendedRows} filas, ${applied.importedApplied} celdas importadas, ${applied.conflicts} conflictos.',
+          origin: 'import',
+        );
+        _showActionSnack(
+          applied.conflicts > 0
+              ? 'Merge aplicado (${applied.conflicts} conflictos).'
+              : 'Merge aplicado sin conflictos.',
+          isError: false,
+          icon: Icons.merge_type_rounded,
+        );
+        return;
+      }
       if (replaceCurrent) {
         await _clearOfflineQueueForCurrentSheet();
         final loaded = _SheetModel.fromJson(imported.model);
         if (mounted) {
           _applyLoadedModel(loaded);
           await _saveLocalNow();
+          _addHistoryEvent(
+            type: 'package_import_replace',
+            message:
+                'Paquete reemplazado (${imported.importedPhotos + imported.importedAudios} adjuntos importados).',
+            origin: 'import',
+          );
           _showActionSnack(
             imported.missingAssets > 0
                 ? 'Paquete restaurado. Faltantes: ${imported.missingAssets}.'
@@ -14183,6 +14259,11 @@ class _EditorScreenState extends State<EditorScreen>
             : 'Paquete importado como nueva planilla.',
         isError: false,
         icon: Icons.check_circle_outline_rounded,
+      );
+      _addHistoryEvent(
+        type: 'package_import_new',
+        message: 'Paquete importado como nueva planilla.',
+        origin: 'import',
       );
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -14206,9 +14287,11 @@ class _EditorScreenState extends State<EditorScreen>
       _reportFlowError(
         e,
         flow: AppErrorFlow.importData,
-        operation: replaceCurrent
-            ? 'import_package_replace_current'
-            : 'import_package_create_new',
+        operation: mode == _PackageImportMode.mergeCurrent
+            ? 'import_package_merge_current'
+            : (mode == _PackageImportMode.replaceCurrent
+                ? 'import_package_replace_current'
+                : 'import_package_create_new'),
         stackTrace: st,
         fallbackMessage: 'No se pudo importar el paquete.',
         icon: Icons.file_open_rounded,
@@ -14216,6 +14299,208 @@ class _EditorScreenState extends State<EditorScreen>
     } finally {
       _clearLongOperation();
     }
+  }
+
+  Future<PackageMergeConflictPolicy?> _showPackageMergeConflictDialog({
+    required int conflicts,
+    required int applied,
+  }) async {
+    return showAppModal<PackageMergeConflictPolicy>(
+      context: context,
+      title: 'Conflictos detectados',
+      child: Text(
+        'Se detectaron $conflicts conflictos (misma celda con valor distinto). '
+        'Importables sin conflicto: $applied.',
+        style: TextStyle(color: _palette(context).fg),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: 'Mantener local',
+          variant: AppButtonVariant.secondary,
+          onPressed: () =>
+              Navigator.of(context).pop(PackageMergeConflictPolicy.keepLocal),
+        ),
+        AppButton(
+          label: 'Usar importado',
+          variant: AppButtonVariant.primary,
+          onPressed: () =>
+              Navigator.of(context).pop(PackageMergeConflictPolicy.useImported),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+  }
+
+  ({
+    List<String> headers,
+    List<String> colIds,
+    Map<String, _ColumnPrefs> columnPrefsById,
+    List<String> columnOrder,
+    String? frozenColId,
+    List<_RowModel> rows,
+    Map<String, CellMeta> cellMeta,
+    int conflicts,
+    int importedApplied,
+    int autoMerged,
+    int appendedRows,
+    int addedColumns,
+  }) _computePackageMergePlan({
+    required _SheetModel imported,
+    required PackageMergeConflictPolicy conflictPolicy,
+  }) {
+    final incomingHeaders = _normalizeHeaders(imported.headers);
+    final incomingColIds = _normalizeColIds(incomingHeaders, imported.colIds);
+    final mergedHeaders = List<String>.from(_headers);
+    final mergedColIds = List<String>.from(_colIds);
+    final mergedPrefs = Map<String, _ColumnPrefs>.from(_columnPrefsById);
+    final mergedOrder = List<String>.from(_columnOrder);
+    final existingColSet = mergedColIds.toSet();
+    var addedColumns = 0;
+
+    for (int i = 0;
+        i < incomingColIds.length && i < incomingHeaders.length;
+        i++) {
+      final colId = incomingColIds[i].trim();
+      if (colId.isEmpty || existingColSet.contains(colId)) continue;
+      existingColSet.add(colId);
+      mergedColIds.add(colId);
+      mergedHeaders.add(incomingHeaders[i]);
+      if (imported.columnPrefsById[colId] != null) {
+        mergedPrefs[colId] = imported.columnPrefsById[colId]!;
+      } else {
+        mergedPrefs[colId] = const _ColumnPrefs(type: _ColType.text);
+      }
+      if (!mergedOrder.contains(colId)) mergedOrder.add(colId);
+      addedColumns++;
+    }
+
+    final localById = <String, _RowModel>{for (final r in _rows) r.id: r};
+    final importedById = <String, _RowModel>{
+      for (final r in imported.rows) r.id: r
+    };
+    final mergedRowIds = <String>[...localById.keys];
+    for (final row in imported.rows) {
+      if (!localById.containsKey(row.id)) mergedRowIds.add(row.id);
+    }
+
+    final mergedColSet = mergedColIds.toSet();
+    String keyOf(String rowId, String colId) => '$rowId::$colId';
+
+    final localCells = <String, String>{};
+    for (final row in _rows) {
+      for (int c = 0; c < _colIds.length && c < row.cells.length; c++) {
+        final colId = _colIds[c];
+        if (!mergedColSet.contains(colId)) continue;
+        localCells[keyOf(row.id, colId)] = row.cells[c];
+      }
+    }
+
+    final importedCells = <String, String>{};
+    for (final row in imported.rows) {
+      for (int c = 0; c < incomingColIds.length && c < row.cells.length; c++) {
+        final colId = incomingColIds[c];
+        if (!mergedColSet.contains(colId)) continue;
+        importedCells[keyOf(row.id, colId)] = row.cells[c];
+      }
+    }
+
+    final cellMerge = PackageMergeEngine.mergeMaps(
+      local: localCells,
+      imported: importedCells,
+      conflictPolicy: conflictPolicy,
+    );
+
+    final mergedRows = <_RowModel>[];
+    var appendedRows = 0;
+    for (final rowId in mergedRowIds) {
+      final localRow = localById[rowId];
+      final importedRow = importedById[rowId];
+      final source =
+          (localRow ?? importedRow ?? _RowModel.empty(mergedColIds.length))
+              .copy();
+      if (localRow == null && importedRow != null) appendedRows++;
+      final cells = List<String>.filled(mergedColIds.length, '');
+      for (int c = 0; c < mergedColIds.length; c++) {
+        cells[c] = cellMerge.merged[keyOf(rowId, mergedColIds[c])] ?? '';
+      }
+      mergedRows.add(source.copyWithCells(cells));
+    }
+
+    final normalizedImportedMeta = _normalizeCellMeta(
+      imported.cellMeta,
+      imported.rows,
+      incomingColIds,
+    );
+    final mergedMeta = Map<String, CellMeta>.from(_cellMeta);
+    for (final entry in normalizedImportedMeta.entries) {
+      final hasLocal = mergedMeta.containsKey(entry.key);
+      if (!hasLocal ||
+          conflictPolicy == PackageMergeConflictPolicy.useImported) {
+        mergedMeta[entry.key] = entry.value;
+      }
+    }
+
+    return (
+      headers: mergedHeaders,
+      colIds: mergedColIds,
+      columnPrefsById: mergedPrefs,
+      columnOrder: mergedOrder,
+      frozenColId: _frozenColId,
+      rows: mergedRows,
+      cellMeta: mergedMeta,
+      conflicts: cellMerge.conflicts.length,
+      importedApplied: cellMerge.importedApplied,
+      autoMerged: cellMerge.autoMerged,
+      appendedRows: appendedRows,
+      addedColumns: addedColumns,
+    );
+  }
+
+  void _applyPackageMergePlan(
+    ({
+      List<String> headers,
+      List<String> colIds,
+      Map<String, _ColumnPrefs> columnPrefsById,
+      List<String> columnOrder,
+      String? frozenColId,
+      List<_RowModel> rows,
+      Map<String, CellMeta> cellMeta,
+      int conflicts,
+      int importedApplied,
+      int autoMerged,
+      int appendedRows,
+      int addedColumns,
+    }) plan,
+  ) {
+    setState(() {
+      _headers = plan.headers;
+      _colIds = plan.colIds;
+      _columnPrefsById = plan.columnPrefsById;
+      _columnOrder = plan.columnOrder;
+      _frozenColId = plan.frozenColId;
+      _rows = plan.rows;
+      _cellMeta
+        ..clear()
+        ..addAll(plan.cellMeta);
+      _selRow = _selRow.clamp(0, _rows.length - 1);
+      _selCol = _selCol.clamp(0, _headers.length - 1);
+      _isDirty = true;
+      _rev++;
+    });
+    _syncRowVersionNotifiers();
+    _syncSelectionController();
+    _resetMobileRowCaches();
+    _scheduleValidationRecompute(immediate: true);
+    _seedRecentValuesFromRows();
+    _updateSaveStatus();
+    _pushUndoSnapshot();
+    _queueSave();
   }
 
   Future<

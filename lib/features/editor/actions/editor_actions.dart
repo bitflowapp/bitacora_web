@@ -265,6 +265,13 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openImportPackageDialog()),
         ),
         CommandAction(
+          id: 'collaborate',
+          label: 'Colaborar',
+          subtitle: 'Exportar/importar paquete y merge asincronico',
+          icon: Icons.group_work_outlined,
+          onSelected: () => unawaited(_openCollaborateFlowDialog()),
+        ),
+        CommandAction(
           id: 'export_menu',
           label: 'Menu de exportacion',
           subtitle: 'Exportar, compartir o imprimir',
@@ -310,6 +317,67 @@ extension _EditorActions on _EditorScreenState {
           onSelected: _reopenEditorTour,
         ),
       ],
+    );
+  }
+
+  Future<void> _openCollaborateFlowDialog() async {
+    if (!mounted) return;
+    await showAppModal<void>(
+      context: context,
+      title: 'Colaborar',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Intercambia paquetes de planilla sin backend y mergea cambios al importar.',
+            style: TextStyle(color: _palette(context).fg),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Formato actual: snapshot completo con metadata colaborativa.',
+            style: TextStyle(color: _palette(context).fgMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          AppButton(
+            label: 'Exportar paquete',
+            icon: Icons.archive_outlined,
+            variant: AppButtonVariant.primary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_exportZipBundle(share: false));
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Compartir paquete',
+            icon: Icons.ios_share_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_exportZipBundle(share: true));
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Importar y mergear',
+            icon: Icons.file_open_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openImportPackageDialog());
+            },
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
     );
   }
 }
