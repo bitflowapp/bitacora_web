@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BitFlow | Planilla offline con fotos y export XLSX</title>
-  <meta name="description" content="BitFlow es una planilla offline para campo: escritura rapida en el celular, export XLSX real, fotos y compartir por WhatsApp o mail."/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>BitFlow | Ahorra tiempo real en campo</title>
+  <meta name="description" content="BitFlow acelera registros de campo con +Registro, plantillas, trabajo offline y exportación lista para compartir."/>
   <link rel="stylesheet" href="assets/site.css"/>
 </head>
 <body>
@@ -13,136 +13,111 @@
       <div class="logo">
         <div class="logo-badge">BF</div>
         <div>
-          <div style="font-weight:800">BitFlow</div>
-          <div style="font-size:12px;color:var(--ink-soft)">Gridnote offline</div>
+          <div class="logo-title">BitFlow</div>
+          <div class="logo-subtitle">Registro operativo offline</div>
         </div>
       </div>
       <div class="nav-links">
-        <a href="#beneficios">Beneficios</a>
-        <a href="#casos">Casos</a>
-        <a href="#demo">Demo</a>
-        <a href="#descargas">Descargas</a>
+        <a href="#porque">Por qué ahorra tiempo</a>
+        <a href="#como">Cómo se usa</a>
+        <a href="#privacidad">Privacidad</a>
+        <a href="onboarding.html">Onboarding</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="changelog.html">Changelog</a>
       </div>
     </nav>
 
     <section class="hero">
       <div class="hero-card">
-        <h1>Planilla offline para trabajo de campo, con fotos y XLSX real.</h1>
+        <p class="eyebrow">BitFlow para campo, obra e inspecciones</p>
+        <h1>Ahorra tiempo real en cada registro.</h1>
         <p>
-          BitFlow es una planilla mobile-first para obras, relevamientos y control diario.
-          Escribis rapido en el celular, funciona offline y exporta Excel verdadero.
+          Carga datos y evidencia en minutos con +Registro. Funciona offline,
+          sincroniza pendientes y te deja exportar para compartir sin retrabajo.
         </p>
         <div class="cta-row">
-          <a class="pill primary" href="/bitacora_web/bitflow/app/" target="_blank" rel="noopener">Usar BitFlow Web</a>
+          <a class="pill primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
           <a class="pill" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar Android APK</a>
-          <a class="pill" href="#ios">iPhone / iPad</a>
-          <a class="pill" href="#demo">Ver demo</a>
         </div>
-        <div class="notice" style="margin-top:18px;">
-          La app mobile tiene offline total + fotos en alta. La web usa cache del navegador (offline limitado).
+        <p class="hint">APK Android con enlace estable de Releases latest.</p>
+        <div class="callout">
+          <p>Si el enlace del APK da 404, publicá el último release con este comando:</p>
+          <code>powershell -ExecutionPolicy Bypass -File .\scripts\tag_release.ps1</code>
         </div>
-      </div>
-      <div class="hero-aside">
-        <div class="mock">
-          <img src="assets/demo-grid.svg" alt="Planilla BitFlow" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-        <div class="mock">
-          <img src="assets/demo-photos.svg" alt="Fotos en BitFlow" style="width:100%;border-radius:16px;display:block;"/>
+
+        <div class="badges">
+          <span class="badge">OK: guardado local</span>
+          <span class="badge">Obs: pendiente de sync visible</span>
+          <span class="badge">Urgente: entrega de evidencia en jornada</span>
         </div>
       </div>
     </section>
 
-    <section id="beneficios" class="section">
-      <h2>Beneficios clave</h2>
-      <p>Disenado para escribir rapido en celular, sin cortes de teclado y con guardado local robusto.</p>
-      <div class="cards">
-        <div class="card">
-          <h3>Escritura fluida</h3>
-          <p>Editor fijo sobre el teclado, sin perder foco. Un toque y escribis.</p>
-        </div>
-        <div class="card">
-          <h3>Offline real</h3>
-          <p>Guarda en el dispositivo con autosave. Todo el workbook se preserva localmente.</p>
-        </div>
-        <div class="card">
-          <h3>Export XLSX</h3>
-          <p>Excel verdadero con auto ajuste de columnas y hoja de fotos.</p>
-        </div>
-        <div class="card">
-          <h3>Fotos + compartir</h3>
-          <p>Adjunta fotos offline y comparti por WhatsApp o mail sin servidor.</p>
-        </div>
+    <section id="porque" class="section">
+      <h2>Por qué ahorra tiempo</h2>
+      <p class="section-intro">Flujo corto, menos pasos y menos errores de carga.</p>
+      <div class="bullet-panel">
+        <ul>
+          <li><strong>Modo Campo:</strong> +Registro con foto, GPS, timestamp y nota en un toque.</li>
+          <li><strong>Plantillas:</strong> Base, Resistividades, Inventario y Checklist para arrancar rápido.</li>
+          <li><strong>Acciones rápidas:</strong> atajos de búsqueda y guardado para editar sin fricción.</li>
+          <li><strong>Offline real:</strong> seguís trabajando sin señal y ves estado de pendientes.</li>
+          <li><strong>Exportar / Compartir:</strong> salida en XLSX, PDF o ZIP según el caso.</li>
+          <li><strong>Backup / Restore:</strong> mover trabajo entre equipos con backup ZIP.</li>
+          <li><strong>Updates:</strong> versión web en Pages y APK Android en Releases.</li>
+        </ul>
       </div>
     </section>
 
-    <section id="casos" class="section">
-      <h2>Casos de uso</h2>
-      <div class="split">
-        <div class="card">
-          <h3>Obras y mantenimiento</h3>
-          <p>Parte diario, mediciones, avances y evidencia fotografica en minutos.</p>
-        </div>
-        <div class="card">
-          <h3>Relevamientos y auditorias</h3>
-          <p>Checklist rapido, export a Excel y envio inmediato.</p>
-        </div>
-        <div class="card">
-          <h3>Gastos, stock y inventario</h3>
-          <p>Registro simple, sin senal. Exporta y comparti al cierre del dia.</p>
-        </div>
+    <section id="como" class="section">
+      <h2>Cómo se usa</h2>
+      <p class="section-intro">Tres pasos para operar desde el primer día.</p>
+      <div class="steps">
+        <article class="step">
+          <div class="num">1</div>
+          <h3>Crear planilla</h3>
+          <p>Elegí plantilla y abrí la grilla de trabajo.</p>
+        </article>
+        <article class="step">
+          <div class="num">2</div>
+          <h3>Cargar con +Registro</h3>
+          <p>Agregá datos, foto y nota. Guardado local inmediato.</p>
+        </article>
+        <article class="step">
+          <div class="num">3</div>
+          <h3>Exportar y compartir</h3>
+          <p>Enviá XLSX/PDF o ZIP con adjuntos por correo o apps.</p>
+        </article>
       </div>
     </section>
 
-    <section id="demo" class="section">
-      <h2>Demo y capturas</h2>
-      <p>Placeholders de interfaz mientras cargamos capturas reales.</p>
-      <div class="split">
-        <div class="mock">
-          <img src="assets/demo-grid.svg" alt="Demo grilla" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-        <div class="mock">
-          <img src="assets/demo-photos.svg" alt="Demo fotos" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-      </div>
-    </section>
-
-    <section id="descargas" class="section">
-      <h2>Descargas y acceso</h2>
-      <div class="split">
-        <div class="card">
-          <h3>BitFlow Web</h3>
-          <p>Usa la app en el navegador (PWA). Exporta XLSX y descarga archivos.</p>
-          <div class="cta-row" style="margin-top:12px;">
-            <a class="pill primary" href="/bitacora_web/bitflow/app/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Android</h3>
-          <p>Descarga el APK y abre con Archivos o el instalador de Android.</p>
-          <div class="cta-row" style="margin-top:12px;">
-            <a class="pill" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK</a>
-          </div>
-        </div>
-        <div class="card" id="ios">
-          <h3>iPhone / iPad</h3>
-          <p>Instalacion recomendada via TestFlight o IPA interno.</p>
-          <ol style="padding-left:18px;color:var(--ink-soft)">
-            <li>Solicitar invitacion TestFlight.</li>
-            <li>Instalar y fijar en pantalla de inicio.</li>
-            <li>Offline total con fotos en alta.</li>
-          </ol>
-        </div>
-      </div>
-      <div class="notice" style="margin-top:16px;">
-        Export XLSX desde web descarga al dispositivo. En mobile, el share incluye ZIP con fotos cuando hay adjuntos.
+    <section id="privacidad" class="section">
+      <h2>Privacidad / offline</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Datos en el dispositivo</h3>
+          <p>La operación diaria se guarda localmente en el equipo del usuario.</p>
+        </article>
+        <article class="card">
+          <h3>Trabajo sin conexión</h3>
+          <p>Si no hay red, la carga sigue y queda marcada como pendiente de sync.</p>
+        </article>
+        <article class="card">
+          <h3>Control del usuario</h3>
+          <p>El usuario define cuándo exportar, compartir, respaldar o borrar datos.</p>
+        </article>
       </div>
     </section>
 
     <footer class="footer">
-      <div>BitFlow / Gridnote - Offline-first</div>
-      <div>
-        <a href="/bitacora_web/bitflow/privacy.html">Privacidad</a> -
-        <a href="/bitacora_web/bitflow/terms.html">Terminos</a>
+      <span>BitFlow · Build docs web</span>
+      <div class="footer-links">
+        <a href="onboarding.html">Onboarding</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="changelog.html">Changelog</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="https://github.com/marcoluna-nqn/bitacora_web/blob/main/docs/release_checklist.md" target="_blank" rel="noopener">Release checklist</a>
       </div>
     </footer>
   </div>
