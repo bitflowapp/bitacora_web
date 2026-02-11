@@ -16,6 +16,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onSearch,
     required this.onJumpTo,
     required this.onColumns,
+    required this.onHistory,
     required this.onSaveView,
     required this.onSelectView,
     required this.onManageViews,
@@ -67,6 +68,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onJumpTo;
   final VoidCallback onColumns;
+  final VoidCallback onHistory;
   final VoidCallback onSaveView;
   final ValueChanged<String?> onSelectView;
   final VoidCallback onManageViews;
@@ -454,6 +456,18 @@ class _PremiumAppleHeader extends StatelessWidget {
                               ),
                             ),
                             FocusTraversalOrder(
+                              order: const NumericFocusOrder(1.47),
+                              child: _PillButton(
+                                palette: palette,
+                                filled: false,
+                                icon: Icons.history_rounded,
+                                label: 'Historial',
+                                semanticsLabel: 'Abrir historial de cambios',
+                                tooltip: 'Auditoria de cambios',
+                                onTap: onHistory,
+                              ),
+                            ),
+                            FocusTraversalOrder(
                               order: const NumericFocusOrder(1.5),
                               child: _PillButton(
                                 palette: palette,
@@ -541,6 +555,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                               icon: Icons.view_column_rounded,
                               label: 'Columnas',
                               onTap: onColumns,
+                            ),
+                            AppleToolbarItem(
+                              icon: Icons.history_rounded,
+                              label: 'Historial',
+                              onTap: onHistory,
                             ),
                             AppleToolbarItem(
                               icon: Icons.my_location_rounded,

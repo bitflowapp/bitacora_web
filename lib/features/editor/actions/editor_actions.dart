@@ -42,6 +42,13 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openColumnPanel()),
         ),
         CommandAction(
+          id: 'history_log',
+          label: 'Historial',
+          subtitle: 'Auditoria de cambios por planilla',
+          icon: Icons.history_rounded,
+          onSelected: () => unawaited(_openHistoryPanel()),
+        ),
+        CommandAction(
           id: 'quick_capture',
           label: 'Modo campo (+Registro)',
           subtitle: 'Alta rapida para relevamiento',

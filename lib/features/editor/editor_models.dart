@@ -781,6 +781,90 @@ class _ValidationIssue {
   final String message;
 }
 
+class HistoryEventRecord {
+  const HistoryEventRecord({
+    required this.id,
+    required this.at,
+    required this.type,
+    required this.message,
+    required this.origin,
+    this.row,
+    this.col,
+    this.beforeValue,
+    this.afterValue,
+  });
+
+  final String id;
+  final DateTime at;
+  final String type;
+  final String message;
+  final String origin;
+  final int? row;
+  final int? col;
+  final String? beforeValue;
+  final String? afterValue;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'at': at.toIso8601String(),
+      'type': type,
+      'message': message,
+      'origin': origin,
+      if (row != null) 'row': row,
+      if (col != null) 'col': col,
+      if (beforeValue != null) 'beforeValue': beforeValue,
+      if (afterValue != null) 'afterValue': afterValue,
+    };
+  }
+
+  static HistoryEventRecord? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final id = (map['id'] ?? '').toString().trim();
+    final type = (map['type'] ?? '').toString().trim();
+    final message = (map['message'] ?? '').toString().trim();
+    final origin = (map['origin'] ?? '').toString().trim();
+    final at = DateTime.tryParse((map['at'] ?? '').toString());
+    if (id.isEmpty ||
+        type.isEmpty ||
+        message.isEmpty ||
+        origin.isEmpty ||
+        at == null) {
+      return null;
+    }
+    return HistoryEventRecord(
+      id: id,
+      at: at,
+      type: type,
+      message: message,
+      origin: origin,
+      row: (map['row'] as num?)?.toInt(),
+      col: (map['col'] as num?)?.toInt(),
+      beforeValue: map['beforeValue']?.toString(),
+      afterValue: map['afterValue']?.toString(),
+    );
+  }
+
+  static List<HistoryEventRecord> trim(
+    List<HistoryEventRecord> input, {
+    int maxEvents = 600,
+    int maxDays = 45,
+    DateTime? now,
+  }) {
+    if (input.isEmpty) return const <HistoryEventRecord>[];
+    final refNow = (now ?? DateTime.now()).toUtc();
+    final minAt = refNow.subtract(Duration(days: maxDays));
+    final filtered =
+        input.where((event) => event.at.toUtc().isAfter(minAt)).toList();
+    filtered.sort((a, b) => b.at.compareTo(a.at));
+    if (filtered.length > maxEvents) {
+      filtered.removeRange(maxEvents, filtered.length);
+    }
+    return filtered;
+  }
+}
+
 class _SavedView {
   const _SavedView({
     required this.id,

@@ -28,10 +28,13 @@ const String _kPrefAndroidInstallHelperDismissed =
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
+const String _kPrefHistoryLog = 'bitflow.editor.history_log.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
 enum _ReviewFilterMode { all, pending, reviewed }
+
+enum _HistoryFilterWindow { all, today, week }
 
 enum _GridDensity { compact, normal, roomy }
 
@@ -403,6 +406,8 @@ class _EditorScreenState extends State<EditorScreen>
   final List<_SavedView> _savedViews = <_SavedView>[];
   String? _activeSavedViewId;
   _ReviewFilterMode _reviewFilterMode = _ReviewFilterMode.all;
+  final List<HistoryEventRecord> _historyEvents = <HistoryEventRecord>[];
+  Timer? _historyPersistT;
   String _rowViewCacheKey = '';
   List<int> _visibleRowIndexesCache = const <int>[];
   Map<int, int> _displayRowToActualCache = const <int, int>{};
@@ -506,6 +511,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadColumnTemplatesPref());
     unawaited(_loadSavedViewsPref());
+    unawaited(_loadHistoryLogPref());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadAndroidInstallHelperPref());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -569,6 +575,7 @@ class _EditorScreenState extends State<EditorScreen>
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
     _recentValuesSaveT?.cancel();
+    _historyPersistT?.cancel();
     _blinkT?.cancel();
     _kbEnsureDebounceT?.cancel();
     _mobileEnsureLateT?.cancel();
@@ -993,6 +1000,7 @@ class _EditorScreenState extends State<EditorScreen>
   String get _prefsEditorDefaultsKey => '$_prefsKey:defaults.v1';
   String get _prefsSavedViewsKey => '$_prefsKey:${_kPrefSavedViews}';
   String get _prefsActiveViewKey => '$_prefsKey:active_saved_view.v1';
+  String get _prefsHistoryKey => '$_prefsKey:${_kPrefHistoryLog}';
   String _backupKey(DateTime ts) =>
       '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
 
@@ -2000,6 +2008,95 @@ class _EditorScreenState extends State<EditorScreen>
         await prefs.setString(_prefsActiveViewKey, active.id);
       }
     } catch (_) {}
+  }
+
+  Future<void> _loadHistoryLogPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = (prefs.getString(_prefsHistoryKey) ?? '').trim();
+      if (raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final loaded = <HistoryEventRecord>[];
+      for (final item in decoded) {
+        final parsed = HistoryEventRecord.fromJson(item);
+        if (parsed == null) continue;
+        loaded.add(parsed);
+      }
+      final trimmed = HistoryEventRecord.trim(loaded);
+      if (!mounted) {
+        _historyEvents
+          ..clear()
+          ..addAll(trimmed);
+        return;
+      }
+      setState(() {
+        _historyEvents
+          ..clear()
+          ..addAll(trimmed);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistHistoryNow() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final trimmed = HistoryEventRecord.trim(_historyEvents);
+      if (trimmed.isEmpty) {
+        await prefs.remove(_prefsHistoryKey);
+        return;
+      }
+      await prefs.setString(
+        _prefsHistoryKey,
+        jsonEncode(
+            trimmed.map((item) => item.toJson()).toList(growable: false)),
+      );
+    } catch (_) {}
+  }
+
+  void _scheduleHistoryPersist() {
+    _historyPersistT?.cancel();
+    _historyPersistT = Timer(const Duration(milliseconds: 420), () {
+      unawaited(_persistHistoryNow());
+    });
+  }
+
+  void _addHistoryEvent({
+    required String type,
+    required String message,
+    required String origin,
+    int? row,
+    int? col,
+    String? beforeValue,
+    String? afterValue,
+  }) {
+    final next = HistoryEventRecord(
+      id: _genStableId('hist_'),
+      at: DateTime.now(),
+      type: type,
+      message: message,
+      origin: origin,
+      row: row,
+      col: col,
+      beforeValue: beforeValue,
+      afterValue: afterValue,
+    );
+    if (mounted) {
+      setState(() {
+        _historyEvents.insert(0, next);
+        final trimmed = HistoryEventRecord.trim(_historyEvents);
+        _historyEvents
+          ..clear()
+          ..addAll(trimmed);
+      });
+    } else {
+      _historyEvents.insert(0, next);
+      final trimmed = HistoryEventRecord.trim(_historyEvents);
+      _historyEvents
+        ..clear()
+        ..addAll(trimmed);
+    }
+    _scheduleHistoryPersist();
   }
 
   _SavedView? get _activeSavedView {
@@ -4015,6 +4112,14 @@ class _EditorScreenState extends State<EditorScreen>
       isError: false,
       icon: Icons.flag_outlined,
     );
+    _addHistoryEvent(
+      type: 'batch_status',
+      message: 'Aplicar Estado "$normalized" a $changed fila(s)',
+      origin: 'quick_action',
+      row: rows.first,
+      col: statusCol,
+      afterValue: normalized,
+    );
   }
 
   String _reviewActorName() {
@@ -4083,6 +4188,14 @@ class _EditorScreenState extends State<EditorScreen>
           : '$changed fila(s) marcadas como pendientes.',
       isError: false,
       icon: reviewed ? Icons.verified_rounded : Icons.pending_actions_rounded,
+    );
+    _addHistoryEvent(
+      type: reviewed ? 'review_signoff' : 'review_pending',
+      message: reviewed
+          ? 'Marcar revisado ($changed fila/s)'
+          : 'Marcar pendiente ($changed fila/s)',
+      origin: 'quick_action',
+      row: targets.first,
     );
   }
 
@@ -5824,6 +5937,12 @@ class _EditorScreenState extends State<EditorScreen>
       gpsFix: gpsOutcome.fix,
     );
     if (inserted == null) return;
+    _addHistoryEvent(
+      type: 'quick_capture',
+      message: 'Quick capture en fila ${inserted.rowIndex + 1}',
+      origin: 'quick_capture',
+      row: inserted.rowIndex,
+    );
 
     if (inserted.photoRef != null) {
       await _processPhotoOutcome(
@@ -6403,6 +6522,7 @@ class _EditorScreenState extends State<EditorScreen>
                               onSearch: () => unawaited(_openSearchDialog()),
                               onJumpTo: () => unawaited(_openJumpToDialog()),
                               onColumns: () => unawaited(_openColumnPanel()),
+                              onHistory: () => unawaited(_openHistoryPanel()),
                               onSaveView: () =>
                                   unawaited(_openSaveViewDialog()),
                               onSelectView: (viewId) =>
@@ -8015,6 +8135,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
 
+    final prev = _rows[r].cells[c];
     final next = _normalizeCellValueForColumn(c, value);
     if (_rows[r].cells[c] == next) return;
 
@@ -8022,6 +8143,15 @@ class _EditorScreenState extends State<EditorScreen>
     _bumpRowVersionById(_rows[r].id);
     _rememberValueForColumn(c, next);
     _markDirty(snapshot: true);
+    _addHistoryEvent(
+      type: 'edit_cell',
+      message: 'Editar ${_cellLabelRc(r, c)}',
+      origin: 'manual',
+      row: r,
+      col: c,
+      beforeValue: prev,
+      afterValue: next,
+    );
   }
 
 // ------------------------- Mobile inline editor -------------------------
@@ -10188,6 +10318,12 @@ class _EditorScreenState extends State<EditorScreen>
     _insertMobileRowCache(idx);
     _pushUndoSnapshot();
     _queueSave();
+    _addHistoryEvent(
+      type: 'insert_row',
+      message: 'Insertar fila ${idx + 1}',
+      origin: 'manual',
+      row: idx,
+    );
   }
 
   int _resolveFormRowIndex({int? rowIndex, required bool createNew}) {
@@ -10587,6 +10723,12 @@ class _EditorScreenState extends State<EditorScreen>
     _ensureMobileRowCachesLength();
     _pushUndoSnapshot();
     _queueSave();
+    _addHistoryEvent(
+      type: 'delete_row',
+      message: 'Eliminar fila ${idx + 1}',
+      origin: 'manual',
+      row: idx,
+    );
   }
 
 // ------------------------------ Clipboard -------------------------------
@@ -10673,6 +10815,14 @@ class _EditorScreenState extends State<EditorScreen>
         preserveRowSelection: true,
       );
       _markDirty(snapshot: true);
+      _addHistoryEvent(
+        type: 'batch_paste',
+        message: 'Pegar valor en $changed celda(s)',
+        origin: 'manual',
+        row: selectedRows.first,
+        col: startC,
+        afterValue: normalized,
+      );
       return;
     }
 
@@ -10725,6 +10875,13 @@ class _EditorScreenState extends State<EditorScreen>
       _bumpRowVersionById(rowId);
     }
     _markDirty(snapshot: true);
+    _addHistoryEvent(
+      type: 'batch_paste',
+      message: 'Pegar bloque en $changed celda(s)',
+      origin: 'manual',
+      row: startR,
+      col: startC,
+    );
   }
 
   List<List<String>> _parseGrid(String raw) {
@@ -10936,6 +11093,182 @@ class _EditorScreenState extends State<EditorScreen>
       '${issue.label}: ${issue.message}',
       isError: false,
       icon: Icons.rule_folder_outlined,
+    );
+  }
+
+  List<HistoryEventRecord> _historyFiltered({
+    required _HistoryFilterWindow window,
+    required String type,
+  }) {
+    var out = List<HistoryEventRecord>.from(_historyEvents, growable: false);
+    final now = DateTime.now();
+    if (window == _HistoryFilterWindow.today) {
+      final minAt = DateTime(now.year, now.month, now.day);
+      out = out
+          .where((event) => !event.at.isBefore(minAt))
+          .toList(growable: false);
+    } else if (window == _HistoryFilterWindow.week) {
+      final minAt = now.subtract(const Duration(days: 7));
+      out =
+          out.where((event) => event.at.isAfter(minAt)).toList(growable: false);
+    }
+    final normalizedType = type.trim().toLowerCase();
+    if (normalizedType.isNotEmpty && normalizedType != 'todos') {
+      out = out
+          .where((event) => event.type.trim().toLowerCase() == normalizedType)
+          .toList(growable: false);
+    }
+    return out;
+  }
+
+  String _historyWhenLabel(DateTime at) {
+    final local = at.toLocal();
+    return '${_two(local.day)}/${_two(local.month)} ${_two(local.hour)}:${_two(local.minute)}';
+  }
+
+  void _jumpToHistoryEvent(HistoryEventRecord event) {
+    if (event.row == null || event.col == null) {
+      _showActionSnack(
+        'Evento sin celda asociada.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final row = event.row!;
+    final col = event.col!;
+    if (row < 0 ||
+        row >= _rows.length ||
+        col < 0 ||
+        col >= _headers.length - 1) {
+      _showActionSnack(
+        'La celda del evento ya no existe.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    _setSelectionAndRefreshGrid(row, col, blink: true);
+  }
+
+  Future<void> _openHistoryPanel() async {
+    if (!mounted) return;
+    _HistoryFilterWindow window = _HistoryFilterWindow.all;
+    String selectedType = 'todos';
+    await showAppModal<void>(
+      context: context,
+      title: 'Historial',
+      child: StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final types = <String>{
+            'todos',
+            ..._historyEvents.map((event) => event.type.toLowerCase()),
+          }.toList(growable: false)
+            ..sort();
+          final filtered = _historyFiltered(window: window, type: selectedType);
+          return ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 460),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Todo'),
+                      selected: window == _HistoryFilterWindow.all,
+                      onSelected: (_) => setModalState(
+                          () => window = _HistoryFilterWindow.all),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Hoy'),
+                      selected: window == _HistoryFilterWindow.today,
+                      onSelected: (_) => setModalState(
+                          () => window = _HistoryFilterWindow.today),
+                    ),
+                    ChoiceChip(
+                      label: const Text('7 dias'),
+                      selected: window == _HistoryFilterWindow.week,
+                      onSelected: (_) => setModalState(
+                          () => window = _HistoryFilterWindow.week),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Tipo',
+                  ),
+                  items: [
+                    for (final type in types)
+                      DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type == 'todos' ? 'Todos' : type),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setModalState(() => selectedType = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Sin eventos para este filtro.'),
+                        )
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 6),
+                          itemBuilder: (ctx, index) {
+                            final event = filtered[index];
+                            final subtitle = [
+                              _historyWhenLabel(event.at),
+                              event.origin,
+                              if (event.row != null && event.col != null)
+                                _cellLabelRc(event.row!, event.col!),
+                            ].join(' · ');
+                            return ListTile(
+                              tileColor: _palette(ctx).hintBg,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              title: Text(event.message),
+                              subtitle: Text(subtitle),
+                              trailing: (event.row != null && event.col != null)
+                                  ? IconButton(
+                                      tooltip: 'Ir a celda',
+                                      onPressed: () {
+                                        Navigator.of(ctx).pop();
+                                        _jumpToHistoryEvent(event);
+                                      },
+                                      icon:
+                                          const Icon(Icons.my_location_rounded),
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
     );
   }
 
