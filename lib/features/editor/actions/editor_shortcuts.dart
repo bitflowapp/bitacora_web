@@ -153,6 +153,16 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyP) {
+      unawaited(
+        _exportPdf(
+          includeAttachments: true,
+          share: false,
+        ),
+      );
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyP) {
       unawaited(_startPhotoFlowForCell(_selRow, _selCol));
       return KeyEventResult.handled;

@@ -1,6 +1,18 @@
 part of '../editor_screen.dart';
 
 extension _EditorExportDialogs on _EditorScreenState {
+  String _exportPresetLabel(String preset) {
+    switch (preset) {
+      case 'xlsx':
+        return 'Planilla XLSX';
+      case 'zip':
+        return 'Paquete ZIP';
+      case 'pdf':
+      default:
+        return 'Reporte PDF';
+    }
+  }
+
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -25,6 +37,11 @@ extension _EditorExportDialogs on _EditorScreenState {
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Ultimo usado: ${_exportPresetLabel(_lastExportPreset)}',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 8),
               Wrap(

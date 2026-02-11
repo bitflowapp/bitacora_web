@@ -167,6 +167,19 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openEditorDefaultsDialog()),
         ),
         CommandAction(
+          id: 'export_pdf',
+          label: 'Reporte PDF premium',
+          subtitle: 'Resumen comercial + evidencias',
+          shortcut: 'Ctrl/Cmd+Shift+P',
+          icon: Icons.picture_as_pdf_outlined,
+          onSelected: () => unawaited(
+            _exportPdf(
+              includeAttachments: true,
+              share: false,
+            ),
+          ),
+        ),
+        CommandAction(
           id: 'export_xlsx',
           label: 'Exportar XLSX',
           shortcut: 'Ctrl/Cmd+E',
