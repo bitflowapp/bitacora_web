@@ -476,3 +476,14 @@ Publicar release Android (1 comando):
   - valida URL estable.
 - Probar descarga:
   - `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`
+
+## 3.14) P15 smoke test (performance + confiabilidad premium)
+1. Web:
+- Abrir `https://marcoluna-nqn.github.io/bitacora_web/`, entrar a una planilla y editar 10 celdas rapido (sin lag visible ni perdida de foco/teclado).
+- Pegar un bloque grande `10x10`; validar que no se congela y que los valores quedan correctos.
+- Adjuntar imagen y confirmar thumbnail inline sin click; abrir viewer y validar carga correcta.
+- Validar shortcuts: `Ctrl/Cmd+K`, `Ctrl/Cmd+S`, `Ctrl/Cmd+F`.
+2. Android:
+- Editar celdas rapido y confirmar fluidez sin perdida de caracteres.
+- Adjuntar imagen desde galeria/camara (si aplica) y validar preview/visor.
+- Validar que export/share sigue operativo.
