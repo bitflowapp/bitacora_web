@@ -21,6 +21,8 @@ const String _kPrefMicrophoneRationaleSeen =
 const String _kPrefQuickCaptureQueue = 'bitflow.quick_capture_queue.v1';
 const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
 const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
+const String _kPrefAndroidInstallHelperDismissed =
+    'bitflow.editor.android_install_helper_dismissed.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -379,6 +381,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _lastOnlineState = true;
   bool _editorTourVisible = false;
   bool _editorTourDismissed = false;
+  String? _recoveryStagingRaw;
+  bool _recoveryBannerVisible = false;
+  bool _androidInstallHelperHiddenSession = false;
+  bool _androidInstallHelperDismissed = false;
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -458,6 +464,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadEditorTourPrefs());
+    unawaited(_loadAndroidInstallHelperPref());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
     unawaited(_initEngineConnection()
         .whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -945,6 +952,8 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentRaw = prefs.getString(_prefsKey);
+      final stagingRaw = prefs.getString(_prefsKeyStaging);
+      _setRecoveryStagingCandidate(stagingRaw);
 
       if (await _tryRestoreFromRaw(
         prefs,
@@ -1721,6 +1730,132 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (!mounted) return;
     setState(() => _editorTourVisible = true);
+  }
+
+  bool get _shouldShowAndroidInstallHelper {
+    if (!kIsWeb) return false;
+    if (!WebCapabilities.isAndroidChrome) return false;
+    if (_androidInstallHelperDismissed || _androidInstallHelperHiddenSession) {
+      return false;
+    }
+    if (WebCapabilities.isStandalone) return false;
+    if (WebCapabilities.isInAppBrowser) return false;
+    return true;
+  }
+
+  Future<void> _loadAndroidInstallHelperPref() async {
+    if (!kIsWeb || !WebCapabilities.isAndroidChrome) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dismissed =
+          prefs.getBool(_kPrefAndroidInstallHelperDismissed) ?? false;
+      if (!mounted) {
+        _androidInstallHelperDismissed = dismissed;
+        return;
+      }
+      setState(() => _androidInstallHelperDismissed = dismissed);
+    } catch (_) {}
+  }
+
+  void _ackAndroidInstallHelper() {
+    if (!mounted) return;
+    setState(() => _androidInstallHelperHiddenSession = true);
+  }
+
+  Future<void> _dismissAndroidInstallHelperForever() async {
+    if (mounted) {
+      setState(() {
+        _androidInstallHelperHiddenSession = true;
+        _androidInstallHelperDismissed = true;
+      });
+    } else {
+      _androidInstallHelperHiddenSession = true;
+      _androidInstallHelperDismissed = true;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPrefAndroidInstallHelperDismissed, true);
+    } catch (_) {}
+  }
+
+  void _setRecoveryStagingCandidate(String? raw) {
+    final canRestore = _decodeSheetModelRaw(raw ?? '') != null;
+    if (mounted) {
+      setState(() {
+        if (!canRestore) {
+          _recoveryStagingRaw = null;
+          _recoveryBannerVisible = false;
+          return;
+        }
+        _recoveryStagingRaw = raw;
+        _recoveryBannerVisible = true;
+      });
+      return;
+    }
+    if (!canRestore) {
+      _recoveryStagingRaw = null;
+      _recoveryBannerVisible = false;
+    } else {
+      _recoveryStagingRaw = raw;
+      _recoveryBannerVisible = true;
+    }
+  }
+
+  Future<void> _dismissRecoveryBanner({bool dropCandidate = false}) async {
+    if (mounted) {
+      setState(() => _recoveryBannerVisible = false);
+    } else {
+      _recoveryBannerVisible = false;
+    }
+    if (!dropCandidate) return;
+    _recoveryStagingRaw = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefsKeyStaging);
+    } catch (_) {}
+  }
+
+  Future<void> _restoreStagingRecovery() async {
+    final raw = _recoveryStagingRaw;
+    if (raw == null || raw.trim().isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final restored = await _tryRestoreFromRaw(
+        prefs,
+        raw: raw,
+        source: 'prefs_staging',
+        announceRecovery: true,
+        syncAsCurrent: true,
+      );
+      if (!restored) {
+        if (!mounted) return;
+        _showActionSnack(
+          'No se pudo restaurar la sesion previa.',
+          isError: true,
+          icon: Icons.history_toggle_off_rounded,
+        );
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _recoveryBannerVisible = false;
+        _recoveryStagingRaw = null;
+      });
+      _showActionSnack(
+        'Sesion previa restaurada.',
+        isError: false,
+        icon: Icons.history_rounded,
+      );
+      AppHaptics.light();
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.load,
+        operation: 'restore_staging_recovery',
+        stackTrace: st,
+        icon: Icons.history_toggle_off_rounded,
+      );
+    }
   }
 
   // _showDensityPicker movido a dialogs/editor_dialogs.dart
@@ -3593,6 +3728,127 @@ class _EditorScreenState extends State<EditorScreen>
     _updateOfflineStatus();
   }
 
+  String _offlineErrorMessage(String? raw) {
+    final value = (raw ?? '').trim();
+    if (value.isEmpty) return 'Sin detalle';
+    switch (value) {
+      case 'sync_error':
+        return 'Fallo de sincronizacion';
+      case 'save_failed':
+        return 'No se pudo guardar localmente';
+      case 'network_offline':
+        return 'Sin conexion';
+      default:
+        return value;
+    }
+  }
+
+  Future<void> _retryQuickItem(String rowId) async {
+    if (rowId.trim().isEmpty) return;
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _quickCaptureQueue.length; i++) {
+        final item = _quickCaptureQueue[i];
+        if (item.sheetId != widget.sheetId || item.rowId != rowId) continue;
+        _quickCaptureQueue[i] = item.copyWith(
+          clearRetry: true,
+          clearError: true,
+        );
+      }
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    await _saveQuickCaptureQueue();
+    await _syncQuickCaptureQueue(notify: true);
+  }
+
+  Future<void> _retryEditItem(int revision) async {
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _editQueue.length; i++) {
+        final item = _editQueue[i];
+        if (item.sheetId != widget.sheetId || item.revision != revision) {
+          continue;
+        }
+        _editQueue[i] = item.copyWith(clearRetry: true, clearError: true);
+      }
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    await _saveQuickCaptureQueue();
+    await _syncQuickCaptureQueue(notify: true);
+  }
+
+  Future<void> _retryAllOfflineQueueNow() async {
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _quickCaptureQueue.length; i++) {
+        final item = _quickCaptureQueue[i];
+        if (item.sheetId != widget.sheetId) continue;
+        _quickCaptureQueue[i] = item.copyWith(
+          clearRetry: true,
+          clearError: true,
+        );
+      }
+      for (int i = 0; i < _editQueue.length; i++) {
+        final item = _editQueue[i];
+        if (item.sheetId != widget.sheetId) continue;
+        _editQueue[i] = item.copyWith(clearRetry: true, clearError: true);
+      }
+      _offlineLastError = null;
+      _offlineRetryAt = null;
+    });
+    await _saveQuickCaptureQueue();
+    await _syncQuickCaptureQueue(notify: true);
+  }
+
+  Future<void> _exportOfflineQueueDiagnostics() async {
+    final now = DateTime.now().toUtc();
+    final quickForSheet = _quickCaptureQueue
+        .where((item) => item.sheetId == widget.sheetId)
+        .toList(growable: false);
+    final editForSheet = _editQueue
+        .where((item) => item.sheetId == widget.sheetId)
+        .toList(growable: false);
+    final payload = <String, dynamic>{
+      'sheetId': widget.sheetId,
+      'sheetName': _sheetName,
+      'generatedAt': now.toIso8601String(),
+      'offlineState': _resolveOfflineSyncState().name,
+      'offlineMessage':
+          _resolveOfflineStatusMessage(_resolveOfflineSyncState()) ?? 'N/A',
+      'online': _isNetworkOnline(),
+      'pendingQuickCapture': quickForSheet.length,
+      'pendingEdits': editForSheet.length,
+      'quickCaptureQueue':
+          quickForSheet.map((item) => item.toJson()).toList(growable: false),
+      'editQueue':
+          editForSheet.map((item) => item.toJson()).toList(growable: false),
+      'lastError': _offlineLastError,
+      'nextRetryAt': _offlineRetryAt?.toIso8601String(),
+    };
+    final encoded = const JsonEncoder.withIndent('  ').convert(payload);
+    final name =
+        'BitFlow_offline_diagnostic_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}.json';
+    try {
+      await _saveExportBytes(
+        name: name,
+        mime: 'application/json',
+        bytes: Uint8List.fromList(utf8.encode(encoded)),
+        share: false,
+      );
+      if (!mounted) return;
+      _showActionSnack(
+        'Diagnostico de cola exportado.',
+        isError: false,
+        icon: Icons.bug_report_outlined,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(_copyDiagnosticToClipboard(encoded));
+    }
+  }
+
   Future<void> _openOfflineQueueDialog() async {
     if (!mounted) return;
     final quickForSheet = _quickCaptureQueue
@@ -3624,7 +3880,7 @@ class _EditorScreenState extends State<EditorScreen>
             if (_offlineLastError?.trim().isNotEmpty == true) ...[
               const SizedBox(height: 6),
               Text(
-                'Ultimo error: ${_offlineLastError!.trim()}',
+                'Ultimo error: ${_offlineErrorMessage(_offlineLastError)}',
                 style: TextStyle(
                   color: _palette(context).fgMuted,
                   fontSize: 12,
@@ -3660,7 +3916,15 @@ class _EditorScreenState extends State<EditorScreen>
                   'Encolado ${_formatDateTimeShort(item.queuedAt.toLocal())}'
                   ' | intentos ${item.attempts}'
                   '${item.nextRetryAt != null ? ' | retry ${_formatDateTimeShort(item.nextRetryAt!.toLocal())}' : ''}'
-                  '${item.lastError != null ? ' | ${item.lastError}' : ''}',
+                  '${item.lastError != null ? ' | ${_offlineErrorMessage(item.lastError)}' : ''}',
+                ),
+                trailing: IconButton(
+                  tooltip: 'Reintentar item',
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    unawaited(_retryQuickItem(item.rowId));
+                  },
                 ),
               ),
             for (final item in editForSheet)
@@ -3673,13 +3937,29 @@ class _EditorScreenState extends State<EditorScreen>
                   'Pendiente desde ${_formatDateTimeShort(item.queuedAt.toLocal())}'
                   ' | intentos ${item.attempts}'
                   '${item.nextRetryAt != null ? ' | retry ${_formatDateTimeShort(item.nextRetryAt!.toLocal())}' : ''}'
-                  '${item.lastError != null ? ' | ${item.lastError}' : ''}',
+                  '${item.lastError != null ? ' | ${_offlineErrorMessage(item.lastError)}' : ''}',
+                ),
+                trailing: IconButton(
+                  tooltip: 'Reintentar item',
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    unawaited(_retryEditItem(item.revision));
+                  },
                 ),
               ),
           ],
         ),
       ),
       actions: [
+        AppButton(
+          label: 'Diag',
+          variant: AppButtonVariant.ghost,
+          onPressed: () {
+            Navigator.of(context).pop();
+            unawaited(_exportOfflineQueueDiagnostics());
+          },
+        ),
         AppButton(
           label: 'Exportar ZIP',
           variant: AppButtonVariant.ghost,
@@ -3697,11 +3977,11 @@ class _EditorScreenState extends State<EditorScreen>
           },
         ),
         AppButton(
-          label: 'Reintentar',
+          label: 'Reintentar todo',
           variant: AppButtonVariant.secondary,
           onPressed: () {
             Navigator.of(context).pop();
-            unawaited(_syncQuickCaptureQueue(notify: true));
+            unawaited(_retryAllOfflineQueueNow());
           },
         ),
         AppButton(
@@ -4296,10 +4576,11 @@ class _EditorScreenState extends State<EditorScreen>
     required IconData icon,
     String? actionLabel,
     VoidCallback? onAction,
+    VoidCallback? onDismiss,
   }) {
     final t = AppTheme.of(context);
     final borderColor =
-        t.colors.warningFg.withOpacity(pal.isLight ? 0.35 : 0.5);
+        t.colors.warningFg.withValues(alpha: pal.isLight ? 0.35 : 0.5);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -4335,6 +4616,16 @@ class _EditorScreenState extends State<EditorScreen>
               onPressed: onAction,
             ),
           ],
+          if (onDismiss != null)
+            IconButton(
+              tooltip: 'Cerrar',
+              onPressed: onDismiss,
+              icon: Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: t.colors.warningFg.withValues(alpha: 0.74),
+              ),
+            ),
         ],
       ),
     );
@@ -4519,6 +4810,32 @@ class _EditorScreenState extends State<EditorScreen>
                                 actionLabel: 'Exportar ZIP',
                                 onAction: () =>
                                     unawaited(_exportZipBundle(share: false))),
+                          if (_recoveryBannerVisible &&
+                              _recoveryStagingRaw != null)
+                            _warningBanner(
+                              pal,
+                              text:
+                                  'Se detecto una sesion previa sin flush completo. Puedes restaurar el estado local anterior.',
+                              icon: Icons.history_rounded,
+                              actionLabel: 'Restaurar',
+                              onAction: () =>
+                                  unawaited(_restoreStagingRecovery()),
+                              onDismiss: () => unawaited(
+                                _dismissRecoveryBanner(dropCandidate: false),
+                              ),
+                            ),
+                          if (_shouldShowAndroidInstallHelper)
+                            _warningBanner(
+                              pal,
+                              text:
+                                  'Instalar en Android/Chrome: menu del navegador -> Instalar aplicacion o Agregar a pantalla principal.',
+                              icon: Icons.download_for_offline_rounded,
+                              actionLabel: 'No mostrar mas',
+                              onAction: () => unawaited(
+                                _dismissAndroidInstallHelperForever(),
+                              ),
+                              onDismiss: _ackAndroidInstallHelper,
+                            ),
                           if (_pendingOfflineCount > 0)
                             _warningBanner(
                               pal,

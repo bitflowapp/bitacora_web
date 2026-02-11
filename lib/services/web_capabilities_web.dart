@@ -34,6 +34,20 @@ class WebCapabilitiesImpl {
     return isSafari && !excluded;
   }
 
+  static bool get isAndroidChrome {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    final isAndroid = ua.contains('android');
+    if (!isAndroid) return false;
+    final isChrome = ua.contains('chrome') || ua.contains('crios');
+    if (!isChrome) return false;
+    final excluded = ua.contains('edg') ||
+        ua.contains('opr') ||
+        ua.contains('opera') ||
+        ua.contains('samsungbrowser') ||
+        ua.contains('duckduckgo');
+    return !excluded;
+  }
+
   static bool get isInAppBrowser {
     final ua = html.window.navigator.userAgent.toLowerCase();
     const markers = <String>[
