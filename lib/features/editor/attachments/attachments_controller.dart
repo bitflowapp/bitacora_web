@@ -1320,7 +1320,8 @@ extension _EditorAttachments on _EditorScreenState {
               Widget buildTile(PhotoAttachment p, int idx) {
                 final previewable = _canPreviewPhoto(p);
                 final label = _photoCaptionFor(p);
-                final dateLabel = p.addedAt.toLocal().toString();
+                final dateLabel =
+                    '${p.addedAt.toLocal()} · ${_formatBytes(p.size)}';
 
                 Widget thumbWidget() {
                   if (!previewable) {
@@ -1337,6 +1338,22 @@ extension _EditorAttachments on _EditorScreenState {
                     future: _loadPhotoBytesFromAttachment(p),
                     builder: (ctx3, snap) {
                       final bytes = snap.data;
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: pal.cellBg,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                pal.cellBg,
+                                pal.hintBg.withValues(alpha: 0.75),
+                                pal.cellBg,
+                              ],
+                            ),
+                          ),
+                        );
+                      }
                       if (snap.hasError) {
                         return Container(
                           color: pal.cellBg,
@@ -1366,7 +1383,10 @@ extension _EditorAttachments on _EditorScreenState {
                           : Image.memory(
                               bytes,
                               fit: BoxFit.cover,
+                              cacheWidth: 480,
+                              cacheHeight: 480,
                               filterQuality: FilterQuality.low,
+                              gaplessPlayback: true,
                               errorBuilder: (_, __, ___) =>
                                   const SizedBox.shrink(),
                             );

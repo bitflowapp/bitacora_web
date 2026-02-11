@@ -785,7 +785,10 @@ class _DataCell extends StatelessWidget {
               width: 24,
               height: 24,
               fit: BoxFit.cover,
+              cacheWidth: 48,
+              cacheHeight: 48,
               filterQuality: FilterQuality.low,
+              gaplessPlayback: true,
             ),
           )
         : Icon(
@@ -886,7 +889,10 @@ class _DataCell extends StatelessWidget {
                 width: 12,
                 height: 12,
                 fit: BoxFit.cover,
+                cacheWidth: 24,
+                cacheHeight: 24,
                 filterQuality: FilterQuality.low,
+                gaplessPlayback: true,
               ),
             )
           : Icon(Icons.photo_rounded, size: 12, color: palette.chipText);
@@ -1027,7 +1033,10 @@ class _PhotosCell extends StatelessWidget {
               width: 26,
               height: 26,
               fit: BoxFit.cover,
+              cacheWidth: 52,
+              cacheHeight: 52,
               filterQuality: FilterQuality.low,
+              gaplessPlayback: true,
             ),
           ),
         if (hasThumb) const SizedBox(width: 6),
