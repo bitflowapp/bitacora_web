@@ -140,6 +140,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _saveDebounce = Duration(milliseconds: 700);
   static const Duration _saveThrottle = Duration(milliseconds: 1500);
   static const Duration _validationDebounce = Duration(milliseconds: 260);
+  static const Duration _cellDraftSyncDebounce = Duration(milliseconds: 120);
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
   static const Duration _slowValidationThreshold = Duration(milliseconds: 12);
   static const String _kPhotoReadErrorMsg =
@@ -269,6 +270,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _storageWarned = false;
   VoidCallback? _cellDraftListener;
   VoidCallback? _mobileDraftListener;
+  Timer? _cellDraftSyncT;
 
   // Blink visual
   final ValueNotifier<_CellRef?> _blinkCell = ValueNotifier<_CellRef?>(null);
@@ -601,6 +603,7 @@ class _EditorScreenState extends State<EditorScreen>
     _validationDebounceT?.cancel();
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
+    _cellDraftSyncT?.cancel();
     _recentValuesSaveT?.cancel();
     _historyPersistT?.cancel();
     _blinkT?.cancel();
@@ -1340,24 +1343,32 @@ class _EditorScreenState extends State<EditorScreen>
   _SheetModel _buildModelForSave(DateTime savedAt) {
     return _SheetModel(
       name: _sheetName,
-      headers: List<String>.from(_headers),
+      headers: List<String>.generate(
+        _headers.length,
+        (c) => _effectiveHeader(c),
+        growable: false,
+      ),
       colIds: List<String>.from(_colIds),
-      rows: _rows
-          .map(
-            (r) => _RowModel(
-              id: r.id,
-              cells: List<String>.from(r.cells),
-              photos: r.photos
-                  .map((p) => p.copyWithoutThumb())
-                  .toList(growable: false),
-              gpsLat: r.gpsLat,
-              gpsLng: r.gpsLng,
-              gpsAccuracyM: r.gpsAccuracyM,
-              gpsTs: r.gpsTs,
-              gpsIsLastKnown: r.gpsIsLastKnown,
-            ),
-          )
-          .toList(growable: false),
+      rows: _rows.asMap().entries.map((entry) {
+        final r = entry.key;
+        final row = entry.value;
+        return _RowModel(
+          id: row.id,
+          cells: List<String>.generate(
+            _headers.length,
+            (c) => _effectiveCell(r, c),
+            growable: false,
+          ),
+          photos: row.photos.map((p) => p.copyWithoutThumb()).toList(
+                growable: false,
+              ),
+          gpsLat: row.gpsLat,
+          gpsLng: row.gpsLng,
+          gpsAccuracyM: row.gpsAccuracyM,
+          gpsTs: row.gpsTs,
+          gpsIsLastKnown: row.gpsIsLastKnown,
+        );
+      }).toList(growable: false),
       cellMeta: _cloneCellMeta(_cellMeta),
       savedAt: savedAt,
       columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
@@ -1386,6 +1397,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (now.difference(_lastBackup) < _backupEvery) return;
 
     try {
+      _syncActiveDrafts();
       final prefs = await SharedPreferences.getInstance();
       final latest = _latestBackupFromPrefs(prefs);
       if (now.difference(latest) < _backupEvery) {
@@ -1446,6 +1458,7 @@ class _EditorScreenState extends State<EditorScreen>
     _savePending = false;
     _lastSaveStartedAt = DateTime.now();
     _updateSaveStatus();
+    _syncActiveDrafts();
 
     final startRev = _rev;
     final savedAt = DateTime.now();
@@ -3877,19 +3890,14 @@ class _EditorScreenState extends State<EditorScreen>
   void _attachCellDraftListener() {
     if (_cellDraftListener != null) return;
     _cellDraftListener = () {
-      final headerCol = _editingHeaderCol;
-      final cellRef = _editingCellRef;
-      final v = _cellEC.text;
-      if (headerCol != null) {
-        _setDraftHeader(headerCol, v);
-      } else if (cellRef != null) {
-        _setDraftCell(cellRef.r, cellRef.c, v);
-      }
+      _cellDraftSyncT?.cancel();
+      _cellDraftSyncT = Timer(_cellDraftSyncDebounce, _syncActiveDrafts);
     };
     _cellEC.addListener(_cellDraftListener!);
   }
 
   void _detachCellDraftListener() {
+    _cellDraftSyncT?.cancel();
     final listener = _cellDraftListener;
     if (listener == null) return;
     _cellEC.removeListener(listener);
@@ -9264,7 +9272,6 @@ class _EditorScreenState extends State<EditorScreen>
       extentOffset: _cellEC.text.length,
     );
     _attachCellDraftListener();
-    _cellDraftListener?.call();
 
     final metrics = _gridMetricsFor(_gridDensity);
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
@@ -9346,145 +9353,163 @@ class _EditorScreenState extends State<EditorScreen>
 
                     return KeyEventResult.ignored;
                   },
-                  child: RepaintBoundary(
-                    child: Container(
-                      width: width,
-                      padding: metrics.cellPadding,
-                      decoration: BoxDecoration(
-                        // Evita blur en tiempo real para no penalizar typing/caret.
-                        color: pal.isLight
-                            ? Colors.white.withValues(alpha: 0.96)
-                            : const Color(0xFF101114).withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: pal.isLight
-                              ? Colors.black.withValues(alpha: 0.10)
-                              : Colors.white.withValues(alpha: 0.18),
-                          width: 1,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, t, child) {
+                      final clamped = t.clamp(0.0, 1.0);
+                      final scale = 0.985 + (0.015 * clamped);
+                      return Opacity(
+                        opacity: clamped,
+                        child: Transform.scale(
+                          scale: scale,
+                          alignment: Alignment.topLeft,
+                          child: child,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(
-                              alpha: pal.isLight ? 0.08 : 0.30,
-                            ),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
+                      );
+                    },
+                    child: RepaintBoundary(
+                      child: Container(
+                        width: width,
+                        padding: metrics.cellPadding,
+                        decoration: BoxDecoration(
+                          // Evita blur en tiempo real para no penalizar typing/caret.
+                          color: pal.isLight
+                              ? Colors.white.withValues(alpha: 0.96)
+                              : const Color(0xFF101114).withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: pal.isLight
+                                ? Colors.black.withValues(alpha: 0.10)
+                                : Colors.white.withValues(alpha: 0.18),
+                            width: 1,
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _cellEC,
-                                  focusNode: _cellFocus,
-                                  autofocus: true,
-                                  maxLines: 1,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  style: TextStyle(
-                                    color: pal.fg,
-                                    fontSize: editorFont,
-                                    height: 1.08,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.2,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: pal.isLight ? 0.08 : 0.30,
+                              ),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _cellEC,
+                                    focusNode: _cellFocus,
+                                    autofocus: true,
+                                    maxLines: 1,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    style: TextStyle(
+                                      color: pal.fg,
+                                      fontSize: editorFont,
+                                      height: 1.08,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.2,
+                                    ),
+                                    cursorColor: pal.accent,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      hintText: hintText,
+                                      hintStyle: TextStyle(color: pal.fgMuted),
+                                      border: InputBorder.none,
+                                    ),
+                                    onSubmitted: (v) {
+                                      onCommit(v);
+                                      _removeCellEditor();
+                                    },
                                   ),
-                                  cursorColor: pal.accent,
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    hintText: hintText,
-                                    hintStyle: TextStyle(color: pal.fgMuted),
-                                    border: InputBorder.none,
-                                  ),
-                                  onSubmitted: (v) {
-                                    onCommit(v);
+                                ),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () {
+                                    onCommit(_cellEC.text);
                                     _removeCellEditor();
                                   },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 4,
+                                    ),
+                                    child: Icon(
+                                      Icons.check_rounded,
+                                      color: pal.fg,
+                                      size: 20,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              InkWell(
-                                onTap: () {
-                                  onCommit(_cellEC.text);
-                                  _removeCellEditor();
+                              ],
+                            ),
+                            if (activeRow != null && activeCol != null)
+                              ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _cellEC,
+                                builder: (context, value, _) {
+                                  final message = _validationMessageForCell(
+                                    activeRow,
+                                    activeCol,
+                                    overrideValue: value.text,
+                                  );
+                                  if (message == null) {
+                                    return const SizedBox(height: 4);
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      message,
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11.2,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  );
                                 },
-                                borderRadius: BorderRadius.circular(10),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 4,
-                                  ),
-                                  child: Icon(
-                                    Icons.check_rounded,
-                                    color: pal.fg,
-                                    size: 20,
-                                  ),
+                              ),
+                            if (suggestions.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (final suggestion in suggestions) ...[
+                                      ActionChip(
+                                        label: Text(
+                                          suggestion,
+                                          style: TextStyle(
+                                            color: pal.fg,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          _cellEC.value =
+                                              _cellEC.value.copyWith(
+                                            text: suggestion,
+                                            selection: TextSelection.collapsed(
+                                              offset: suggestion.length,
+                                            ),
+                                            composing: TextRange.empty,
+                                          );
+                                          _cellFocus.requestFocus();
+                                        },
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
-                          if (activeRow != null && activeCol != null)
-                            ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _cellEC,
-                              builder: (context, value, _) {
-                                final message = _validationMessageForCell(
-                                  activeRow,
-                                  activeCol,
-                                  overrideValue: value.text,
-                                );
-                                if (message == null) {
-                                  return const SizedBox(height: 4);
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    message,
-                                    style: TextStyle(
-                                      color: pal.fgMuted,
-                                      fontSize: 11.2,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (suggestions.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  for (final suggestion in suggestions) ...[
-                                    ActionChip(
-                                      label: Text(
-                                        suggestion,
-                                        style: TextStyle(
-                                          color: pal.fg,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        _cellEC.value = _cellEC.value.copyWith(
-                                          text: suggestion,
-                                          selection: TextSelection.collapsed(
-                                            offset: suggestion.length,
-                                          ),
-                                          composing: TextRange.empty,
-                                        );
-                                        _cellFocus.requestFocus();
-                                      },
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                ],
-                              ),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -12413,6 +12438,14 @@ class _EditorScreenState extends State<EditorScreen>
   String debugCellText(int r, int c) => _getCellText(r, c);
 
   @visibleForTesting
+  void debugSetCellDraft(int r, int c, String value) {
+    assert(() {
+      _setDraftCell(r, c, value);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
 
   @visibleForTesting
@@ -12620,6 +12653,7 @@ class _EditorScreenState extends State<EditorScreen>
     }());
     final prefs = await SharedPreferences.getInstance();
     final savedAt = DateTime.now();
+    _syncActiveDrafts();
     final model = _buildModelForSave(savedAt);
     final encoded = json.encode(model.toJson());
     await prefs.setString(_prefsKey, encoded);
