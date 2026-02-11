@@ -68,7 +68,8 @@ void main() {
     expect(normalized['frozenColId'], 'c_status');
   });
 
-  test('list ignores backup metadata keys under bitflow:sheet prefix', () async {
+  test('list ignores backup metadata keys under bitflow:sheet prefix',
+      () async {
     final now = DateTime(2026, 2, 11, 12, 0).toIso8601String();
     final model = jsonEncode(<String, dynamic>{
       'name': 'Demo',
@@ -88,7 +89,8 @@ void main() {
     });
     await SheetStore.init();
 
-    final listedIds = SheetStore.list().map((s) => s.id).toList(growable: false);
+    final listedIds =
+        SheetStore.list().map((s) => s.id).toList(growable: false);
     expect(listedIds, ['demo_1']);
   });
 }
