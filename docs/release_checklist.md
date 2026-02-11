@@ -85,7 +85,8 @@ Android release automation:
 
 Publicar release Android (1 comando):
 - Ejecutar `powershell -ExecutionPolicy Bypass -File .\scripts\tag_release.ps1`
-- El script toma la versión de `pubspec.yaml` (y muestra `buildId` de `version.json` si existe), crea `vX.Y.Z` y hace `push` del tag a `origin`.
+- El script toma la version de `pubspec.yaml` (y muestra `buildId` de `version.json` si existe), crea `vX.Y.Z` y hace `push` del tag a `origin`.
+- Verificar publicacion/asset estable con `powershell -ExecutionPolicy Bypass -File .\scripts\verify_release.ps1`.
 
 ## 2) iOS (IPA)
 1. Open `ios/Runner.xcworkspace` in Xcode and configure Team / Bundle ID / signing.
@@ -126,29 +127,29 @@ Publicar release Android (1 comando):
 
 ## 3.2) P2 smoke test (Modo Campo + Plantillas + Lote + Atajos)
 1. Plantillas:
-- En `Crear planilla`, abrir galería y crear al menos una planilla por template (`Plantilla base`, `Resistividades`, `Inventario`, `Checklist`).
+- En `Crear planilla`, abrir galeria y crear al menos una planilla por template (`Plantilla base`, `Resistividades`, `Inventario`, `Checklist`).
 - Verificar columnas y defaults iniciales.
 - En columnas `Estado`, comprobar selector con `OK / Obs / Urgente`.
 - En columnas `Fecha`, validar formato `YYYY-MM-DD HH:mm`.
-- En `Progresiva/ID`, ingresar texto no numérico y confirmar validación.
+- En `Progresiva/ID`, ingresar texto no numerico y confirmar validacion.
 2. Modo Campo (`+ Registro`):
 - Desde editor, ejecutar `+ Registro` y confirmar: foto/archivo, timestamp en columna de fecha, nota opcional y nueva fila creada.
-- Con permisos de ubicación, verificar metadata GPS (lat/lon/precisión/timestamp) en la fila/celda destino.
+- Con permisos de ubicacion, verificar metadata GPS (lat/lon/precision/timestamp) en la fila/celda destino.
 - Desconectar red, crear registro y confirmar banner `Pendiente de sync`.
-- Reconectar red y validar sync automático + limpieza de pendientes.
+- Reconectar red y validar sync automatico + limpieza de pendientes.
 3. Acciones por lote:
-- Seleccionar filas desde el índice (Ctrl/Cmd-click y Shift-click rango).
+- Seleccionar filas desde el indice (Ctrl/Cmd-click y Shift-click rango).
 - Ejecutar `Aplicar mismo valor` y validar cambio en todas las filas seleccionadas.
-- Activar `Auto GPS`, ejecutar `Aplicar GPS a selección` y validar aplicación masiva.
+- Activar `Auto GPS`, ejecutar `Aplicar GPS a seleccion` y validar aplicacion masiva.
 - Ejecutar `Duplicar fila(s)` y validar metadatos/copias.
 4. Command Palette y shortcuts:
 - `Ctrl/Cmd+K`: abre paleta con `Crear fila`, `Buscar`, `Exportar`, `Adjuntar foto`, `Adjuntar GPS`.
-- `Ctrl/Cmd+F`: abre búsqueda y navega a coincidencias.
+- `Ctrl/Cmd+F`: abre busqueda y navega a coincidencias.
 - `Ctrl/Cmd+S`: guarda y actualiza estado de guardado.
 5. Cache busting web:
 - Verificar que `/version.json` tenga `buildId` nuevo tras deploy.
 - Confirmar que `flutter_bootstrap.js` se carga con query `?v=<buildId>`.
-- Abrir una pestaña con build anterior, desplegar versión nueva y comprobar recarga en versión nueva sin limpiar manualmente caches.
+- Abrir una pestana con build anterior, desplegar version nueva y comprobar recarga en version nueva sin limpiar manualmente caches.
 
 ## 3.3) P3 smoke test (Spreadsheet UI Polish)
 1. Grilla premium monocroma:
@@ -179,9 +180,9 @@ Publicar release Android (1 comando):
 - Verificar workflow `Android Release` en GitHub:
   - En `workflow_dispatch`: artifact QA `bitflow-android-apk`.
   - En tag `v*`: APK adjuntado al Release (`BitFlow-android.apk`).
-- En `docs/bitflow/index.html`, botón `Descargar Android APK` debe abrir `/releases/latest/download/BitFlow-android.apk`.
+- En `docs/bitflow/index.html`, boton `Descargar Android APK` debe abrir `/releases/latest/download/BitFlow-android.apk`.
 - En la app (Start/About), validar chequeo de updates:
-  - Si hay versión nueva, aparece banner discreto `Actualizacion disponible`.
+  - Si hay version nueva, aparece banner discreto `Actualizacion disponible`.
   - CTA Android abre `/releases/latest/download/BitFlow-android.apk`.
   - En Web/PWA, CTA `Actualizar` fuerza recarga con limpieza de caches.
 - iPhone Safari (install helper + hardening):
@@ -193,8 +194,8 @@ Publicar release Android (1 comando):
 - Conectar red, abrir editor y confirmar chip de sync en toolbar (`Sincronizado`).
 - Desconectar red, crear `+ Registro` y editar celdas; validar chip `Offline/Pendiente`.
 - Cerrar y reabrir app: pendientes deben mantenerse (cola persistida).
-- Abrir `Cola offline`: validar listado de Quick Capture + edición, botones `Reintentar` y `Borrar`.
-- Reconectar red: validar transición `Sincronizando...` -> `Sincronizado`.
+- Abrir `Cola offline`: validar listado de Quick Capture + edicion, botones `Reintentar` y `Borrar`.
+- Reconectar red: validar transicion `Sincronizando...` -> `Sincronizado`.
 3. Share Pro (2 taps):
 - Abrir modal `Exportar planilla`.
 - Elegir `XLSX` y luego `PDF`; alternar `Incluir adjuntos`.
@@ -208,8 +209,8 @@ Publicar release Android (1 comando):
   - Si no, fallback a descarga con mensaje claro.
 4. Performance editor:
 - Abrir planilla grande y escribir en varias filas seguidas (desktop y mobile).
-- Confirmar input fluido sin lag visible ni pérdida de teclas.
-- Hacer scroll + edición alternada; validar que la UI sigue responsiva y sin jank evidente.
+- Confirmar input fluido sin lag visible ni perdida de teclas.
+- Hacer scroll + edicion alternada; validar que la UI sigue responsiva y sin jank evidente.
 
 ## 3.5) P7 smoke test (Editor Pro + Backup/Restore package)
 1. Editor UX premium:
@@ -242,6 +243,36 @@ Publicar release Android (1 comando):
 - Probar `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`.
 - Confirmar descarga directa del APK sin depender de artifacts de Actions.
 
+## 3.7) P8 smoke test (Editor premium + motion + Android stable)
+1. Editor premium interactions:
+- Open a sheet and confirm topbar pills show key actions in one tap (`Guardar`, `Buscar`, `Jump to...`, `+ Registro`, `Exportar`).
+- Select one or more rows/cells and verify `Selection Quick Actions Bar` appears with:
+  - `Pegar valor`
+  - `Duplicar fila`
+  - `Adjuntar foto`
+  - `Adjuntar GPS`
+  - `Jump to...`
+  - status shortcuts (`OK`, `Obs`, `Urgente`) when status column exists.
+2. Search and navigation:
+- `Ctrl/Cmd+F` opens inline search bar with match counter and prev/next controls.
+- Search highlights matching cells in-grid and navigation moves selection correctly.
+- `Ctrl/Cmd+J` opens `Jump to...` and jumps by row or by ID/progressive value.
+3. Motion and feedback:
+- `Ctrl/Cmd+K` command palette opens/closes with smooth fade/slide/scale.
+- Inline search and quick actions bars animate in/out without jank.
+- Save/sync chips animate state transitions (dirty/saving/saved/syncing) without visual flicker.
+- On mobile, haptics fire on confirmable actions (search navigation, command execution, status updates).
+4. Android stable download and release verification:
+- Run `powershell -ExecutionPolicy Bypass -File .\scripts\tag_release.ps1` to create/push `vX.Y.Z`.
+- Wait for GitHub Actions `Android Release` on that tag.
+- Run `powershell -ExecutionPolicy Bypass -File .\scripts\verify_release.ps1`.
+- Confirm stable link downloads APK:
+  - `https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk`
+5. Update flow sanity:
+- In app About/Settings, verify local `Version + BuildId` are visible.
+- Trigger `Buscar actualizaciones` and confirm update banner + CTA behavior:
+  - Android: opens stable APK link.
+  - Web/PWA: hard refresh + cache cleanup path.
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`

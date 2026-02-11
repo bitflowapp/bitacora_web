@@ -1,86 +1,72 @@
-﻿# Editor Architecture
+# Editor Architecture
 
 Scope: `lib/features/editor/*`
 
-## Overview
-- `editor_screen.dart` wires the UI and delegates logic.
-- `editor_state.dart` holds core editor state and data operations.
-- `actions/` contains keyboard shortcuts and command palette actions.
-- `dialogs/` centralizes all modals and confirmation flows.
-- `attachments/` contains photo/audio flows and attachment UI.
-- `lib/screens/editor_screen.dart` is the public wrapper.
+## Product Goal
+Keep the editor fast, predictable, and premium while preserving offline-first behavior across Android and Web/PWA.
 
-## File Map
-- `editor_screen.dart`: app shell + layout + parts list.
-- `editor_state.dart`: grid state, selection, persistence, export/import.
-- `editor_controller.dart`: thin controller with UI callbacks.
-- `attachments/attachments_controller.dart`: photo/audio flows + sheet UI.
-- `attachments/attachment_tile.dart`: tile UI for one attachment.
-- `attachments/attachment_preview_modal.dart`: preview modal content.
-- `attachments/attachments_view.dart`: small UI helpers (header).
-- `attachments/attachments_types.dart`: local enums/DTOs.
-- `attachments/attachments_utils.dart`: pure helpers.
-- `dialogs/editor_dialogs.dart`: density, GPS mode, shortcuts.
-- `dialogs/export_dialogs.dart`: export menu (XLSX/ZIP/HTML).
-- `dialogs/confirm_dialogs.dart`: confirm delete for evidence.
-- `actions/editor_actions.dart`: command palette actions.
-- `actions/editor_shortcuts.dart`: desktop shortcuts handler.
+## Main Modules
+- `editor_screen.dart`
+  - Entry point and part wiring.
+  - Owns service imports and dependency surface for editor internals.
+- `editor_state.dart`
+  - Single source of truth for grid state, selection, drafts, history, sync status, and export/import orchestration.
+  - Contains hot-path handlers for edit, save, batch actions, search, and quick capture.
+- `editor_controller.dart`
+  - Thin bridge between external callers and editor state/listenables.
+- `actions/`
+  - `editor_actions.dart`: command palette registry and action metadata.
+  - `editor_shortcuts.dart`: keyboard map (`Ctrl/Cmd+K/S/F/J`, undo/redo, row ops).
+- `widgets/`
+  - `editor_app_bar.dart`: premium topbar/toolbar and status chips.
+  - `grid_host.dart`: virtualized table shell, cell visuals, selection/focus rendering.
+  - `mobile_editor_widgets.dart`: mobile quick actions, sheets, compact controls.
+  - `save_status_chip.dart`: save/sync chips with animated state transitions.
+- `attachments/`
+  - Attachment flow (photo/audio/GPS metadata), list/detail panel, and preview.
+- `dialogs/`
+  - Density, export/import, confirm flows, shortcuts help.
 
-## Data Flow (High Level)
-- User action -> `EditorScreen` -> handler in `editor_state.dart`.
-- UI feedback -> `AppToast` / `AppModal`.
-- Storage -> `SheetStore` / `AttachmentStore` services.
-- Export -> build payload -> save bytes -> optional share.
+## Supporting UI Infrastructure
+- `lib/ui/app_motion.dart`
+  - Shared motion tokens and transition helpers (`fadeSlide`, `fadeScale`, modal transition).
+- `lib/ui/app_haptics.dart`
+  - Cross-platform haptic facade for mobile confirmation feedback.
+- `lib/widgets/command_palette.dart`
+  - Global command launcher with search, keyboard navigation, and modal motion.
 
-## State Boundaries
-- Grid state lives in `editor_state.dart`.
-- Save status is exposed via `EditorController` (ValueListenable).
-- Attachment UI reads state from `editor_state.dart` only.
-- Dialogs never touch storage directly.
+## Data and State Flow
+1. User interaction enters through widget callbacks (grid, toolbar, shortcuts, command palette).
+2. Callback routes to `editor_state.dart` method.
+3. State mutation updates in-memory rows/cells/meta + dirty/history state.
+4. UI refresh happens through controlled `setState` and local listenables (`_gridVersion`, save/sync snapshots).
+5. Persistence and sync go through services (`SheetStore`, `AttachmentStore`, offline queue services).
 
-## Adding a New Action
-1. Add a new method in `editor_state.dart` if needed.
-2. Register a command in `actions/editor_actions.dart`.
-3. Map a shortcut in `actions/editor_shortcuts.dart` if relevant.
-4. Use `AppToast` for user feedback on success/failure.
+## Performance Boundaries
+- Grid paint boundary and scoped rebuilds are mandatory in edit loops.
+- Selection/search overlays must avoid whole-screen recomposition.
+- Batch actions should mutate only targeted rows/cells and clear only affected drafts.
+- Motion must stay micro (short duration, small offset) and never block typing.
 
-## Adding a New Dialog
-1. Create a method in `dialogs/` (new file or existing).
-2. Use `showAppModal` and `AppButton` variants.
-3. Keep microcopy short and clear.
-4. Return a value via `Navigator.pop(result)`.
+## Offline and Sync Boundaries
+- Editing is local-first and must never hard-block on network.
+- Sync state is represented by chips (`Offline / Pending sync`, `Syncing`, `Synced`, `Failed`).
+- Queue retry/cleanup logic stays in services; UI only drives intent and status.
 
-## Adding a New Attachment Type
-1. Extend the storage/service layer (no new deps).
-2. Create a UI tile in `attachments/` with type icon.
-3. Add preview logic in `attachments_controller.dart`.
-4. Update export/import to include new assets.
-5. Add fallbacks for corrupt or missing data.
+## How To Add Features Safely
+1. Add/adjust state method in `editor_state.dart`.
+2. Expose trigger in one or more channels:
+- toolbar action
+- command palette action
+- keyboard shortcut
+- mobile quick actions
+3. Reuse shared UI primitives (`AppButton`, `AppModal`, `AppMotion`, `AppHaptics`).
+4. Add/adjust smoke steps in `docs/release_checklist.md`.
+5. Run validation gates before push.
 
-## Error Handling Rules
-- No crashes on missing files.
-- If preview fails, show a toast and a safe placeholder.
-- Confirm destructive actions before deleting data.
-- Avoid leaking exceptions to the user.
-
-## Performance Rules
-- Avoid global `setState` when a local notifier is enough.
-- Keep AppBar rebuilds limited.
-- Use `AnimatedSwitcher` for small transitions only.
-
-## Design / UX Rules
-- No inline dialogs inside `editor_state.dart` unless trivial.
-- Prefer AppModal + AppButton for consistency.
-- Tooltips and semantics on icon-only buttons.
-- Keep empty states helpful and short.
-
-## QA Checklist (when Flutter is available)
-- `dart format .`
-- `flutter analyze`
+## Validation Gates
+- `dart format --set-exit-if-changed .`
+- `flutter analyze --no-fatal-warnings --no-fatal-infos`
 - `flutter test`
-- `flutter run -d chrome`
-- Edit cells + save
-- Attach photo, preview, delete
-- Export ZIP + HTML report
-- Import ZIP and verify attachments
-- Check console: 0 red errors
+- `flutter build web --release --base-href "/bitacora_web/"`
+- `flutter build apk --release`
