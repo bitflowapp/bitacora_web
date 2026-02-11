@@ -135,6 +135,9 @@ class _EditorScreenState extends State<EditorScreen>
   late Map<String, _ColumnPrefs> _columnPrefsById;
   late List<String> _columnOrder;
   String? _frozenColId;
+  String _displayColumnsCacheKey = '';
+  List<int> _displayColumnsCache = const <int>[];
+  Map<int, int> _displayIndexByActualCache = const <int, int>{};
   late List<_RowModel> _rows;
 
   bool _isLight = true;
@@ -6002,17 +6005,68 @@ class _EditorScreenState extends State<EditorScreen>
     return visible;
   }
 
+  String _displayColumnsLayoutKey() {
+    final dataColCount = math.max(0, _headers.length - 1);
+    final sb = StringBuffer()
+      ..write(_headers.length)
+      ..write('|')
+      ..write(_colIds.length)
+      ..write('|')
+      ..write(_frozenColId ?? '')
+      ..write('|');
+    if (_columnOrder.isNotEmpty) {
+      sb.writeAll(_columnOrder, ',');
+    }
+    sb.write('|');
+    final limit = math.min(_colIds.length, dataColCount);
+    for (int i = 0; i < limit; i++) {
+      final colId = _colIds[i];
+      final pref = _columnPrefsById[colId];
+      sb
+        ..write(colId)
+        ..write(':')
+        ..write(pref?.hidden == true ? '1' : '0')
+        ..write(':')
+        ..write(pref?.type.name ?? '')
+        ..write(';');
+    }
+    return sb.toString();
+  }
+
   List<int> _displayColumnIndexes() {
-    if (_headers.isEmpty) return const <int>[];
+    if (_headers.isEmpty) {
+      _displayColumnsCacheKey = '';
+      _displayColumnsCache = const <int>[];
+      _displayIndexByActualCache = const <int, int>{};
+      return _displayColumnsCache;
+    }
+    final nextCacheKey = _displayColumnsLayoutKey();
+    if (nextCacheKey == _displayColumnsCacheKey &&
+        _displayColumnsCache.isNotEmpty) {
+      return _displayColumnsCache;
+    }
     final visible = _visibleDataColumnIndexes();
     final photosCol = _headers.length - 1;
-    return <int>[...visible, photosCol];
+    final computed = <int>[...visible, photosCol];
+    final indexByActual = <int, int>{};
+    for (int i = 0; i < computed.length; i++) {
+      indexByActual[computed[i]] = i;
+    }
+    _displayColumnsCacheKey = nextCacheKey;
+    _displayColumnsCache = List<int>.unmodifiable(computed);
+    _displayIndexByActualCache = Map<int, int>.unmodifiable(indexByActual);
+    return _displayColumnsCache;
   }
 
   int _displayColumnIndexForActual(int actualCol, List<int> displayColumns) {
     if (displayColumns.isEmpty) return 0;
-    final index = displayColumns.indexOf(actualCol);
-    if (index >= 0) return index;
+    final cachedIndex = identical(displayColumns, _displayColumnsCache)
+        ? _displayIndexByActualCache[actualCol]
+        : null;
+    if (cachedIndex != null) return cachedIndex;
+    for (int i = 0; i < displayColumns.length; i++) {
+      if (displayColumns[i] == actualCol) return i;
+    }
     final photosIndex = displayColumns.length - 1;
     if (actualCol >= _headers.length - 1) return photosIndex;
     return 0;
