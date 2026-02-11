@@ -418,6 +418,36 @@ Publicar release Android (1 comando):
 ## 5) Store metadata hooks (<=2 taps from Start and Sheets)
 1. About (`Acerca de`)
 2. Privacy (`Privacidad`)
+
+## 3.12) P13 smoke test (audit + search + collab + template packs)
+1. Historial/auditoria:
+- Editar celdas, insertar/eliminar fila, aplicar batch, quick capture y revisar filas.
+- Abrir `Historial` y validar:
+  - eventos registrados con timestamp/tipo/origen
+  - filtros `Hoy` / `Semana` / `Tipo`
+  - `Ir a celda` navega al destino correcto.
+2. Busqueda global:
+- `Ctrl/Cmd+Shift+F` abre `Busqueda global`.
+- Buscar texto libre y `col:valor` (ej: `Estado:Urgente`).
+- Activar/desactivar `Buscar en todas las planillas` y validar resultados agrupados por planilla.
+- Tap/click resultado en otra planilla y confirmar apertura con foco en celda encontrada.
+3. Colaboracion por paquetes:
+- Exportar paquete desde `Colaborar`.
+- Importar en misma planilla y elegir `Merge con actual`.
+- Caso sin conflicto (celdas distintas): merge automatico.
+- Caso con conflicto (misma celda): modal con opciones `Mantener local` / `Usar importado`.
+- Confirmar evento de merge en `Historial`.
+4. Template packs:
+- En `Nueva plantilla`, abrir `Template Packs`.
+- Verificar 3 packs (`Campo/Inspeccion`, `Obra/Avance`, `Relevamiento/GPS`) con 3 templates cada uno.
+- Abrir preview de un template y validar:
+  - columnas + reglas
+  - vistas preconfiguradas
+  - indicador de workflow review cuando aplica.
+- Crear template y confirmar apertura del editor con columnas/vistas iniciales.
+5. No regresion de performance:
+- Pegar bloque grande en editor y verificar que no hay freeze visible.
+- Scroll + edicion + busqueda global sin jank notorio.
 3. Terms (`Terminos`)
 4. Diagnostics (`Diagnostico / Soporte`)
 5. Licenses (`Licencias`)
