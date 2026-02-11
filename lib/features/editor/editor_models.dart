@@ -83,24 +83,34 @@ class _ColumnPrefs {
   const _ColumnPrefs({
     required this.type,
     this.hidden = false,
+    this.required = false,
+    this.enumValues = const <String>[],
   });
 
   final _ColType type;
   final bool hidden;
+  final bool required;
+  final List<String> enumValues;
 
   _ColumnPrefs copyWith({
     _ColType? type,
     bool? hidden,
+    bool? required,
+    List<String>? enumValues,
   }) {
     return _ColumnPrefs(
       type: type ?? this.type,
       hidden: hidden ?? this.hidden,
+      required: required ?? this.required,
+      enumValues: enumValues ?? this.enumValues,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'type': type.name,
         'hidden': hidden,
+        if (required) 'required': true,
+        if (enumValues.isNotEmpty) 'enumValues': enumValues,
       };
 
   static _ColumnPrefs? fromJson(Object? raw) {
@@ -110,7 +120,22 @@ class _ColumnPrefs {
     final parsedType = _colTypeFromStorageName(typeRaw);
     if (parsedType == null || parsedType == _ColType.photos) return null;
     final hidden = map['hidden'] as bool? ?? false;
-    return _ColumnPrefs(type: parsedType, hidden: hidden);
+    final required = map['required'] as bool? ?? false;
+    final enumValues = <String>[];
+    final enumRaw = map['enumValues'];
+    if (enumRaw is List) {
+      for (final item in enumRaw) {
+        final value = (item ?? '').toString().trim();
+        if (value.isEmpty) continue;
+        enumValues.add(value);
+      }
+    }
+    return _ColumnPrefs(
+      type: parsedType,
+      hidden: hidden,
+      required: required,
+      enumValues: enumValues,
+    );
   }
 }
 
@@ -585,6 +610,77 @@ class _SheetSnapshot {
   final Map<String, CellMeta> cellMeta;
   final int selRow;
   final int selCol;
+}
+
+class _ColumnTemplate {
+  const _ColumnTemplate({
+    required this.name,
+    required this.savedAt,
+    required this.prefsByLabel,
+    required this.orderLabels,
+    required this.frozenLabel,
+  });
+
+  final String name;
+  final DateTime savedAt;
+  final Map<String, _ColumnPrefs> prefsByLabel;
+  final List<String> orderLabels;
+  final String? frozenLabel;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'name': name,
+      'savedAt': savedAt.toIso8601String(),
+      if (prefsByLabel.isNotEmpty)
+        'prefsByLabel': prefsByLabel.map(
+          (key, value) => MapEntry(key, value.toJson()),
+        ),
+      if (orderLabels.isNotEmpty) 'orderLabels': orderLabels,
+      if (frozenLabel?.trim().isNotEmpty ?? false) 'frozenLabel': frozenLabel,
+    };
+  }
+
+  static _ColumnTemplate? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final name = (map['name'] ?? '').toString().trim();
+    if (name.isEmpty) return null;
+    final savedAt = DateTime.tryParse((map['savedAt'] ?? '').toString()) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+
+    final prefsByLabel = <String, _ColumnPrefs>{};
+    final prefsRaw = map['prefsByLabel'];
+    if (prefsRaw is Map) {
+      prefsRaw.forEach((key, value) {
+        final label = key.toString().trim();
+        if (label.isEmpty) return;
+        final pref = _ColumnPrefs.fromJson(value);
+        if (pref == null) return;
+        prefsByLabel[label] = pref;
+      });
+    }
+
+    final orderLabels = <String>[];
+    final orderRaw = map['orderLabels'];
+    if (orderRaw is List) {
+      for (final item in orderRaw) {
+        final label = (item ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        orderLabels.add(label);
+      }
+    }
+
+    final frozenRaw = (map['frozenLabel'] ?? '').toString().trim();
+    final frozenLabel = frozenRaw.isEmpty ? null : frozenRaw;
+
+    return _ColumnTemplate(
+      name: name,
+      savedAt: savedAt,
+      prefsByLabel: prefsByLabel,
+      orderLabels: orderLabels,
+      frozenLabel: frozenLabel,
+    );
+  }
 }
 
 class _CellRef {

@@ -26,6 +26,7 @@ const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
 const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
+const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -361,7 +362,10 @@ class _EditorScreenState extends State<EditorScreen>
   int _incrementCount = 5;
   int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
+  Map<_CellRef, String> _invalidCellMessages = <_CellRef, String>{};
   int _pendingRequired = 0;
+  bool _errorsPanelOpen = false;
+  final List<_ColumnTemplate> _columnTemplates = <_ColumnTemplate>[];
   bool _inlineSearchOpen = false;
   final TextEditingController _inlineSearchEC = TextEditingController();
   final FocusNode _inlineSearchFocus =
@@ -488,6 +492,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
+    unawaited(_loadColumnTemplatesPref());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadAndroidInstallHelperPref());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -739,7 +744,17 @@ class _EditorScreenState extends State<EditorScreen>
       final pref = incoming[colId];
       if (pref == null) continue;
       if (pref.type == _ColType.photos) continue;
-      out[colId] = pref;
+      final sanitizedEnums = <String>[];
+      for (final value in pref.enumValues) {
+        final item = value.trim();
+        if (item.isEmpty) continue;
+        if (sanitizedEnums
+            .any((existing) => existing.toLowerCase() == item.toLowerCase())) {
+          continue;
+        }
+        sanitizedEnums.add(item);
+      }
+      out[colId] = pref.copyWith(enumValues: sanitizedEnums);
     }
     return out;
   }
@@ -1849,6 +1864,246 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
+  Future<void> _loadColumnTemplatesPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = (prefs.getString(_kPrefColumnTemplates) ?? '').trim();
+      if (raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final templates = <_ColumnTemplate>[];
+      for (final item in decoded) {
+        final parsed = _ColumnTemplate.fromJson(item);
+        if (parsed == null) continue;
+        templates.add(parsed);
+      }
+      templates.sort((a, b) => b.savedAt.compareTo(a.savedAt));
+      if (!mounted) {
+        _columnTemplates
+          ..clear()
+          ..addAll(templates);
+        return;
+      }
+      setState(() {
+        _columnTemplates
+          ..clear()
+          ..addAll(templates);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistColumnTemplatesPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_columnTemplates.isEmpty) {
+        await prefs.remove(_kPrefColumnTemplates);
+        return;
+      }
+      final payload = _columnTemplates
+          .map((entry) => entry.toJson())
+          .toList(growable: false);
+      await prefs.setString(_kPrefColumnTemplates, jsonEncode(payload));
+    } catch (_) {}
+  }
+
+  _ColumnTemplate _buildColumnTemplate(String name) {
+    final prefsByLabel = <String, _ColumnPrefs>{};
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final label = _headerLabel(c);
+      if (label.trim().isEmpty) continue;
+      final colId = _colIds[c];
+      final pref = _columnPrefsById[colId] ?? _defaultColumnPrefsFor(c);
+      prefsByLabel[label] = pref.copyWith();
+    }
+
+    final orderLabels = <String>[];
+    for (final colId
+        in _normalizeColumnOrder(colIds: _colIds, incoming: _columnOrder)) {
+      final index = _colIds.indexOf(colId);
+      if (index < 0 || index >= _headers.length - 1) continue;
+      final label = _headerLabel(index).trim();
+      if (label.isEmpty) continue;
+      orderLabels.add(label);
+    }
+
+    String? frozenLabel;
+    final frozenId =
+        _normalizeFrozenColId(colIds: _colIds, requested: _frozenColId);
+    if (frozenId != null) {
+      final frozenIndex = _colIds.indexOf(frozenId);
+      if (frozenIndex >= 0 && frozenIndex < _headers.length - 1) {
+        final label = _headerLabel(frozenIndex).trim();
+        if (label.isNotEmpty) frozenLabel = label;
+      }
+    }
+
+    return _ColumnTemplate(
+      name: name.trim(),
+      savedAt: DateTime.now(),
+      prefsByLabel: prefsByLabel,
+      orderLabels: orderLabels,
+      frozenLabel: frozenLabel,
+    );
+  }
+
+  Future<void> _saveCurrentColumnsAsTemplate() async {
+    if (!mounted) return;
+    final controller = TextEditingController(text: _sheetName.trim());
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: 'Guardar columnas como plantilla',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Nombre de plantilla'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            maxLines: 1,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Ej: Checklist diario',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          icon: Icons.bookmark_add_outlined,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final name = controller.text.trim();
+    controller.dispose();
+    if (accepted != true || name.isEmpty) return;
+
+    final template = _buildColumnTemplate(name);
+    setState(() {
+      _columnTemplates.removeWhere(
+        (item) => item.name.toLowerCase() == name.toLowerCase(),
+      );
+      _columnTemplates.insert(0, template);
+    });
+    await _persistColumnTemplatesPref();
+    _showActionSnack(
+      'Plantilla "$name" guardada.',
+      isError: false,
+      icon: Icons.bookmark_added_rounded,
+    );
+  }
+
+  void _applyColumnTemplate(_ColumnTemplate template) {
+    final labelToIndex = <String, int>{};
+    for (int c = 0; c < _headers.length - 1; c++) {
+      labelToIndex[_headerLabel(c).trim().toLowerCase()] = c;
+    }
+
+    final nextPrefs = _cloneColumnPrefs(_columnPrefsById);
+    template.prefsByLabel.forEach((label, pref) {
+      final colIndex = labelToIndex[label.trim().toLowerCase()];
+      if (colIndex == null) return;
+      final colId = _colIds[colIndex];
+      nextPrefs[colId] = pref.copyWith();
+    });
+
+    final nextOrder = <String>[];
+    final seen = <String>{};
+    for (final label in template.orderLabels) {
+      final colIndex = labelToIndex[label.trim().toLowerCase()];
+      if (colIndex == null) continue;
+      final colId = _colIds[colIndex];
+      if (!seen.add(colId)) continue;
+      nextOrder.add(colId);
+    }
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final colId = _colIds[c];
+      if (!seen.add(colId)) continue;
+      nextOrder.add(colId);
+    }
+
+    String? nextFrozen;
+    if (template.frozenLabel != null) {
+      final frozenIndex =
+          labelToIndex[template.frozenLabel!.trim().toLowerCase()];
+      if (frozenIndex != null) {
+        nextFrozen = _colIds[frozenIndex];
+      }
+    }
+
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: nextPrefs,
+      columnOrder: nextOrder,
+      frozenColId: nextFrozen,
+    );
+    _scheduleValidationRecompute(immediate: true);
+    _showActionSnack(
+      'Plantilla "${template.name}" aplicada.',
+      isError: false,
+      icon: Icons.auto_fix_high_rounded,
+    );
+  }
+
+  Future<void> _openApplyColumnTemplateDialog() async {
+    if (!mounted) return;
+    if (_columnTemplates.isEmpty) {
+      _showActionSnack(
+        'No hay plantillas guardadas.',
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    final selected = await showAppModal<_ColumnTemplate>(
+      context: context,
+      title: 'Aplicar plantilla de columnas',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: _columnTemplates.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 6),
+          itemBuilder: (ctx, index) {
+            final template = _columnTemplates[index];
+            final subtitle =
+                '${template.prefsByLabel.length} columnas · ${_formatDateTimeShort(template.savedAt.toLocal())}';
+            return ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: _palette(ctx).hintBg,
+              title: Text(template.name),
+              subtitle: Text(subtitle),
+              onTap: () => Navigator.of(context).pop(template),
+            );
+          },
+        ),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (selected == null) return;
+    _applyColumnTemplate(selected);
+  }
+
   Future<void> _loadEditorTourPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -2153,8 +2408,17 @@ class _EditorScreenState extends State<EditorScreen>
     return _inferColTypeFromHeader(_headerLabel(c));
   }
 
+  _ColumnPrefs _defaultColumnPrefsFor(int c) {
+    return _ColumnPrefs(type: _inferColTypeFromHeader(_headerLabel(c)));
+  }
+
   List<String>? _statusOptionsForCol(int c) {
     if (_colType(c) != _ColType.status) return null;
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      final enums = pref?.enumValues ?? const <String>[];
+      if (enums.isNotEmpty) return enums;
+    }
     return const <String>['OK', 'Obs', 'Urgente'];
   }
 
@@ -2260,6 +2524,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   bool _isRequired(int c) {
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      if (pref?.required == true) return true;
+    }
     final h = _headerLabel(c).toLowerCase();
     return h.startsWith('fecha') || h.startsWith('actividad');
   }
@@ -2271,6 +2539,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     try {
       final invalid = <_CellRef>{};
+      final messages = <_CellRef, String>{};
       int pending = 0;
 
       for (int r = 0; r < _rows.length; r++) {
@@ -2282,6 +2551,7 @@ class _EditorScreenState extends State<EditorScreen>
 
           if (required && v.isEmpty) {
             invalid.add(ref);
+            messages[ref] = 'Campo requerido';
             pending++;
             continue;
           }
@@ -2289,10 +2559,16 @@ class _EditorScreenState extends State<EditorScreen>
 
           switch (type) {
             case _ColType.date:
-              if (_parseDateCellValue(v) == null) invalid.add(ref);
+              if (_parseDateCellValue(v) == null) {
+                invalid.add(ref);
+                messages[ref] = 'Fecha invalida (usa dd/MM/yyyy)';
+              }
               break;
             case _ColType.number:
-              if (_parseNumberCellValue(v) == null) invalid.add(ref);
+              if (_parseNumberCellValue(v) == null) {
+                invalid.add(ref);
+                messages[ref] = 'Numero invalido';
+              }
               break;
             case _ColType.status:
               final options = _statusOptionsForCol(c);
@@ -2304,10 +2580,17 @@ class _EditorScreenState extends State<EditorScreen>
                   break;
                 }
               }
-              if (!matched) invalid.add(ref);
+              if (!matched) {
+                invalid.add(ref);
+                messages[ref] =
+                    'Valor no permitido. Opciones: ${options.join(', ')}';
+              }
               break;
             case _ColType.checkbox:
-              if (_parseCheckboxCellValue(v) == null) invalid.add(ref);
+              if (_parseCheckboxCellValue(v) == null) {
+                invalid.add(ref);
+                messages[ref] = 'Valor invalido (usa si/no, true/false, 1/0)';
+              }
               break;
             default:
               break;
@@ -2317,17 +2600,23 @@ class _EditorScreenState extends State<EditorScreen>
 
       final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
-          !_invalidCells.containsAll(invalid);
+          !_invalidCells.containsAll(invalid) ||
+          !mapEquals(_invalidCellMessages, messages);
       if (!hasChanges) return;
 
       if (!mounted) {
         _invalidCells = invalid;
+        _invalidCellMessages = messages;
         _pendingRequired = pending;
         return;
       }
       setState(() {
         _invalidCells = invalid;
+        _invalidCellMessages = messages;
         _pendingRequired = pending;
+        if (_invalidCells.isEmpty) {
+          _errorsPanelOpen = false;
+        }
       });
     } finally {
       if (kDebugMode) {
@@ -6028,6 +6317,10 @@ class _EditorScreenState extends State<EditorScreen>
         ..write(pref?.hidden == true ? '1' : '0')
         ..write(':')
         ..write(pref?.type.name ?? '')
+        ..write(':')
+        ..write(pref?.required == true ? '1' : '0')
+        ..write(':')
+        ..write((pref?.enumValues ?? const <String>[]).join('~'))
         ..write(';');
     }
     return sb.toString();
@@ -6112,7 +6405,12 @@ class _EditorScreenState extends State<EditorScreen>
     if (current != null && current.type == type) return;
     final next = _cloneColumnPrefs(_columnPrefsById);
     final hidden = current?.hidden ?? false;
-    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    next[colId] = _ColumnPrefs(
+      type: type,
+      hidden: hidden,
+      required: current?.required ?? _isRequired(col),
+      enumValues: current?.enumValues ?? const <String>[],
+    );
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
       columnOrder: _columnOrder,
@@ -6139,7 +6437,12 @@ class _EditorScreenState extends State<EditorScreen>
 
     final next = _cloneColumnPrefs(_columnPrefsById);
     final type = current?.type ?? _colType(col);
-    next[colId] = _ColumnPrefs(type: type, hidden: hidden);
+    next[colId] = _ColumnPrefs(
+      type: type,
+      hidden: hidden,
+      required: current?.required ?? _isRequired(col),
+      enumValues: current?.enumValues ?? const <String>[],
+    );
     final nextFrozen = (_frozenColId == colId && hidden) ? null : _frozenColId;
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
@@ -7412,7 +7715,7 @@ class _EditorScreenState extends State<EditorScreen>
                     runSpacing: 8,
                     children: [
                       AppButton(
-                        label: 'Reset template',
+                        label: 'Restaurar columnas por defecto',
                         icon: Icons.restart_alt_rounded,
                         size: AppButtonSize.sm,
                         variant: AppButtonVariant.ghost,
@@ -7423,8 +7726,32 @@ class _EditorScreenState extends State<EditorScreen>
                               incoming: null,
                             );
                             draftPrefs = <String, _ColumnPrefs>{};
+                            for (int c = 0; c < _headers.length - 1; c++) {
+                              draftPrefs[_colIds[c]] =
+                                  _defaultColumnPrefsFor(c);
+                            }
                             draftFrozen = null;
                           });
+                        },
+                      ),
+                      AppButton(
+                        label: 'Guardar como plantilla',
+                        icon: Icons.bookmark_add_outlined,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () async {
+                          Navigator.of(context).pop(false);
+                          await _saveCurrentColumnsAsTemplate();
+                        },
+                      ),
+                      AppButton(
+                        label: 'Aplicar plantilla',
+                        icon: Icons.auto_fix_high_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () async {
+                          Navigator.of(context).pop(false);
+                          await _openApplyColumnTemplateDialog();
                         },
                       ),
                       AppButton(
@@ -7444,6 +7771,9 @@ class _EditorScreenState extends State<EditorScreen>
                               next[colId] = _ColumnPrefs(
                                 type: current?.type ?? type,
                                 hidden: false,
+                                required: current?.required ?? false,
+                                enumValues:
+                                    current?.enumValues ?? const <String>[],
                               );
                             }
                             draftPrefs = next;
@@ -7460,6 +7790,8 @@ class _EditorScreenState extends State<EditorScreen>
                 final pref = draftPrefs[colId];
                 final type = pref?.type ?? _inferColTypeFromHeader(header);
                 final hidden = pref?.hidden ?? false;
+                final required = pref?.required ?? _isRequired(col);
+                final enumValues = pref?.enumValues ?? const <String>[];
                 final orderIndex = draftOrder.indexOf(colId);
 
                 return Container(
@@ -7534,6 +7866,8 @@ class _EditorScreenState extends State<EditorScreen>
                                     ..[colId] = _ColumnPrefs(
                                       type: nextType,
                                       hidden: hidden,
+                                      required: required,
+                                      enumValues: enumValues,
                                     );
                                 });
                               },
@@ -7554,6 +7888,8 @@ class _EditorScreenState extends State<EditorScreen>
                                     ..[colId] = _ColumnPrefs(
                                       type: type,
                                       hidden: !visible,
+                                      required: required,
+                                      enumValues: enumValues,
                                     );
                                   if (!visible && draftFrozen == colId) {
                                     draftFrozen = null;
@@ -7582,6 +7918,60 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                         ],
                       ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SwitchListTile.adaptive(
+                              value: required,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Requerido',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              onChanged: (enabled) {
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: type,
+                                      hidden: hidden,
+                                      required: enabled,
+                                      enumValues: enumValues,
+                                    );
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (type == _ColType.status) ...[
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          key: ValueKey('enum-$colId'),
+                          initialValue: enumValues.join(', '),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'Enum (separado por coma)',
+                            hintText: 'OK, Obs, Urgente',
+                          ),
+                          onChanged: (raw) {
+                            final values = raw
+                                .split(',')
+                                .map((item) => item.trim())
+                                .where((item) => item.isNotEmpty)
+                                .toSet()
+                                .toList(growable: false);
+                            setModalState(() {
+                              draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                ..[colId] = _ColumnPrefs(
+                                  type: type,
+                                  hidden: hidden,
+                                  required: required,
+                                  enumValues: values,
+                                );
+                            });
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 );

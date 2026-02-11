@@ -205,6 +205,18 @@ class SheetStore {
     if (columnSpecs is List && columnSpecs.isNotEmpty) {
       model['columnSpecs'] = columnSpecs;
     }
+    final columnPrefs = existingMap?['columnPrefs'];
+    if (columnPrefs is Map && columnPrefs.isNotEmpty) {
+      model['columnPrefs'] = columnPrefs;
+    }
+    final columnOrder = existingMap?['columnOrder'];
+    if (columnOrder is List && columnOrder.isNotEmpty) {
+      model['columnOrder'] = columnOrder;
+    }
+    final frozenColId = (existingMap?['frozenColId'] ?? '').toString().trim();
+    if (frozenColId.isNotEmpty) {
+      model['frozenColId'] = frozenColId;
+    }
     final templateKind = (existingMap?['templateKind'] ?? '').toString().trim();
     if (templateKind.isNotEmpty) {
       model['templateKind'] = templateKind;
@@ -300,6 +312,18 @@ class SheetStore {
     final columnSpecs = raw['columnSpecs'];
     if (columnSpecs is List && columnSpecs.isNotEmpty) {
       normalized['columnSpecs'] = columnSpecs;
+    }
+    final columnPrefs = raw['columnPrefs'];
+    if (columnPrefs is Map && columnPrefs.isNotEmpty) {
+      normalized['columnPrefs'] = columnPrefs;
+    }
+    final columnOrder = raw['columnOrder'];
+    if (columnOrder is List && columnOrder.isNotEmpty) {
+      normalized['columnOrder'] = columnOrder;
+    }
+    final frozenColId = (raw['frozenColId'] ?? '').toString().trim();
+    if (frozenColId.isNotEmpty) {
+      normalized['frozenColId'] = frozenColId;
     }
     final templateKind = (raw['templateKind'] ?? '').toString().trim();
     if (templateKind.isNotEmpty) {
@@ -562,13 +586,15 @@ class SheetStore {
     final id = _nextSheetId();
     final initialRows = rows ??
         List.generate(3, (_) => List<String>.filled(headers.length, ''));
+    final colIds = _normalizeColIds(headers, null);
 
     final model = <String, dynamic>{
       'name': name,
       'savedAt': DateTime.now().toIso8601String(),
       'headers': headers,
-      'colIds': _normalizeColIds(headers, null),
+      'colIds': colIds,
       'rows': _buildRowMaps(initialRows),
+      'columnPrefs': _columnPrefsFromSpecs(columnSpecs, colIds),
       if (columnSpecs != null && columnSpecs.isNotEmpty)
         'columnSpecs': columnSpecs,
       if (templateKind != null && templateKind.trim().isNotEmpty)
@@ -614,6 +640,30 @@ class SheetStore {
     final h = List<String>.filled(cols, '');
     if (h.isNotEmpty) h[h.length - 1] = _photosHeader;
     return h;
+  }
+
+  static Map<String, Map<String, dynamic>> _columnPrefsFromSpecs(
+    List<Map<String, dynamic>>? specs,
+    List<String> colIds,
+  ) {
+    if (specs == null || specs.isEmpty) return <String, Map<String, dynamic>>{};
+    final out = <String, Map<String, dynamic>>{};
+    for (int i = 0; i < specs.length && i < colIds.length; i++) {
+      final colId = colIds[i];
+      if (colId == _photosColId) continue;
+      final spec = specs[i];
+      final typeRaw = (spec['type'] ?? '').toString().trim().toLowerCase();
+      if (typeRaw.isEmpty || typeRaw == 'photos') continue;
+      final pref = <String, dynamic>{
+        'type': typeRaw == 'enum' ? 'status' : typeRaw,
+      };
+      final options = spec['options'];
+      if (options is List && options.isNotEmpty) {
+        pref['enumValues'] = options.map((e) => e.toString()).toList();
+      }
+      out[colId] = pref;
+    }
+    return out;
   }
 
   static List<String> _defaultColIds(int len) {

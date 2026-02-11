@@ -42,4 +42,27 @@ void main() {
     expect(listedIds.length, ids.length);
     expect(listedIds.containsAll(ids), isTrue);
   });
+
+  test('normalizeModel preserves column configuration keys', () {
+    final normalized = SheetStore.normalizeModel(<String, dynamic>{
+      'name': 'Demo',
+      'savedAt': DateTime(2026, 2, 11).toIso8601String(),
+      'headers': const ['Actividad', 'Estado', 'Photos'],
+      'colIds': const ['c_activity', 'c_status', 'col_photos'],
+      'rows': const <Map<String, dynamic>>[],
+      'columnPrefs': const <String, dynamic>{
+        'c_activity': <String, dynamic>{'type': 'text', 'required': true},
+        'c_status': <String, dynamic>{
+          'type': 'status',
+          'enumValues': <String>['OK', 'Obs']
+        },
+      },
+      'columnOrder': const <String>['c_status', 'c_activity'],
+      'frozenColId': 'c_status',
+    });
+
+    expect(normalized['columnPrefs'], isA<Map>());
+    expect(normalized['columnOrder'], isA<List>());
+    expect(normalized['frozenColId'], 'c_status');
+  });
 }
