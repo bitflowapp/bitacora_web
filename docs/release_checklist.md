@@ -258,6 +258,38 @@ Publicar release Android (1 comando):
 - Search highlights matching cells in-grid and navigation moves selection correctly.
 - `Ctrl/Cmd+J` opens `Jump to...` and jumps by row or by ID/progressive value.
 3. Motion and feedback:
+
+## 3.8) P12 smoke test (Data Quality + Workflows + Views)
+1. Centro de calidad:
+- Configurar reglas por columna: `required`, `number(min/max)`, `date`, `enum`, `regex`.
+- Ingresar datos invalidos y validar:
+  - resaltado monocromo en celda
+  - hint inline al editar
+  - panel `Errores` con salto a celda
+  - chip/contador de errores en header
+2. Export gating:
+- Con errores activos, abrir export y confirmar modal:
+  - `Exportar igual`
+  - `Ir a errores`
+3. Saved Views:
+- Crear vista con filtros (`Estado`, `Fecha`, `Texto contiene`) y orden.
+- Guardar, aplicar, renombrar y eliminar.
+- Recargar web/reiniciar Android y verificar persistencia de vista activa.
+4. Workflow revision:
+- Marcar filas como revisadas y pendientes.
+- Activar `Vista pendientes de revision`.
+- Exportar PDF y verificar columnas `Revisado`, `Revisado por`, `Revisado en`.
+5. Productividad:
+- Abrir command palette (`Ctrl/Cmd+K`) y ejecutar:
+  - `Ir a errores`
+  - `Vista Urgentes`
+  - `Marcar revisado`
+  - `Duplicar ultima fila`
+  - `Auto-ID`
+  - `Usar ultimo valor`
+6. Performance:
+- Pegar bloque grande (TSV/CSV) y confirmar UI responsiva sin freeze visible.
+- Validar que seleccion/edicion no pierden foco en el flujo de pegado.
 - `Ctrl/Cmd+K` command palette opens/closes with smooth fade/slide/scale.
 - Inline search and quick actions bars animate in/out without jank.
 - Save/sync chips animate state transitions (dirty/saving/saved/syncing) without visual flicker.

@@ -184,6 +184,61 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
   - feedback tactil afinado con throttling en `_blink` (iOS/Android)
 - Objetivo visual:
   - monocromo premium, bordes redondeados consistentes y sombras suaves.
+
+## Data Quality Center (P12)
+- Reglas de validacion centralizadas:
+  - `validation/validation_rules.dart`
+  - `_validationMessageForValue` + `_recomputeValidation`
+- Superficie UX:
+  - celdas invalidas monocromas
+  - hint inline
+  - panel de errores navegable (`_ValidationErrorsPanel`)
+  - export gating (`_confirmExportWithValidationIfNeeded`)
+
+## Saved Views (P12)
+- Modelo:
+  - `_SavedView` en `editor_models.dart`
+- Persistencia:
+  - `SharedPreferences` por planilla (`_prefsSavedViewsKey`, `_prefsActiveViewKey`)
+- Runtime:
+  - filtros/orden/columnas se aplican en capa de proyeccion de filas:
+    - `_visibleRowIndexes`
+    - `_actualRowFromDisplay`
+    - `_displayRowForActual`
+  - no reordena ni muta dataset base para render de vistas
+
+## Review Workflow (P12)
+- Metadata por fila en `_RowModel`:
+  - `reviewed`
+  - `reviewedBy`
+  - `reviewedAt`
+- Acciones:
+  - `_markSelectedRowsReviewed`
+  - `_markSelectedRowsPendingReview`
+  - `_togglePendingReviewView`
+- Export PDF:
+  - agrega columnas de revision cuando hay metadata disponible
+
+## Productivity Layer (P12)
+- Command palette extendida (`actions/editor_actions.dart`):
+  - `Ir a errores`
+  - `Vista Urgentes`
+  - `Marcar revisado`
+  - `Duplicar ultima fila`
+  - `Auto-ID`
+  - `Usar ultimo valor`
+- Mantiene entrypoints multiples:
+  - topbar/toolbar
+  - menu mobile
+  - palette
+
+## Perf Notes (P12)
+- Paste:
+  - chunking por celdas procesadas (no solo cambiadas) para mantener responsividad.
+- Review updates:
+  - bump por fila (`_bumpRowVersionById`) y rebuild global solo cuando afecta vista.
+- Saved views:
+  - cache token liviano para evitar `jsonEncode` en cada build.
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`
