@@ -1162,6 +1162,52 @@ class _CellRef {
   int get hashCode => Object.hash(r, c);
 }
 
+@immutable
+class _CellInlinePreviewData {
+  const _CellInlinePreviewData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.extraCount,
+    this.thumbB64 = '',
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final int extraCount;
+  final String thumbB64;
+
+  bool get hasThumb => thumbB64.trim().isNotEmpty;
+}
+
+class _ThumbDecodeCache {
+  _ThumbDecodeCache({this.maxEntries = 180});
+
+  final int maxEntries;
+  final Map<String, Uint8List?> _decodedByBase64 = <String, Uint8List?>{};
+
+  Uint8List? decode(String raw) {
+    final key = raw.trim();
+    if (key.isEmpty) return null;
+
+    if (_decodedByBase64.containsKey(key)) {
+      final cached = _decodedByBase64.remove(key);
+      _decodedByBase64[key] = cached;
+      return cached;
+    }
+
+    final decoded = _tryDecodeB64(key);
+    _decodedByBase64[key] = decoded;
+    if (_decodedByBase64.length > maxEntries) {
+      _decodedByBase64.remove(_decodedByBase64.keys.first);
+    }
+    return decoded;
+  }
+
+  void clear() => _decodedByBase64.clear();
+}
+
 enum _ColType { text, number, date, status, checkbox, photos }
 
 _ColType? _colTypeFromStorageName(String raw) {

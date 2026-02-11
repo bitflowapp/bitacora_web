@@ -67,6 +67,8 @@ class _GridView extends StatelessWidget {
     required this.cellHasAudios,
     required this.cellPhotoThumb,
     required this.cellPhotoCount,
+    required this.cellInlinePreviewAt,
+    required this.decodeThumb,
     required this.isInvalid,
     required this.isSearchHit,
     required this.vScroll,
@@ -100,6 +102,8 @@ class _GridView extends StatelessWidget {
   final bool Function(int r, int c) cellHasAudios;
   final String Function(int r, int c) cellPhotoThumb;
   final int Function(int r, int c) cellPhotoCount;
+  final _CellInlinePreviewData? Function(int r, int c) cellInlinePreviewAt;
+  final Uint8List? Function(String raw) decodeThumb;
   final bool Function(int r, int c) isInvalid;
   final bool Function(int r, int c) isSearchHit;
 
@@ -233,8 +237,8 @@ class _GridView extends StatelessWidget {
                                       ),
                                       builder: (context, _, __) {
                                         onRowBuild(row.id);
-                                        final rowSelected = selectedRows
-                                            .contains(r);
+                                        final rowSelected =
+                                            selectedRows.contains(r);
                                         return SizedBox(
                                           height: metrics.rowH,
                                           child: Row(
@@ -249,17 +253,15 @@ class _GridView extends StatelessWidget {
                                                 onTap: () => onRowIndexTap(r),
                                                 onSecondaryTapDown: (d) =>
                                                     onContextMenu(
-                                                      d.globalPosition,
-                                                      r,
-                                                      selCol,
-                                                      false,
-                                                    ),
+                                                  d.globalPosition,
+                                                  r,
+                                                  selCol,
+                                                  false,
+                                                ),
                                               ),
-                                              for (
-                                                int col = 0;
-                                                col < headers.length;
-                                                col++
-                                              )
+                                              for (int col = 0;
+                                                  col < headers.length;
+                                                  col++)
                                                 Builder(
                                                   builder: (_) {
                                                     final ref = _CellRef(
@@ -270,18 +272,21 @@ class _GridView extends StatelessWidget {
                                                       r,
                                                       col,
                                                     );
-                                                    final isPhotos =
-                                                        col ==
+                                                    final isPhotos = col ==
                                                         headers.length - 1;
                                                     final photosCount =
                                                         cellPhotoCount(r, col);
                                                     final thumbB64 =
                                                         cellPhotoThumb(r, col);
+                                                    final inlinePreview =
+                                                        cellInlinePreviewAt(
+                                                      r,
+                                                      col,
+                                                    );
                                                     return _DataCell(
                                                       palette: palette,
                                                       metrics: metrics,
-                                                      width:
-                                                          col ==
+                                                      width: col ==
                                                               headers.length - 1
                                                           ? photosW
                                                           : colW,
@@ -296,10 +301,13 @@ class _GridView extends StatelessWidget {
                                                       ),
                                                       photoThumbB64: thumbB64,
                                                       photosCount: photosCount,
+                                                      inlinePreview: isPhotos
+                                                          ? null
+                                                          : inlinePreview,
                                                       zebra: r.isEven,
                                                       thumbB64: thumbB64,
-                                                      selected:
-                                                          r == selRow &&
+                                                      decodeThumb: decodeThumb,
+                                                      selected: r == selRow &&
                                                           col == selCol,
                                                       rowSelected: rowSelected,
                                                       isPhotos: isPhotos,
@@ -312,10 +320,11 @@ class _GridView extends StatelessWidget {
                                                       ),
                                                       isOverlayTarget:
                                                           overlayTargetCell ==
-                                                          ref,
+                                                              ref,
                                                       editorLink: editorLink,
                                                       onBuild: onCellBuild,
-                                                      onTap: () => onEditRequested(
+                                                      onTap: () =>
+                                                          onEditRequested(
                                                         r,
                                                         col,
                                                         col ==
@@ -329,10 +338,10 @@ class _GridView extends StatelessWidget {
                                                         final box = ctx3
                                                             .findRenderObject();
                                                         if (box is RenderBox) {
-                                                          final pos = box
-                                                              .localToGlobal(
-                                                                Offset.zero,
-                                                              );
+                                                          final pos =
+                                                              box.localToGlobal(
+                                                            Offset.zero,
+                                                          );
                                                           onContextMenu(
                                                             pos +
                                                                 const Offset(
@@ -360,9 +369,9 @@ class _GridView extends StatelessWidget {
                                                           onPickPhoto(r),
                                                       onAttachmentsTap: () =>
                                                           onOpenAttachments(
-                                                            r,
-                                                            col,
-                                                          ),
+                                                        r,
+                                                        col,
+                                                      ),
                                                     );
                                                   },
                                                 ),
@@ -460,9 +469,8 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = text.trim().isEmpty
-        ? (isPhotos ? kPhotosHeader : '')
-        : text.trim();
+    final t =
+        text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
     final radius = BorderRadius.zero;
     final borderColor = palette.gridBorder;
     final lineWidth = math.max(palette.hairline, 0.85).toDouble();
@@ -601,8 +609,10 @@ class _DataCell extends StatelessWidget {
     required this.hasAudio,
     required this.photoThumbB64,
     required this.photosCount,
+    required this.inlinePreview,
     required this.zebra,
     required this.thumbB64,
+    required this.decodeThumb,
     required this.selected,
     required this.rowSelected,
     required this.invalid,
@@ -629,8 +639,10 @@ class _DataCell extends StatelessWidget {
   final bool hasAudio;
   final String photoThumbB64;
   final int photosCount;
+  final _CellInlinePreviewData? inlinePreview;
   final bool zebra;
   final String thumbB64;
+  final Uint8List? Function(String raw) decodeThumb;
   final bool selected;
   final bool rowSelected;
   final bool invalid;
@@ -662,15 +674,13 @@ class _DataCell extends StatelessWidget {
     final rowSelectedBg = palette.selectionFill.withValues(
       alpha: palette.isLight ? 0.5 : 0.66,
     );
-    final searchBg =
-        Color.lerp(
+    final searchBg = Color.lerp(
           baseBg,
           palette.focusRing.withValues(alpha: palette.isLight ? 0.16 : 0.22),
           0.6,
         ) ??
         baseBg;
-    final invalidBg =
-        Color.lerp(
+    final invalidBg = Color.lerp(
           baseBg,
           palette.cellText.withValues(alpha: palette.isLight ? 0.08 : 0.16),
           0.58,
@@ -679,10 +689,10 @@ class _DataCell extends StatelessWidget {
     final bg = isActive
         ? palette.blinkBg
         : (selected
-              ? selectedBg
-              : (rowSelected
-                    ? rowSelectedBg
-                    : (invalid ? invalidBg : (searchHit ? searchBg : baseBg))));
+            ? selectedBg
+            : (rowSelected
+                ? rowSelectedBg
+                : (invalid ? invalidBg : (searchHit ? searchBg : baseBg))));
 
     final invalidBorder = palette.cellText.withValues(
       alpha: palette.isLight ? 0.35 : 0.56,
@@ -690,12 +700,12 @@ class _DataCell extends StatelessWidget {
     final borderColor = focus
         ? palette.selectionBorder
         : (invalid
-              ? invalidBorder
-              : (searchHit
-                    ? palette.selectionBorder.withValues(
-                        alpha: palette.isLight ? 0.52 : 0.7,
-                      )
-                    : palette.gridBorder));
+            ? invalidBorder
+            : (searchHit
+                ? palette.selectionBorder.withValues(
+                    alpha: palette.isLight ? 0.52 : 0.7,
+                  )
+                : palette.gridBorder));
     final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final radius = BorderRadius.zero;
@@ -726,9 +736,8 @@ class _DataCell extends StatelessWidget {
                   ? BoxDecoration(
                       borderRadius: radius,
                       border: Border.all(
-                        color: invalid
-                            ? invalidBorder
-                            : palette.selectionBorder,
+                        color:
+                            invalid ? invalidBorder : palette.selectionBorder,
                         width: 1.5,
                       ),
                     )
@@ -766,34 +775,109 @@ class _DataCell extends StatelessWidget {
     );
   }
 
+  Widget _buildInlinePreviewChip(_CellInlinePreviewData preview) {
+    final thumbBytes = preview.hasThumb ? decodeThumb(preview.thumbB64) : null;
+    final leading = thumbBytes != null
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: Image.memory(
+              thumbBytes,
+              width: 24,
+              height: 24,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+          )
+        : Icon(
+            preview.icon,
+            size: 17,
+            color: palette.chipText,
+          );
+
+    return InkWell(
+      onTap: onAttachmentsTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 90, minWidth: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: palette.chipBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: palette.chipBorder,
+            width: math.max(palette.hairline, 1).toDouble(),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            leading,
+            if (preview.extraCount > 0) ...[
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  '+${preview.extraCount}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: palette.chipText,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCellBody(BuildContext context) {
+    final inline = inlinePreview;
+    final displayText = text.trim().isNotEmpty
+        ? text
+        : (!isPhotos && inline != null
+            ? '${inline.title} · ${inline.subtitle}'
+            : ' ');
     final content = isPhotos
         ? _PhotosCell(
             palette: palette,
             count: photosCount,
             thumbB64: thumbB64,
+            decodeThumb: decodeThumb,
             onAdd: onPickPhoto,
             onDeleteRow: onDeleteRow,
           )
-        : Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              text.trim().isEmpty ? ' ' : text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.cellText,
-                fontSize: metrics.cellFontSize,
-                height: 1.1,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                letterSpacing: selected ? -0.12 : -0.04,
+        : Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    displayText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.cellText,
+                      fontSize: metrics.cellFontSize,
+                      height: 1.1,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      letterSpacing: selected ? -0.12 : -0.04,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              if (inline != null) ...[
+                const SizedBox(width: 6),
+                _buildInlinePreviewChip(inline),
+              ],
+            ],
           );
 
     final badges = <Widget>[];
-    if (photosCount > 0) {
-      final bytes = _tryDecodeB64(photoThumbB64);
+    if (photosCount > 0 && inline == null) {
+      final bytes = decodeThumb(photoThumbB64);
       final iconWidget = bytes != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(3),
@@ -904,6 +988,7 @@ class _PhotosCell extends StatelessWidget {
     required this.palette,
     required this.count,
     required this.thumbB64,
+    required this.decodeThumb,
     required this.onAdd,
     required this.onDeleteRow,
   });
@@ -911,12 +996,13 @@ class _PhotosCell extends StatelessWidget {
   final _SheetPalette palette;
   final int count;
   final String thumbB64;
+  final Uint8List? Function(String raw) decodeThumb;
   final VoidCallback onAdd;
   final VoidCallback onDeleteRow;
 
   @override
   Widget build(BuildContext context) {
-    final thumbBytes = _tryDecodeB64(thumbB64);
+    final thumbBytes = decodeThumb(thumbB64);
     final hasThumb = thumbBytes != null;
     return Row(
       children: [

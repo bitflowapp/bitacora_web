@@ -807,7 +807,7 @@ extension _EditorAttachments on _EditorScreenState {
           final previewable = _isPreviewableMime(safeMime, value.fileName);
           final thumbBytes = previewable
               ? (value.thumbBytes ??
-                  _compressThumb(bytes, maxW: 560, maxH: 560, quality: 78))
+                  _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74))
               : null;
           final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
               ? ''
@@ -2081,6 +2081,11 @@ extension _EditorAttachments on _EditorScreenState {
                   ? 'video_adjuntado'
                   : 'archivo_adjuntado')
               : picked.name.trim();
+          final thumbB64 = _buildInlineThumbB64(
+            bytes: value,
+            mime: inferredMime,
+            name: safeName,
+          );
           final att = PhotoAttachment(
             id: attachmentId,
             filename: safeName,
@@ -2088,7 +2093,7 @@ extension _EditorAttachments on _EditorScreenState {
             mime: inferredMime,
             size: value.lengthInBytes,
             storedRef: storedRef,
-            thumbRef: '',
+            thumbRef: thumbB64,
             addedAt: DateTime.now(),
           );
           if (!_applyPhotoToRef(target, att)) {
@@ -2163,6 +2168,40 @@ extension _EditorAttachments on _EditorScreenState {
     }
     if (lower.endsWith('.zip')) return 'application/zip';
     return fallback;
+  }
+
+  String _buildInlineThumbB64({
+    required Uint8List bytes,
+    required String mime,
+    required String name,
+  }) {
+    if (_isPreviewableMime(mime, name)) {
+      final thumbBytes =
+          _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74);
+      if (thumbBytes != null && thumbBytes.isNotEmpty) {
+        return base64Encode(thumbBytes);
+      }
+      return '';
+    }
+    if (_isPdfAttachmentMime(mime, name)) {
+      final thumbBytes = _tryBuildPdfFirstPageThumb(bytes);
+      if (thumbBytes != null && thumbBytes.isNotEmpty) {
+        return base64Encode(thumbBytes);
+      }
+    }
+    return '';
+  }
+
+  bool _isPdfAttachmentMime(String mime, String name) {
+    final m = mime.toLowerCase();
+    final n = name.toLowerCase();
+    return m.contains('application/pdf') || n.endsWith('.pdf');
+  }
+
+  Uint8List? _tryBuildPdfFirstPageThumb(Uint8List bytes) {
+    if (bytes.isEmpty) return null;
+    // Intento condicional: se requiere rasterizador PDF en runtime; fallback icon.
+    return null;
   }
 
 // ------------------------------ Audio -----------------------------------
@@ -3300,9 +3339,9 @@ extension _EditorAttachments on _EditorScreenState {
             mimeType: originalMime,
             source: result.webFile,
             maxSide: 1600,
-            thumbMaxSide: 560,
+            thumbMaxSide: 320,
             jpegQuality: 0.85,
-            thumbJpegQuality: 0.78,
+            thumbJpegQuality: 0.74,
           ),
         );
         if (normalized != null && normalized.bytes.isNotEmpty) {

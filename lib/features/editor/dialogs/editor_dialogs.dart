@@ -7,6 +7,7 @@ extension _EditorDialogs on _EditorScreenState {
     var dateDefault = _defaultDateTodayEnabled;
     var statusDefault = _defaultStatusOkEnabled;
     var autoIncrement = _autoIncrementIdEnabled;
+    var inlinePreviews = _cellInlinePreviewsEnabled;
 
     final result = await showAppModal<_EditorDefaultsConfig>(
       context: context,
@@ -41,6 +42,16 @@ extension _EditorDialogs on _EditorScreenState {
                   'Toma el ultimo valor numerico y suma +1',
                 ),
               ),
+              SwitchListTile(
+                value: inlinePreviews,
+                onChanged: (value) =>
+                    setModalState(() => inlinePreviews = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Previews en celdas'),
+                subtitle: const Text(
+                  'Muestra miniaturas inline (puede usar mas memoria en grillas grandes).',
+                ),
+              ),
             ],
           );
         },
@@ -60,6 +71,7 @@ extension _EditorDialogs on _EditorScreenState {
                 dateDefault: dateDefault,
                 statusDefault: statusDefault,
                 autoIncrement: autoIncrement,
+                inlinePreviews: inlinePreviews,
               ),
             );
           },
@@ -73,6 +85,7 @@ extension _EditorDialogs on _EditorScreenState {
       defaultDateTodayEnabled: result.dateDefault,
       defaultStatusOkEnabled: result.statusDefault,
       autoIncrementIdEnabled: result.autoIncrement,
+      cellInlinePreviewsEnabled: result.inlinePreviews,
     );
     if (!mounted) return;
     _showActionSnack(
@@ -282,9 +295,11 @@ class _EditorDefaultsConfig {
     required this.dateDefault,
     required this.statusDefault,
     required this.autoIncrement,
+    required this.inlinePreviews,
   });
 
   final bool dateDefault;
   final bool statusDefault;
   final bool autoIncrement;
+  final bool inlinePreviews;
 }

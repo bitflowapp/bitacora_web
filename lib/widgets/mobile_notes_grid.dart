@@ -145,6 +145,8 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.cellHasAudios,
     required this.cellPhotoThumb,
     required this.cellPhotoCount,
+    required this.cellInlinePreviewAt,
+    required this.decodeThumb,
     required this.verticalController,
     required this.headerScrollController,
     required this.rowScrollControllers,
@@ -176,6 +178,8 @@ class _MobileNotesGrid extends StatelessWidget {
   final bool Function(int r, int c) cellHasAudios;
   final String Function(int r, int c) cellPhotoThumb;
   final int Function(int r, int c) cellPhotoCount;
+  final _CellInlinePreviewData? Function(int r, int c) cellInlinePreviewAt;
+  final Uint8List? Function(String raw) decodeThumb;
 
   final ScrollController verticalController;
   final ScrollController headerScrollController;
@@ -293,6 +297,7 @@ class _MobileNotesGrid extends StatelessWidget {
               hasPhoto: false,
               zebra: false,
               photoThumbB64: '',
+              inlinePreview: null,
               onTap: () => onHeaderTap(ctx, col),
               onLongPress: (pos) => onContextMenu(pos, -1, col, true),
               onAttachmentsTap: null,
@@ -354,6 +359,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 hasPhoto: count > 0,
                 zebra: row.isEven,
                 photoThumbB64: thumb,
+                inlinePreview: null,
                 onTap: () => onCellTap(ctx, row, col),
                 onLongPress: (pos) => onContextMenu(pos, row, col, false),
                 onAttachmentsTap: () => onOpenAttachments(row, col),
@@ -361,6 +367,7 @@ class _MobileNotesGrid extends StatelessWidget {
                   palette: palette,
                   count: count,
                   thumbB64: thumb,
+                  decodeThumb: decodeThumb,
                   onAdd: () => onPickPhoto(row),
                   onDeleteRow: () => onDeleteRow(row),
                 ),
@@ -372,6 +379,12 @@ class _MobileNotesGrid extends StatelessWidget {
             final hasAudio = cellHasAudios(row, col);
             final thumbB64 = cellPhotoThumb(row, col);
             final hasPhoto = cellPhotoCount(row, col) > 0;
+            final inlinePreview = cellInlinePreviewAt(row, col);
+            final displayText = text.trim().isNotEmpty
+                ? text
+                : (inlinePreview == null
+                    ? text
+                    : '${inlinePreview.title} · ${inlinePreview.subtitle}');
             return _buildCard(
               context: ctx,
               width: cardW,
@@ -380,9 +393,10 @@ class _MobileNotesGrid extends StatelessWidget {
               isSelected: isSelected,
               hasGps: hasGps,
               hasAudio: hasAudio,
-              hasPhoto: hasPhoto,
+              hasPhoto: inlinePreview == null && hasPhoto,
               zebra: row.isEven,
-              photoThumbB64: thumbB64,
+              photoThumbB64: inlinePreview == null ? thumbB64 : '',
+              inlinePreview: inlinePreview,
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
               onAttachmentsTap: () => onOpenAttachments(row, col),
@@ -393,7 +407,11 @@ class _MobileNotesGrid extends StatelessWidget {
                         return _buildCardText(value.text, isHeader: false);
                       },
                     )
-                  : _buildCardText(text, isHeader: false),
+                  : _buildCardTextWithPreview(
+                      displayText,
+                      isHeader: false,
+                      preview: inlinePreview,
+                    ),
             );
           },
         ),
@@ -412,22 +430,21 @@ class _MobileNotesGrid extends StatelessWidget {
     required bool hasPhoto,
     required bool zebra,
     required String photoThumbB64,
+    required _CellInlinePreviewData? inlinePreview,
     required VoidCallback onTap,
     required ValueChanged<Offset> onLongPress,
     required VoidCallback? onAttachmentsTap,
     required Widget child,
   }) {
     final headerBg = palette.headerBg;
-    final baseBg = isHeader
-        ? headerBg
-        : (zebra ? palette.zebraB : palette.zebraA);
+    final baseBg =
+        isHeader ? headerBg : (zebra ? palette.zebraB : palette.zebraA);
     final activeBg = palette.selectionFill;
     final selectedBg = palette.selectionFill;
     final bg = isActive ? activeBg : (isSelected ? selectedBg : baseBg);
 
-    final borderColor = (isActive || isSelected)
-        ? palette.selectionBorder
-        : palette.gridBorder;
+    final borderColor =
+        (isActive || isSelected) ? palette.selectionBorder : palette.gridBorder;
     final lineWidth = math.max(palette.hairline, 1).toDouble();
 
     final radius = 6.0;
@@ -456,8 +473,9 @@ class _MobileNotesGrid extends StatelessWidget {
     }
 
     final badges = <Widget>[];
-    if (photoThumbB64.trim().isNotEmpty || hasPhoto) {
-      final bytes = _tryDecodeB64(photoThumbB64);
+    if (inlinePreview == null &&
+        (photoThumbB64.trim().isNotEmpty || hasPhoto)) {
+      final bytes = decodeThumb(photoThumbB64);
       if (bytes != null) {
         badges.add(
           badge(
@@ -563,12 +581,84 @@ class _MobileNotesGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildCardText(String text, {required bool isHeader}) {
+  Widget _buildCardTextWithPreview(
+    String text, {
+    required bool isHeader,
+    _CellInlinePreviewData? preview,
+  }) {
+    if (isHeader || preview == null) {
+      return _buildCardText(text, isHeader: isHeader);
+    }
+    final thumbBytes = preview.hasThumb ? decodeThumb(preview.thumbB64) : null;
+    final leading = thumbBytes != null
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.memory(
+              thumbBytes,
+              width: 18,
+              height: 18,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+          )
+        : Icon(preview.icon, size: 15, color: palette.cellTextMuted);
+    return Row(
+      children: [
+        Expanded(
+          child: _buildCardText(
+            text,
+            isHeader: isHeader,
+            maxLines: 1,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 64),
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          decoration: BoxDecoration(
+            color: palette.chipBg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: palette.chipBorder,
+              width: math.max(palette.hairline, 1).toDouble(),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              leading,
+              if (preview.extraCount > 0) ...[
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    '+${preview.extraCount}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.chipText,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardText(
+    String text, {
+    required bool isHeader,
+    int maxLines = 2,
+  }) {
     final t = text.trim();
     final display = t.isEmpty ? ' ' : t;
     return Text(
       display,
-      maxLines: 2,
+      maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
         color: isHeader ? palette.headerText : palette.cellText,
