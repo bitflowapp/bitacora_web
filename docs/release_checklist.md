@@ -273,6 +273,36 @@ Publicar release Android (1 comando):
 - Trigger `Buscar actualizaciones` and confirm update banner + CTA behavior:
   - Android: opens stable APK link.
   - Web/PWA: hard refresh + cache cleanup path.
+
+## 3.8) P9 smoke test (onboarding + productivity + resilience + a11y)
+1. First-run onboarding and help:
+- Abrir editor en una planilla nueva y confirmar banner `Tour rapido del editor`.
+- Tap en `Entendido`: se oculta para la sesion.
+- Reabrir editor en primera ejecucion y usar `No mostrar mas`: confirmar persistencia.
+- Abrir Command Palette (`Ctrl/Cmd+K`) y ejecutar `Ver atajos`; validar modal de cheat sheet.
+2. Defaults inteligentes y autocomplete:
+- Abrir `Preferencias de editor` y activar:
+  - Fecha por defecto
+  - Estado `OK`
+  - Autoincremento ID/Progresiva
+- Crear fila nueva y verificar defaults aplicados.
+- Escribir valores repetidos en una columna de texto, cerrar/reabrir editor y confirmar sugerencias persistentes.
+3. Smart paste:
+- Copiar TSV/CSV multi-columna y pegar desde una celda activa.
+- Verificar distribucion por rango y normalizacion por tipo (fecha/status).
+- Con multiples filas seleccionadas, pegar texto simple y validar aplicacion a toda la seleccion.
+4. Resilience y cola offline:
+- Forzar estado offline y generar pendientes (edicion o quick capture).
+- Abrir `Cola offline` y validar:
+  - retry por item
+  - `Reintentar todo`
+  - `Diag` (exporta diagnostico de cola)
+- Simular staging recovery (cerrar en guardado o inyectar staging) y validar banner de restauracion.
+5. PWA helper y accesibilidad:
+- En Android Chrome web (no standalone), confirmar helper de instalacion discreto.
+- Validar acciones `No mostrar mas` y cierre por sesion.
+- En desktop, recorrer toolbar/topbar con teclado (Tab/Shift+Tab) y confirmar orden de foco consistente.
+- Probar text scale alto (>= 120%) y confirmar sin overflow en chrome principal del editor.
 ## 4) Icons and splash sanity
 1. Source reference for generated app icons:
 - `assets_branding/bitflow_mark_1024.png`

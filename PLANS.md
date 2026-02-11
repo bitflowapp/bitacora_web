@@ -1,73 +1,69 @@
-﻿# BitFlow Premium Plan (P7)
+# BitFlow Premium Plan (P9)
 
 ## Objetivo
-Entregar una experiencia premium tipo Apple/Microsoft en BitFlow, manteniendo compatibilidad con Android offline y Web/PWA (incluyendo iOS Safari dentro de sus limites), sin romper Pages ni features previas (P2/P3/P6).
-
-## Reglas de ejecucion
-- Cambios quirurgicos sobre arquitectura existente.
-- Commits separados por fase.
-- En cada fase: format + analyze + test; build web cuando haya cambios web/UI.
-- No subir APK ni artefactos.
+Entregar un editor premium que ahorre tiempo real, con onboarding claro, defaults inteligentes, resiliencia offline/PWA y accesibilidad consistente, sin romper Pages ni flujos existentes (P2/P3/P6/P7/P8).
 
 ## Riesgos y limitaciones por plataforma
 - Web/iOS Safari:
-  - Service Worker y cache pueden retener version vieja; usar ForceUpdateService y cache busting.
-  - Compartir archivos es mas limitado que Android; fallback a descarga.
-  - Safari puede matar pestañas en background; minimizar perdida con flush por lifecycle/visibility/pagehide.
+  - Safari puede matar pestanas en background; se prioriza flush rapido y rutas de recuperacion.
+  - Instalacion PWA depende de UX nativa del navegador (no hay prompt universal).
+  - Compartir archivos sigue limitado frente a Android.
 - Android:
-  - Permisos (camara, gps, microfono, almacenamiento) pueden bloquear flujos de adjuntos.
-  - Compartir depende de apps instaladas y providers del sistema.
-- Desktop/Web general:
-  - Atajos pueden colisionar con browser/OS; mantener defaults conocidos y comportamiento predecible.
+  - Permisos (camara/GPS/microfono/archivos) pueden bloquear acciones; UI debe informar causa y fallback.
+  - Cola offline debe mantenerse util aun sin red prolongada.
+- Desktop/Web:
+  - Atajos pueden colisionar con navegador/SO; mantener combinaciones previsibles.
 
-## Fases
+## Fases (F1..F5)
 
-### F1 - Design System v2 (monocromo premium)
+### F1 - Onboarding premium
 Checklist:
-- [x] Unificar tokens de color/radio/sombra/espaciado en monocromo.
-- [x] Pulir botones, inputs, chips y modales con focus/hover/pressed consistentes.
-- [x] Mejorar microcopy de estados vacios y mensajes base.
-Done:
-- [x] No hay acentos de color fuera de escala de grises en componentes core.
-- [x] Controles base se sienten consistentes en desktop y mobile.
+- [x] First-run tour en editor (dismissible + persistencia).
+- [x] Cheat sheet de atajos accesible desde Command Palette.
+- [x] Tooltips contextuales en acciones criticas.
+Done criteria:
+- [x] Usuario nuevo entiende flujo principal en < 30 segundos.
+- [x] El tour puede ocultarse y no reaparece si se desactiva.
 
-### F2 - Editor Premium pass (UX, bugs, performance)
+### F2 - Productividad del editor
 Checklist:
-- [x] Pulir topbar/toolbar/chips con jerarquia visual clara.
-- [x] Mejorar feedback de seleccion y estado de grilla.
-- [x] Ajustar shortcuts y command palette para acciones de alto uso.
-- [x] Resolver bugs visibles de overlays/focus/scroll y reducir rebuilds innecesarios.
-Done:
-- [x] Flujo guardar/buscar/exportar/adjuntar en 1-2 interacciones.
-- [x] Navegacion por teclado y cierre con ESC consistente.
+- [x] Defaults inteligentes por columna (Fecha, Estado, ID/Progresiva).
+- [x] Preferencias de defaults editables desde settings del editor.
+- [x] Historial de autocompletado por columna (persistente, liviano).
+- [x] Smart paste robusto para TSV/CSV/texto simple.
+Done criteria:
+- [x] Alta de fila requiere menos taps/clicks.
+- [x] Pegado masivo respeta seleccion y tipos de columna.
 
-### F3 - Offline + Share hardening
+### F3 - Resiliencia offline/PWA
 Checklist:
-- [x] Reforzar estado de cola offline y retry/backoff con feedback claro.
-- [x] Mejorar experiencia export/share (Android share sheet, Web fallback).
-- [x] Pulir helper iOS/PWA + update/cache coherente con ForceUpdateService.
-Done:
-- [x] Offline no rompe edicion y usuario entiende estado/siguiente paso.
-- [x] Export y share tienen resultado claro o fallback explicitado.
+- [x] Recovery banner para sesion previa incompleta (restore).
+- [x] Cola offline con retry por item + retry all + export diagnostico.
+- [x] Install helper Android/Chrome no invasivo.
+Done criteria:
+- [x] Usuario puede recuperar estado local y entender fallos de sync.
+- [x] Cola offline tiene acciones operables sin depender de consola.
 
-### F4 - Productividad (ahorro de tiempo)
+### F4 - Accesibilidad y UX hardening
 Checklist:
-- [x] Mejorar acciones por lote mas usadas.
-- [x] Potenciar autocomplete/defaults reutilizando logica actual.
-- [x] Pulir galeria de templates y validaciones rapidas.
-Done:
-- [x] Operaciones repetitivas requieren menos taps/clicks y menos errores.
+- [x] Semantics en controles clave del editor.
+- [x] Focus order consistente en topbar/toolbar/grilla.
+- [x] Text scale alto con layout estable.
+Done criteria:
+- [x] Navegacion por teclado coherente en desktop.
+- [x] Sin overflow visible en chrome principal con escala de texto elevada.
 
-### F5 - Docs + QA comercial
+### F5 - Documentacion comercial y QA
 Checklist:
-- [x] Actualizar release checklist con smoke tests reales de P7.
-- [x] Barrido de mojibake en `lib/` y `docs/`.
-- [x] Verificar builds y dejar evidencia de despliegue.
-Done:
-- [x] Checklist utilizable por QA/manual release sin pasos ambiguos.
+- [x] Actualizar arquitectura del editor con nuevos modulos P9.
+- [x] Actualizar Motion System con reglas de uso/no uso.
+- [x] Actualizar release checklist con smoke tests P9.
+Done criteria:
+- [x] QA puede validar P9 sin pasos ambiguos.
+- [x] Docs reflejan puntos de extension sin romper arquitectura actual.
 
-## Comandos de validacion por fase
+## Validacion por fase
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-infos --no-fatal-warnings`
 - `flutter test`
-- `flutter build web --release --base-href "/bitacora_web/"` (si hay cambios web/UI)
+- `flutter build web --release --base-href "/bitacora_web/"` (si hubo cambios web/UI)

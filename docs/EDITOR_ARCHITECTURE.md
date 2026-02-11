@@ -2,69 +2,107 @@
 
 Scope: `lib/features/editor/*`
 
-## Product Goal
-Keep the editor fast, predictable, and premium while preserving offline-first behavior across Android and Web/PWA.
+## Product goal
+BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX across Android and Web/PWA.
 
-## Main Modules
+## Module map
+
+### Entry and state
 - `editor_screen.dart`
   - Entry point and part wiring.
-  - Owns service imports and dependency surface for editor internals.
+  - Service imports and dependency surface.
 - `editor_state.dart`
-  - Single source of truth for grid state, selection, drafts, history, sync status, and export/import orchestration.
-  - Contains hot-path handlers for edit, save, batch actions, search, and quick capture.
-- `editor_controller.dart`
-  - Thin bridge between external callers and editor state/listenables.
-- `actions/`
-  - `editor_actions.dart`: command palette registry and action metadata.
-  - `editor_shortcuts.dart`: keyboard map (`Ctrl/Cmd+K/S/F/J`, undo/redo, row ops).
-- `widgets/`
-  - `editor_app_bar.dart`: premium topbar/toolbar and status chips.
-  - `grid_host.dart`: virtualized table shell, cell visuals, selection/focus rendering.
-  - `mobile_editor_widgets.dart`: mobile quick actions, sheets, compact controls.
-  - `save_status_chip.dart`: save/sync chips with animated state transitions.
+  - Single source of truth for:
+    - grid rows/headers/cell meta
+    - selection, drafts, undo/redo
+    - save/sync/offline queue status
+    - search/jump/batch/productivity flows
+    - onboarding/recovery/install-helper banners
+    - import/export package orchestration
+
+### Actions and shortcuts
+- `actions/editor_actions.dart`
+  - Command Palette action catalog.
+  - Includes onboarding/help/defaults actions.
+- `actions/editor_shortcuts.dart`
+  - Keyboard map (`Ctrl/Cmd+K/S/F/J`, undo/redo, paste, export/import, queue).
+
+### UI composition
+- `widgets/editor_app_bar.dart`
+  - Premium topbar/toolbar, status chips, pill actions, focus order.
+- `widgets/grid_host.dart`
+  - Table rendering shell, selection/focus visuals, cell hit targets.
+- `widgets/mobile_editor_widgets.dart`
+  - Inline search, quick actions, mobile bars, status/auxiliary banners.
+- `widgets/save_status_chip.dart`
+  - Save and sync chips with animated state transitions.
+
+### Attachments and dialogs
 - `attachments/`
-  - Attachment flow (photo/audio/GPS metadata), list/detail panel, and preview.
+  - Photo/audio/GPS metadata flow, attachment panel and preview actions.
 - `dialogs/`
-  - Density, export/import, confirm flows, shortcuts help.
+  - Editor preferences, density/GPS mode, shortcuts help, export/import, confirmations.
 
-## Supporting UI Infrastructure
+### Supporting infra
 - `lib/ui/app_motion.dart`
-  - Shared motion tokens and transition helpers (`fadeSlide`, `fadeScale`, modal transition).
+  - Shared motion tokens and transitions.
 - `lib/ui/app_haptics.dart`
-  - Cross-platform haptic facade for mobile confirmation feedback.
+  - Mobile haptics facade.
 - `lib/widgets/command_palette.dart`
-  - Global command launcher with search, keyboard navigation, and modal motion.
+  - Global command launcher.
+- `lib/services/web_flush_signal*.dart`
+  - Flush hooks for `visibilitychange/pagehide/beforeunload`.
+- `lib/services/web_capabilities*.dart`
+  - Web feature detection (iOS Safari, Android Chrome, standalone, in-app browser).
 
-## Data and State Flow
-1. User interaction enters through widget callbacks (grid, toolbar, shortcuts, command palette).
-2. Callback routes to `editor_state.dart` method.
-3. State mutation updates in-memory rows/cells/meta + dirty/history state.
-4. UI refresh happens through controlled `setState` and local listenables (`_gridVersion`, save/sync snapshots).
-5. Persistence and sync go through services (`SheetStore`, `AttachmentStore`, offline queue services).
+## Core flows
 
-## Performance Boundaries
-- Grid paint boundary and scoped rebuilds are mandatory in edit loops.
-- Selection/search overlays must avoid whole-screen recomposition.
-- Batch actions should mutate only targeted rows/cells and clear only affected drafts.
-- Motion must stay micro (short duration, small offset) and never block typing.
+### Edit/save flow
+1. User action enters via grid, toolbar, command palette, or shortcut.
+2. `editor_state.dart` mutates local model.
+3. Dirty/save state and offline queue snapshots are updated.
+4. Save pipeline persists atomically (current + backup + staging + snapshot fallback).
 
-## Offline and Sync Boundaries
-- Editing is local-first and must never hard-block on network.
-- Sync state is represented by chips (`Offline / Pending sync`, `Syncing`, `Synced`, `Failed`).
-- Queue retry/cleanup logic stays in services; UI only drives intent and status.
+### Smart productivity flow (P9)
+1. Row insertion routes through smart defaults:
+  - Date columns -> now
+  - Status columns -> `OK`
+  - ID/Progresiva columns -> autoincrement (if enabled)
+2. Column value history is remembered and persisted per sheet.
+3. Smart paste supports TSV/CSV/text and normalizes values per column type.
 
-## How To Add Features Safely
-1. Add/adjust state method in `editor_state.dart`.
-2. Expose trigger in one or more channels:
-- toolbar action
-- command palette action
-- keyboard shortcut
-- mobile quick actions
-3. Reuse shared UI primitives (`AppButton`, `AppModal`, `AppMotion`, `AppHaptics`).
-4. Add/adjust smoke steps in `docs/release_checklist.md`.
-5. Run validation gates before push.
+### Resilience flow (P9)
+1. On load, staging payload is inspected.
+2. If recoverable, a recovery banner offers explicit restore.
+3. Offline queue viewer exposes:
+  - retry item
+  - retry all
+  - diagnostic export
+4. Web/PWA install helpers are shown only when context matches platform constraints.
 
-## Validation Gates
+## State boundaries
+- Hot-path state lives in `editor_state.dart`.
+- Rebuild control uses:
+  - `_gridVersion`
+  - row-scoped `ValueNotifier`s
+  - `RepaintBoundary` around grid layers
+- Do not push global `setState` for single-cell updates.
+
+## How to add a new feature safely
+1. Add/adjust one state method in `editor_state.dart`.
+2. Expose the action in at least one entry:
+  - toolbar/topbar
+  - command palette
+  - keyboard shortcut
+  - mobile actions menu
+3. Reuse existing primitives:
+  - `AppButton`, `showAppModal`, `AppMotion`, `AppHaptics`
+4. Keep offline-first behavior:
+  - local state update first
+  - async network/sync second
+5. Update `docs/release_checklist.md` smoke steps.
+
+## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`
 - `flutter test`

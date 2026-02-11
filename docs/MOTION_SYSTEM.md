@@ -1,42 +1,50 @@
 # Motion System
 
 ## Objetivo
-Mantener animaciones micro, consistentes y monocromas para que BitFlow se sienta fluido y premium sin ruido visual.
+Usar animacion micro y funcional para mejorar jerarquia visual y feedback, sin ruido ni "carnaval".
 
-## Archivo fuente
+## Fuente
 - `lib/ui/app_motion.dart`
 
-## Tokens de motion
-- `AppMotion.micro` (120 ms): feedback de chips y cambios de estado cortos.
-- `AppMotion.quick` (160 ms): aparicion/desaparicion de barras contextuales.
-- `AppMotion.medium` (220 ms): transiciones entre bloques.
-- `AppMotion.modal` (280 ms): apertura/cierre de modales y command palette.
+## Tokens
+- `AppMotion.micro` (120 ms)
+  - feedback de chips, hover/press, transiciones de estado puntuales.
+- `AppMotion.quick` (160 ms)
+  - barras contextuales, cambios de bloque livianos.
+- `AppMotion.medium` (220 ms)
+  - aparicion de banners/contextos secundarios.
+- `AppMotion.modal` (280 ms)
+  - apertura/cierre de command palette y modales.
 
 Curvas:
-- `AppMotion.standardOut`: salida natural para UI general.
-- `AppMotion.standardIn`: entrada/salida inversa para cierre limpio.
-- `AppMotion.springOut`: rebote leve para elementos contextuales (sin exagerar).
+- `AppMotion.standardOut`
+- `AppMotion.standardIn`
+- `AppMotion.springOut`
 
 ## Helpers
-- `AppMotion.fadeSlide(...)`: fade + desplazamiento corto.
-- `AppMotion.fadeScale(...)`: fade + escala sutil.
-- `AppMotion.modalTransition(...)`: transición modal tipo iOS/macOS cuando aplica; fallback elegante para Android/Web.
-- `AppMotion.openSpring(...)`: spring simulation reutilizable para animaciones avanzadas.
+- `fadeSlide(...)`
+- `fadeScale(...)`
+- `modalTransition(...)`
+- `openSpring(...)`
 
-## Donde se aplica hoy
-- `lib/widgets/command_palette.dart`
-  - apertura/cierre con `showGeneralDialog` + `AppMotion.modalTransition`.
-  - feedback háptico en navegación de resultados y ejecución.
-- `lib/features/editor/editor_state.dart`
-  - `Inline Search Bar` y `Selection Quick Actions Bar` con `AnimatedSwitcher` + `AppMotion.fadeSlide`.
-  - feedback háptico al abrir/cerrar búsqueda y navegar resultados.
-- `lib/features/editor/widgets/save_status_chip.dart`
-  - cambios de estado con `AnimatedSwitcher`/`AnimatedContainer` usando tokens de `AppMotion`.
-- `lib/ui/app_modal.dart`
-  - modales de app con transición consistente vía `AppMotion.modalTransition`.
+## Reglas de uso
+- Si:
+  - transicion comunica estado (guardar/sync/resultado)
+  - entrada/salida mejora foco (quick actions, search bar, palette)
+  - accion confirmable en mobile puede sumar haptics suaves
+- No:
+  - animar todo al mismo tiempo
+  - offsets grandes o duraciones largas
+  - animaciones que bloqueen tipeo/scroll
 
-## Guía de uso
-- Preferir micro-animaciones funcionales (estado, foco, jerarquía).
-- Evitar animaciones largas o múltiples efectos simultáneos.
-- Mantener amplitud de movimiento baja (`Offset` <= 0.08).
-- En mobile, combinar motion con `AppHaptics` en acciones confirmables.
+## Donde aplicar (P9)
+- Onboarding banner: aparicion suave y cierre rapido.
+- Quick actions/search: `AnimatedSwitcher` + `fadeSlide`.
+- Save/sync chips: cross-fade + scale corto.
+- Command palette y modales: `modalTransition`.
+- Tooltips y botones: micro feedback, sin rebotes exagerados.
+
+## Guardrails
+- Mantener offsets pequenos (`<= 0.08`).
+- Preferir 120-220 ms para interacciones frecuentes.
+- Priorizar fluidez de edicion y scroll sobre decoracion visual.
