@@ -27,6 +27,7 @@ const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
+const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -397,6 +398,13 @@ class _EditorScreenState extends State<EditorScreen>
   bool _lastOnlineState = true;
   bool _editorTourVisible = false;
   bool _editorTourDismissed = false;
+  final List<_SavedView> _savedViews = <_SavedView>[];
+  String? _activeSavedViewId;
+  String _rowViewCacheKey = '';
+  List<int> _visibleRowIndexesCache = const <int>[];
+  Map<int, int> _displayRowToActualCache = const <int, int>{};
+  Map<int, int> _actualRowToDisplayCache = const <int, int>{};
+  List<_RowModel> _visibleRowModelsCache = const <_RowModel>[];
   String? _recoveryStagingRaw;
   bool _recoveryBannerVisible = false;
   bool _androidInstallHelperHiddenSession = false;
@@ -494,6 +502,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadColumnTemplatesPref());
+    unawaited(_loadSavedViewsPref());
     unawaited(_loadEditorTourPrefs());
     unawaited(_loadAndroidInstallHelperPref());
     unawaited(_loadLocal().whenComplete(() => unawaited(_maybeRunSmoke())));
@@ -979,6 +988,8 @@ class _EditorScreenState extends State<EditorScreen>
   String get _backupListKey => '$_prefsKey:bk:list';
   String get _prefsRecentValuesKey => '$_prefsKey:recent_values.v1';
   String get _prefsEditorDefaultsKey => '$_prefsKey:defaults.v1';
+  String get _prefsSavedViewsKey => '$_prefsKey:${_kPrefSavedViews}';
+  String get _prefsActiveViewKey => '$_prefsKey:active_saved_view.v1';
   String _backupKey(DateTime ts) =>
       '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
 
@@ -1927,6 +1938,84 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
+  Future<void> _loadSavedViewsPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = (prefs.getString(_prefsSavedViewsKey) ?? '').trim();
+      final activeRaw = (prefs.getString(_prefsActiveViewKey) ?? '').trim();
+      final loaded = <_SavedView>[];
+      if (raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final item in decoded) {
+            final parsed = _SavedView.fromJson(item);
+            if (parsed == null) continue;
+            loaded.add(parsed);
+          }
+        }
+      }
+      loaded.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final activeId = activeRaw.isEmpty
+          ? null
+          : loaded.any((view) => view.id == activeRaw)
+              ? activeRaw
+              : null;
+
+      if (!mounted) {
+        _savedViews
+          ..clear()
+          ..addAll(loaded);
+        _activeSavedViewId = activeId;
+        _invalidateRowViewCache();
+        return;
+      }
+      setState(() {
+        _savedViews
+          ..clear()
+          ..addAll(loaded);
+        _activeSavedViewId = activeId;
+        _invalidateRowViewCache();
+      });
+      _applySavedViewColumns(activeId, announce: false, persistActive: false);
+    } catch (_) {}
+  }
+
+  Future<void> _persistSavedViewsPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_savedViews.isEmpty) {
+        await prefs.remove(_prefsSavedViewsKey);
+      } else {
+        final payload =
+            _savedViews.map((entry) => entry.toJson()).toList(growable: false);
+        await prefs.setString(_prefsSavedViewsKey, jsonEncode(payload));
+      }
+      final active = _activeSavedView;
+      if (active == null) {
+        await prefs.remove(_prefsActiveViewKey);
+      } else {
+        await prefs.setString(_prefsActiveViewKey, active.id);
+      }
+    } catch (_) {}
+  }
+
+  _SavedView? get _activeSavedView {
+    final id = _activeSavedViewId;
+    if (id == null || id.isEmpty) return null;
+    for (final view in _savedViews) {
+      if (view.id == id) return view;
+    }
+    return null;
+  }
+
+  void _invalidateRowViewCache() {
+    _rowViewCacheKey = '';
+    _visibleRowIndexesCache = const <int>[];
+    _displayRowToActualCache = const <int, int>{};
+    _actualRowToDisplayCache = const <int, int>{};
+    _visibleRowModelsCache = const <_RowModel>[];
+  }
+
   _ColumnTemplate _buildColumnTemplate(String name) {
     final prefsByLabel = <String, _ColumnPrefs>{};
     for (int c = 0; c < _headers.length - 1; c++) {
@@ -2123,6 +2212,629 @@ class _EditorScreenState extends State<EditorScreen>
     );
     if (selected == null) return;
     _applyColumnTemplate(selected);
+  }
+
+  String _headerLabelByColId(String? colId) {
+    final index = _columnIndexFromId(colId);
+    if (index == null) return 'Sin columna';
+    return _headerLabel(index);
+  }
+
+  String _savedViewSummary(_SavedView view) {
+    final parts = <String>[];
+    if ((view.statusValue ?? '').trim().isNotEmpty) {
+      final label = _headerLabelByColId(view.statusColId);
+      parts.add('$label = ${view.statusValue!.trim()}');
+    }
+    if ((view.textContains ?? '').trim().isNotEmpty) {
+      final label = _headerLabelByColId(view.textColId);
+      parts.add('$label contiene "${view.textContains!.trim()}"');
+    }
+    if (view.dateFrom != null || view.dateTo != null) {
+      final label = _headerLabelByColId(view.dateColId);
+      final fromLabel = view.dateFrom == null
+          ? '--'
+          : _formatDateTimeShort(view.dateFrom!.toLocal()).split(' ').first;
+      final toLabel = view.dateTo == null
+          ? '--'
+          : _formatDateTimeShort(view.dateTo!.toLocal()).split(' ').first;
+      parts.add('$label $fromLabel .. $toLabel');
+    }
+    if (view.sortColId != null) {
+      final label = _headerLabelByColId(view.sortColId);
+      parts.add(
+          'Orden $label (${view.sortAscending ? 'ascendente' : 'descendente'})');
+    }
+    if (parts.isEmpty) return 'Sin filtros';
+    return parts.join(' · ');
+  }
+
+  void _applySavedViewColumns(
+    String? id, {
+    required bool announce,
+    required bool persistActive,
+  }) {
+    final requestedId = (id ?? '').trim();
+    _SavedView? view;
+    if (requestedId.isNotEmpty) {
+      for (final item in _savedViews) {
+        if (item.id == requestedId) {
+          view = item;
+          break;
+        }
+      }
+    }
+    final nextActiveId = view?.id;
+    final changed = _activeSavedViewId != nextActiveId;
+
+    if (view != null) {
+      _applyColumnPrefsAndOrder(
+        columnPrefsById: view.columnPrefsById,
+        columnOrder: view.columnOrder,
+        frozenColId: view.frozenColId,
+        snapshot: false,
+      );
+    }
+    _activeSavedViewId = nextActiveId;
+    _invalidateRowViewCache();
+    final visibleRows = _visibleRowIndexes();
+    if (visibleRows.isNotEmpty) {
+      if (!visibleRows.contains(_selRow)) {
+        _setSelection(visibleRows.first, _selCol, preserveRowSelection: false);
+      } else {
+        _selectedRows.removeWhere((row) => !visibleRows.contains(row));
+      }
+    }
+    if (changed) {
+      _bumpGridVersion();
+      if (announce) {
+        if (view == null) {
+          _showActionSnack(
+            'Vista base activa.',
+            isError: false,
+            icon: Icons.table_view_rounded,
+          );
+        } else {
+          _showActionSnack(
+            'Vista "${view.name}" aplicada.',
+            isError: false,
+            icon: Icons.visibility_rounded,
+          );
+        }
+      }
+      if (persistActive) {
+        unawaited(_persistSavedViewsPref());
+      }
+    }
+  }
+
+  Future<void> _applySavedView(String? id) async {
+    if (!mounted) return;
+    setState(() {
+      _applySavedViewColumns(
+        id,
+        announce: true,
+        persistActive: false,
+      );
+    });
+    await _persistSavedViewsPref();
+  }
+
+  Future<void> _openSaveViewDialog({_SavedView? editView}) async {
+    if (!mounted) return;
+    final dataColumns = <({String id, String label, _ColType type})>[
+      for (int c = 0; c < _headers.length - 1; c++)
+        (id: _colIds[c], label: _headerLabel(c), type: _colType(c)),
+    ];
+    final statusColumns = dataColumns
+        .where((entry) => entry.type == _ColType.status)
+        .toList(growable: false);
+    final dateColumns = dataColumns
+        .where((entry) => entry.type == _ColType.date)
+        .toList(growable: false);
+    final textColumns = dataColumns
+        .where((entry) =>
+            entry.type == _ColType.text ||
+            entry.type == _ColType.status ||
+            entry.type == _ColType.number ||
+            entry.type == _ColType.date)
+        .toList(growable: false);
+
+    final nameController = TextEditingController(
+        text: editView?.name ?? 'Vista ${_savedViews.length + 1}');
+    final statusController =
+        TextEditingController(text: editView?.statusValue ?? '');
+    final textController =
+        TextEditingController(text: editView?.textContains ?? '');
+    final dateFromController = TextEditingController(
+      text: editView?.dateFrom == null
+          ? ''
+          : _formatDateTimeShort(editView!.dateFrom!.toLocal())
+              .split(' ')
+              .first,
+    );
+    final dateToController = TextEditingController(
+      text: editView?.dateTo == null
+          ? ''
+          : _formatDateTimeShort(editView!.dateTo!.toLocal()).split(' ').first,
+    );
+    String? statusColId = editView?.statusColId ??
+        (statusColumns.isNotEmpty ? statusColumns.first.id : null);
+    String? textColId = editView?.textColId ??
+        (textColumns.isNotEmpty ? textColumns.first.id : null);
+    String? dateColId = editView?.dateColId ??
+        (dateColumns.isNotEmpty ? dateColumns.first.id : null);
+    String? sortColId = editView?.sortColId;
+    bool sortAscending = editView?.sortAscending ?? true;
+    bool saveResult = false;
+
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: editView == null ? 'Guardar vista' : 'Editar vista',
+      child: StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final statusItems = <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Sin filtro de estado'),
+            ),
+            for (final column in statusColumns)
+              DropdownMenuItem<String?>(
+                value: column.id,
+                child: Text(column.label),
+              ),
+          ];
+          final textItems = <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Sin filtro de texto'),
+            ),
+            for (final column in textColumns)
+              DropdownMenuItem<String?>(
+                value: column.id,
+                child: Text(column.label),
+              ),
+          ];
+          final dateItems = <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Sin filtro de fecha'),
+            ),
+            for (final column in dateColumns)
+              DropdownMenuItem<String?>(
+                value: column.id,
+                child: Text(column.label),
+              ),
+          ];
+          final sortItems = <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Sin orden'),
+            ),
+            for (final column in dataColumns)
+              DropdownMenuItem<String?>(
+                value: column.id,
+                child: Text(column.label),
+              ),
+          ];
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                maxLines: 1,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Nombre',
+                  hintText: 'Ej: Revisión urgente',
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                value: statusColId,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Filtro por estado',
+                ),
+                items: statusItems,
+                onChanged: (value) => setModalState(() => statusColId = value),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: statusController,
+                maxLines: 1,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Valor estado',
+                  hintText: 'Ej: Urgente',
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                value: textColId,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Filtro de texto',
+                ),
+                items: textItems,
+                onChanged: (value) => setModalState(() => textColId = value),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: textController,
+                maxLines: 1,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Texto contiene',
+                  hintText: 'Ej: bomba',
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                value: dateColId,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Filtro de fecha',
+                ),
+                items: dateItems,
+                onChanged: (value) => setModalState(() => dateColId = value),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: dateFromController,
+                      maxLines: 1,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        labelText: 'Desde',
+                        hintText: 'YYYY-MM-DD',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: dateToController,
+                      maxLines: 1,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        labelText: 'Hasta',
+                        hintText: 'YYYY-MM-DD',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                value: sortColId,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Ordenar por',
+                ),
+                items: sortItems,
+                onChanged: (value) => setModalState(() => sortColId = value),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Orden ascendente'),
+                value: sortAscending,
+                onChanged: sortColId == null
+                    ? null
+                    : (value) => setModalState(() => sortAscending = value),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          icon: Icons.bookmark_added_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () {
+            saveResult = true;
+            Navigator.of(context).pop(true);
+          },
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+
+    final name = nameController.text.trim();
+    final statusValue = statusController.text.trim();
+    final textContains = textController.text.trim();
+    final dateFromRaw = dateFromController.text.trim();
+    final dateToRaw = dateToController.text.trim();
+    final dateFrom = _parseDateCellValue(dateFromRaw);
+    final dateTo = _parseDateCellValue(dateToRaw);
+    nameController.dispose();
+    statusController.dispose();
+    textController.dispose();
+    dateFromController.dispose();
+    dateToController.dispose();
+
+    if (accepted != true || !saveResult) return;
+    if (name.isEmpty) {
+      _showActionSnack(
+        'Ingresa un nombre para la vista.',
+        isError: true,
+        icon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
+    if (dateFromRaw.isNotEmpty && dateFrom == null) {
+      _showActionSnack(
+        'Fecha "desde" invalida.',
+        isError: true,
+        icon: Icons.event_busy_rounded,
+      );
+      return;
+    }
+    if (dateToRaw.isNotEmpty && dateTo == null) {
+      _showActionSnack(
+        'Fecha "hasta" invalida.',
+        isError: true,
+        icon: Icons.event_busy_rounded,
+      );
+      return;
+    }
+    if (dateFrom != null &&
+        dateTo != null &&
+        _dateOnly(dateFrom).isAfter(_dateOnly(dateTo))) {
+      _showActionSnack(
+        'Rango de fecha invalido.',
+        isError: true,
+        icon: Icons.event_note_rounded,
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final next = _SavedView(
+      id: editView?.id ?? _genStableId('view_'),
+      name: name,
+      createdAt: editView?.createdAt ?? now,
+      statusColId: statusValue.isEmpty
+          ? null
+          : _columnIndexFromId(statusColId) == null
+              ? null
+              : statusColId,
+      statusValue: statusValue.isEmpty ? null : statusValue,
+      textColId: textContains.isEmpty
+          ? null
+          : _columnIndexFromId(textColId) == null
+              ? null
+              : textColId,
+      textContains: textContains.isEmpty ? null : textContains,
+      dateColId: (dateFrom == null && dateTo == null)
+          ? null
+          : _columnIndexFromId(dateColId) == null
+              ? null
+              : dateColId,
+      dateFrom: dateFrom == null ? null : _dateOnly(dateFrom),
+      dateTo: dateTo == null ? null : _dateOnly(dateTo),
+      sortColId: _columnIndexFromId(sortColId) == null ? null : sortColId,
+      sortAscending: sortAscending,
+      columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
+      columnOrder: List<String>.from(_columnOrder),
+      frozenColId: _frozenColId,
+    );
+
+    setState(() {
+      _savedViews.removeWhere((view) => view.id == next.id);
+      _savedViews.insert(0, next);
+      _savedViews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _applySavedViewColumns(
+        next.id,
+        announce: false,
+        persistActive: false,
+      );
+    });
+    await _persistSavedViewsPref();
+    _showActionSnack(
+      'Vista "${next.name}" guardada.',
+      isError: false,
+      icon: Icons.visibility_rounded,
+    );
+  }
+
+  Future<void> _renameSavedView(_SavedView view) async {
+    if (!mounted) return;
+    final controller = TextEditingController(text: view.name);
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: 'Renombrar vista',
+      child: TextField(
+        controller: controller,
+        autofocus: true,
+        maxLines: 1,
+        decoration: const InputDecoration(
+          isDense: true,
+          labelText: 'Nombre',
+        ),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final nextName = controller.text.trim();
+    controller.dispose();
+    if (accepted != true || nextName.isEmpty) return;
+    setState(() {
+      final index = _savedViews.indexWhere((item) => item.id == view.id);
+      if (index < 0) return;
+      final current = _savedViews[index];
+      _savedViews[index] = _SavedView(
+        id: current.id,
+        name: nextName,
+        createdAt: current.createdAt,
+        statusColId: current.statusColId,
+        statusValue: current.statusValue,
+        textColId: current.textColId,
+        textContains: current.textContains,
+        dateColId: current.dateColId,
+        dateFrom: current.dateFrom,
+        dateTo: current.dateTo,
+        sortColId: current.sortColId,
+        sortAscending: current.sortAscending,
+        columnPrefsById: current.columnPrefsById,
+        columnOrder: current.columnOrder,
+        frozenColId: current.frozenColId,
+      );
+    });
+    await _persistSavedViewsPref();
+  }
+
+  Future<void> _deleteSavedView(String id) async {
+    _SavedView? removed;
+    for (final view in _savedViews) {
+      if (view.id == id) {
+        removed = view;
+        break;
+      }
+    }
+    if (removed == null) return;
+    setState(() {
+      _savedViews.removeWhere((view) => view.id == id);
+      if (_activeSavedViewId == id) {
+        _applySavedViewColumns(
+          null,
+          announce: false,
+          persistActive: false,
+        );
+      }
+    });
+    await _persistSavedViewsPref();
+    _showActionSnack(
+      'Vista "${removed.name}" eliminada.',
+      isError: false,
+      icon: Icons.delete_outline_rounded,
+    );
+  }
+
+  Future<void> _openSavedViewsManager() async {
+    if (!mounted) return;
+    await showAppModal<void>(
+      context: context,
+      title: 'Vistas guardadas',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: _savedViews.isEmpty
+            ? const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('No hay vistas guardadas.'),
+              )
+            : StatefulBuilder(
+                builder: (ctx, setModalState) {
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _savedViews.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx, index) {
+                      final view = _savedViews[index];
+                      final isActive = view.id == _activeSavedViewId;
+                      return ListTile(
+                        tileColor: _palette(ctx).hintBg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isActive
+                                ? _palette(ctx).selectionBorder
+                                : _palette(ctx).border,
+                            width: _palette(ctx).hairline,
+                          ),
+                        ),
+                        title: Text(view.name),
+                        subtitle: Text(
+                          _savedViewSummary(view),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () async {
+                          Navigator.of(ctx).pop();
+                          await _applySavedView(view.id);
+                        },
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            switch (value) {
+                              case 'apply':
+                                Navigator.of(ctx).pop();
+                                await _applySavedView(view.id);
+                                break;
+                              case 'edit':
+                                Navigator.of(ctx).pop();
+                                await _openSaveViewDialog(editView: view);
+                                break;
+                              case 'rename':
+                                Navigator.of(ctx).pop();
+                                await _renameSavedView(view);
+                                break;
+                              case 'delete':
+                                Navigator.of(ctx).pop();
+                                await _deleteSavedView(view.id);
+                                break;
+                            }
+                            if (mounted) setModalState(() {});
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem<String>(
+                              value: 'apply',
+                              child: Text('Aplicar'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Text('Editar'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'rename',
+                              child: Text('Renombrar'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Eliminar'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
   }
 
   Future<void> _loadEditorTourPrefs() async {
@@ -5299,6 +6011,8 @@ class _EditorScreenState extends State<EditorScreen>
             !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
+        final visibleRows = _visibleRowIndexes();
+        final visibleRowModels = _visibleRowModels();
         final displayHeaders = List<String>.generate(
           displayColumns.length,
           (i) => _effectiveHeader(displayColumns[i]),
@@ -5306,6 +6020,8 @@ class _EditorScreenState extends State<EditorScreen>
         );
         final selectedDisplayCol =
             _displayColumnIndexForActual(_selCol, displayColumns);
+        final selectedDisplayRow = _displayRowForActual(_selRow, visibleRows);
+        final selectedDisplayRows = _selectedDisplayRows(visibleRows);
 
         if (isMobile) {
           if (_engineStatusIsError && _engineStatus != null) {
@@ -5367,6 +6083,12 @@ class _EditorScreenState extends State<EditorScreen>
                               onSearch: () => unawaited(_openSearchDialog()),
                               onJumpTo: () => unawaited(_openJumpToDialog()),
                               onColumns: () => unawaited(_openColumnPanel()),
+                              onSaveView: () =>
+                                  unawaited(_openSaveViewDialog()),
+                              onSelectView: (viewId) =>
+                                  unawaited(_applySavedView(viewId)),
+                              onManageViews: () =>
+                                  unawaited(_openSavedViewsManager()),
                               onSave: () => unawaited(_saveNowFromUserAction()),
                               onExport: () => unawaited(_openExportMenu()),
                               onSmokeTest: () =>
@@ -5411,6 +6133,8 @@ class _EditorScreenState extends State<EditorScreen>
                               selectedRowsCount: _selectedRows.length,
                               pendingOfflineCount: _pendingOfflineCount,
                               errorsCount: _invalidCells.length,
+                              savedViews: _savedViews,
+                              activeViewId: _activeSavedViewId,
                             )
                           else
                             _MobileCompactHeader(
@@ -5736,61 +6460,84 @@ class _EditorScreenState extends State<EditorScreen>
                                                 palette: pal,
                                                 metrics: metrics,
                                                 headers: displayHeaders,
-                                                rowModels: _rows,
+                                                rowModels: visibleRowModels,
                                                 cellTextAt: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _effectiveCell(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 cellHasGps: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _cellHasGps(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 cellHasAudios: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _cellHasAudios(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 cellPhotoThumb: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _cellPhotoThumb(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 cellPhotoCount: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _cellPhotoCount(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 isInvalid: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _invalidCells.contains(
-                                                      _CellRef(r, actualCol));
+                                                      _CellRef(actualRow,
+                                                          actualCol));
                                                 },
                                                 isSearchHit: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   return _isSearchHit(
-                                                      r, actualCol);
+                                                      actualRow, actualCol);
                                                 },
                                                 vScroll: _vScroll,
                                                 hScroll: _hScroll,
-                                                selRow: _selRow,
+                                                selRow: selectedDisplayRow,
                                                 selCol: selectedDisplayCol,
-                                                selectedRows: _selectedRows,
+                                                selectedRows:
+                                                    selectedDisplayRows,
                                                 blink: _blinkCell,
                                                 editorLink: _editorLink,
                                                 overlayTargetCell:
@@ -5814,21 +6561,34 @@ class _EditorScreenState extends State<EditorScreen>
                                                             displayColumns,
                                                           ),
                                                 onSelect: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
                                                   _setSelectionAndRefreshGrid(
-                                                      r, actualCol,
+                                                      actualRow, actualCol,
                                                       blink: true);
                                                 },
-                                                onRowIndexTap:
-                                                    _handleRowIndexTap,
+                                                onRowIndexTap: (r) =>
+                                                    _handleRowIndexTap(
+                                                  _actualRowFromDisplay(
+                                                      r, visibleRows),
+                                                ),
                                                 onEditRequested: (r, c, w) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
-                                                  return _beginEditCell(context,
-                                                      pal, r, actualCol, w);
+                                                  return _beginEditCell(
+                                                      context,
+                                                      pal,
+                                                      actualRow,
+                                                      actualCol,
+                                                      w);
                                                 },
                                                 onHeaderEditRequested: (c, w) {
                                                   final actualCol =
@@ -5842,6 +6602,10 @@ class _EditorScreenState extends State<EditorScreen>
                                                 },
                                                 onContextMenu:
                                                     (pos, r, c, isHeader) {
+                                                  final actualRow = isHeader
+                                                      ? r
+                                                      : _actualRowFromDisplay(
+                                                          r, visibleRows);
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
                                                           c, displayColumns);
@@ -5849,20 +6613,24 @@ class _EditorScreenState extends State<EditorScreen>
                                                       context,
                                                       pal,
                                                       pos,
-                                                      r,
+                                                      actualRow,
                                                       actualCol,
                                                       isHeader));
                                                 },
-                                                onDeleteRow: (r) =>
-                                                    _deleteRow(r),
+                                                onDeleteRow: (r) => _deleteRow(
+                                                  _actualRowFromDisplay(
+                                                      r, visibleRows),
+                                                ),
                                                 onPickPhoto: (r) =>
                                                     _startPhotoFlowForCell(
-                                                  r,
+                                                  _actualRowFromDisplay(
+                                                      r, visibleRows),
                                                   _headers.length - 1,
                                                 ),
                                                 onOpenAttachments: (r, c) =>
                                                     _openAttachmentPanelForCell(
-                                                        r,
+                                                        _actualRowFromDisplay(
+                                                            r, visibleRows),
                                                         _actualColumnFromDisplay(
                                                             c, displayColumns)),
                                                 rowVersionListenable:
@@ -5886,38 +6654,56 @@ class _EditorScreenState extends State<EditorScreen>
                                           palette: pal,
                                           density: _gridDensity,
                                           headers: displayHeaders,
-                                          rowModels: _rows,
+                                          rowModels: visibleRowModels,
                                           cellTextAt: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                                    r, visibleRows);
                                             final actualCol =
                                                 _actualColumnFromDisplay(
                                                     c, displayColumns);
-                                            return _effectiveCell(r, actualCol);
+                                            return _effectiveCell(
+                                                actualRow, actualCol);
                                           },
                                           cellHasGps: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                                    r, visibleRows);
                                             final actualCol =
                                                 _actualColumnFromDisplay(
                                                     c, displayColumns);
-                                            return _cellHasGps(r, actualCol);
+                                            return _cellHasGps(
+                                                actualRow, actualCol);
                                           },
                                           cellHasAudios: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                                    r, visibleRows);
                                             final actualCol =
                                                 _actualColumnFromDisplay(
                                                     c, displayColumns);
-                                            return _cellHasAudios(r, actualCol);
+                                            return _cellHasAudios(
+                                                actualRow, actualCol);
                                           },
                                           cellPhotoThumb: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                                    r, visibleRows);
                                             final actualCol =
                                                 _actualColumnFromDisplay(
                                                     c, displayColumns);
                                             return _cellPhotoThumb(
-                                                r, actualCol);
+                                                actualRow, actualCol);
                                           },
                                           cellPhotoCount: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                                    r, visibleRows);
                                             final actualCol =
                                                 _actualColumnFromDisplay(
                                                     c, displayColumns);
                                             return _cellPhotoCount(
-                                                r, actualCol);
+                                                actualRow, actualCol);
                                           },
                                           verticalController: _vScroll,
                                           headerScrollController:
@@ -5926,11 +6712,12 @@ class _EditorScreenState extends State<EditorScreen>
                                               _mobileRowScrolls,
                                           headerKey: _mobileHeaderKey,
                                           rowKeys: _mobileRowKeys,
-                                          selectedRow: _selRow,
+                                          selectedRow: selectedDisplayRow,
                                           selectedCol: selectedDisplayCol,
                                           activeRow: _mobileEditorOpen &&
                                                   !_mobileEditingHeader
-                                              ? _mobileRow
+                                              ? _displayRowForActual(
+                                                  _mobileRow, visibleRows)
                                               : -1,
                                           activeCol: _mobileEditorOpen
                                               ? _displayColumnIndexForActual(
@@ -5945,7 +6732,8 @@ class _EditorScreenState extends State<EditorScreen>
                                               _beginEditCell(
                                                   cellCtx,
                                                   pal,
-                                                  r,
+                                                  _actualRowFromDisplay(
+                                                      r, visibleRows),
                                                   _actualColumnFromDisplay(
                                                       c, displayColumns),
                                                   cardW),
@@ -5956,25 +6744,33 @@ class _EditorScreenState extends State<EditorScreen>
                                                   _actualColumnFromDisplay(
                                                       c, displayColumns),
                                                   cardW),
-                                          onContextMenu:
-                                              (pos, r, c, isHeader) =>
-                                                  _openContextMenu(
-                                                      ctx,
-                                                      pal,
-                                                      pos,
-                                                      r,
-                                                      _actualColumnFromDisplay(
-                                                          c, displayColumns),
-                                                      isHeader),
-                                          onDeleteRow: (r) => _deleteRow(r),
+                                          onContextMenu: (pos, r, c,
+                                                  isHeader) =>
+                                              _openContextMenu(
+                                                  ctx,
+                                                  pal,
+                                                  pos,
+                                                  isHeader
+                                                      ? r
+                                                      : _actualRowFromDisplay(
+                                                          r, visibleRows),
+                                                  _actualColumnFromDisplay(
+                                                      c, displayColumns),
+                                                  isHeader),
+                                          onDeleteRow: (r) => _deleteRow(
+                                            _actualRowFromDisplay(
+                                                r, visibleRows),
+                                          ),
                                           onPickPhoto: (r) =>
                                               _startPhotoFlowForCell(
-                                            r,
+                                            _actualRowFromDisplay(
+                                                r, visibleRows),
                                             _headers.length - 1,
                                           ),
                                           onOpenAttachments: (r, c) =>
                                               _openAttachmentPanelForCell(
-                                                  r,
+                                                  _actualRowFromDisplay(
+                                                      r, visibleRows),
                                                   _actualColumnFromDisplay(
                                                       c, displayColumns)),
                                         );
@@ -6541,6 +7337,154 @@ class _EditorScreenState extends State<EditorScreen>
     return displayColumns[safe];
   }
 
+  int? _columnIndexFromId(String? colId) {
+    if (colId == null || colId.trim().isEmpty) return null;
+    final index = _colIds.indexOf(colId.trim());
+    if (index < 0 || index >= _headers.length - 1) return null;
+    return index;
+  }
+
+  int? _firstTextLikeColumn() {
+    for (int c = 0; c < _headers.length - 1; c++) {
+      switch (_colType(c)) {
+        case _ColType.text:
+        case _ColType.status:
+        case _ColType.number:
+        case _ColType.date:
+          return c;
+        default:
+          break;
+      }
+    }
+    return null;
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  String _rowViewCacheToken() {
+    final active = _activeSavedView;
+    final activeToken = active == null ? '' : jsonEncode(active.toJson());
+    return 'rev=$_rev|rows=${_rows.length}|view=$activeToken';
+  }
+
+  List<int> _visibleRowIndexes() {
+    if (_rows.isEmpty) {
+      _invalidateRowViewCache();
+      return const <int>[];
+    }
+    final nextToken = _rowViewCacheToken();
+    if (nextToken == _rowViewCacheKey) {
+      return _visibleRowIndexesCache;
+    }
+
+    final active = _activeSavedView;
+    final result = <int>[];
+    final statusFilter = (active?.statusValue ?? '').trim();
+    final textFilter = (active?.textContains ?? '').trim().toLowerCase();
+    final dateFrom = active?.dateFrom;
+    final dateTo = active?.dateTo;
+    final statusCol = _columnIndexFromId(active?.statusColId) ??
+        (statusFilter.isNotEmpty ? _firstColumnByType(_ColType.status) : null);
+    final textCol = _columnIndexFromId(active?.textColId) ??
+        (textFilter.isNotEmpty ? _firstTextLikeColumn() : null);
+    final dateCol = _columnIndexFromId(active?.dateColId) ??
+        ((dateFrom != null || dateTo != null)
+            ? _firstColumnByType(_ColType.date)
+            : null);
+
+    for (int r = 0; r < _rows.length; r++) {
+      if (statusCol != null && statusFilter.isNotEmpty) {
+        final value = (statusCol < _rows[r].cells.length)
+            ? _rows[r].cells[statusCol].trim().toLowerCase()
+            : '';
+        if (value != statusFilter.toLowerCase()) continue;
+      }
+      if (textCol != null && textFilter.isNotEmpty) {
+        final value = (textCol < _rows[r].cells.length)
+            ? _rows[r].cells[textCol].trim().toLowerCase()
+            : '';
+        if (!value.contains(textFilter)) continue;
+      }
+      if (dateCol != null && (dateFrom != null || dateTo != null)) {
+        final raw =
+            (dateCol < _rows[r].cells.length) ? _rows[r].cells[dateCol] : '';
+        final parsed = _parseDateCellValue(raw);
+        if (parsed == null) continue;
+        final dateValue = _dateOnly(parsed);
+        if (dateFrom != null && dateValue.isBefore(dateFrom)) continue;
+        if (dateTo != null && dateValue.isAfter(dateTo)) continue;
+      }
+      result.add(r);
+    }
+
+    final sortCol = _columnIndexFromId(active?.sortColId);
+    if (active != null && sortCol != null) {
+      result.sort((left, right) {
+        final a = (sortCol < _rows[left].cells.length)
+            ? _rows[left].cells[sortCol]
+            : '';
+        final b = (sortCol < _rows[right].cells.length)
+            ? _rows[right].cells[sortCol]
+            : '';
+        final base = _compareCellValuesForColumn(sortCol, a, b);
+        if (base == 0) return left.compareTo(right);
+        return active.sortAscending ? base : -base;
+      });
+    }
+
+    final displayToActual = <int, int>{};
+    final actualToDisplay = <int, int>{};
+    final visibleRows = <_RowModel>[];
+    for (int i = 0; i < result.length; i++) {
+      final actual = result[i];
+      displayToActual[i] = actual;
+      actualToDisplay[actual] = i;
+      visibleRows.add(_rows[actual]);
+    }
+
+    _rowViewCacheKey = nextToken;
+    _visibleRowIndexesCache = List<int>.unmodifiable(result);
+    _displayRowToActualCache = Map<int, int>.unmodifiable(displayToActual);
+    _actualRowToDisplayCache = Map<int, int>.unmodifiable(actualToDisplay);
+    _visibleRowModelsCache = List<_RowModel>.unmodifiable(visibleRows);
+    return _visibleRowIndexesCache;
+  }
+
+  List<_RowModel> _visibleRowModels() {
+    _visibleRowIndexes();
+    return _visibleRowModelsCache;
+  }
+
+  int _actualRowFromDisplay(int displayRow, List<int> visibleRows) {
+    final cached = identical(visibleRows, _visibleRowIndexesCache)
+        ? _displayRowToActualCache[displayRow]
+        : null;
+    if (cached != null) return cached;
+    if (displayRow < 0 || displayRow >= visibleRows.length) return _selRow;
+    return visibleRows[displayRow];
+  }
+
+  int _displayRowForActual(int actualRow, List<int> visibleRows) {
+    final cached = identical(visibleRows, _visibleRowIndexesCache)
+        ? _actualRowToDisplayCache[actualRow]
+        : null;
+    if (cached != null) return cached;
+    for (int i = 0; i < visibleRows.length; i++) {
+      if (visibleRows[i] == actualRow) return i;
+    }
+    return -1;
+  }
+
+  Set<int> _selectedDisplayRows(List<int> visibleRows) {
+    final out = <int>{};
+    for (final actual in _selectedRows) {
+      final display = _displayRowForActual(actual, visibleRows);
+      if (display >= 0) out.add(display);
+    }
+    return out;
+  }
+
   void _applyColumnPrefsAndOrder({
     required Map<String, _ColumnPrefs> columnPrefsById,
     required List<String> columnOrder,
@@ -6649,50 +7593,54 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  int _compareCellValuesForColumn(
+    int col,
+    String leftRaw,
+    String rightRaw,
+  ) {
+    final type = _colType(col);
+    final left = leftRaw.trim();
+    final right = rightRaw.trim();
+    if (left.isEmpty && right.isEmpty) return 0;
+    if (left.isEmpty) return 1;
+    if (right.isEmpty) return -1;
+    switch (type) {
+      case _ColType.number:
+        final ln = _parseNumberCellValue(left);
+        final rn = _parseNumberCellValue(right);
+        if (ln == null && rn == null) return left.compareTo(right);
+        if (ln == null) return 1;
+        if (rn == null) return -1;
+        return ln.compareTo(rn);
+      case _ColType.date:
+        final ld = _parseDateCellValue(left);
+        final rd = _parseDateCellValue(right);
+        if (ld == null && rd == null) return left.compareTo(right);
+        if (ld == null) return 1;
+        if (rd == null) return -1;
+        return ld.compareTo(rd);
+      case _ColType.checkbox:
+        final lb = _parseCheckboxCellValue(left);
+        final rb = _parseCheckboxCellValue(right);
+        if (lb == null && rb == null) return left.compareTo(right);
+        if (lb == null) return 1;
+        if (rb == null) return -1;
+        return lb == rb ? 0 : (lb ? -1 : 1);
+      default:
+        return left.toLowerCase().compareTo(right.toLowerCase());
+    }
+  }
+
   void _sortRowsByColumn(int col, {required bool ascending}) {
     if (col < 0 || col >= _headers.length - 1) return;
     if (_rows.isEmpty) return;
     final currentSelId =
         (_selRow >= 0 && _selRow < _rows.length) ? _rows[_selRow].id : null;
-    final type = _colType(col);
-
-    int cmpValue(String a, String b) {
-      final left = a.trim();
-      final right = b.trim();
-      if (left.isEmpty && right.isEmpty) return 0;
-      if (left.isEmpty) return 1;
-      if (right.isEmpty) return -1;
-      switch (type) {
-        case _ColType.number:
-          final ln = _parseNumberCellValue(left);
-          final rn = _parseNumberCellValue(right);
-          if (ln == null && rn == null) return left.compareTo(right);
-          if (ln == null) return 1;
-          if (rn == null) return -1;
-          return ln.compareTo(rn);
-        case _ColType.date:
-          final ld = _parseDateCellValue(left);
-          final rd = _parseDateCellValue(right);
-          if (ld == null && rd == null) return left.compareTo(right);
-          if (ld == null) return 1;
-          if (rd == null) return -1;
-          return ld.compareTo(rd);
-        case _ColType.checkbox:
-          final lb = _parseCheckboxCellValue(left);
-          final rb = _parseCheckboxCellValue(right);
-          if (lb == null && rb == null) return left.compareTo(right);
-          if (lb == null) return 1;
-          if (rb == null) return -1;
-          return lb == rb ? 0 : (lb ? -1 : 1);
-        default:
-          return left.toLowerCase().compareTo(right.toLowerCase());
-      }
-    }
 
     _rows.sort((a, b) {
       final av = (col < a.cells.length) ? a.cells[col] : '';
       final bv = (col < b.cells.length) ? b.cells[col] : '';
-      final base = cmpValue(av, bv);
+      final base = _compareCellValuesForColumn(col, av, bv);
       if (base == 0) return a.id.compareTo(b.id);
       return ascending ? base : -base;
     });

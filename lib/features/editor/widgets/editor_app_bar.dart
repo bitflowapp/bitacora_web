@@ -16,6 +16,9 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.onSearch,
     required this.onJumpTo,
     required this.onColumns,
+    required this.onSaveView,
+    required this.onSelectView,
+    required this.onManageViews,
     required this.onSave,
     required this.onExport,
     required this.onSmokeTest,
@@ -39,6 +42,8 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.selectedRowsCount,
     required this.pendingOfflineCount,
     required this.errorsCount,
+    required this.savedViews,
+    required this.activeViewId,
   });
 
   final _SheetPalette palette;
@@ -59,6 +64,9 @@ class _PremiumAppleHeader extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onJumpTo;
   final VoidCallback onColumns;
+  final VoidCallback onSaveView;
+  final ValueChanged<String?> onSelectView;
+  final VoidCallback onManageViews;
 
   final VoidCallback onSave;
   final VoidCallback onExport;
@@ -83,6 +91,8 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int selectedRowsCount;
   final int pendingOfflineCount;
   final int errorsCount;
+  final List<_SavedView> savedViews;
+  final String? activeViewId;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Ultimo guardado local: --:--';
@@ -287,6 +297,41 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 icon: Icons.rule_rounded,
                                 label: '$errorsCount errores',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.table_view_rounded,
+                              label: 'Vista base',
+                              onTap: () => onSelectView(null),
+                            ),
+                            for (final view in savedViews.take(5))
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: view.id == activeViewId
+                                    ? Icons.visibility_rounded
+                                    : Icons.visibility_outlined,
+                                label: view.name,
+                                onTap: () => onSelectView(view.id),
+                              ),
+                            _InlineMetaChip(
+                              palette: palette,
+                              icon: Icons.bookmark_add_outlined,
+                              label: 'Guardar vista',
+                              onTap: onSaveView,
+                            ),
+                            if (savedViews.isNotEmpty)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.more_horiz_rounded,
+                                label: 'Gestionar vistas',
+                                onTap: onManageViews,
                               ),
                           ],
                         ),

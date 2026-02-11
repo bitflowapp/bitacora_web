@@ -716,6 +716,126 @@ class _ValidationIssue {
   final String message;
 }
 
+class _SavedView {
+  const _SavedView({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    this.statusColId,
+    this.statusValue,
+    this.textColId,
+    this.textContains,
+    this.dateColId,
+    this.dateFrom,
+    this.dateTo,
+    this.sortColId,
+    this.sortAscending = true,
+    this.columnPrefsById = const <String, _ColumnPrefs>{},
+    this.columnOrder = const <String>[],
+    this.frozenColId,
+  });
+
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final String? statusColId;
+  final String? statusValue;
+  final String? textColId;
+  final String? textContains;
+  final String? dateColId;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+  final String? sortColId;
+  final bool sortAscending;
+  final Map<String, _ColumnPrefs> columnPrefsById;
+  final List<String> columnOrder;
+  final String? frozenColId;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'createdAt': createdAt.toIso8601String(),
+      if (statusColId?.trim().isNotEmpty ?? false) 'statusColId': statusColId,
+      if (statusValue?.trim().isNotEmpty ?? false) 'statusValue': statusValue,
+      if (textColId?.trim().isNotEmpty ?? false) 'textColId': textColId,
+      if (textContains?.trim().isNotEmpty ?? false)
+        'textContains': textContains,
+      if (dateColId?.trim().isNotEmpty ?? false) 'dateColId': dateColId,
+      if (dateFrom != null) 'dateFrom': dateFrom!.toIso8601String(),
+      if (dateTo != null) 'dateTo': dateTo!.toIso8601String(),
+      if (sortColId?.trim().isNotEmpty ?? false) 'sortColId': sortColId,
+      if (!sortAscending) 'sortAscending': false,
+      if (columnPrefsById.isNotEmpty)
+        'columnPrefsById': columnPrefsById.map(
+          (key, value) => MapEntry(key, value.toJson()),
+        ),
+      if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
+      if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
+    };
+  }
+
+  static _SavedView? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final map = raw.cast<Object?, Object?>();
+    final id = (map['id'] ?? '').toString().trim();
+    final name = (map['name'] ?? '').toString().trim();
+    if (id.isEmpty || name.isEmpty) return null;
+    final createdAt = DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final prefs = <String, _ColumnPrefs>{};
+    final prefsRaw = map['columnPrefsById'];
+    if (prefsRaw is Map) {
+      prefsRaw.forEach((key, value) {
+        final pref = _ColumnPrefs.fromJson(value);
+        if (pref == null) return;
+        final colId = key.toString().trim();
+        if (colId.isEmpty) return;
+        prefs[colId] = pref;
+      });
+    }
+    final order = <String>[];
+    final orderRaw = map['columnOrder'];
+    if (orderRaw is List) {
+      for (final item in orderRaw) {
+        final value = (item ?? '').toString().trim();
+        if (value.isEmpty) continue;
+        order.add(value);
+      }
+    }
+    final frozenRaw = (map['frozenColId'] ?? '').toString().trim();
+    return _SavedView(
+      id: id,
+      name: name,
+      createdAt: createdAt,
+      statusColId: (map['statusColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['statusColId'] ?? '').toString().trim(),
+      statusValue: (map['statusValue'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['statusValue'] ?? '').toString().trim(),
+      textColId: (map['textColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['textColId'] ?? '').toString().trim(),
+      textContains: (map['textContains'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['textContains'] ?? '').toString().trim(),
+      dateColId: (map['dateColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['dateColId'] ?? '').toString().trim(),
+      dateFrom: DateTime.tryParse((map['dateFrom'] ?? '').toString()),
+      dateTo: DateTime.tryParse((map['dateTo'] ?? '').toString()),
+      sortColId: (map['sortColId'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['sortColId'] ?? '').toString().trim(),
+      sortAscending: map['sortAscending'] as bool? ?? true,
+      columnPrefsById: prefs,
+      columnOrder: order,
+      frozenColId: frozenRaw.isEmpty ? null : frozenRaw,
+    );
+  }
+}
+
 class _CellRef {
   const _CellRef(this.r, this.c);
   final int r;

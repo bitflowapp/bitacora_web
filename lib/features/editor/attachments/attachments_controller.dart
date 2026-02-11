@@ -3125,6 +3125,26 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Guardar vista',
+            icon: Icons.bookmark_add_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openSaveViewDialog());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Gestionar vistas',
+            icon: Icons.table_view_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openSavedViewsManager());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Preferencias de editor',
             icon: Icons.tune_rounded,
             variant: AppButtonVariant.secondary,
