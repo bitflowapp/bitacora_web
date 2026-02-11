@@ -683,6 +683,18 @@ class _ColumnTemplate {
   }
 }
 
+class _ValidationIssue {
+  const _ValidationIssue({
+    required this.ref,
+    required this.label,
+    required this.message,
+  });
+
+  final _CellRef ref;
+  final String label;
+  final String message;
+}
+
 class _CellRef {
   const _CellRef(this.r, this.c);
   final int r;

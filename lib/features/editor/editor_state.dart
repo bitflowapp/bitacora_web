@@ -2532,6 +2532,70 @@ class _EditorScreenState extends State<EditorScreen>
     return h.startsWith('fecha') || h.startsWith('actividad');
   }
 
+  String? _validationMessageForValue({
+    required int col,
+    required String rawValue,
+  }) {
+    if (col < 0 || col >= _headers.length - 1) return null;
+    final value = rawValue.trim();
+    final required = _isRequired(col);
+    if (required && value.isEmpty) return 'Campo requerido';
+    if (value.isEmpty) return null;
+
+    final type = _colType(col);
+    switch (type) {
+      case _ColType.date:
+        return _parseDateCellValue(value) == null
+            ? 'Fecha invalida (usa dd/MM/yyyy)'
+            : null;
+      case _ColType.number:
+        return _parseNumberCellValue(value) == null ? 'Numero invalido' : null;
+      case _ColType.status:
+        final options = _statusOptionsForCol(col) ?? const <String>[];
+        if (options.isEmpty) return null;
+        final matched =
+            options.any((item) => item.toLowerCase() == value.toLowerCase());
+        if (matched) return null;
+        return 'Valor no permitido. Opciones: ${options.join(', ')}';
+      case _ColType.checkbox:
+        return _parseCheckboxCellValue(value) == null
+            ? 'Valor invalido (usa si/no, true/false, 1/0)'
+            : null;
+      default:
+        return null;
+    }
+  }
+
+  String? _validationMessageForCell(int row, int col, {String? overrideValue}) {
+    if (row < 0 || row >= _rows.length) return null;
+    if (col < 0 || col >= _headers.length - 1) return null;
+    final raw = overrideValue ?? _rows[row].cells[col];
+    return _validationMessageForValue(col: col, rawValue: raw);
+  }
+
+  List<_ValidationIssue> _validationIssues() {
+    if (_invalidCells.isEmpty) return const <_ValidationIssue>[];
+    final list = <_ValidationIssue>[];
+    for (final ref in _invalidCells) {
+      if (ref.r < 0 || ref.r >= _rows.length) continue;
+      if (ref.c < 0 || ref.c >= _headers.length - 1) continue;
+      final message = _invalidCellMessages[ref] ?? 'Valor invalido';
+      list.add(
+        _ValidationIssue(
+          ref: ref,
+          label: _cellLabelRc(ref.r, ref.c),
+          message: message,
+        ),
+      );
+    }
+    list.sort((a, b) {
+      final rowCmp = a.ref.r.compareTo(b.ref.r);
+      if (rowCmp != 0) return rowCmp;
+      return a.ref.c.compareTo(b.ref.c);
+    });
+    return list;
+  }
+
   void _recomputeValidation() {
     final stopwatch = kDebugMode ? (Stopwatch()..start()) : null;
     if (kDebugMode) {
@@ -2544,56 +2608,13 @@ class _EditorScreenState extends State<EditorScreen>
 
       for (int r = 0; r < _rows.length; r++) {
         for (int c = 0; c < _headers.length - 1; c++) {
-          final v = _rows[r].cells[c].trim();
-          final type = _colType(c);
-          final required = _isRequired(c);
+          final v = _rows[r].cells[c];
           final ref = _CellRef(r, c);
-
-          if (required && v.isEmpty) {
+          final message = _validationMessageForCell(r, c, overrideValue: v);
+          if (message != null) {
             invalid.add(ref);
-            messages[ref] = 'Campo requerido';
-            pending++;
-            continue;
-          }
-          if (v.isEmpty) continue;
-
-          switch (type) {
-            case _ColType.date:
-              if (_parseDateCellValue(v) == null) {
-                invalid.add(ref);
-                messages[ref] = 'Fecha invalida (usa dd/MM/yyyy)';
-              }
-              break;
-            case _ColType.number:
-              if (_parseNumberCellValue(v) == null) {
-                invalid.add(ref);
-                messages[ref] = 'Numero invalido';
-              }
-              break;
-            case _ColType.status:
-              final options = _statusOptionsForCol(c);
-              if (options == null || options.isEmpty) break;
-              var matched = false;
-              for (final item in options) {
-                if (item.toLowerCase() == v.toLowerCase()) {
-                  matched = true;
-                  break;
-                }
-              }
-              if (!matched) {
-                invalid.add(ref);
-                messages[ref] =
-                    'Valor no permitido. Opciones: ${options.join(', ')}';
-              }
-              break;
-            case _ColType.checkbox:
-              if (_parseCheckboxCellValue(v) == null) {
-                invalid.add(ref);
-                messages[ref] = 'Valor invalido (usa si/no, true/false, 1/0)';
-              }
-              break;
-            default:
-              break;
+            messages[ref] = message;
+            if (message == 'Campo requerido') pending++;
           }
         }
       }
@@ -5413,6 +5434,20 @@ class _EditorScreenState extends State<EditorScreen>
                                       _syncQuickCaptureQueue(notify: true))
                                   : _openOfflineQueueDialog,
                             ),
+                          if (_invalidCells.isNotEmpty)
+                            _warningBanner(
+                              pal,
+                              text:
+                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
+                              icon: Icons.rule_rounded,
+                              actionLabel: _errorsPanelOpen
+                                  ? 'Ocultar errores'
+                                  : 'Ver errores',
+                              onAction: () {
+                                setState(
+                                    () => _errorsPanelOpen = !_errorsPanelOpen);
+                              },
+                            ),
                           AnimatedSwitcher(
                             duration: AppMotion.medium,
                             switchInCurve: AppMotion.springOut,
@@ -5443,6 +5478,36 @@ class _EditorScreenState extends State<EditorScreen>
                                   )
                                 : const SizedBox.shrink(
                                     key: ValueKey('editor-tour-closed'),
+                                  ),
+                          ),
+                          AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, -0.03),
+                                child: child,
+                              );
+                            },
+                            child: (_errorsPanelOpen &&
+                                    _invalidCells.isNotEmpty)
+                                ? KeyedSubtree(
+                                    key: const ValueKey(
+                                        'validation-errors-open'),
+                                    child: _ValidationErrorsPanel(
+                                      palette: pal,
+                                      issues: _validationIssues(),
+                                      onJump: _jumpToValidationIssue,
+                                      onClose: () {
+                                        setState(
+                                            () => _errorsPanelOpen = false);
+                                      },
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey('validation-errors-closed'),
                                   ),
                           ),
                           if (_photoFlowStatus != null)
@@ -5916,6 +5981,7 @@ class _EditorScreenState extends State<EditorScreen>
                         fieldKey: _mobileFieldKey,
                         isOpen: _mobileEditorOpen,
                         title: _mobileTitle,
+                        validationHint: _mobileValidationHint,
                         controller: _mobileEC,
                         focusNode: _mobileFocus,
                         actions: _mobileActions,
@@ -7027,6 +7093,17 @@ class _EditorScreenState extends State<EditorScreen>
     return _mobileEditorOpen && !_mobileEditingHeader && _mobileRow >= 0;
   }
 
+  String? get _mobileValidationHint {
+    if (!_mobileEditorOpen || _mobileEditingHeader) return null;
+    if (_mobileRow < 0 || _mobileRow >= _rows.length) return null;
+    if (_mobileCol < 0 || _mobileCol >= _headers.length - 1) return null;
+    return _validationMessageForCell(
+      _mobileRow,
+      _mobileCol,
+      overrideValue: _mobileEC.text,
+    );
+  }
+
   void _mobileCommitDraftToModel() {
     if (!_mobileEditorOpen) return;
 
@@ -7325,6 +7402,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     final metrics = _gridMetricsFor(_gridDensity);
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
+    final activeRow = _overlayTargetCell?.r;
     final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
     final hintText =
         activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
@@ -7490,6 +7568,31 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ],
                             ),
+                            if (activeRow != null && activeCol != null)
+                              ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _cellEC,
+                                builder: (context, value, _) {
+                                  final message = _validationMessageForCell(
+                                    activeRow,
+                                    activeCol,
+                                    overrideValue: value.text,
+                                  );
+                                  if (message == null) {
+                                    return const SizedBox(height: 4);
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      message,
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11.2,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             if (suggestions.isNotEmpty) ...[
                               const SizedBox(height: 8),
                               SingleChildScrollView(
@@ -9265,6 +9368,51 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool _isSearchHit(int r, int c) => _searchHitSet.contains(_CellRef(r, c));
 
+  void _jumpToValidationIssue(_ValidationIssue issue) {
+    _setSelectionAndRefreshGrid(issue.ref.r, issue.ref.c, blink: true);
+    if (mounted) {
+      setState(() => _errorsPanelOpen = true);
+    } else {
+      _errorsPanelOpen = true;
+    }
+    _showActionSnack(
+      '${issue.label}: ${issue.message}',
+      isError: false,
+      icon: Icons.rule_folder_outlined,
+    );
+  }
+
+  Future<bool> _confirmExportWithValidationIfNeeded() async {
+    if (_invalidCells.isEmpty) return true;
+    if (!mounted) return false;
+    final decision = await showAppModal<bool>(
+      context: context,
+      title: 'Hay errores de validacion',
+      child: Text(
+        'Se detectaron ${_invalidCells.length} celdas con error. Puedes exportar igual o revisar antes.',
+      ),
+      actions: [
+        AppButton(
+          label: 'Revisar errores',
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: 'Exportar igual',
+          icon: Icons.ios_share_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (decision != true && mounted) {
+      setState(() => _errorsPanelOpen = true);
+    }
+    return decision == true;
+  }
+
 // ------------------------------ GPS / Maps ------------------------------
 
   CellMeta? _cellMetaAt(int r, int c) {
@@ -10156,6 +10304,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     bool share = false,
   }) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -10225,6 +10375,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     bool share = false,
   }) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
@@ -10282,6 +10434,8 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _exportZipBundle({required bool share}) async {
+    final canContinue = await _confirmExportWithValidationIfNeeded();
+    if (!canContinue) return;
     _beginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,

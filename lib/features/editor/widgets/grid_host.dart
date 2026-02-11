@@ -624,19 +624,31 @@ class _DataCell extends StatelessWidget {
           0.6,
         ) ??
         baseBg;
+    final invalidBg = Color.lerp(
+          baseBg,
+          palette.cellText.withValues(alpha: palette.isLight ? 0.08 : 0.16),
+          0.58,
+        ) ??
+        baseBg;
     final bg = isActive
         ? palette.blinkBg
         : (selected
             ? selectedBg
-            : (rowSelected ? rowSelectedBg : (searchHit ? searchBg : baseBg)));
+            : (rowSelected
+                ? rowSelectedBg
+                : (invalid ? invalidBg : (searchHit ? searchBg : baseBg))));
 
-    final borderColor = focus || invalid
+    final invalidBorder =
+        palette.cellText.withValues(alpha: palette.isLight ? 0.35 : 0.56);
+    final borderColor = focus
         ? palette.selectionBorder
-        : (searchHit
-            ? palette.selectionBorder.withValues(
-                alpha: palette.isLight ? 0.52 : 0.7,
-              )
-            : palette.gridBorder);
+        : (invalid
+            ? invalidBorder
+            : (searchHit
+                ? palette.selectionBorder.withValues(
+                    alpha: palette.isLight ? 0.52 : 0.7,
+                  )
+                : palette.gridBorder));
     final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final radius = BorderRadius.zero;
@@ -677,9 +689,8 @@ class _DataCell extends StatelessWidget {
                   ? BoxDecoration(
                       borderRadius: radius,
                       border: Border.all(
-                        color: invalid
-                            ? palette.focusRing
-                            : palette.selectionBorder,
+                        color:
+                            invalid ? invalidBorder : palette.selectionBorder,
                         width: 1.6,
                       ),
                     )

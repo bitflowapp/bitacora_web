@@ -20,6 +20,119 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
+class _ValidationErrorsPanel extends StatelessWidget {
+  const _ValidationErrorsPanel({
+    required this.palette,
+    required this.issues,
+    required this.onJump,
+    required this.onClose,
+  });
+
+  final _SheetPalette palette;
+  final List<_ValidationIssue> issues;
+  final ValueChanged<_ValidationIssue> onJump;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: AppleCard(
+        radius: 16,
+        color: palette.menuBg.withValues(alpha: palette.isLight ? 0.95 : 0.84),
+        borderColor: palette.borderStrong,
+        shadows: const <BoxShadow>[],
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Errores (${issues.length})',
+                    style: TextStyle(
+                      color: palette.fg,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                _MobilePanelIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Cerrar',
+                  onTap: onClose,
+                  palette: palette,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 170),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: issues.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final issue = issues[index];
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => onJump(issue),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.hintBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: palette.border,
+                          width: palette.hairline,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            issue.label,
+                            style: TextStyle(
+                              color: palette.fg,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              issue.message,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.fgMuted,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 12,
+                            color: palette.fgMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EditorFirstRunTourBanner extends StatelessWidget {
   const _EditorFirstRunTourBanner({
     required this.palette,
@@ -545,6 +658,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.fieldKey,
     required this.isOpen,
     required this.title,
+    required this.validationHint,
     required this.controller,
     required this.focusNode,
     required this.actions,
@@ -567,6 +681,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final Key fieldKey;
   final bool isOpen;
   final String title;
+  final String? validationHint;
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<_MobileAction> actions;
@@ -730,6 +845,20 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            if (validationHint != null &&
+                                validationHint!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                validationHint!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.fgMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                             // Acciones solo via overflow sheet
                           ],
                         ),
