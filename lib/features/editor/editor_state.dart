@@ -401,6 +401,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _recoveryBannerVisible = false;
   bool _androidInstallHelperHiddenSession = false;
   bool _androidInstallHelperDismissed = false;
+  DateTime _lastBlinkHapticAt = DateTime.fromMillisecondsSinceEpoch(0);
 
 // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
@@ -2342,9 +2343,18 @@ class _EditorScreenState extends State<EditorScreen>
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.android)) {
-      try {
-        HapticFeedback.selectionClick();
-      } catch (_) {}
+      final now = DateTime.now();
+      if (now.difference(_lastBlinkHapticAt) >=
+          const Duration(milliseconds: 34)) {
+        _lastBlinkHapticAt = now;
+        try {
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            HapticFeedback.lightImpact();
+          } else {
+            HapticFeedback.selectionClick();
+          }
+        } catch (_) {}
+      }
     }
 
     _blinkT = Timer(_blinkDuration, () {

@@ -674,7 +674,9 @@ class _DataCell extends StatelessWidget {
       onSecondaryTapDown: onSecondaryTapDown,
       child: Material(
         color: Colors.transparent,
-        child: Ink(
+        child: AnimatedContainer(
+          duration: AppMotion.quick,
+          curve: AppMotion.standardOut,
           decoration: decoration,
           child: InkWell(
             onTap: onTap,
@@ -682,21 +684,26 @@ class _DataCell extends StatelessWidget {
             hoverColor: palette.hoverBg,
             splashColor: palette.pressedBg,
             borderRadius: radius,
-            child: Container(
-              width: width,
-              height: metrics.rowH,
-              foregroundDecoration: focus
-                  ? BoxDecoration(
-                      borderRadius: radius,
-                      border: Border.all(
-                        color:
-                            invalid ? invalidBorder : palette.selectionBorder,
-                        width: 1.6,
-                      ),
-                    )
-                  : null,
-              padding: metrics.cellPadding,
-              child: _buildCellBody(context),
+            child: AnimatedScale(
+              duration: AppMotion.quick,
+              curve: AppMotion.standardOut,
+              scale: focus ? 0.996 : 1,
+              child: Container(
+                width: width,
+                height: metrics.rowH,
+                foregroundDecoration: focus
+                    ? BoxDecoration(
+                        borderRadius: radius,
+                        border: Border.all(
+                          color:
+                              invalid ? invalidBorder : palette.selectionBorder,
+                          width: 1.6,
+                        ),
+                      )
+                    : null,
+                padding: metrics.cellPadding,
+                child: _buildCellBody(context),
+              ),
             ),
           ),
         ),
