@@ -575,344 +575,348 @@ extension _EditorAttachments on _EditorScreenState {
     int? replaceIndex,
   }) async {
     var currentOutcome = outcome;
-
-    if (fromCamera &&
-        _isIosWeb &&
-        (outcome.cancelled || outcome.blocked || outcome.isError)) {
-      final fallbackOutcome = await _offerGalleryFallback();
-      if (fallbackOutcome != null) {
-        currentOutcome = fallbackOutcome;
+    _setAttachmentProcessing(targetRef, true);
+    try {
+      if (fromCamera &&
+          _isIosWeb &&
+          (outcome.cancelled || outcome.blocked || outcome.isError)) {
+        final fallbackOutcome = await _offerGalleryFallback();
+        if (fallbackOutcome != null) {
+          currentOutcome = fallbackOutcome;
+        }
       }
-    }
 
-    final cellLabel = _cellLabelForRef(targetRef);
-    final label = cellLabel.isEmpty ? targetRef.compactKey : cellLabel;
+      final cellLabel = _cellLabelForRef(targetRef);
+      final label = cellLabel.isEmpty ? targetRef.compactKey : cellLabel;
 
-    if (currentOutcome.cancelled) {
-      _updatePhotoFlowStatus(
-        'Destino $label \u00b7 cancelado',
-        target: targetRef,
-      );
-      _clearPhotoFlowStatusSoon();
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_cancelled',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'cancelled',
-        error: 'cancelled',
-      );
-      _showActionSnack(
-        'Cancelado por el usuario.',
-        isError: true,
-        icon: Icons.photo_outlined,
-      );
-      return;
-    }
-    if (currentOutcome.blocked) {
-      final msg = currentOutcome.error ?? 'Bloqueado por el navegador.';
-      _updatePhotoFlowStatus(
-        'Destino $label \u00b7 bloqueado',
-        target: targetRef,
-      );
-      _clearPhotoFlowStatusSoon();
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_blocked $msg',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'blocked',
-        error: msg,
-      );
-      _reportFlowErrorMessage(
-        msg,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: 'photo_blocked',
-        fallbackMessage:
-            'No se pudo acceder a camara o galeria desde este navegador.',
-        icon: Icons.photo_outlined,
-      );
-      return;
-    }
-    if (!currentOutcome.ok) {
-      final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
-      final lower = rawMsg.toLowerCase();
-      final readFail = lower.contains('empty_bytes') ||
-          lower.contains('leer la imagen') ||
-          lower.contains('leer los bytes');
-      final cause = _decodeLikelyUnsupported(rawMessage: rawMsg)
-          ? _causeDecodeUnsupported
-          : '';
-      final userMsg = cause == _causeDecodeUnsupported
-          ? _photoMessageForCause(cause)
-          : (readFail ? _EditorScreenState._kPhotoReadErrorMsg : rawMsg);
-
-      _updatePhotoFlowStatus(
-        'Destino $label \u00b7 ${readFail ? 'error lectura' : 'error foto'}',
-        target: targetRef,
-      );
-      _clearPhotoFlowStatusSoon();
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_error $rawMsg',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: readFail ? 'error_bytes' : 'error',
-        error: rawMsg,
-      );
-      _reportFlowErrorMessage(
-        rawMsg,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: readFail ? 'photo_read_bytes' : 'photo_outcome_error',
-        fallbackMessage: userMsg,
-        code: cause.isEmpty ? null : cause,
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: cause.isEmpty ? 'photo_outcome_error' : cause,
-          operation: readFail ? 'photo_read_bytes' : 'photo_outcome_error',
+      if (currentOutcome.cancelled) {
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 cancelado',
+          target: targetRef,
+        );
+        _clearPhotoFlowStatusSoon();
+        DiagnosticsLog.I.record(
           type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'photo_cancelled',
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'cancelled',
+          error: 'cancelled',
+        );
+        _showActionSnack(
+          'Cancelado por el usuario.',
+          isError: true,
+          icon: Icons.photo_outlined,
+        );
+        return;
+      }
+      if (currentOutcome.blocked) {
+        final msg = currentOutcome.error ?? 'Bloqueado por el navegador.';
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 bloqueado',
+          target: targetRef,
+        );
+        _clearPhotoFlowStatusSoon();
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'photo_blocked $msg',
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'blocked',
+          error: msg,
+        );
+        _reportFlowErrorMessage(
+          msg,
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'photo_blocked',
+          fallbackMessage:
+              'No se pudo acceder a camara o galeria desde este navegador.',
+          icon: Icons.photo_outlined,
+        );
+        return;
+      }
+      if (!currentOutcome.ok) {
+        final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
+        final lower = rawMsg.toLowerCase();
+        final readFail = lower.contains('empty_bytes') ||
+            lower.contains('leer la imagen') ||
+            lower.contains('leer los bytes');
+        final cause = _decodeLikelyUnsupported(rawMessage: rawMsg)
+            ? _causeDecodeUnsupported
+            : '';
+        final userMsg = cause == _causeDecodeUnsupported
+            ? _photoMessageForCause(cause)
+            : (readFail ? _EditorScreenState._kPhotoReadErrorMsg : rawMsg);
+
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 ${readFail ? 'error lectura' : 'error foto'}',
+          target: targetRef,
+        );
+        _clearPhotoFlowStatusSoon();
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'photo_error $rawMsg',
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: readFail ? 'error_bytes' : 'error',
           error: rawMsg,
-        ),
-        icon: Icons.photo_outlined,
-      );
-      return;
-    }
+        );
+        _reportFlowErrorMessage(
+          rawMsg,
+          flow: AppErrorFlow.attachmentPermission,
+          operation: readFail ? 'photo_read_bytes' : 'photo_outcome_error',
+          fallbackMessage: userMsg,
+          code: cause.isEmpty ? null : cause,
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: cause.isEmpty ? 'photo_outcome_error' : cause,
+            operation: readFail ? 'photo_read_bytes' : 'photo_outcome_error',
+            type: DiagnosticActionType.photo,
+            error: rawMsg,
+          ),
+          icon: Icons.photo_outlined,
+        );
+        return;
+      }
 
-    final result = currentOutcome.result!;
-    final originalBytes = result.bytes;
-    final originalSize = result.size ?? originalBytes.lengthInBytes;
-    final fileType = result.reportedMime ?? result.mime;
-    if (originalBytes.isEmpty && originalSize <= 0) {
-      _updatePhotoFlowStatus(
-        'Destino $label \u00b7 bytes vacios',
-        target: targetRef,
-      );
-      _clearPhotoFlowStatusSoon();
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_error empty_bytes',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'error_bytes',
-        error: 'empty_bytes',
-      );
-      _reportFlowErrorMessage(
-        'empty_bytes',
-        flow: AppErrorFlow.attachmentPermission,
-        operation: 'photo_empty_bytes',
-        fallbackMessage: _photoMessageForCause(_causeDecodeUnsupported),
-        code: _causeDecodeUnsupported,
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: _causeDecodeUnsupported,
-          operation: 'photo_empty_bytes',
+      final result = currentOutcome.result!;
+      final originalBytes = result.bytes;
+      final originalSize = result.size ?? originalBytes.lengthInBytes;
+      final fileType = result.reportedMime ?? result.mime;
+      if (originalBytes.isEmpty && originalSize <= 0) {
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 bytes vacios',
+          target: targetRef,
+        );
+        _clearPhotoFlowStatusSoon();
+        DiagnosticsLog.I.record(
           type: DiagnosticActionType.photo,
-          mime: fileType,
-          size: originalSize,
-          fileName: result.name,
+          ok: false,
+          message: 'photo_error empty_bytes',
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'error_bytes',
           error: 'empty_bytes',
-        ),
-        icon: Icons.photo_outlined,
+        );
+        _reportFlowErrorMessage(
+          'empty_bytes',
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'photo_empty_bytes',
+          fallbackMessage: _photoMessageForCause(_causeDecodeUnsupported),
+          code: _causeDecodeUnsupported,
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: _causeDecodeUnsupported,
+            operation: 'photo_empty_bytes',
+            type: DiagnosticActionType.photo,
+            mime: fileType,
+            size: originalSize,
+            fileName: result.name,
+            error: 'empty_bytes',
+          ),
+          icon: Icons.photo_outlined,
+        );
+        return;
+      }
+
+      final prepared = await _preparePhotoForStorage(result);
+      final bytes = prepared.bytes;
+      final fileSize = bytes.lengthInBytes;
+
+      if (!_checkPhotoLimits(targetRef, fileSize, replaceIndex: replaceIndex)) {
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 limite por celda',
+          target: targetRef,
+        );
+        _clearPhotoFlowStatusSoon();
+        return;
+      }
+
+      final safeMime = prepared.mime.trim().isEmpty
+          ? 'application/octet-stream'
+          : prepared.mime.trim();
+
+      final sniffedMime = sniffMime(originalBytes, name: result.name);
+      final reportedMime = result.mime.trim();
+      DiagnosticsLog.I.updatePhotoAttempt(
+        stage: 'bytes_ready',
+        fileName: prepared.fileName,
+        sniffedMime: sniffedMime.isNotEmpty ? sniffedMime : null,
+        reportedMime: reportedMime.isNotEmpty ? reportedMime : null,
+        bytes: fileSize > 0 ? fileSize : null,
+        fileSize: originalSize,
+        fileType: fileType,
       );
-      return;
-    }
-
-    final prepared = await _preparePhotoForStorage(result);
-    final bytes = prepared.bytes;
-    final fileSize = bytes.lengthInBytes;
-
-    if (!_checkPhotoLimits(targetRef, fileSize, replaceIndex: replaceIndex)) {
       _updatePhotoFlowStatus(
-        'Destino $label \u00b7 limite por celda',
+        'Destino $label \u00b7 bytes listos (${_formatBytes(fileSize)})',
         target: targetRef,
       );
-      _clearPhotoFlowStatusSoon();
-      return;
-    }
 
-    final safeMime = prepared.mime.trim().isEmpty
-        ? 'application/octet-stream'
-        : prepared.mime.trim();
+      await _refreshAttachmentCapabilitiesIfWeb();
 
-    final sniffedMime = sniffMime(originalBytes, name: result.name);
-    final reportedMime = result.mime.trim();
-    DiagnosticsLog.I.updatePhotoAttempt(
-      stage: 'bytes_ready',
-      fileName: prepared.fileName,
-      sniffedMime: sniffedMime.isNotEmpty ? sniffedMime : null,
-      reportedMime: reportedMime.isNotEmpty ? reportedMime : null,
-      bytes: fileSize > 0 ? fileSize : null,
-      fileSize: originalSize,
-      fileType: fileType,
-    );
-    _updatePhotoFlowStatus(
-      'Destino $label \u00b7 bytes listos (${_formatBytes(fileSize)})',
-      target: targetRef,
-    );
+      final attachmentId = _genAttachmentId('ph_');
+      var storageLabel = 'unknown';
+      String? storageKey;
 
-    await _refreshAttachmentCapabilitiesIfWeb();
+      final pipeline = await _attachmentPipeline.run<_PreparedPhoto>(
+        AttachmentPipelineRequest<_PreparedPhoto>(
+          kind: AttachmentKind.photo,
+          source:
+              fromCamera ? AttachmentSource.capture : AttachmentSource.gallery,
+          cellRef: targetRef.compactKey,
+          captureCapabilities: kIsWeb,
+          pick: () => prepared,
+          normalize: (value) => value,
+          persist: (value) async {
+            final saveHook = _debugSaveImageHook;
+            final save = await (saveHook != null
+                ? saveHook(
+                    cellRef: targetRef,
+                    attachmentId: attachmentId,
+                    bytes: bytes,
+                    originalName: value.fileName,
+                    mime: safeMime,
+                    webFile: kIsWeb ? (value.webStoredSource ?? bytes) : null,
+                  )
+                : _attachmentStore.saveImage(
+                    cellRef: targetRef,
+                    attachmentId: attachmentId,
+                    bytes: bytes,
+                    originalName: value.fileName,
+                    mime: safeMime,
+                    webFile: kIsWeb ? (value.webStoredSource ?? bytes) : null,
+                  ));
+            if (save == null || save.storedRef.trim().isEmpty) {
+              throw Exception('storage_blocked: photo_storage_empty_ref');
+            }
+            storageLabel = save.storageLabel;
+            storageKey = save.storageKey;
+            if (storageLabel == 'ram' || save.sessionOnly) {
+              _warnStorageFallbackOnce('foto');
+            }
+            DiagnosticsLog.I.updatePhotoAttempt(
+              stage: 'stored',
+              storageMode: storageLabel,
+              storageKey: storageKey ?? save.storedRef,
+              bytes: fileSize,
+            );
+            return save.storedRef;
+          },
+          bindToCell: (value, storedRef) async {
+            if (!mounted) return;
+            final previewable = _isPreviewableMime(safeMime, value.fileName);
+            final thumbBytes = previewable
+                ? (value.thumbBytes ??
+                    _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74))
+                : null;
+            final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
+                ? ''
+                : base64Encode(thumbBytes);
 
-    final attachmentId = _genAttachmentId('ph_');
-    var storageLabel = 'unknown';
-    String? storageKey;
+            final fixOutcome = _debugSkipAttachmentGps
+                ? const _GpsOutcome()
+                : await _getGpsFixWithFallback(
+                    timeout: const Duration(seconds: 8),
+                  );
+            if (!mounted) return;
 
-    final pipeline = await _attachmentPipeline.run<_PreparedPhoto>(
-      AttachmentPipelineRequest<_PreparedPhoto>(
-        kind: AttachmentKind.photo,
-        source:
-            fromCamera ? AttachmentSource.capture : AttachmentSource.gallery,
-        cellRef: targetRef.compactKey,
-        captureCapabilities: kIsWeb,
-        pick: () => prepared,
-        normalize: (value) => value,
-        persist: (value) async {
-          final saveHook = _debugSaveImageHook;
-          final save = await (saveHook != null
-              ? saveHook(
-                  cellRef: targetRef,
-                  attachmentId: attachmentId,
-                  bytes: bytes,
-                  originalName: value.fileName,
-                  mime: safeMime,
-                  webFile: kIsWeb ? (value.webStoredSource ?? bytes) : null,
-                )
-              : _attachmentStore.saveImage(
-                  cellRef: targetRef,
-                  attachmentId: attachmentId,
-                  bytes: bytes,
-                  originalName: value.fileName,
-                  mime: safeMime,
-                  webFile: kIsWeb ? (value.webStoredSource ?? bytes) : null,
-                ));
-          if (save == null || save.storedRef.trim().isEmpty) {
-            throw Exception('storage_blocked: photo_storage_empty_ref');
-          }
-          storageLabel = save.storageLabel;
-          storageKey = save.storageKey;
-          if (storageLabel == 'ram' || save.sessionOnly) {
-            _warnStorageFallbackOnce('foto');
-          }
-          DiagnosticsLog.I.updatePhotoAttempt(
-            stage: 'stored',
-            storageMode: storageLabel,
-            storageKey: storageKey ?? save.storedRef,
-            bytes: fileSize,
-          );
-          return save.storedRef;
-        },
-        bindToCell: (value, storedRef) async {
-          if (!mounted) return;
-          final previewable = _isPreviewableMime(safeMime, value.fileName);
-          final thumbBytes = previewable
-              ? (value.thumbBytes ??
-                  _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74))
-              : null;
-          final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
-              ? ''
-              : base64Encode(thumbBytes);
+            final attachment = PhotoAttachment(
+              id: attachmentId,
+              filename: value.fileName,
+              caption: value.caption,
+              mime: safeMime,
+              size: fileSize,
+              storedRef: storedRef,
+              thumbRef: thumbB64,
+              addedAt: DateTime.now(),
+              lat: fixOutcome.fix?.lat,
+              lon: fixOutcome.fix?.lng,
+              accuracyM: fixOutcome.fix?.accuracyM,
+              isLastKnown: fixOutcome.fix?.source == 'lastKnown',
+            );
 
-          final fixOutcome = _debugSkipAttachmentGps
-              ? const _GpsOutcome()
-              : await _getGpsFixWithFallback(
-                  timeout: const Duration(seconds: 8),
-                );
-          if (!mounted) return;
+            if (!_applyPhotoToRef(targetRef, attachment,
+                replaceIndex: replaceIndex)) {
+              throw Exception('bind_failed: cell_missing');
+            }
 
-          final attachment = PhotoAttachment(
-            id: attachmentId,
-            filename: value.fileName,
-            caption: value.caption,
+            DiagnosticsLog.I.updatePhotoAttempt(
+              stage: 'meta_attached',
+              storageMode: storageLabel,
+              previewable: previewable,
+            );
+            DiagnosticsLog.I.updatePhotoAttempt(
+              stage: 'ui_refresh',
+              storageMode: storageLabel,
+              previewable: previewable,
+            );
+          },
+        ),
+      );
+
+      _lastAttachmentCapabilities = pipeline.ok
+          ? pipeline.success?.capabilitySnapshot
+          : pipeline.failure?.capabilitySnapshot;
+
+      if (!mounted) return;
+      if (!pipeline.ok) {
+        final failure = pipeline.failure!.error;
+        final cause = _legacyCauseFromPipelineReason(failure.code);
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'attach_error',
+          error: failure.technicalDetail,
+          stack: failure.stackTrace?.toString(),
+        );
+        _updatePhotoFlowStatus(
+          'Destino $label \u00b7 fallo (${failure.code})',
+          target: targetRef,
+        );
+        _reportFlowErrorMessage(
+          failure.technicalDetail,
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'photo_attach_pipeline',
+          fallbackMessage: _photoMessageForCause(cause),
+          code: cause,
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: cause,
+            operation: 'photo_attach_pipeline',
+            operationId: failure.operationId,
+            step: failure.step.name,
+            type: DiagnosticActionType.photo,
             mime: safeMime,
             size: fileSize,
-            storedRef: storedRef,
-            thumbRef: thumbB64,
-            addedAt: DateTime.now(),
-            lat: fixOutcome.fix?.lat,
-            lon: fixOutcome.fix?.lng,
-            accuracyM: fixOutcome.fix?.accuracyM,
-            isLastKnown: fixOutcome.fix?.source == 'lastKnown',
-          );
+            fileName: prepared.fileName,
+            error: failure.technicalDetail,
+            stackTrace: failure.stackTrace,
+          ),
+          icon: Icons.photo_outlined,
+          diagnosticType: DiagnosticActionType.photo,
+        );
+        return;
+      }
 
-          if (!_applyPhotoToRef(targetRef, attachment,
-              replaceIndex: replaceIndex)) {
-            throw Exception('bind_failed: cell_missing');
-          }
-
-          DiagnosticsLog.I.updatePhotoAttempt(
-            stage: 'meta_attached',
-            storageMode: storageLabel,
-            previewable: previewable,
-          );
-          DiagnosticsLog.I.updatePhotoAttempt(
-            stage: 'ui_refresh',
-            storageMode: storageLabel,
-            previewable: previewable,
-          );
-        },
-      ),
-    );
-
-    _lastAttachmentCapabilities = pipeline.ok
-        ? pipeline.success?.capabilitySnapshot
-        : pipeline.failure?.capabilitySnapshot;
-
-    if (!mounted) return;
-    if (!pipeline.ok) {
-      final failure = pipeline.failure!.error;
-      final cause = _legacyCauseFromPipelineReason(failure.code);
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'attach_error',
-        error: failure.technicalDetail,
-        stack: failure.stackTrace?.toString(),
+      final storedRef = pipeline.success!.storedRef;
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.photo,
+        ok: true,
+        message:
+            'photo_saved cell=$label name=${result.name} size=$fileSize ref=$storedRef storage=$storageLabel pipeline=${pipeline.operationId}',
+      );
+      final sizeLabel = _formatBytes(fileSize);
+      _showActionSnack(
+        'Foto guardada en celda $label ($sizeLabel).',
+        isError: false,
+        icon: Icons.photo_outlined,
       );
       _updatePhotoFlowStatus(
-        'Destino $label \u00b7 fallo (${failure.code})',
+        'Destino $label \u00b7 guardada',
         target: targetRef,
       );
-      _reportFlowErrorMessage(
-        failure.technicalDetail,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: 'photo_attach_pipeline',
-        fallbackMessage: _photoMessageForCause(cause),
-        code: cause,
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: cause,
-          operation: 'photo_attach_pipeline',
-          operationId: failure.operationId,
-          step: failure.step.name,
-          type: DiagnosticActionType.photo,
-          mime: safeMime,
-          size: fileSize,
-          fileName: prepared.fileName,
-          error: failure.technicalDetail,
-          stackTrace: failure.stackTrace,
-        ),
-        icon: Icons.photo_outlined,
-        diagnosticType: DiagnosticActionType.photo,
-      );
-      return;
+      _clearPhotoFlowStatusSoon();
+    } finally {
+      _setAttachmentProcessing(targetRef, false);
     }
-
-    final storedRef = pipeline.success!.storedRef;
-    DiagnosticsLog.I.record(
-      type: DiagnosticActionType.photo,
-      ok: true,
-      message:
-          'photo_saved cell=$label name=${result.name} size=$fileSize ref=$storedRef storage=$storageLabel pipeline=${pipeline.operationId}',
-    );
-    final sizeLabel = _formatBytes(fileSize);
-    _showActionSnack(
-      'Foto guardada en celda $label ($sizeLabel).',
-      isError: false,
-      icon: Icons.photo_outlined,
-    );
-    _updatePhotoFlowStatus(
-      'Destino $label \u00b7 guardada',
-      target: targetRef,
-    );
-    _clearPhotoFlowStatusSoon();
   }
 
   bool _checkPhotoLimits(CellRef ref, int incomingBytes, {int? replaceIndex}) {
@@ -1990,183 +1994,188 @@ extension _EditorAttachments on _EditorScreenState {
     required String sourceLabel,
   }) async {
     final cellLabel = _cellLabelForRef(target);
-    if (picked == null) {
-      _showActionSnack(
-        'Adjuntar $sourceLabel cancelado.',
-        isError: true,
-        icon: icon,
-      );
-      return;
-    }
-
-    Uint8List bytes;
+    _setAttachmentProcessing(target, true);
     try {
-      bytes = await picked.readAsBytes();
-    } catch (e, st) {
-      final op = '${kind.name}_file_read';
-      _reportFlowError(
-        e,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: op,
-        stackTrace: st,
-        fallbackMessage: 'No se pudo leer el archivo seleccionado.',
-        code: 'storage_blocked',
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: 'storage_blocked',
+      if (picked == null) {
+        _showActionSnack(
+          'Adjuntar $sourceLabel cancelado.',
+          isError: true,
+          icon: icon,
+        );
+        return;
+      }
+
+      Uint8List bytes;
+      try {
+        bytes = await picked.readAsBytes();
+      } catch (e, st) {
+        final op = '${kind.name}_file_read';
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.attachmentPermission,
           operation: op,
-          type: diagType,
-          fileName: picked.name,
-          error: e,
           stackTrace: st,
-        ),
-        icon: icon,
-        diagnosticType: diagType,
-      );
-      return;
-    }
+          fallbackMessage: 'No se pudo leer el archivo seleccionado.',
+          code: 'storage_blocked',
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: 'storage_blocked',
+            operation: op,
+            type: diagType,
+            fileName: picked.name,
+            error: e,
+            stackTrace: st,
+          ),
+          icon: icon,
+          diagnosticType: diagType,
+        );
+        return;
+      }
 
-    if (bytes.isEmpty) {
-      _reportFlowErrorMessage(
-        '${kind.name}_file_empty',
-        flow: AppErrorFlow.attachmentPermission,
-        operation: '${kind.name}_file_read',
-        fallbackMessage: 'El archivo seleccionado esta vacio.',
-        code: 'unsupported_format',
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: 'unsupported_format',
+      if (bytes.isEmpty) {
+        _reportFlowErrorMessage(
+          '${kind.name}_file_empty',
+          flow: AppErrorFlow.attachmentPermission,
           operation: '${kind.name}_file_read',
-          type: diagType,
-          fileName: picked.name,
-          size: 0,
-          error: '${kind.name}_file_empty',
-        ),
-        icon: icon,
-        diagnosticType: diagType,
+          fallbackMessage: 'El archivo seleccionado esta vacio.',
+          code: 'unsupported_format',
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: 'unsupported_format',
+            operation: '${kind.name}_file_read',
+            type: diagType,
+            fileName: picked.name,
+            size: 0,
+            error: '${kind.name}_file_empty',
+          ),
+          icon: icon,
+          diagnosticType: diagType,
+        );
+        return;
+      }
+
+      if (!_checkPhotoLimits(target, bytes.lengthInBytes)) {
+        return;
+      }
+
+      await _refreshAttachmentCapabilitiesIfWeb();
+
+      final inferredMime = (picked.mimeType ?? '').trim().isNotEmpty
+          ? picked.mimeType!.trim()
+          : _guessMimeFromName(
+              picked.name,
+              fallback: kind == AttachmentKind.video
+                  ? 'video/mp4'
+                  : 'application/octet-stream',
+            );
+      final attachmentId = _genAttachmentId(
+        kind == AttachmentKind.video ? 'vd_' : 'fl_',
       );
-      return;
-    }
+      var storageLabel = 'unknown';
 
-    if (!_checkPhotoLimits(target, bytes.lengthInBytes)) {
-      return;
-    }
-
-    await _refreshAttachmentCapabilitiesIfWeb();
-
-    final inferredMime = (picked.mimeType ?? '').trim().isNotEmpty
-        ? picked.mimeType!.trim()
-        : _guessMimeFromName(
-            picked.name,
-            fallback: kind == AttachmentKind.video
-                ? 'video/mp4'
-                : 'application/octet-stream',
-          );
-    final attachmentId = _genAttachmentId(
-      kind == AttachmentKind.video ? 'vd_' : 'fl_',
-    );
-    var storageLabel = 'unknown';
-
-    final pipeline = await _attachmentPipeline.run<Uint8List>(
-      AttachmentPipelineRequest<Uint8List>(
-        kind: kind,
-        source: AttachmentSource.files,
-        cellRef: target.compactKey,
-        captureCapabilities: kIsWeb,
-        pick: () => bytes,
-        normalize: (value) => value,
-        persist: (value) async {
-          final save = await _attachmentStore.saveImage(
-            cellRef: target,
-            attachmentId: attachmentId,
-            bytes: value,
-            originalName: picked.name.trim().isEmpty
+      final pipeline = await _attachmentPipeline.run<Uint8List>(
+        AttachmentPipelineRequest<Uint8List>(
+          kind: kind,
+          source: AttachmentSource.files,
+          cellRef: target.compactKey,
+          captureCapabilities: kIsWeb,
+          pick: () => bytes,
+          normalize: (value) => value,
+          persist: (value) async {
+            final save = await _attachmentStore.saveImage(
+              cellRef: target,
+              attachmentId: attachmentId,
+              bytes: value,
+              originalName: picked.name.trim().isEmpty
+                  ? (kind == AttachmentKind.video
+                      ? 'video_adjuntado'
+                      : 'archivo_adjuntado')
+                  : picked.name.trim(),
+              mime: inferredMime,
+              webFile: kIsWeb ? value : null,
+            );
+            if (save == null || save.storedRef.trim().isEmpty) {
+              throw Exception('storage_blocked: ${kind.name}_store_failed');
+            }
+            storageLabel = save.storageLabel;
+            if (storageLabel == 'ram' || save.sessionOnly) {
+              _warnStorageFallbackOnce(sourceLabel);
+            }
+            return save.storedRef;
+          },
+          bindToCell: (value, storedRef) async {
+            final safeName = picked.name.trim().isEmpty
                 ? (kind == AttachmentKind.video
                     ? 'video_adjuntado'
                     : 'archivo_adjuntado')
-                : picked.name.trim(),
-            mime: inferredMime,
-            webFile: kIsWeb ? value : null,
-          );
-          if (save == null || save.storedRef.trim().isEmpty) {
-            throw Exception('storage_blocked: ${kind.name}_store_failed');
-          }
-          storageLabel = save.storageLabel;
-          if (storageLabel == 'ram' || save.sessionOnly) {
-            _warnStorageFallbackOnce(sourceLabel);
-          }
-          return save.storedRef;
-        },
-        bindToCell: (value, storedRef) async {
-          final safeName = picked.name.trim().isEmpty
-              ? (kind == AttachmentKind.video
-                  ? 'video_adjuntado'
-                  : 'archivo_adjuntado')
-              : picked.name.trim();
-          final thumbB64 = _buildInlineThumbB64(
-            bytes: value,
-            mime: inferredMime,
-            name: safeName,
-          );
-          final att = PhotoAttachment(
-            id: attachmentId,
-            filename: safeName,
-            caption: _stripExt(_safeFile(safeName)),
-            mime: inferredMime,
-            size: value.lengthInBytes,
-            storedRef: storedRef,
-            thumbRef: thumbB64,
-            addedAt: DateTime.now(),
-          );
-          if (!_applyPhotoToRef(target, att)) {
-            throw Exception('bind_failed: cell_missing');
-          }
-        },
-      ),
-    );
-
-    _lastAttachmentCapabilities = pipeline.ok
-        ? pipeline.success?.capabilitySnapshot
-        : pipeline.failure?.capabilitySnapshot;
-
-    if (!mounted) return;
-    if (!pipeline.ok) {
-      final failure = pipeline.failure!.error;
-      final message = _attachmentMessageForFailure(failure, kind: kind);
-      final legacyCause = _legacyCauseFromPipelineReason(failure.code);
-      _reportFlowErrorMessage(
-        failure.technicalDetail,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: '${kind.name}_attach_pipeline',
-        fallbackMessage: message,
-        code: legacyCause,
-        diagnosticDetails: _buildAttachmentDiagnostic(
-          cause: legacyCause,
-          operation: '${kind.name}_attach_pipeline',
-          operationId: failure.operationId,
-          step: failure.step.name,
-          type: diagType,
-          mime: inferredMime,
-          size: bytes.lengthInBytes,
-          fileName: picked.name,
-          error: failure.technicalDetail,
-          stackTrace: failure.stackTrace,
+                : picked.name.trim();
+            final thumbB64 = _buildInlineThumbB64(
+              bytes: value,
+              mime: inferredMime,
+              name: safeName,
+            );
+            final att = PhotoAttachment(
+              id: attachmentId,
+              filename: safeName,
+              caption: _stripExt(_safeFile(safeName)),
+              mime: inferredMime,
+              size: value.lengthInBytes,
+              storedRef: storedRef,
+              thumbRef: thumbB64,
+              addedAt: DateTime.now(),
+            );
+            if (!_applyPhotoToRef(target, att)) {
+              throw Exception('bind_failed: cell_missing');
+            }
+          },
         ),
-        icon: icon,
-        diagnosticType: diagType,
       );
-      return;
-    }
 
-    DiagnosticsLog.I.record(
-      type: diagType,
-      ok: true,
-      message:
-          '${kind.name}_saved cell=$cellLabel name=${picked.name} size=${bytes.lengthInBytes} ref=${pipeline.success!.storedRef} storage=$storageLabel pipeline=${pipeline.operationId}',
-    );
-    _showActionSnack(
-      '${kind == AttachmentKind.video ? 'Video' : 'Archivo'} guardado en celda $cellLabel.',
-      isError: false,
-      icon: icon,
-    );
+      _lastAttachmentCapabilities = pipeline.ok
+          ? pipeline.success?.capabilitySnapshot
+          : pipeline.failure?.capabilitySnapshot;
+
+      if (!mounted) return;
+      if (!pipeline.ok) {
+        final failure = pipeline.failure!.error;
+        final message = _attachmentMessageForFailure(failure, kind: kind);
+        final legacyCause = _legacyCauseFromPipelineReason(failure.code);
+        _reportFlowErrorMessage(
+          failure.technicalDetail,
+          flow: AppErrorFlow.attachmentPermission,
+          operation: '${kind.name}_attach_pipeline',
+          fallbackMessage: message,
+          code: legacyCause,
+          diagnosticDetails: _buildAttachmentDiagnostic(
+            cause: legacyCause,
+            operation: '${kind.name}_attach_pipeline',
+            operationId: failure.operationId,
+            step: failure.step.name,
+            type: diagType,
+            mime: inferredMime,
+            size: bytes.lengthInBytes,
+            fileName: picked.name,
+            error: failure.technicalDetail,
+            stackTrace: failure.stackTrace,
+          ),
+          icon: icon,
+          diagnosticType: diagType,
+        );
+        return;
+      }
+
+      DiagnosticsLog.I.record(
+        type: diagType,
+        ok: true,
+        message:
+            '${kind.name}_saved cell=$cellLabel name=${picked.name} size=${bytes.lengthInBytes} ref=${pipeline.success!.storedRef} storage=$storageLabel pipeline=${pipeline.operationId}',
+      );
+      _showActionSnack(
+        '${kind == AttachmentKind.video ? 'Video' : 'Archivo'} guardado en celda $cellLabel.',
+        isError: false,
+        icon: icon,
+      );
+    } finally {
+      _setAttachmentProcessing(target, false);
+    }
   }
 
   String _guessMimeFromName(String name, {required String fallback}) {

@@ -88,6 +88,9 @@ class _ColumnPrefs {
     this.numberMin,
     this.numberMax,
     this.regexPattern,
+    this.wrapLines = 1,
+    this.textAlign = _GridTextAlignX.left,
+    this.verticalAlign = _GridTextAlignY.middle,
   });
 
   final _ColType type;
@@ -97,6 +100,9 @@ class _ColumnPrefs {
   final double? numberMin;
   final double? numberMax;
   final String? regexPattern;
+  final int wrapLines;
+  final _GridTextAlignX textAlign;
+  final _GridTextAlignY verticalAlign;
 
   _ColumnPrefs copyWith({
     _ColType? type,
@@ -106,6 +112,9 @@ class _ColumnPrefs {
     double? numberMin,
     double? numberMax,
     String? regexPattern,
+    int? wrapLines,
+    _GridTextAlignX? textAlign,
+    _GridTextAlignY? verticalAlign,
   }) {
     return _ColumnPrefs(
       type: type ?? this.type,
@@ -115,6 +124,9 @@ class _ColumnPrefs {
       numberMin: numberMin ?? this.numberMin,
       numberMax: numberMax ?? this.numberMax,
       regexPattern: regexPattern ?? this.regexPattern,
+      wrapLines: wrapLines ?? this.wrapLines,
+      textAlign: textAlign ?? this.textAlign,
+      verticalAlign: verticalAlign ?? this.verticalAlign,
     );
   }
 
@@ -126,6 +138,10 @@ class _ColumnPrefs {
         if (numberMin != null) 'numberMin': numberMin,
         if (numberMax != null) 'numberMax': numberMax,
         if (regexPattern?.trim().isNotEmpty ?? false) 'regex': regexPattern,
+        if (wrapLines != 1) 'wrapLines': wrapLines,
+        if (textAlign != _GridTextAlignX.left) 'textAlign': textAlign.name,
+        if (verticalAlign != _GridTextAlignY.middle)
+          'verticalAlign': verticalAlign.name,
       };
 
   static _ColumnPrefs? fromJson(Object? raw) {
@@ -148,6 +164,10 @@ class _ColumnPrefs {
     final numberMin = (map['numberMin'] as num?)?.toDouble();
     final numberMax = (map['numberMax'] as num?)?.toDouble();
     final regex = (map['regex'] ?? '').toString().trim();
+    final rawWrap = (map['wrapLines'] as num?)?.toInt() ?? 1;
+    final wrapLines = rawWrap.clamp(1, 3);
+    final textAlign = _gridTextAlignXFromStorageName(map['textAlign']);
+    final verticalAlign = _gridTextAlignYFromStorageName(map['verticalAlign']);
     return _ColumnPrefs(
       type: parsedType,
       hidden: hidden,
@@ -156,6 +176,9 @@ class _ColumnPrefs {
       numberMin: numberMin,
       numberMax: numberMax,
       regexPattern: regex.isEmpty ? null : regex,
+      wrapLines: wrapLines,
+      textAlign: textAlign,
+      verticalAlign: verticalAlign,
     );
   }
 }
@@ -1181,31 +1204,73 @@ class _CellInlinePreviewData {
   bool get hasThumb => thumbB64.trim().isNotEmpty;
 }
 
-class _ThumbDecodeCache {
-  _ThumbDecodeCache({this.maxEntries = 180});
+typedef _ThumbDecodeCache = ThumbDecodeLruCache;
 
-  final int maxEntries;
-  final Map<String, Uint8List?> _decodedByBase64 = <String, Uint8List?>{};
+enum _GridTextAlignX { left, center, right }
 
-  Uint8List? decode(String raw) {
-    final key = raw.trim();
-    if (key.isEmpty) return null;
+enum _GridTextAlignY { top, middle, bottom }
 
-    if (_decodedByBase64.containsKey(key)) {
-      final cached = _decodedByBase64.remove(key);
-      _decodedByBase64[key] = cached;
-      return cached;
-    }
+_GridTextAlignX _gridTextAlignXFromStorageName(Object? raw) {
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  for (final item in _GridTextAlignX.values) {
+    if (item.name == value) return item;
+  }
+  return _GridTextAlignX.left;
+}
 
-    final decoded = _tryDecodeB64(key);
-    _decodedByBase64[key] = decoded;
-    if (_decodedByBase64.length > maxEntries) {
-      _decodedByBase64.remove(_decodedByBase64.keys.first);
-    }
-    return decoded;
+_GridTextAlignY _gridTextAlignYFromStorageName(Object? raw) {
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  for (final item in _GridTextAlignY.values) {
+    if (item.name == value) return item;
+  }
+  return _GridTextAlignY.middle;
+}
+
+TextAlign _gridTextAlignToFlutter(_GridTextAlignX value) {
+  switch (value) {
+    case _GridTextAlignX.center:
+      return TextAlign.center;
+    case _GridTextAlignX.right:
+      return TextAlign.right;
+    case _GridTextAlignX.left:
+    default:
+      return TextAlign.left;
+  }
+}
+
+Alignment _gridCellAlignment({
+  required _GridTextAlignX horizontal,
+  required _GridTextAlignY vertical,
+}) {
+  double x;
+  switch (horizontal) {
+    case _GridTextAlignX.center:
+      x = 0;
+      break;
+    case _GridTextAlignX.right:
+      x = 1;
+      break;
+    case _GridTextAlignX.left:
+    default:
+      x = -1;
+      break;
   }
 
-  void clear() => _decodedByBase64.clear();
+  double y;
+  switch (vertical) {
+    case _GridTextAlignY.top:
+      y = -1;
+      break;
+    case _GridTextAlignY.bottom:
+      y = 1;
+      break;
+    case _GridTextAlignY.middle:
+    default:
+      y = 0;
+      break;
+  }
+
+  return Alignment(x, y);
 }
 
 enum _ColType { text, number, date, status, checkbox, photos }
@@ -1217,15 +1282,6 @@ _ColType? _colTypeFromStorageName(String raw) {
     if (value.name == normalized) return value;
   }
   return null;
-}
-
-Uint8List? _tryDecodeB64(String raw) {
-  try {
-    if (raw.trim().isEmpty) return null;
-    return base64Decode(raw);
-  } catch (_) {
-    return null;
-  }
 }
 
 class _GpsFix {
