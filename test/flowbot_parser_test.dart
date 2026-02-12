@@ -19,7 +19,7 @@ void main() {
     expect(action.value, 'OK');
   });
 
-  test('parses fill down using current selection', () {
+  test('parses fill range using current selection', () {
     final result = parser.parse(
       'rellenar listo x 3',
       selectedRow: 4,
@@ -28,7 +28,7 @@ void main() {
 
     expect(result.actions, hasLength(1));
     final action = result.actions.first;
-    expect(action.type, FlowBotActionType.fillDown);
+    expect(action.type, FlowBotActionType.fillRange);
     expect(action.row, 4);
     expect(action.col, 2);
     expect(action.count, 3);
@@ -48,5 +48,21 @@ void main() {
     expect(result.actions.last.row, 2);
     expect(result.actions.last.col, 1);
     expect(result.actions.last.value, 'pendiente');
+  });
+
+  test('parses alignment and wrap commands', () {
+    final result = parser.parse(
+      'alinear columna B a centro; wrap columna B a 3 lineas',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+
+    expect(result.actions, hasLength(2));
+    expect(result.actions.first.type, FlowBotActionType.setColumnAlign);
+    expect(result.actions.first.column, 1);
+    expect(result.actions.first.align, 'center');
+    expect(result.actions.last.type, FlowBotActionType.setWrap);
+    expect(result.actions.last.column, 1);
+    expect(result.actions.last.lines, 3);
   });
 }
