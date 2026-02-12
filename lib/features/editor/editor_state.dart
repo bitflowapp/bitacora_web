@@ -300,10 +300,11 @@ class _EditorScreenState extends State<EditorScreen>
   final ScrollController _vScroll = ScrollController();
   final ScrollController _hScroll = ScrollController();
   final ScrollController _mobileHeaderScroll = ScrollController();
-  final List<ScrollController> _mobileRowScrolls = <ScrollController>[];
-  final List<GlobalKey> _mobileRowKeys = <GlobalKey>[];
+  final List<ScrollController?> _mobileRowScrolls = <ScrollController?>[];
+  final List<GlobalKey?> _mobileRowKeys = <GlobalKey?>[];
   final GlobalKey _mobileHeaderKey = GlobalKey();
   bool _mobileHSyncing = false;
+  double _mobileSharedHorizontalOffset = 0;
 
   // Guardado
   Timer? _saveT;
@@ -658,7 +659,7 @@ class _EditorScreenState extends State<EditorScreen>
     _hScroll.dispose();
     _mobileHeaderScroll.dispose();
     for (final controller in _mobileRowScrolls) {
-      controller.dispose();
+      controller?.dispose();
     }
     _mobileRowScrolls.clear();
     _mobileRowKeys.clear();
@@ -4067,6 +4068,16 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       _setSelectionAndRefreshGrid(0, 0);
+      if (_rows.isNotEmpty && _headers.length > 1) {
+        const sample = 'abcdefghijklmnopqrst';
+        for (int i = 0; i < sample.length; i++) {
+          _setDraftCell(0, 0, sample.substring(0, i + 1));
+          if (i % 4 == 3) {
+            await Future<void>.delayed(Duration.zero);
+          }
+        }
+        _commitDraftCell(0, 0);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 16));
 
       if (_vScroll.hasClients) {
@@ -4203,46 +4214,73 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _resetMobileRowCaches() {
     for (final controller in _mobileRowScrolls) {
-      controller.dispose();
+      controller?.dispose();
     }
-    _mobileRowScrolls.clear();
-    _mobileRowKeys.clear();
-    for (int i = 0; i < _rows.length; i++) {
-      _mobileRowScrolls.add(ScrollController());
-      _mobileRowKeys.add(GlobalKey());
-    }
+    _mobileRowScrolls
+      ..clear()
+      ..addAll(List<ScrollController?>.filled(_rows.length, null));
+    _mobileRowKeys
+      ..clear()
+      ..addAll(List<GlobalKey?>.filled(_rows.length, null));
+    _mobileSharedHorizontalOffset =
+        _mobileHeaderScroll.hasClients ? _mobileHeaderScroll.offset : 0;
   }
 
   void _ensureMobileRowCachesLength() {
     while (_mobileRowScrolls.length < _rows.length) {
-      _mobileRowScrolls.add(ScrollController());
-      _mobileRowKeys.add(GlobalKey());
+      _mobileRowScrolls.add(null);
+      _mobileRowKeys.add(null);
     }
     while (_mobileRowScrolls.length > _rows.length) {
       final controller = _mobileRowScrolls.removeLast();
-      controller.dispose();
+      controller?.dispose();
       _mobileRowKeys.removeLast();
     }
   }
 
   void _insertMobileRowCache(int index) {
     final idx = index.clamp(0, _mobileRowScrolls.length);
-    _mobileRowScrolls.insert(idx, ScrollController());
-    _mobileRowKeys.insert(idx, GlobalKey());
+    _mobileRowScrolls.insert(idx, null);
+    _mobileRowKeys.insert(idx, null);
   }
 
   void _removeMobileRowCache(int index) {
     if (_mobileRowScrolls.isEmpty) return;
     final idx = index.clamp(0, _mobileRowScrolls.length - 1);
     final controller = _mobileRowScrolls.removeAt(idx);
-    controller.dispose();
+    controller?.dispose();
     _mobileRowKeys.removeAt(idx);
+  }
+
+  ScrollController _mobileRowScrollAt(int row) {
+    _ensureMobileRowCachesLength();
+    if (row < 0 || row >= _mobileRowScrolls.length) {
+      return _mobileHeaderScroll;
+    }
+    final existing = _mobileRowScrolls[row];
+    if (existing != null) return existing;
+    final created = ScrollController(
+      initialScrollOffset: _mobileSharedHorizontalOffset,
+    );
+    _mobileRowScrolls[row] = created;
+    return created;
+  }
+
+  GlobalKey _mobileRowKeyAt(int row) {
+    _ensureMobileRowCachesLength();
+    if (row < 0 || row >= _mobileRowKeys.length) return GlobalKey();
+    final existing = _mobileRowKeys[row];
+    if (existing != null) return existing;
+    final created = GlobalKey();
+    _mobileRowKeys[row] = created;
+    return created;
   }
 
   void _syncMobileHorizontal(double offset, bool isHeader, int row) {
     if (_mobileHSyncing) return;
     _mobileHSyncing = true;
     try {
+      _mobileSharedHorizontalOffset = offset;
       void jumpTo(ScrollController controller) {
         if (!controller.hasClients) return;
         final min = controller.position.minScrollExtent;
@@ -4253,8 +4291,10 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       jumpTo(_mobileHeaderScroll);
-      for (final c in _mobileRowScrolls) {
-        jumpTo(c);
+      for (final controller in _mobileRowScrolls) {
+        if (controller != null) {
+          jumpTo(controller);
+        }
       }
     } finally {
       _mobileHSyncing = false;
@@ -8745,10 +8785,10 @@ class _EditorScreenState extends State<EditorScreen>
                                           verticalController: _vScroll,
                                           headerScrollController:
                                               _mobileHeaderScroll,
-                                          rowScrollControllers:
-                                              _mobileRowScrolls,
+                                          rowScrollControllerFor:
+                                              _mobileRowScrollAt,
                                           headerKey: _mobileHeaderKey,
-                                          rowKeys: _mobileRowKeys,
+                                          rowKeyFor: _mobileRowKeyAt,
                                           selectedRow: selectedDisplayRow,
                                           selectedCol: selectedDisplayCol,
                                           activeRow: _mobileEditorOpen &&
@@ -10248,7 +10288,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (row >= _mobileRowKeys.length) return;
-    final rowCtx = _mobileRowKeys[row].currentContext;
+    final rowCtx = _mobileRowKeyAt(row).currentContext;
     if (rowCtx != null) {
       Scrollable.ensureVisible(
         rowCtx,
@@ -10287,7 +10327,7 @@ class _EditorScreenState extends State<EditorScreen>
     final controller = _mobileEditingHeader || _mobileRow < 0
         ? _mobileHeaderScroll
         : (_mobileRow < _mobileRowScrolls.length
-            ? _mobileRowScrolls[_mobileRow]
+            ? _mobileRowScrollAt(_mobileRow)
             : null);
     if (controller == null || !controller.hasClients) return;
 
@@ -14062,6 +14102,18 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   bool get debugMobileCompactModeEnabled => _mobileCompactModeEnabled;
+
+  @visibleForTesting
+  int get debugMobileRowCacheSlots => _mobileRowScrolls.length;
+
+  @visibleForTesting
+  int get debugMobileMaterializedRowControllers =>
+      _mobileRowScrolls.whereType<ScrollController>().length;
+
+  @visibleForTesting
+  void debugMaterializeMobileRowController(int row) {
+    _mobileRowScrollAt(row);
+  }
 
   @visibleForTesting
   void debugSetMobileCompactMode(bool enabled) {

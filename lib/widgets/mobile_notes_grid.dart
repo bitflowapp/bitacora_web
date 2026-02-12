@@ -153,9 +153,9 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.decodeThumb,
     required this.verticalController,
     required this.headerScrollController,
-    required this.rowScrollControllers,
+    required this.rowScrollControllerFor,
     required this.headerKey,
-    required this.rowKeys,
+    required this.rowKeyFor,
     required this.selectedRow,
     required this.selectedCol,
     required this.activeRow,
@@ -192,9 +192,9 @@ class _MobileNotesGrid extends StatelessWidget {
 
   final ScrollController verticalController;
   final ScrollController headerScrollController;
-  final List<ScrollController> rowScrollControllers;
+  final ScrollController Function(int row) rowScrollControllerFor;
   final GlobalKey headerKey;
-  final List<GlobalKey> rowKeys;
+  final GlobalKey Function(int row) rowKeyFor;
 
   final int selectedRow;
   final int selectedCol;
@@ -216,8 +216,6 @@ class _MobileNotesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    assert(rowScrollControllers.length >= rowModels.length);
-    assert(rowKeys.length >= rowModels.length);
     final shellRadius = BorderRadius.circular(22);
     final shellShadow = palette.cellText.withValues(
       alpha: palette.isLight ? 0.06 : 0.24,
@@ -271,7 +269,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 }
                 final row = index - 1;
                 return KeyedSubtree(
-                  key: rowKeys[row],
+                  key: rowKeyFor(row),
                   child: _buildDataRow(ctx, row),
                 );
               },
@@ -337,15 +335,16 @@ class _MobileNotesGrid extends StatelessWidget {
   Widget _buildDataRow(BuildContext context, int row) {
     onRowBuild(rowModels[row].id);
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
+    final rowController = rowScrollControllerFor(row);
     return SizedBox(
       height: _mobileRowH(density),
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: (n) {
-          onHorizontalScroll(rowScrollControllers[row].offset, false, row);
+          onHorizontalScroll(rowController.offset, false, row);
           return false;
         },
         child: ListView.separated(
-          controller: rowScrollControllers[row],
+          controller: rowController,
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(
