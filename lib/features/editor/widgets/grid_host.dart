@@ -69,6 +69,7 @@ class _GridView extends StatelessWidget {
     required this.cellPhotoCount,
     required this.isInvalid,
     required this.isSearchHit,
+    required this.wrapTextAt,
     required this.vScroll,
     required this.hScroll,
     required this.selRow,
@@ -100,6 +101,7 @@ class _GridView extends StatelessWidget {
   final int Function(int r, int c) cellPhotoCount;
   final bool Function(int r, int c) isInvalid;
   final bool Function(int r, int c) isSearchHit;
+  final bool Function(int c) wrapTextAt;
 
   final ScrollController vScroll;
   final ScrollController hScroll;
@@ -278,6 +280,9 @@ class _GridView extends StatelessWidget {
                                                           col == selCol,
                                                       rowSelected: rowSelected,
                                                       isPhotos: isPhotos,
+                                                      wrapText: isPhotos
+                                                          ? false
+                                                          : wrapTextAt(col),
                                                       blinkRef: blinkRef,
                                                       cellRef: ref,
                                                       invalid: invalid,
@@ -414,7 +419,6 @@ class _HeaderCell extends StatelessWidget {
   final double width;
   final String text;
   final bool isPhotos;
-
   final bool isOverlayTarget;
   final LayerLink editorLink;
 
@@ -568,6 +572,7 @@ class _DataCell extends StatelessWidget {
     required this.invalid,
     required this.searchHit,
     required this.isPhotos,
+    required this.wrapText,
     required this.blinkRef,
     required this.cellRef,
     required this.isOverlayTarget,
@@ -595,6 +600,7 @@ class _DataCell extends StatelessWidget {
   final bool invalid;
   final bool searchHit;
   final bool isPhotos;
+  final bool wrapText;
 
   final _CellRef? blinkRef;
   final _CellRef cellRef;
@@ -746,16 +752,37 @@ class _DataCell extends StatelessWidget {
           )
         : Align(
             alignment: Alignment.centerLeft,
-            child: Text(
-              text.trim().isEmpty ? ' ' : text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.cellText,
-                fontSize: metrics.cellFontSize,
-                height: 1.1,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                letterSpacing: selected ? -0.12 : -0.04,
+            child: ShaderMask(
+              shaderCallback: (Rect bounds) {
+                if (wrapText || bounds.width <= 28) {
+                  return const LinearGradient(
+                    colors: [Colors.white, Colors.white],
+                  ).createShader(bounds);
+                }
+                return LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.white,
+                    Colors.white,
+                    Colors.white.withValues(alpha: 0.0),
+                  ],
+                  stops: const [0.0, 0.78, 1.0],
+                ).createShader(bounds);
+              },
+              blendMode: BlendMode.dstIn,
+              child: Text(
+                text.trim().isEmpty ? ' ' : text,
+                maxLines: wrapText ? 2 : 1,
+                softWrap: wrapText,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.cellText,
+                  fontSize: metrics.cellFontSize,
+                  height: 1.1,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  letterSpacing: selected ? -0.12 : -0.04,
+                ),
               ),
             ),
           );

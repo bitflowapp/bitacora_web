@@ -12,7 +12,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} · capturando…',
       target: ref,
     );
 
@@ -719,6 +719,23 @@ extension _EditorAttachments on _EditorScreenState {
       return;
     }
 
+
+    const maxIncomingPhotoBytes = 18 * 1024 * 1024;
+    if (originalSize > maxIncomingPhotoBytes) {
+      _updatePhotoFlowStatus(
+        'Destino $label · foto demasiado pesada',
+        target: targetRef,
+      );
+      _clearPhotoFlowStatusSoon();
+      final maxMb = (maxIncomingPhotoBytes / (1024 * 1024)).toStringAsFixed(0);
+      _showActionSnack(
+        'La foto supera ${maxMb} MB. Reduce la calidad o tamaño e intenta de nuevo.',
+        isError: true,
+        icon: Icons.photo_outlined,
+      );
+      return;
+    }
+
     final prepared = await _preparePhotoForStorage(result);
     final bytes = prepared.bytes;
     final fileSize = bytes.lengthInBytes;
@@ -944,7 +961,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (nextBytes > _kMaxPhotosBytesPerCell) {
       final limitLabel = _formatBytes(_kMaxPhotosBytesPerCell);
       _showActionSnack(
-        'Limite por celda: max $limitLabel.',
+        'Limite por celda: max $limitLabel. Comprime o recorta la foto e intenta de nuevo.',
         isError: true,
         icon: Icons.photo_outlined,
       );
@@ -1334,7 +1351,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                   return FutureBuilder<Uint8List?>(
-                    future: _loadPhotoBytesFromAttachment(p),
+                    future: _loadPhotoBytesFromAttachment(p, preferThumb: true),
                     builder: (ctx3, snap) {
                       final bytes = snap.data;
                       if (snap.hasError) {
@@ -3299,10 +3316,10 @@ extension _EditorAttachments on _EditorScreenState {
             fileName: safeName,
             mimeType: originalMime,
             source: result.webFile,
-            maxSide: 1600,
+            maxSide: 1280,
             thumbMaxSide: 560,
-            jpegQuality: 0.85,
-            thumbJpegQuality: 0.78,
+            jpegQuality: 0.75,
+            thumbJpegQuality: 0.75,
           ),
         );
         if (normalized != null && normalized.bytes.isNotEmpty) {
@@ -3340,8 +3357,8 @@ extension _EditorAttachments on _EditorScreenState {
     try {
       final params = _CompressParams(
         bytes: result.bytes,
-        maxSide: 1600,
-        quality: 80,
+        maxSide: 1280,
+        quality: 75,
       );
       // Evita bloqueos en runtimes donde `compute` puede colgar al serializar
       // mensajes/closures; priorizamos robustez de adjunto sobre paralelismo.
