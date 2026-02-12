@@ -84,6 +84,7 @@ class _ColumnPrefs {
     required this.type,
     this.hidden = false,
     this.required = false,
+    this.wrapText = false,
     this.enumValues = const <String>[],
     this.numberMin,
     this.numberMax,
@@ -93,6 +94,7 @@ class _ColumnPrefs {
   final _ColType type;
   final bool hidden;
   final bool required;
+  final bool wrapText;
   final List<String> enumValues;
   final double? numberMin;
   final double? numberMax;
@@ -102,6 +104,7 @@ class _ColumnPrefs {
     _ColType? type,
     bool? hidden,
     bool? required,
+    bool? wrapText,
     List<String>? enumValues,
     double? numberMin,
     double? numberMax,
@@ -111,6 +114,7 @@ class _ColumnPrefs {
       type: type ?? this.type,
       hidden: hidden ?? this.hidden,
       required: required ?? this.required,
+      wrapText: wrapText ?? this.wrapText,
       enumValues: enumValues ?? this.enumValues,
       numberMin: numberMin ?? this.numberMin,
       numberMax: numberMax ?? this.numberMax,
@@ -122,6 +126,7 @@ class _ColumnPrefs {
         'type': type.name,
         'hidden': hidden,
         if (required) 'required': true,
+        if (wrapText) 'wrapText': true,
         if (enumValues.isNotEmpty) 'enumValues': enumValues,
         if (numberMin != null) 'numberMin': numberMin,
         if (numberMax != null) 'numberMax': numberMax,
@@ -136,6 +141,7 @@ class _ColumnPrefs {
     if (parsedType == null || parsedType == _ColType.photos) return null;
     final hidden = map['hidden'] as bool? ?? false;
     final required = map['required'] as bool? ?? false;
+    final wrapText = map['wrapText'] as bool? ?? false;
     final enumValues = <String>[];
     final enumRaw = map['enumValues'];
     if (enumRaw is List) {
@@ -152,6 +158,7 @@ class _ColumnPrefs {
       type: parsedType,
       hidden: hidden,
       required: required,
+      wrapText: wrapText,
       enumValues: enumValues,
       numberMin: numberMin,
       numberMax: numberMax,
@@ -1175,12 +1182,41 @@ _ColType? _colTypeFromStorageName(String raw) {
 
 Uint8List? _tryDecodeB64(String raw) {
   try {
-    if (raw.trim().isEmpty) return null;
-    return base64Decode(raw);
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    final cached = _thumbDecodeCache.read(value);
+    if (cached != null) return cached;
+    final decoded = base64Decode(value);
+    _thumbDecodeCache.write(value, decoded);
+    return decoded;
   } catch (_) {
     return null;
   }
 }
+
+class _ThumbDecodeLruCache {
+  _ThumbDecodeLruCache({this.capacity = 120});
+
+  final int capacity;
+  final LinkedHashMap<String, Uint8List> _map = LinkedHashMap();
+
+  Uint8List? read(String key) {
+    final value = _map.remove(key);
+    if (value == null) return null;
+    _map[key] = value;
+    return value;
+  }
+
+  void write(String key, Uint8List value) {
+    _map.remove(key);
+    _map[key] = value;
+    if (_map.length > capacity) {
+      _map.remove(_map.keys.first);
+    }
+  }
+}
+
+final _ThumbDecodeLruCache _thumbDecodeCache = _ThumbDecodeLruCache();
 
 class _GpsFix {
   const _GpsFix({

@@ -231,6 +231,7 @@ class _EditorScreenState extends State<EditorScreen>
   OverlayEntry? _cellEditorEntry;
   final TextEditingController _cellEC = TextEditingController();
   final FocusNode _cellFocus = FocusNode(debugLabel: 'CellEditorFocus');
+  final ScrollController _cellEditorScroll = ScrollController();
 
   _CellRef? _overlayTargetCell;
   int? _overlayTargetHeaderCol;
@@ -608,6 +609,7 @@ class _EditorScreenState extends State<EditorScreen>
     _detachMobileDraftListener();
     _cellEC.dispose();
     _cellFocus.dispose();
+    _cellEditorScroll.dispose();
 
     _mobileEC.dispose();
     _mobileFocus.dispose();
@@ -6978,6 +6980,22 @@ class _EditorScreenState extends State<EditorScreen>
                                                       _CellRef(actualRow,
                                                           actualCol));
                                                 },
+
+                                                wrapTextAt: (c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                          c, displayColumns);
+                                                  if (actualCol < 0 ||
+                                                      actualCol >=
+                                                          _headers.length - 1) {
+                                                    return false;
+                                                  }
+                                                  final colId = _colIds[actualCol];
+                                                  final pref =
+                                                      _columnPrefsById[colId];
+                                                  return pref?.wrapText ?? false;
+                                                },
+
                                                 isSearchHit: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
@@ -9088,6 +9106,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       letterSpacing: -0.2,
                                     ),
                                     cursorColor: pal.accent,
+                                    scrollController: _cellEditorScroll,
                                     decoration: InputDecoration(
                                       isDense: true,
                                       hintText: hintText,
@@ -9423,6 +9442,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 type: current?.type ?? type,
                                 hidden: false,
                                 required: current?.required ?? false,
+                                wrapText: current?.wrapText ?? false,
                                 enumValues:
                                     current?.enumValues ?? const <String>[],
                                 numberMin: current?.numberMin,
@@ -9449,6 +9469,7 @@ class _EditorScreenState extends State<EditorScreen>
                 final numberMin = pref?.numberMin;
                 final numberMax = pref?.numberMax;
                 final regexPattern = pref?.regexPattern;
+                final wrapText = pref?.wrapText ?? false;
                 final orderIndex = draftOrder.indexOf(colId);
 
                 return Container(
@@ -9524,6 +9545,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       type: nextType,
                                       hidden: hidden,
                                       required: required,
+                                  wrapText: pref?.wrapText ?? false,
                                       enumValues: enumValues,
                                       numberMin: numberMin,
                                       numberMax: numberMax,
@@ -9549,6 +9571,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       type: type,
                                       hidden: !visible,
                                       required: required,
+                                  wrapText: pref?.wrapText ?? false,
                                       enumValues: enumValues,
                                       numberMin: numberMin,
                                       numberMax: numberMax,
@@ -9598,6 +9621,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       type: type,
                                       hidden: hidden,
                                       required: enabled,
+                                      wrapText: wrapText,
                                       enumValues: enumValues,
                                       numberMin: numberMin,
                                       numberMax: numberMax,
@@ -9632,6 +9656,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   type: type,
                                   hidden: hidden,
                                   required: required,
+                                  wrapText: pref?.wrapText ?? false,
                                   enumValues: values,
                                   numberMin: numberMin,
                                   numberMax: numberMax,
@@ -9641,6 +9666,29 @@ class _EditorScreenState extends State<EditorScreen>
                           },
                         ),
                       ],
+                      const SizedBox(height: 4),
+                      SwitchListTile.adaptive(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Wrap text'),
+                        subtitle: const Text('Off por performance'),
+                        value: wrapText,
+                        onChanged: (value) {
+                          setModalState(() {
+                            draftPrefs = _cloneColumnPrefs(draftPrefs)
+                              ..[colId] = _ColumnPrefs(
+                                type: type,
+                                hidden: hidden,
+                                required: required,
+                                wrapText: value,
+                                enumValues: enumValues,
+                                numberMin: numberMin,
+                                numberMax: numberMax,
+                                regexPattern: regexPattern,
+                              );
+                          });
+                        },
+                      ),
                       if (type == _ColType.number) ...[
                         const SizedBox(height: 4),
                         Row(
@@ -9668,6 +9716,7 @@ class _EditorScreenState extends State<EditorScreen>
                                         type: type,
                                         hidden: hidden,
                                         required: required,
+                                  wrapText: pref?.wrapText ?? false,
                                         enumValues: enumValues,
                                         numberMin: parsed,
                                         numberMax: numberMax,
@@ -9701,6 +9750,7 @@ class _EditorScreenState extends State<EditorScreen>
                                         type: type,
                                         hidden: hidden,
                                         required: required,
+                                  wrapText: pref?.wrapText ?? false,
                                         enumValues: enumValues,
                                         numberMin: numberMin,
                                         numberMax: parsed,
@@ -9731,6 +9781,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 type: type,
                                 hidden: hidden,
                                 required: required,
+                                wrapText: wrapText,
                                 enumValues: enumValues,
                                 numberMin: numberMin,
                                 numberMax: numberMax,
