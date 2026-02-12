@@ -87,6 +87,7 @@ class _GridView extends StatelessWidget {
     required this.onPickPhoto,
     required this.onOpenAttachments,
     required this.rowVersionListenable,
+    required this.performanceMode,
   });
 
   final _SheetPalette palette;
@@ -124,6 +125,7 @@ class _GridView extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
   final void Function(int r, int c) onOpenAttachments;
   final ValueListenable<int> Function(String rowId) rowVersionListenable;
+  final bool performanceMode;
 
 // ??? Apple-ish sizing
   static const double indexW = 54;
@@ -148,6 +150,15 @@ class _GridView extends StatelessWidget {
             final shellRadius = BorderRadius.circular(22);
             final shellShadow = palette.cellText
                 .withValues(alpha: palette.isLight ? 0.05 : 0.2);
+            final effectiveShadow = performanceMode
+                ? const <BoxShadow>[]
+                : [
+                    BoxShadow(
+                      color: shellShadow,
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ];
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -159,13 +170,7 @@ class _GridView extends StatelessWidget {
                     color: palette.gridBorder,
                     width: math.max(palette.hairline, 1).toDouble(),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: shellShadow,
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+                  boxShadow: effectiveShadow,
                 ),
                 child: ClipRRect(
                   borderRadius: shellRadius,
@@ -330,6 +335,8 @@ class _GridView extends StatelessWidget {
                                                       onAttachmentsTap: () =>
                                                           onOpenAttachments(
                                                               r, col),
+                                                      performanceMode:
+                                                          performanceMode,
                                                     );
                                                   },
                                                 ),
@@ -578,6 +585,7 @@ class _DataCell extends StatelessWidget {
     required this.onDeleteRow,
     required this.onPickPhoto,
     required this.onAttachmentsTap,
+    required this.performanceMode,
   });
 
   final _SheetPalette palette;
@@ -609,6 +617,7 @@ class _DataCell extends StatelessWidget {
   final VoidCallback onDeleteRow;
   final VoidCallback onPickPhoto;
   final VoidCallback onAttachmentsTap;
+  final bool performanceMode;
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +666,7 @@ class _DataCell extends StatelessWidget {
       color: bg,
       borderRadius: radius,
       border: Border.all(color: borderColor, width: lineWidth),
-      boxShadow: focus
+      boxShadow: (focus && !performanceMode)
           ? [
               BoxShadow(
                 color: palette.focusRing
@@ -675,7 +684,7 @@ class _DataCell extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: AnimatedContainer(
-          duration: AppMotion.quick,
+          duration: performanceMode ? Duration.zero : AppMotion.quick,
           curve: AppMotion.standardOut,
           decoration: decoration,
           child: InkWell(
@@ -685,7 +694,7 @@ class _DataCell extends StatelessWidget {
             splashColor: palette.pressedBg,
             borderRadius: radius,
             child: AnimatedScale(
-              duration: AppMotion.quick,
+              duration: performanceMode ? Duration.zero : AppMotion.quick,
               curve: AppMotion.standardOut,
               scale: focus ? 0.996 : 1,
               child: Container(
@@ -762,23 +771,32 @@ class _DataCell extends StatelessWidget {
 
     final badges = <Widget>[];
     if (photosCount > 0) {
-      final bytes = _tryDecodeB64(photoThumbB64);
-      final iconWidget = bytes != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: Image.memory(
-                bytes,
-                width: 12,
-                height: 12,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.low,
-              ),
-            )
-          : Icon(
-              Icons.photo_rounded,
-              size: 12,
-              color: palette.chipText,
-            );
+      Widget iconWidget;
+      if (performanceMode) {
+        iconWidget = Icon(
+          Icons.photo_rounded,
+          size: 12,
+          color: palette.chipText,
+        );
+      } else {
+        final bytes = _tryDecodeB64(photoThumbB64);
+        iconWidget = bytes != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Image.memory(
+                  bytes,
+                  width: 12,
+                  height: 12,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.low,
+                ),
+              )
+            : Icon(
+                Icons.photo_rounded,
+                size: 12,
+                color: palette.chipText,
+              );
+      }
       badges.add(
         _chip(
           Row(
