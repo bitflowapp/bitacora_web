@@ -828,40 +828,44 @@ class _DataCell extends StatelessWidget {
             color: palette.chipText,
           );
 
-    return InkWell(
-      onTap: onAttachmentsTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 90, minWidth: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          color: palette.chipBg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: palette.chipBorder,
-            width: math.max(palette.hairline, 1).toDouble(),
+    return Tooltip(
+      message: '${preview.title} - ${preview.subtitle}',
+      child: InkWell(
+        onTap: onAttachmentsTap,
+        onLongPress: onAttachmentsTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 90, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: palette.chipBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: palette.chipBorder,
+              width: math.max(palette.hairline, 1).toDouble(),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            leading,
-            if (preview.extraCount > 0) ...[
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  '+${preview.extraCount}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: palette.chipText,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              leading,
+              if (preview.extraCount > 0) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    '+${preview.extraCount}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: palette.chipText,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

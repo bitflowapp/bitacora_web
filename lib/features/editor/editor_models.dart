@@ -1689,6 +1689,7 @@ _CompressResult _compressImageIsolate(_CompressParams params) {
         interpolation: img.Interpolation.average,
       );
     }
+
     final jpg = img.encodeJpg(resized, quality: params.quality);
     return _CompressResult(
       bytes: Uint8List.fromList(jpg),
@@ -1697,6 +1698,42 @@ _CompressResult _compressImageIsolate(_CompressParams params) {
     );
   } catch (_) {
     return _CompressResult(bytes: params.bytes, width: 0, height: 0);
+  }
+}
+
+class _ThumbCompressParams {
+  const _ThumbCompressParams({
+    required this.bytes,
+    required this.maxW,
+    required this.maxH,
+    required this.quality,
+  });
+
+  final Uint8List bytes;
+  final int maxW;
+  final int maxH;
+  final int quality;
+}
+
+Uint8List? _compressThumbIsolate(_ThumbCompressParams params) {
+  try {
+    final decoded = img.decodeImage(params.bytes);
+    if (decoded == null) return null;
+    final oriented = img.bakeOrientation(decoded);
+    final maxSide = math.max(params.maxW, params.maxH);
+    final maxSrc = math.max(oriented.width, oriented.height);
+    final resized = maxSrc > maxSide
+        ? img.copyResize(
+            oriented,
+            width: oriented.width > oriented.height ? params.maxW : null,
+            height: oriented.height >= oriented.width ? params.maxH : null,
+            interpolation: img.Interpolation.average,
+          )
+        : oriented;
+    final jpg = img.encodeJpg(resized, quality: params.quality);
+    return Uint8List.fromList(jpg);
+  } catch (_) {
+    return null;
   }
 }
 

@@ -22,43 +22,47 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
       );
     }
 
-    final normalizedBlob = await _drawJpeg(
-      decoded.image,
-      maxSide: request.maxSide,
-      quality: request.jpegQuality,
-    );
-    if (normalizedBlob == null) {
-      throw const WebImageNormalizationException(
-        code: 'decode_unsupported',
-        message: 'Canvas toBlob failed for normalized image.',
-      );
-    }
-    final normalizedBytes = await _blobToBytes(normalizedBlob);
-    if (normalizedBytes == null || normalizedBytes.isEmpty) {
-      throw const WebImageNormalizationException(
-        code: 'decode_unsupported',
-        message: 'Normalized image bytes are empty.',
-      );
-    }
-
-    Uint8List? thumbBytes;
     try {
-      final thumbBlob = await _drawJpeg(
-        decoded.image,
-        maxSide: request.thumbMaxSide,
-        quality: request.thumbJpegQuality,
+      final normalizedBlob = await _drawJpeg(
+        decoded,
+        maxSide: request.maxSide,
+        quality: request.jpegQuality,
       );
-      if (thumbBlob != null) {
-        thumbBytes = await _blobToBytes(thumbBlob);
+      if (normalizedBlob == null) {
+        throw const WebImageNormalizationException(
+          code: 'decode_unsupported',
+          message: 'Canvas toBlob failed for normalized image.',
+        );
       }
-    } catch (_) {}
+      final normalizedBytes = await _blobToBytes(normalizedBlob);
+      if (normalizedBytes == null || normalizedBytes.isEmpty) {
+        throw const WebImageNormalizationException(
+          code: 'decode_unsupported',
+          message: 'Normalized image bytes are empty.',
+        );
+      }
 
-    return WebImageNormalizationResult(
-      bytes: normalizedBytes,
-      mimeType: 'image/jpeg',
-      fileName: _jpgFileName(request.fileName),
-      thumbBytes: thumbBytes,
-    );
+      Uint8List? thumbBytes;
+      try {
+        final thumbBlob = await _drawJpeg(
+          decoded,
+          maxSide: request.thumbMaxSide,
+          quality: request.thumbJpegQuality,
+        );
+        if (thumbBlob != null) {
+          thumbBytes = await _blobToBytes(thumbBlob);
+        }
+      } catch (_) {}
+
+      return WebImageNormalizationResult(
+        bytes: normalizedBytes,
+        mimeType: 'image/jpeg',
+        fileName: _jpgFileName(request.fileName),
+        thumbBytes: thumbBytes,
+      );
+    } finally {
+      decoded.dispose?.call();
+    }
   }
 
   html.Blob? _toBlob(Object? source, Uint8List bytes, String mimeType) {
@@ -74,6 +78,38 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
   }
 
   Future<_DecodedImage?> _decodeBlob(html.Blob blob) async {
+    final bitmapDecoded = await _decodeBlobViaImageBitmap(blob);
+    if (bitmapDecoded != null) return bitmapDecoded;
+    return _decodeBlobViaImageElement(blob);
+  }
+
+  Future<_DecodedImage?> _decodeBlobViaImageBitmap(html.Blob blob) async {
+    try {
+      final dynamic win = html.window;
+      final dynamic createImageBitmap = win.createImageBitmap;
+      if (createImageBitmap == null) return null;
+
+      final dynamic imageBitmap = await createImageBitmap(blob);
+      final width = (imageBitmap.width as num?)?.toInt() ?? 0;
+      final height = (imageBitmap.height as num?)?.toInt() ?? 0;
+      if (width <= 0 || height <= 0) return null;
+
+      return _DecodedImage(
+        image: imageBitmap,
+        width: width,
+        height: height,
+        dispose: () {
+          try {
+            imageBitmap.close();
+          } catch (_) {}
+        },
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<_DecodedImage?> _decodeBlobViaImageElement(html.Blob blob) async {
     final url = html.Url.createObjectUrlFromBlob(blob);
     final image = html.ImageElement();
     final completer = Completer<_DecodedImage?>();
@@ -109,12 +145,12 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
   }
 
   Future<html.Blob?> _drawJpeg(
-    html.ImageElement image, {
+    _DecodedImage decoded, {
     required int maxSide,
     required double quality,
   }) async {
-    final srcW = (image.naturalWidth ?? image.width ?? 0).toDouble();
-    final srcH = (image.naturalHeight ?? image.height ?? 0).toDouble();
+    final srcW = decoded.width.toDouble();
+    final srcH = decoded.height.toDouble();
     if (srcW <= 0 || srcH <= 0) return null;
     final maxSrc = math.max(srcW, srcH);
     final scale = maxSrc > maxSide ? (maxSide / maxSrc) : 1.0;
@@ -126,7 +162,13 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
     ctx
       ..imageSmoothingEnabled = true
       ..imageSmoothingQuality = 'high'
-      ..drawImageScaled(image, 0, 0, outW.toDouble(), outH.toDouble());
+      ..drawImageScaled(
+        decoded.image as dynamic,
+        0,
+        0,
+        outW.toDouble(),
+        outH.toDouble(),
+      );
 
     return _canvasToBlob(canvas, quality: quality);
   }
@@ -177,9 +219,11 @@ class _DecodedImage {
     required this.image,
     required this.width,
     required this.height,
+    this.dispose,
   });
 
-  final html.ImageElement image;
+  final Object image;
   final int width;
   final int height;
+  final void Function()? dispose;
 }

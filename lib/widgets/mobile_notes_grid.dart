@@ -464,6 +464,7 @@ class _MobileNotesGrid extends StatelessWidget {
                           maxLines: wrapLines,
                           textAlign: textAlign,
                           alignment: alignment,
+                          onPreviewTap: () => onOpenAttachments(row, col),
                         ),
             );
           },
@@ -641,6 +642,7 @@ class _MobileNotesGrid extends StatelessWidget {
     int maxLines = 2,
     TextAlign textAlign = TextAlign.left,
     Alignment alignment = Alignment.centerLeft,
+    VoidCallback? onPreviewTap,
   }) {
     if (isHeader || preview == null) {
       return _buildCardText(
@@ -664,6 +666,40 @@ class _MobileNotesGrid extends StatelessWidget {
             ),
           )
         : Icon(preview.icon, size: 15, color: palette.cellTextMuted);
+    final previewChip = Container(
+      constraints: const BoxConstraints(maxWidth: 64),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: palette.chipBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: palette.chipBorder,
+          width: math.max(palette.hairline, 1).toDouble(),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          leading,
+          if (preview.extraCount > 0) ...[
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                '+${preview.extraCount}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.chipText,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
     return Row(
       children: [
         Expanded(
@@ -676,39 +712,18 @@ class _MobileNotesGrid extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Container(
-          constraints: const BoxConstraints(maxWidth: 64),
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          decoration: BoxDecoration(
-            color: palette.chipBg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: palette.chipBorder,
-              width: math.max(palette.hairline, 1).toDouble(),
+        if (onPreviewTap == null)
+          previewChip
+        else
+          Tooltip(
+            message: '${preview.title} - ${preview.subtitle}',
+            child: InkWell(
+              onTap: onPreviewTap,
+              onLongPress: onPreviewTap,
+              borderRadius: BorderRadius.circular(8),
+              child: previewChip,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              leading,
-              if (preview.extraCount > 0) ...[
-                const SizedBox(width: 3),
-                Flexible(
-                  child: Text(
-                    '+${preview.extraCount}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.chipText,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
       ],
     );
   }

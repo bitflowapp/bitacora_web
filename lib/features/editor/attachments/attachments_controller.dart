@@ -116,6 +116,13 @@ extension _EditorAttachments on _EditorScreenState {
   static const String _causeDecodeUnsupported = 'decode_unsupported';
   static const String _causeMicDenied = 'mic_denied';
   static const String _causeMicUnsupported = 'mic_unsupported';
+  static const bool _kFlutterTestEnv = bool.fromEnvironment('FLUTTER_TEST');
+
+  bool get _isWidgetTestRuntime {
+    if (_kFlutterTestEnv) return true;
+    final bindingType = WidgetsBinding.instance.runtimeType.toString();
+    return bindingType.contains('TestWidgetsFlutterBinding');
+  }
 
   bool _isHeicLike({required String mime, required String name}) {
     final m = mime.toLowerCase();
@@ -808,7 +815,12 @@ extension _EditorAttachments on _EditorScreenState {
             final previewable = _isPreviewableMime(safeMime, value.fileName);
             final thumbBytes = previewable
                 ? (value.thumbBytes ??
-                    _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74))
+                    await _buildThumbBytesForPreview(
+                      bytes,
+                      maxW: 320,
+                      maxH: 320,
+                      quality: 74,
+                    ))
                 : null;
             final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
                 ? ''
@@ -3287,6 +3299,24 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: _mobileCompactModeEnabled
+                ? 'Modo compacto: ON'
+                : 'Modo compacto: OFF',
+            icon: _mobileCompactModeEnabled
+                ? Icons.view_compact_alt_rounded
+                : Icons.view_day_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(
+                _setEditorDefaultRules(
+                  mobileCompactModeEnabled: !_mobileCompactModeEnabled,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Deshacer',
             icon: Icons.undo_rounded,
             variant: AppButtonVariant.secondary,
@@ -3356,7 +3386,8 @@ extension _EditorAttachments on _EditorScreenState {
     final enableBrowserNormalizer = kIsWeb || _debugForceWebImageNormalization;
     final needsBrowserNormalize = enableBrowserNormalizer &&
         result.bytes.isNotEmpty &&
-        (result.webFile != null ||
+        (kIsWeb ||
+            result.webFile != null ||
             _isHeicLike(mime: originalMime, name: safeName) ||
             _isDecodeFailed(result.bytes));
     if (needsBrowserNormalize) {
@@ -3411,11 +3442,7 @@ extension _EditorAttachments on _EditorScreenState {
         maxSide: 1600,
         quality: 80,
       );
-      // Evita bloqueos en runtimes donde `compute` puede colgar al serializar
-      // mensajes/closures; priorizamos robustez de adjunto sobre paralelismo.
-      final compressed = await Future<_CompressResult>.microtask(
-        () => _compressImageIsolate(params),
-      );
+      final compressed = await _compressPhotoPayload(params);
       if (compressed.bytes.isNotEmpty &&
           compressed.width > 0 &&
           compressed.height > 0) {
@@ -3443,6 +3470,64 @@ extension _EditorAttachments on _EditorScreenState {
     );
   }
 
+  Future<_CompressResult> _compressPhotoPayload(_CompressParams params) async {
+    if (_isWidgetTestRuntime) {
+      return await Future<_CompressResult>.microtask(
+        () => _compressImageIsolate(params),
+      );
+    }
+
+    if (!kIsWeb) {
+      try {
+        return await compute<_CompressParams, _CompressResult>(
+          _compressImageIsolate,
+          params,
+        );
+      } catch (_) {
+        return await Future<_CompressResult>.microtask(
+          () => _compressImageIsolate(params),
+        );
+      }
+    }
+
+    // Web: ceder el hilo antes del fallback CPU para no bloquear input/render.
+    await Future<void>.delayed(Duration.zero);
+    return await Future<_CompressResult>.microtask(
+      () => _compressImageIsolate(params),
+    );
+  }
+
+  Future<Uint8List?> _buildThumbBytesForPreview(
+    Uint8List bytes, {
+    required int maxW,
+    required int maxH,
+    required int quality,
+  }) async {
+    if (bytes.isEmpty) return null;
+    if (_isWidgetTestRuntime) {
+      return _compressThumb(bytes, maxW: maxW, maxH: maxH, quality: quality);
+    }
+
+    if (!kIsWeb) {
+      try {
+        return await compute<_ThumbCompressParams, Uint8List?>(
+          _compressThumbIsolate,
+          _ThumbCompressParams(
+            bytes: bytes,
+            maxW: maxW,
+            maxH: maxH,
+            quality: quality,
+          ),
+        );
+      } catch (_) {
+        // fallback sync below
+      }
+    } else if (bytes.lengthInBytes > 256 * 1024) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    return _compressThumb(bytes, maxW: maxW, maxH: maxH, quality: quality);
+  }
+
   bool _isDecodeFailed(Uint8List bytes) {
     try {
       return img.decodeImage(bytes) == null;
@@ -3458,12 +3543,16 @@ extension _EditorAttachments on _EditorScreenState {
       if (decoded == null) return null;
 
       final oriented = img.bakeOrientation(decoded);
-      final resized = img.copyResize(
-        oriented,
-        width: oriented.width > oriented.height ? maxW : null,
-        height: oriented.height >= oriented.width ? maxH : null,
-        interpolation: img.Interpolation.average,
-      );
+      final maxSide = math.max(maxW, maxH);
+      final maxSrc = math.max(oriented.width, oriented.height);
+      final resized = maxSrc > maxSide
+          ? img.copyResize(
+              oriented,
+              width: oriented.width > oriented.height ? maxW : null,
+              height: oriented.height >= oriented.width ? maxH : null,
+              interpolation: img.Interpolation.average,
+            )
+          : oriented;
 
       final jpg = img.encodeJpg(resized, quality: quality);
       return Uint8List.fromList(jpg);
