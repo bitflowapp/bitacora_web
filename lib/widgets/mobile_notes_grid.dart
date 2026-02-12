@@ -163,6 +163,8 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.onPickPhoto,
     required this.onDeleteRow,
     required this.onOpenAttachments,
+    required this.decodeThumbBytes,
+    required this.showInlinePhotoPreview,
   });
 
   final _SheetPalette palette;
@@ -195,6 +197,8 @@ class _MobileNotesGrid extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
   final ValueChanged<int> onDeleteRow;
   final void Function(int r, int c) onOpenAttachments;
+  final Uint8List? Function(String b64) decodeThumbBytes;
+  final bool showInlinePhotoPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +446,8 @@ class _MobileNotesGrid extends StatelessWidget {
 
     final badges = <Widget>[];
     if (photoThumbB64.trim().isNotEmpty || hasPhoto) {
-      final bytes = _tryDecodeB64(photoThumbB64);
+      final bytes =
+          showInlinePhotoPreview ? decodeThumbBytes(photoThumbB64) : null;
       if (bytes != null) {
         badges.add(
           badge(

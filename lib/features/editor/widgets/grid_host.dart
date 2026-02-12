@@ -87,6 +87,8 @@ class _GridView extends StatelessWidget {
     required this.onPickPhoto,
     required this.onOpenAttachments,
     required this.rowVersionListenable,
+    required this.decodeThumbBytes,
+    required this.showInlinePhotoPreview,
   });
 
   final _SheetPalette palette;
@@ -124,6 +126,8 @@ class _GridView extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
   final void Function(int r, int c) onOpenAttachments;
   final ValueListenable<int> Function(String rowId) rowVersionListenable;
+  final Uint8List? Function(String b64) decodeThumbBytes;
+  final bool showInlinePhotoPreview;
 
 // ??? Apple-ish sizing
   static const double indexW = 54;
@@ -330,6 +334,10 @@ class _GridView extends StatelessWidget {
                                                       onAttachmentsTap: () =>
                                                           onOpenAttachments(
                                                               r, col),
+                                                      decodeThumbBytes:
+                                                          decodeThumbBytes,
+                                                      showInlinePhotoPreview:
+                                                          showInlinePhotoPreview,
                                                     );
                                                   },
                                                 ),
@@ -578,6 +586,8 @@ class _DataCell extends StatelessWidget {
     required this.onDeleteRow,
     required this.onPickPhoto,
     required this.onAttachmentsTap,
+    required this.decodeThumbBytes,
+    required this.showInlinePhotoPreview,
   });
 
   final _SheetPalette palette;
@@ -607,6 +617,8 @@ class _DataCell extends StatelessWidget {
   final ValueChanged<TapDownDetails> onSecondaryTapDown;
 
   final VoidCallback onDeleteRow;
+  final Uint8List? Function(String b64) decodeThumbBytes;
+  final bool showInlinePhotoPreview;
   final VoidCallback onPickPhoto;
   final VoidCallback onAttachmentsTap;
 
@@ -743,6 +755,8 @@ class _DataCell extends StatelessWidget {
             thumbB64: thumbB64,
             onAdd: onPickPhoto,
             onDeleteRow: onDeleteRow,
+            decodeThumbBytes: decodeThumbBytes,
+            showInlinePhotoPreview: showInlinePhotoPreview,
           )
         : Align(
             alignment: Alignment.centerLeft,
@@ -762,7 +776,8 @@ class _DataCell extends StatelessWidget {
 
     final badges = <Widget>[];
     if (photosCount > 0) {
-      final bytes = _tryDecodeB64(photoThumbB64);
+      final bytes =
+          showInlinePhotoPreview ? decodeThumbBytes(photoThumbB64) : null;
       final iconWidget = bytes != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(3),
@@ -883,6 +898,8 @@ class _PhotosCell extends StatelessWidget {
     required this.thumbB64,
     required this.onAdd,
     required this.onDeleteRow,
+    required this.decodeThumbBytes,
+    required this.showInlinePhotoPreview,
   });
 
   final _SheetPalette palette;
@@ -890,10 +907,13 @@ class _PhotosCell extends StatelessWidget {
   final String thumbB64;
   final VoidCallback onAdd;
   final VoidCallback onDeleteRow;
+  final Uint8List? Function(String b64) decodeThumbBytes;
+  final bool showInlinePhotoPreview;
 
   @override
   Widget build(BuildContext context) {
-    final thumbBytes = _tryDecodeB64(thumbB64);
+    final thumbBytes =
+        showInlinePhotoPreview ? decodeThumbBytes(thumbB64) : null;
     final hasThumb = thumbBytes != null;
     return Row(
       children: [
