@@ -65,4 +65,11 @@ void main() {
     expect(result.actions.last.column, 1);
     expect(result.actions.last.lines, 3);
   });
+  test('accepts apply confirmation variants', () {
+    expect(parser.isApplyConfirmation('aceptar'), isTrue);
+    expect(parser.isApplyConfirmation('aplicar'), isTrue);
+    expect(parser.isApplyConfirmation('ok'), isTrue);
+    expect(parser.isApplyConfirmation('aplicar cambios.'), isTrue);
+    expect(parser.isApplyConfirmation('poner OK en B2'), isFalse);
+  });
 }

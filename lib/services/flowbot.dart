@@ -469,6 +469,13 @@ class RuleBasedFlowBot {
     );
   }
 
+  bool isApplyConfirmation(String raw) {
+    final normalized =
+        raw.trim().toLowerCase().replaceAll(RegExp(r'[.!?,;:]+$'), '');
+    if (normalized.isEmpty) return false;
+    return _applyConfirmationRegex.hasMatch(normalized);
+  }
+
   bool _containsAny(String text, List<String> tokens) {
     for (final token in tokens) {
       if (text.contains(token)) return true;
@@ -525,6 +532,10 @@ class RuleBasedFlowBot {
     return col - 1;
   }
 
+  static final RegExp _applyConfirmationRegex = RegExp(
+    r'^(?:ok|dale|listo|aplicar|aplicar cambios|aceptar|confirmar)$',
+    caseSensitive: false,
+  );
   static final RegExp _setByA1Regex = RegExp(
     r'^(?:poner|set|escribir)\s+(.+?)\s+(?:en|at)\s+([A-Za-z]+)(\d+)$',
     caseSensitive: false,

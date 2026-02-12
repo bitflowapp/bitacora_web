@@ -4586,6 +4586,32 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  bool _isFlowBotApplyIntent(String text) {
+    return _flowBotRuleEngine.isApplyConfirmation(text);
+  }
+
+  bool _flowBotCanApplyPreview({
+    required List<FlowBotAction> preview,
+    required bool parsing,
+  }) {
+    if (parsing) return false;
+    return preview.isNotEmpty;
+  }
+
+  String _flowBotApplyDisabledReason({
+    required List<FlowBotAction> preview,
+    required bool parsing,
+    required bool useLocalLlm,
+    required bool localModelReady,
+  }) {
+    if (parsing) return 'Analizando comando...';
+    if (preview.isNotEmpty) return '';
+    if (useLocalLlm && !localModelReady) {
+      return 'Instala el modelo local o cambia a motor Offline.';
+    }
+    return 'Analiza un comando para generar acciones antes de aplicar.';
+  }
+
   Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
     if (actions.isEmpty) return 0;
     final dataCols = _headers.length - 1;
@@ -4774,6 +4800,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _openFlowBotSheet() async {
     if (!mounted) return;
+    _commitActiveEditors();
     FocusManager.instance.primaryFocus?.unfocus();
     final transcriptEC = TextEditingController();
     final speech = SpeechService.I;
@@ -4797,6 +4824,27 @@ class _EditorScreenState extends State<EditorScreen>
             Future<void> parseNow() async {
               final text = transcriptEC.text.trim();
               if (text.isEmpty) return;
+
+              if (_isFlowBotApplyIntent(text)) {
+                final canApply = _flowBotCanApplyPreview(
+                  preview: preview,
+                  parsing: parsing,
+                );
+                if (canApply) {
+                  Navigator.of(modalCtx).pop(List<FlowBotAction>.from(preview));
+                } else {
+                  setModalState(() {
+                    warning = _flowBotApplyDisabledReason(
+                      preview: preview,
+                      parsing: parsing,
+                      useLocalLlm: _flowBotUseLocalLlm,
+                      localModelReady: localModelReady,
+                    );
+                  });
+                }
+                return;
+              }
+
               setModalState(() {
                 parsing = true;
                 warning = '';
@@ -4855,6 +4903,11 @@ class _EditorScreenState extends State<EditorScreen>
                 await parseNow();
               }
             }
+
+            final canApply = _flowBotCanApplyPreview(
+              preview: preview,
+              parsing: parsing,
+            );
 
             return SafeArea(
               top: false,
@@ -5086,12 +5139,30 @@ class _EditorScreenState extends State<EditorScreen>
                           icon: Icons.check_rounded,
                           dense: true,
                           variant: AppleButtonVariant.filled,
-                          onPressed: preview.isEmpty
-                              ? null
-                              : () => Navigator.of(modalCtx).pop(preview),
+                          onPressed: canApply
+                              ? () => Navigator.of(modalCtx).pop(
+                                    List<FlowBotAction>.from(preview),
+                                  )
+                              : null,
                         ),
                       ],
                     ),
+                    if (!canApply) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _flowBotApplyDisabledReason(
+                          preview: preview,
+                          parsing: parsing,
+                          useLocalLlm: _flowBotUseLocalLlm,
+                          localModelReady: localModelReady,
+                        ),
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -5101,8 +5172,8 @@ class _EditorScreenState extends State<EditorScreen>
       },
     );
 
-    transcriptEC.dispose();
     await speech.cancel();
+    Future<void>.microtask(transcriptEC.dispose);
     if (!mounted || parsedActions == null || parsedActions.isEmpty) return;
     final applied = await _applyFlowBotActions(parsedActions);
     if (!mounted) return;
@@ -14124,6 +14195,16 @@ class _EditorScreenState extends State<EditorScreen>
       }
       return true;
     }());
+  }
+
+  @visibleForTesting
+  Future<FlowBotParseResult> debugParseFlowBotCommand(String transcript) {
+    return _parseFlowBotCommand(transcript);
+  }
+
+  @visibleForTesting
+  Future<int> debugApplyFlowBotActions(List<FlowBotAction> actions) {
+    return _applyFlowBotActions(actions);
   }
 
   @visibleForTesting
