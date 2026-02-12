@@ -8,6 +8,7 @@ extension _EditorDialogs on _EditorScreenState {
     var statusDefault = _defaultStatusOkEnabled;
     var autoIncrement = _autoIncrementIdEnabled;
     var inlinePreviews = _cellInlinePreviewsEnabled;
+    var mobileCompactMode = _mobileCompactModeEnabled;
     var flowBotUseLlm = _flowBotUseLlm;
     final flowBotApiEC = TextEditingController(text: _flowBotApiKey);
 
@@ -55,6 +56,16 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
               ),
               SwitchListTile(
+                value: mobileCompactMode,
+                onChanged: (value) =>
+                    setModalState(() => mobileCompactMode = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Modo compacto (mobile auto-hide)'),
+                subtitle: const Text(
+                  'Oculta header al hacer scroll para maximizar la grilla.',
+                ),
+              ),
+              SwitchListTile(
                 value: flowBotUseLlm,
                 onChanged: (value) =>
                     setModalState(() => flowBotUseLlm = value),
@@ -92,6 +103,7 @@ extension _EditorDialogs on _EditorScreenState {
                 statusDefault: statusDefault,
                 autoIncrement: autoIncrement,
                 inlinePreviews: inlinePreviews,
+                mobileCompactMode: mobileCompactMode,
                 flowBotUseLlm: flowBotUseLlm,
                 flowBotApiKey: flowBotApiEC.text.trim(),
               ),
@@ -111,6 +123,7 @@ extension _EditorDialogs on _EditorScreenState {
       defaultStatusOkEnabled: result.statusDefault,
       autoIncrementIdEnabled: result.autoIncrement,
       cellInlinePreviewsEnabled: result.inlinePreviews,
+      mobileCompactModeEnabled: result.mobileCompactMode,
       flowBotUseLlm: result.flowBotUseLlm,
       flowBotApiKey: result.flowBotApiKey,
     );
@@ -325,6 +338,7 @@ class _EditorDefaultsConfig {
     required this.statusDefault,
     required this.autoIncrement,
     required this.inlinePreviews,
+    required this.mobileCompactMode,
     required this.flowBotUseLlm,
     required this.flowBotApiKey,
   });
@@ -333,6 +347,7 @@ class _EditorDefaultsConfig {
   final bool statusDefault;
   final bool autoIncrement;
   final bool inlinePreviews;
+  final bool mobileCompactMode;
   final bool flowBotUseLlm;
   final String flowBotApiKey;
 }

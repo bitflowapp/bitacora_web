@@ -39,6 +39,7 @@ const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 const String _kPrefHistoryLog = 'bitflow.editor.history_log.v1';
 const String _kPrefFlowBotApiKey = 'bitflow.editor.flowbot.openai_api_key.v1';
 const String _kPrefFlowBotUseLlm = 'bitflow.editor.flowbot.use_llm.v1';
+const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -428,6 +429,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _defaultStatusOkEnabled = true;
   bool _autoIncrementIdEnabled = false;
   bool _cellInlinePreviewsEnabled = true;
+  bool _mobileCompactModeEnabled = true;
   bool _flowBotUseLlm = false;
   String _flowBotApiKey = '';
   final RuleBasedFlowBot _flowBotRuleEngine = const RuleBasedFlowBot();
@@ -694,16 +696,22 @@ class _EditorScreenState extends State<EditorScreen>
   void _handleVisualViewportChanged() {
     if (!mounted) return;
     final nextInset = vv.visualViewportKeyboardInset();
+    if (!_mobileEditorOpen &&
+        nextInset <= 0.0 &&
+        _lastVisualViewportInsetDp <= 0.0) {
+      return;
+    }
     if ((nextInset - _lastVisualViewportInsetDp).abs() < 1.0) return;
     _lastVisualViewportInsetDp = nextInset;
     if (_vvSetStateThrottleT?.isActive ?? false) return;
-    _vvSetStateThrottleT = Timer(const Duration(milliseconds: 24), () {
+    _vvSetStateThrottleT = Timer(const Duration(milliseconds: 48), () {
       if (!mounted) return;
       setState(() {});
     });
   }
 
   void _setMobileTopBarCollapsed(bool collapsed) {
+    if (!_mobileCompactModeEnabled && collapsed) return;
     if (_mobileTopBarCollapsed == collapsed) return;
     if (!mounted) {
       _mobileTopBarCollapsed = collapsed;
@@ -713,6 +721,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _handleMobileGridScrollDirection(ScrollDirection direction) {
+    if (!_mobileCompactModeEnabled) return;
     if (_mobileEditorOpen) return;
     if (direction == ScrollDirection.idle) return;
     if (direction == ScrollDirection.reverse) {
@@ -1853,6 +1862,9 @@ class _EditorScreenState extends State<EditorScreen>
           (decoded['autoIncrementIdEnabled'] as bool?) ?? false;
       final nextInlinePreviews =
           (decoded['cellInlinePreviewsEnabled'] as bool?) ?? true;
+      final nextMobileCompact = (decoded['mobileCompactModeEnabled']
+              as bool?) ??
+          (prefs.getBool(_kPrefMobileCompactMode) ?? _mobileCompactModeEnabled);
       final fallbackFlowBotUseLlm =
           prefs.getBool(_kPrefFlowBotUseLlm) ?? _flowBotUseLlm;
       final fallbackFlowBotApiKey =
@@ -1868,6 +1880,10 @@ class _EditorScreenState extends State<EditorScreen>
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _mobileCompactModeEnabled = nextMobileCompact;
+        if (!nextMobileCompact) {
+          _mobileTopBarCollapsed = false;
+        }
         _flowBotUseLlm = nextFlowBotUseLlm;
         _flowBotApiKey = nextFlowBotApiKey;
         return;
@@ -1877,6 +1893,10 @@ class _EditorScreenState extends State<EditorScreen>
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _mobileCompactModeEnabled = nextMobileCompact;
+        if (!nextMobileCompact) {
+          _mobileTopBarCollapsed = false;
+        }
         _flowBotUseLlm = nextFlowBotUseLlm;
         _flowBotApiKey = nextFlowBotApiKey;
       });
@@ -1893,10 +1913,12 @@ class _EditorScreenState extends State<EditorScreen>
           'defaultStatusOkEnabled': _defaultStatusOkEnabled,
           'autoIncrementIdEnabled': _autoIncrementIdEnabled,
           'cellInlinePreviewsEnabled': _cellInlinePreviewsEnabled,
+          'mobileCompactModeEnabled': _mobileCompactModeEnabled,
           'flowBotUseLlm': _flowBotUseLlm,
           'flowBotApiKey': _flowBotApiKey,
         }),
       );
+      await prefs.setBool(_kPrefMobileCompactMode, _mobileCompactModeEnabled);
       await prefs.setBool(_kPrefFlowBotUseLlm, _flowBotUseLlm);
       await prefs.setString(_kPrefFlowBotApiKey, _flowBotApiKey);
     } catch (_) {}
@@ -1907,6 +1929,7 @@ class _EditorScreenState extends State<EditorScreen>
     bool? defaultStatusOkEnabled,
     bool? autoIncrementIdEnabled,
     bool? cellInlinePreviewsEnabled,
+    bool? mobileCompactModeEnabled,
     bool? flowBotUseLlm,
     String? flowBotApiKey,
   }) async {
@@ -1915,12 +1938,15 @@ class _EditorScreenState extends State<EditorScreen>
     final nextAutoIncrement = autoIncrementIdEnabled ?? _autoIncrementIdEnabled;
     final nextInlinePreviews =
         cellInlinePreviewsEnabled ?? _cellInlinePreviewsEnabled;
+    final nextMobileCompact =
+        mobileCompactModeEnabled ?? _mobileCompactModeEnabled;
     final nextFlowBotUseLlm = flowBotUseLlm ?? _flowBotUseLlm;
     final nextFlowBotApiKey = flowBotApiKey ?? _flowBotApiKey;
     if (nextDate == _defaultDateTodayEnabled &&
         nextStatus == _defaultStatusOkEnabled &&
         nextAutoIncrement == _autoIncrementIdEnabled &&
         nextInlinePreviews == _cellInlinePreviewsEnabled &&
+        nextMobileCompact == _mobileCompactModeEnabled &&
         nextFlowBotUseLlm == _flowBotUseLlm &&
         nextFlowBotApiKey == _flowBotApiKey) {
       return;
@@ -1931,6 +1957,10 @@ class _EditorScreenState extends State<EditorScreen>
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _mobileCompactModeEnabled = nextMobileCompact;
+        if (!nextMobileCompact) {
+          _mobileTopBarCollapsed = false;
+        }
         _flowBotUseLlm = nextFlowBotUseLlm;
         _flowBotApiKey = nextFlowBotApiKey;
       });
@@ -1940,6 +1970,10 @@ class _EditorScreenState extends State<EditorScreen>
       _defaultStatusOkEnabled = nextStatus;
       _autoIncrementIdEnabled = nextAutoIncrement;
       _cellInlinePreviewsEnabled = nextInlinePreviews;
+      _mobileCompactModeEnabled = nextMobileCompact;
+      if (!nextMobileCompact) {
+        _mobileTopBarCollapsed = false;
+      }
       _flowBotUseLlm = nextFlowBotUseLlm;
       _flowBotApiKey = nextFlowBotApiKey;
     }
@@ -7261,7 +7295,7 @@ class _EditorScreenState extends State<EditorScreen>
         _ensureDefaultDensity(isDesktop);
         final metrics = _gridMetricsFor(_gridDensity);
 
-        if (!isDesktop) {
+        if (!isDesktop && _mobileEditorOpen) {
           _scheduleMobileBarMeasure();
         }
 
@@ -7456,7 +7490,8 @@ class _EditorScreenState extends State<EditorScreen>
                               firstCurve: AppMotion.standardOut,
                               secondCurve: AppMotion.standardIn,
                               sizeCurve: AppMotion.standardOut,
-                              crossFadeState: _mobileTopBarCollapsed
+                              crossFadeState: _mobileCompactModeEnabled &&
+                                      _mobileTopBarCollapsed
                                   ? CrossFadeState.showSecond
                                   : CrossFadeState.showFirst,
                               firstChild: RepaintBoundary(
@@ -9264,6 +9299,42 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  void _setColumnPresentationForIndex(
+    int col, {
+    int? wrapLines,
+    _GridTextAlignX? textAlign,
+    _GridTextAlignY? verticalAlign,
+    bool snapshot = true,
+  }) {
+    if (col < 0 || col >= _headers.length - 1) return;
+    final colId = _colIds[col];
+    final current = _columnPrefsById[colId];
+    final nextWrap = (wrapLines ?? current?.wrapLines ?? 1).clamp(1, 3);
+    final nextTextAlign =
+        textAlign ?? current?.textAlign ?? _GridTextAlignX.left;
+    final nextVerticalAlign =
+        verticalAlign ?? current?.verticalAlign ?? _GridTextAlignY.middle;
+    final nextPrefs = _cloneColumnPrefs(_columnPrefsById);
+    nextPrefs[colId] = _ColumnPrefs(
+      type: current?.type ?? _colType(col),
+      hidden: current?.hidden ?? false,
+      required: current?.required ?? _isRequired(col),
+      enumValues: current?.enumValues ?? const <String>[],
+      numberMin: current?.numberMin,
+      numberMax: current?.numberMax,
+      regexPattern: current?.regexPattern,
+      wrapLines: nextWrap,
+      textAlign: nextTextAlign,
+      verticalAlign: nextVerticalAlign,
+    );
+    _applyColumnPrefsAndOrder(
+      columnPrefsById: nextPrefs,
+      columnOrder: _columnOrder,
+      frozenColId: _frozenColId,
+      snapshot: snapshot,
+    );
+  }
+
   int _compareCellValuesForColumn(int col, String leftRaw, String rightRaw) {
     final type = _colType(col);
     final left = leftRaw.trim();
@@ -10293,9 +10364,11 @@ class _EditorScreenState extends State<EditorScreen>
                                     controller: _cellEC,
                                     focusNode: _cellFocus,
                                     autofocus: true,
-                                    maxLines: 1,
+                                    minLines: 1,
+                                    maxLines: 2,
                                     autocorrect: false,
                                     enableSuggestions: false,
+                                    textInputAction: TextInputAction.done,
                                     style: TextStyle(
                                       color: pal.fg,
                                       fontSize: editorFont,
@@ -11176,6 +11249,8 @@ class _EditorScreenState extends State<EditorScreen>
         final colType = _colType(c);
         final hidden = _isColumnHidden(c);
         final frozen = _frozenColId == _colIds[c];
+        final currentWrap = _colWrapLines(c);
+        final currentAlign = _colTextAlign(c);
         actions.add(
           _CtxAction(
             'Editar encabezado',
@@ -11203,6 +11278,33 @@ class _EditorScreenState extends State<EditorScreen>
             Icons.category_outlined,
             () => unawaited(_openColumnTypePicker(c)),
             runOnTap: true,
+          ),
+        );
+        actions.add(
+          _CtxAction(
+            currentAlign == _GridTextAlignX.center
+                ? 'Alinear izquierda'
+                : 'Centrar columna',
+            currentAlign == _GridTextAlignX.center
+                ? Icons.format_align_left_rounded
+                : Icons.format_align_center_rounded,
+            () => _setColumnPresentationForIndex(
+              c,
+              textAlign: currentAlign == _GridTextAlignX.center
+                  ? _GridTextAlignX.left
+                  : _GridTextAlignX.center,
+              verticalAlign: _GridTextAlignY.middle,
+            ),
+          ),
+        );
+        actions.add(
+          _CtxAction(
+            'Wrap ${currentWrap == 1 ? '2 lineas' : currentWrap == 2 ? '3 lineas' : '1 linea'}',
+            Icons.wrap_text_rounded,
+            () => _setColumnPresentationForIndex(
+              c,
+              wrapLines: currentWrap == 1 ? 2 : (currentWrap == 2 ? 3 : 1),
+            ),
           ),
         );
         actions.add(
@@ -13515,27 +13617,13 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     assert(() {
       if (c < 0 || c >= _headers.length - 1) return true;
-      final colId = _colIds[c];
-      final current = _columnPrefsById[colId];
       final parsedTextAlign = _gridTextAlignXFromStorageName(textAlign);
       final parsedVerticalAlign = _gridTextAlignYFromStorageName(verticalAlign);
-      final next = _cloneColumnPrefs(_columnPrefsById);
-      next[colId] = _ColumnPrefs(
-        type: current?.type ?? _colType(c),
-        hidden: current?.hidden ?? false,
-        required: current?.required ?? _isRequired(c),
-        enumValues: current?.enumValues ?? const <String>[],
-        numberMin: current?.numberMin,
-        numberMax: current?.numberMax,
-        regexPattern: current?.regexPattern,
-        wrapLines: wrapLines.clamp(1, 3),
+      _setColumnPresentationForIndex(
+        c,
+        wrapLines: wrapLines,
         textAlign: parsedTextAlign,
         verticalAlign: parsedVerticalAlign,
-      );
-      _applyColumnPrefsAndOrder(
-        columnPrefsById: next,
-        columnOrder: _columnOrder,
-        frozenColId: _frozenColId,
         snapshot: false,
       );
       return true;
@@ -13544,6 +13632,31 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
+
+  @visibleForTesting
+  bool get debugMobileTopBarCollapsed => _mobileTopBarCollapsed;
+
+  @visibleForTesting
+  bool get debugMobileCompactModeEnabled => _mobileCompactModeEnabled;
+
+  @visibleForTesting
+  void debugSetMobileCompactMode(bool enabled) {
+    assert(() {
+      _mobileCompactModeEnabled = enabled;
+      if (!enabled) {
+        _mobileTopBarCollapsed = false;
+      }
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSimulateMobileScrollDirection(ScrollDirection direction) {
+    assert(() {
+      _handleMobileGridScrollDirection(direction);
+      return true;
+    }());
+  }
 
   @visibleForTesting
   CellMeta? debugCellMetaAt(int r, int c) => _cellMetaAt(r, c);

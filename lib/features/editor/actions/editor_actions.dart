@@ -50,6 +50,17 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openColumnPanel()),
         ),
         CommandAction(
+          id: 'center_column',
+          label: 'Centrar columna activa',
+          subtitle: activeCell,
+          icon: Icons.format_align_center_rounded,
+          onSelected: () => _setColumnPresentationForIndex(
+            _selCol,
+            textAlign: _GridTextAlignX.center,
+            verticalAlign: _GridTextAlignY.middle,
+          ),
+        ),
+        CommandAction(
           id: 'history_log',
           label: 'Historial',
           subtitle: 'Auditoria de cambios por planilla',
