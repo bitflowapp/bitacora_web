@@ -149,6 +149,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyR) {
+      unawaited(_openFlowBotSheet());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyG) {
       unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
       return KeyEventResult.handled;

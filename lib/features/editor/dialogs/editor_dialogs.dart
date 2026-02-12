@@ -8,6 +8,8 @@ extension _EditorDialogs on _EditorScreenState {
     var statusDefault = _defaultStatusOkEnabled;
     var autoIncrement = _autoIncrementIdEnabled;
     var inlinePreviews = _cellInlinePreviewsEnabled;
+    var flowBotUseLlm = _flowBotUseLlm;
+    final flowBotApiEC = TextEditingController(text: _flowBotApiKey);
 
     final result = await showAppModal<_EditorDefaultsConfig>(
       context: context,
@@ -52,6 +54,24 @@ extension _EditorDialogs on _EditorScreenState {
                   'Muestra miniaturas inline (puede usar mas memoria en grillas grandes).',
                 ),
               ),
+              SwitchListTile(
+                value: flowBotUseLlm,
+                onChanged: (value) =>
+                    setModalState(() => flowBotUseLlm = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('FlowBot LLM (OpenAI)'),
+                subtitle: const Text('Opcional, OFF por defecto.'),
+              ),
+              TextField(
+                controller: flowBotApiEC,
+                maxLines: 1,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'FlowBot API key',
+                  hintText: 'sk-...',
+                ),
+              ),
             ],
           );
         },
@@ -72,6 +92,8 @@ extension _EditorDialogs on _EditorScreenState {
                 statusDefault: statusDefault,
                 autoIncrement: autoIncrement,
                 inlinePreviews: inlinePreviews,
+                flowBotUseLlm: flowBotUseLlm,
+                flowBotApiKey: flowBotApiEC.text.trim(),
               ),
             );
           },
@@ -80,13 +102,19 @@ extension _EditorDialogs on _EditorScreenState {
       showClose: false,
       barrierDismissible: true,
     );
-    if (result == null) return;
+    if (result == null) {
+      flowBotApiEC.dispose();
+      return;
+    }
     await _setEditorDefaultRules(
       defaultDateTodayEnabled: result.dateDefault,
       defaultStatusOkEnabled: result.statusDefault,
       autoIncrementIdEnabled: result.autoIncrement,
       cellInlinePreviewsEnabled: result.inlinePreviews,
+      flowBotUseLlm: result.flowBotUseLlm,
+      flowBotApiKey: result.flowBotApiKey,
     );
+    flowBotApiEC.dispose();
     if (!mounted) return;
     _showActionSnack(
       'Preferencias de editor actualizadas.',
@@ -123,6 +151,7 @@ extension _EditorDialogs on _EditorScreenState {
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+N', label: 'Crear fila'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+B', label: 'Aplicar valor'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+R', label: 'FlowBot'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+L', label: 'Cola offline'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Exportar XLSX'),
           _ShortcutLine(
@@ -296,10 +325,14 @@ class _EditorDefaultsConfig {
     required this.statusDefault,
     required this.autoIncrement,
     required this.inlinePreviews,
+    required this.flowBotUseLlm,
+    required this.flowBotApiKey,
   });
 
   final bool dateDefault;
   final bool statusDefault;
   final bool autoIncrement;
   final bool inlinePreviews;
+  final bool flowBotUseLlm;
+  final String flowBotApiKey;
 }

@@ -64,6 +64,13 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_startQuickCaptureFlow()),
         ),
         CommandAction(
+          id: 'flowbot',
+          label: 'FlowBot',
+          subtitle: 'Comandos por voz o texto para editar celdas',
+          icon: Icons.auto_awesome_rounded,
+          onSelected: () => unawaited(_openFlowBotSheet()),
+        ),
+        CommandAction(
           id: 'form_mode',
           label: 'Formulario de fila',
           subtitle: 'Editar fila activa con inputs por tipo',
