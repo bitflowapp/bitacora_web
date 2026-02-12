@@ -3582,8 +3582,26 @@ class _EditorScreenState extends State<EditorScreen>
     return _inferColTypeFromHeader(_headerLabel(c));
   }
 
+  int _defaultWrapLinesForType(_ColType type) {
+    switch (type) {
+      case _ColType.text:
+      case _ColType.status:
+        return 2;
+      default:
+        return 1;
+    }
+  }
+
+  int _defaultWrapLinesForColumn(int c) {
+    return _defaultWrapLinesForType(_colType(c));
+  }
+
   _ColumnPrefs _defaultColumnPrefsFor(int c) {
-    return _ColumnPrefs(type: _inferColTypeFromHeader(_headerLabel(c)));
+    final type = _inferColTypeFromHeader(_headerLabel(c));
+    return _ColumnPrefs(
+      type: type,
+      wrapLines: _defaultWrapLinesForType(type),
+    );
   }
 
   int _colWrapLines(int c) {
@@ -3593,7 +3611,7 @@ class _EditorScreenState extends State<EditorScreen>
         return pref.wrapLines.clamp(1, 3);
       }
     }
-    return 1;
+    return _defaultWrapLinesForColumn(c);
   }
 
   _GridTextAlignX _colTextAlign(int c) {
@@ -9761,7 +9779,7 @@ class _EditorScreenState extends State<EditorScreen>
       numberMin: current?.numberMin,
       numberMax: current?.numberMax,
       regexPattern: current?.regexPattern,
-      wrapLines: current?.wrapLines ?? 1,
+      wrapLines: current?.wrapLines ?? _defaultWrapLinesForColumn(col),
       textAlign: current?.textAlign ?? _GridTextAlignX.left,
       verticalAlign: current?.verticalAlign ?? _GridTextAlignY.middle,
     );
@@ -9799,7 +9817,7 @@ class _EditorScreenState extends State<EditorScreen>
       numberMin: current?.numberMin,
       numberMax: current?.numberMax,
       regexPattern: current?.regexPattern,
-      wrapLines: current?.wrapLines ?? 1,
+      wrapLines: current?.wrapLines ?? _defaultWrapLinesForColumn(col),
       textAlign: current?.textAlign ?? _GridTextAlignX.left,
       verticalAlign: current?.verticalAlign ?? _GridTextAlignY.middle,
     );
@@ -9843,7 +9861,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (col < 0 || col >= _headers.length - 1) return;
     final colId = _colIds[col];
     final current = _columnPrefsById[colId];
-    final nextWrap = (wrapLines ?? current?.wrapLines ?? 1).clamp(1, 3);
+    final nextWrap =
+        (wrapLines ?? current?.wrapLines ?? _defaultWrapLinesForColumn(col))
+            .clamp(1, 3);
     final nextTextAlign =
         textAlign ?? current?.textAlign ?? _GridTextAlignX.left;
     final nextVerticalAlign =
@@ -11252,7 +11272,10 @@ class _EditorScreenState extends State<EditorScreen>
                                 numberMin: current?.numberMin,
                                 numberMax: current?.numberMax,
                                 regexPattern: current?.regexPattern,
-                                wrapLines: current?.wrapLines ?? 1,
+                                wrapLines: current?.wrapLines ??
+                                    _defaultWrapLinesForType(
+                                      current?.type ?? type,
+                                    ),
                                 textAlign:
                                     current?.textAlign ?? _GridTextAlignX.left,
                                 verticalAlign: current?.verticalAlign ??
@@ -11278,7 +11301,9 @@ class _EditorScreenState extends State<EditorScreen>
                 final numberMin = pref?.numberMin;
                 final numberMax = pref?.numberMax;
                 final regexPattern = pref?.regexPattern;
-                final wrapLines = (pref?.wrapLines ?? 1).clamp(1, 3);
+                final wrapLines =
+                    (pref?.wrapLines ?? _defaultWrapLinesForColumn(col))
+                        .clamp(1, 3);
                 final textAlignPref = pref?.textAlign ?? _GridTextAlignX.left;
                 final verticalAlignPref =
                     pref?.verticalAlign ?? _GridTextAlignY.middle;
