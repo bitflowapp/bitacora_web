@@ -2120,7 +2120,7 @@ extension _EditorAttachments on _EditorScreenState {
                     ? 'video_adjuntado'
                     : 'archivo_adjuntado')
                 : picked.name.trim();
-            final thumbB64 = _buildInlineThumbB64(
+            final thumbB64 = await _buildInlineThumbB64(
               bytes: value,
               mime: inferredMime,
               name: safeName,
@@ -2212,20 +2212,27 @@ extension _EditorAttachments on _EditorScreenState {
     return fallback;
   }
 
-  String _buildInlineThumbB64({
+  Future<String> _buildInlineThumbB64({
     required Uint8List bytes,
     required String mime,
     required String name,
-  }) {
+  }) async {
     if (_isPreviewableMime(mime, name)) {
-      final thumbBytes =
-          _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74);
+      final thumbBytes = await _buildThumbBytesForPreview(
+        bytes,
+        maxW: 320,
+        maxH: 320,
+        quality: 74,
+      );
       if (thumbBytes != null && thumbBytes.isNotEmpty) {
         return base64Encode(thumbBytes);
       }
       return '';
     }
     if (_isPdfAttachmentMime(mime, name)) {
+      if (bytes.lengthInBytes > 256 * 1024) {
+        await Future<void>.delayed(Duration.zero);
+      }
       final thumbBytes = _tryBuildPdfFirstPageThumb(bytes);
       if (thumbBytes != null && thumbBytes.isNotEmpty) {
         return base64Encode(thumbBytes);
