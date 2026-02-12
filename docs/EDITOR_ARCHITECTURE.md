@@ -371,14 +371,17 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
 ## FlowBot (P15)
 - Capas:
   - `RuleBasedFlowBot` offline determinista (parser -> acciones estructuradas).
-  - `FlowBotLlmEngine` opcional (OpenAI HTTP + parse/validacion estricta JSON).
+  - `FlowBotLocalLlmEngine` opcional (provider local via `MethodChannel`, sin llamadas remotas).
+  - `FlowBotLocalModelManager` para descarga/actualizacion de modelo GGUF desde release asset.
   - `SpeechService` para captura de voz (web/mobile segun soporte).
 - UX:
   - pill flotante `FlowBot` en editor.
   - modal: transcript, preview de acciones, `Aplicar/Cancelar`.
-  - fallback automatico a modo offline si no hay key/red.
+  - fallback automatico a parser offline si no hay modelo local o no hay plugin local.
 - Persistencia:
-  - toggle de uso LLM + API key en preferencias de editor.
+  - toggle `FlowBot Local LLM` en preferencias de editor.
+  - historial local de comandos frecuentes (sin secretos).
+  - ruta de modelo local guardada en prefs.
 
 ## Validation gates
 - `dart format --set-exit-if-changed .`

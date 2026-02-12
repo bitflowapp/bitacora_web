@@ -495,3 +495,25 @@ Publicar release Android (1 comando):
 - Abrir pill `FlowBot` (o atajo `Ctrl/Cmd+Shift+R`) y ejecutar comando de prueba.
 - Ver preview de acciones y aplicar; confirmar cambios correctos en celdas.
 - Sin API key/red, validar fallback a parser offline (sin bloquear UI).
+
+## 3.15) P17 smoke test (offline flowbot + perf counters + mobile focus mode)
+1. FlowBot offline/local:
+- Abrir `FlowBot` y ejecutar comandos:
+  - `poner OK en B2`
+  - `alinear columna B a centro`
+  - `wrap columna B a 3 lineas`
+- Verificar preview + aplicar sin API key.
+- En `Preferencias de editor`, validar toggle `FlowBot Local LLM (sin API)`.
+2. Mobile compact/focus:
+- En mobile, activar `Modo compacto` y hacer scroll down/up para ocultar/mostrar top bar.
+- Activar/desactivar `Focus cell mode` y verificar diferencia al abrir editor inline.
+3. Attach + thumbnails:
+- Adjuntar imagen y validar inline preview inmediato en celda.
+- Confirmar que no hay freeze al adjuntar desde camara/galeria.
+4. Perf overlay:
+- Abrir con `?perf=1` y validar linea de cache:
+  - `thumb cache ... H:<hits> M:<misses>`
+- Copiar report y confirmar campos:
+  - `thumb_cache_hits`
+  - `thumb_cache_misses`
+  - `thumb_cache_evictions`
