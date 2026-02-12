@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
 import 'start_page.dart';
@@ -332,6 +333,13 @@ class _AppState extends State<App> {
             isLight: _isLight,
             onToggleTheme: _toggleTheme,
             firebaseOk: status.firebaseOk,
+          ),
+        ),
+        GoRoute(
+          path: '/perf',
+          builder: (context, state) => EditorPerfHarnessScreen(
+            isLight: _isLight,
+            onToggleTheme: _toggleTheme,
           ),
         ),
         GoRoute(

@@ -37,6 +37,8 @@ const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 const String _kPrefHistoryLog = 'bitflow.editor.history_log.v1';
+const String _kPrefFlowBotApiKey = 'bitflow.editor.flowbot.openai_api_key.v1';
+const String _kPrefFlowBotUseLlm = 'bitflow.editor.flowbot.use_llm.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -108,6 +110,7 @@ class EditorScreen extends StatefulWidget {
     this.engineApiKey,
     this.initialSelectionRow,
     this.initialSelectionCol,
+    this.perfHarnessEnabled = false,
     this.isLight, // compat StartPage
     this.onToggleTheme, // compat StartPage
   });
@@ -120,6 +123,7 @@ class EditorScreen extends StatefulWidget {
   final String? engineApiKey;
   final int? initialSelectionRow;
   final int? initialSelectionCol;
+  final bool perfHarnessEnabled;
 
   /// Si StartPage te lo pasa (modo controlado), se respeta.
   final bool? isLight;
@@ -248,13 +252,14 @@ class _EditorScreenState extends State<EditorScreen>
   // Draft live sync (edicion en vivo)
   final Map<_CellRef, String> _draftCells = <_CellRef, String>{};
   final Map<int, String> _draftHeaders = <int, String>{};
+  final Set<_CellRef> _attachmentProcessingCells = <_CellRef>{};
   _CellRef? _editingCellRef;
   int? _editingHeaderCol;
   final ValueNotifier<int> _gridVersion = ValueNotifier<int>(0);
   final Map<String, ValueNotifier<int>> _rowVersionById =
       <String, ValueNotifier<int>>{};
   final _ThumbDecodeCache _thumbDecodeCache =
-      _ThumbDecodeCache(maxEntries: 220);
+      _ThumbDecodeCache(maxEntries: 220, maxBytes: 14 * 1024 * 1024);
   int _debugGridBuilds = 0;
   int _debugRowBuilds = 0;
   int _debugCellBuilds = 0;
@@ -263,6 +268,13 @@ class _EditorScreenState extends State<EditorScreen>
       <String, Stopwatch>{};
   final List<int> _debugInputLatencySamplesUs = <int>[];
   DateTime _debugGridBuildsWindowStart = DateTime.now();
+  bool _perfHarnessRequested = false;
+  bool _perfOverlayExpanded = false;
+  bool _perfScenarioRunning = false;
+  int _perfScenarioRuns = 0;
+  DateTime? _perfScenarioLastAt;
+  double _lastVisualViewportInsetDp = -1;
+  Timer? _vvSetStateThrottleT;
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -368,6 +380,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool _mobileEditorOpen = false;
   _MobileEditPhase _mobilePhase = _MobileEditPhase.closed;
+  bool _mobileTopBarCollapsed = false;
   bool _mobileEditingHeader = false;
   int _mobileRow = -1;
   int _mobileCol = 0;
@@ -415,6 +428,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _defaultStatusOkEnabled = true;
   bool _autoIncrementIdEnabled = false;
   bool _cellInlinePreviewsEnabled = true;
+  bool _flowBotUseLlm = false;
+  String _flowBotApiKey = '';
+  final RuleBasedFlowBot _flowBotRuleEngine = const RuleBasedFlowBot();
+  final FlowBotLlmEngine _flowBotLlmEngine = FlowBotLlmEngine();
   String _lastExportPreset = 'pdf';
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
@@ -458,9 +475,7 @@ class _EditorScreenState extends State<EditorScreen>
     _kbController.attach();
     _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
     if (kIsWeb) {
-      _vvDetach = vv.attachViewportListener(() {
-        if (mounted) setState(() {});
-      });
+      _vvDetach = vv.attachViewportListener(_handleVisualViewportChanged);
       _detachWebFlushSignal = WebFlushSignal.attach(
         _flushLocalStateForBackground,
       );
@@ -531,6 +546,10 @@ class _EditorScreenState extends State<EditorScreen>
 
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
+    _perfHarnessRequested = widget.perfHarnessEnabled || _isPerfRequested();
+    if (_perfHarnessRequested && kDebugMode) {
+      unawaited(_initPerfHarness());
+    }
     unawaited(_loadGpsMode());
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
@@ -604,6 +623,7 @@ class _EditorScreenState extends State<EditorScreen>
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
     _cellDraftSyncT?.cancel();
+    _vvSetStateThrottleT?.cancel();
     _recentValuesSaveT?.cancel();
     _historyPersistT?.cancel();
     _blinkT?.cancel();
@@ -646,6 +666,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _rowVersionById.clear();
     _thumbDecodeCache.clear();
+    _attachmentProcessingCells.clear();
     _saveStatus.dispose();
     _offlineStatus.dispose();
 
@@ -667,6 +688,57 @@ class _EditorScreenState extends State<EditorScreen>
     final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
     if (_mobileEditingHeader || _mobileRow >= 0) {
       _debouncedEnsureRowVisible(targetRow);
+    }
+  }
+
+  void _handleVisualViewportChanged() {
+    if (!mounted) return;
+    final nextInset = vv.visualViewportKeyboardInset();
+    if ((nextInset - _lastVisualViewportInsetDp).abs() < 1.0) return;
+    _lastVisualViewportInsetDp = nextInset;
+    if (_vvSetStateThrottleT?.isActive ?? false) return;
+    _vvSetStateThrottleT = Timer(const Duration(milliseconds: 24), () {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  void _setMobileTopBarCollapsed(bool collapsed) {
+    if (_mobileTopBarCollapsed == collapsed) return;
+    if (!mounted) {
+      _mobileTopBarCollapsed = collapsed;
+      return;
+    }
+    setState(() => _mobileTopBarCollapsed = collapsed);
+  }
+
+  void _handleMobileGridScrollDirection(ScrollDirection direction) {
+    if (_mobileEditorOpen) return;
+    if (direction == ScrollDirection.idle) return;
+    if (direction == ScrollDirection.reverse) {
+      _setMobileTopBarCollapsed(true);
+      return;
+    }
+    if (direction == ScrollDirection.forward) {
+      _setMobileTopBarCollapsed(false);
+    }
+  }
+
+  Future<void> _initPerfHarness() async {
+    try {
+      await PerfOptimizer.init(
+        enableFrameTimings: true,
+        frameHistoryCap: 360,
+        maxConcurrentCpuJobs: 2,
+      );
+      PerfOptimizer.configure(
+        frameBudget: const Duration(milliseconds: 8),
+        frameHistoryCap: 360,
+        maxConcurrentCpuJobs: 2,
+      );
+      PerfOptimizer.resetStats();
+    } catch (_) {
+      // Guardrail: perf harness nunca debe bloquear apertura del editor.
     }
   }
 
@@ -821,11 +893,13 @@ class _EditorScreenState extends State<EditorScreen>
       final max = pref.numberMax;
       final nextMin = (min != null && max != null && min > max) ? max : min;
       final nextMax = (min != null && max != null && min > max) ? min : max;
+      final wrapLines = pref.wrapLines.clamp(1, 3);
       out[colId] = pref.copyWith(
         enumValues: sanitizedEnums,
         numberMin: nextMin,
         numberMax: nextMax,
         regexPattern: hasValidRegex ? regex : null,
+        wrapLines: wrapLines,
       );
     }
     return out;
@@ -1779,11 +1853,23 @@ class _EditorScreenState extends State<EditorScreen>
           (decoded['autoIncrementIdEnabled'] as bool?) ?? false;
       final nextInlinePreviews =
           (decoded['cellInlinePreviewsEnabled'] as bool?) ?? true;
+      final fallbackFlowBotUseLlm =
+          prefs.getBool(_kPrefFlowBotUseLlm) ?? _flowBotUseLlm;
+      final fallbackFlowBotApiKey =
+          (prefs.getString(_kPrefFlowBotApiKey) ?? _flowBotApiKey).trim();
+      final nextFlowBotUseLlm =
+          (decoded['flowBotUseLlm'] as bool?) ?? fallbackFlowBotUseLlm;
+      final nextFlowBotApiKey =
+          ((decoded['flowBotApiKey'] as String?)?.trim().isNotEmpty ?? false)
+              ? (decoded['flowBotApiKey'] as String).trim()
+              : fallbackFlowBotApiKey;
       if (!mounted) {
         _defaultDateTodayEnabled = nextDate;
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _flowBotUseLlm = nextFlowBotUseLlm;
+        _flowBotApiKey = nextFlowBotApiKey;
         return;
       }
       setState(() {
@@ -1791,6 +1877,8 @@ class _EditorScreenState extends State<EditorScreen>
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _flowBotUseLlm = nextFlowBotUseLlm;
+        _flowBotApiKey = nextFlowBotApiKey;
       });
     } catch (_) {}
   }
@@ -1805,8 +1893,12 @@ class _EditorScreenState extends State<EditorScreen>
           'defaultStatusOkEnabled': _defaultStatusOkEnabled,
           'autoIncrementIdEnabled': _autoIncrementIdEnabled,
           'cellInlinePreviewsEnabled': _cellInlinePreviewsEnabled,
+          'flowBotUseLlm': _flowBotUseLlm,
+          'flowBotApiKey': _flowBotApiKey,
         }),
       );
+      await prefs.setBool(_kPrefFlowBotUseLlm, _flowBotUseLlm);
+      await prefs.setString(_kPrefFlowBotApiKey, _flowBotApiKey);
     } catch (_) {}
   }
 
@@ -1815,16 +1907,22 @@ class _EditorScreenState extends State<EditorScreen>
     bool? defaultStatusOkEnabled,
     bool? autoIncrementIdEnabled,
     bool? cellInlinePreviewsEnabled,
+    bool? flowBotUseLlm,
+    String? flowBotApiKey,
   }) async {
     final nextDate = defaultDateTodayEnabled ?? _defaultDateTodayEnabled;
     final nextStatus = defaultStatusOkEnabled ?? _defaultStatusOkEnabled;
     final nextAutoIncrement = autoIncrementIdEnabled ?? _autoIncrementIdEnabled;
     final nextInlinePreviews =
         cellInlinePreviewsEnabled ?? _cellInlinePreviewsEnabled;
+    final nextFlowBotUseLlm = flowBotUseLlm ?? _flowBotUseLlm;
+    final nextFlowBotApiKey = flowBotApiKey ?? _flowBotApiKey;
     if (nextDate == _defaultDateTodayEnabled &&
         nextStatus == _defaultStatusOkEnabled &&
         nextAutoIncrement == _autoIncrementIdEnabled &&
-        nextInlinePreviews == _cellInlinePreviewsEnabled) {
+        nextInlinePreviews == _cellInlinePreviewsEnabled &&
+        nextFlowBotUseLlm == _flowBotUseLlm &&
+        nextFlowBotApiKey == _flowBotApiKey) {
       return;
     }
     if (mounted) {
@@ -1833,6 +1931,8 @@ class _EditorScreenState extends State<EditorScreen>
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
+        _flowBotUseLlm = nextFlowBotUseLlm;
+        _flowBotApiKey = nextFlowBotApiKey;
       });
       _bumpGridVersion();
     } else {
@@ -1840,6 +1940,8 @@ class _EditorScreenState extends State<EditorScreen>
       _defaultStatusOkEnabled = nextStatus;
       _autoIncrementIdEnabled = nextAutoIncrement;
       _cellInlinePreviewsEnabled = nextInlinePreviews;
+      _flowBotUseLlm = nextFlowBotUseLlm;
+      _flowBotApiKey = nextFlowBotApiKey;
     }
     await _saveEditorDefaultsPrefs();
   }
@@ -3298,6 +3400,32 @@ class _EditorScreenState extends State<EditorScreen>
     return _ColumnPrefs(type: _inferColTypeFromHeader(_headerLabel(c)));
   }
 
+  int _colWrapLines(int c) {
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      if (pref != null) {
+        return pref.wrapLines.clamp(1, 3);
+      }
+    }
+    return 1;
+  }
+
+  _GridTextAlignX _colTextAlign(int c) {
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      if (pref != null) return pref.textAlign;
+    }
+    return _GridTextAlignX.left;
+  }
+
+  _GridTextAlignY _colVerticalAlign(int c) {
+    if (c >= 0 && c < _colIds.length) {
+      final pref = _columnPrefsById[_colIds[c]];
+      if (pref != null) return pref.verticalAlign;
+    }
+    return _GridTextAlignY.middle;
+  }
+
   List<String>? _statusOptionsForCol(int c) {
     if (_colType(c) != _ColType.status) return null;
     if (c >= 0 && c < _colIds.length) {
@@ -3618,14 +3746,18 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  bool get _perfInstrumentationEnabled =>
+      kDebugMode &&
+      (_kEnableEditorPerfInstrumentation || _perfHarnessRequested);
+
   void _trackGridHostBuild(String surface) {
-    if (!kDebugMode || !_kEnableEditorPerfInstrumentation) return;
+    if (!_perfInstrumentationEnabled) return;
     _debugGridBuilds++;
     _flushEditorPerfWindow(surface);
   }
 
   void _trackGridRowBuild(String rowId) {
-    if (!kDebugMode || !_kEnableEditorPerfInstrumentation) return;
+    if (!_perfInstrumentationEnabled) return;
     _debugRowBuilds++;
     final pending = _debugPendingInputLatencyByRow.remove(rowId);
     if (pending != null) {
@@ -3642,19 +3774,19 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _trackGridCellBuild() {
-    if (!kDebugMode || !_kEnableEditorPerfInstrumentation) return;
+    if (!_perfInstrumentationEnabled) return;
     _debugCellBuilds++;
   }
 
   void _trackDraftInputLatency(String rowId) {
-    if (!kDebugMode || !_kEnableEditorPerfInstrumentation) return;
+    if (!_perfInstrumentationEnabled) return;
     _debugInputEvents++;
     _debugPendingInputLatencyByRow.remove(rowId)?.stop();
     _debugPendingInputLatencyByRow[rowId] = Stopwatch()..start();
   }
 
   void _flushEditorPerfWindow(String surface) {
-    if (!kDebugMode || !_kEnableEditorPerfInstrumentation) return;
+    if (!_perfInstrumentationEnabled) return;
     final now = DateTime.now();
     final elapsed = now.difference(_debugGridBuildsWindowStart);
     if (elapsed < const Duration(seconds: 2)) return;
@@ -3685,6 +3817,92 @@ class _EditorScreenState extends State<EditorScreen>
     _debugInputEvents = 0;
     _debugInputLatencySamplesUs.clear();
     _debugGridBuildsWindowStart = now;
+  }
+
+  Map<String, Object?> _collectPerfReport() {
+    final stats = PerfOptimizer.stats.value;
+    return <String, Object?>{
+      'mode': _perfHarnessRequested ? 'perf_harness' : 'editor',
+      'sheetId': widget.sheetId,
+      'rows': _rows.length,
+      'cols': _headers.length,
+      'grid_builds_window': _debugGridBuilds,
+      'row_builds_window': _debugRowBuilds,
+      'cell_builds_window': _debugCellBuilds,
+      'input_events_window': _debugInputEvents,
+      'thumb_cache_entries': _thumbDecodeCache.entryCount,
+      'thumb_cache_bytes': _thumbDecodeCache.totalBytes,
+      'perf_optimizer': stats.toJson(),
+      if (_perfScenarioLastAt != null)
+        'last_scenario_at': _perfScenarioLastAt!.toIso8601String(),
+      'scenario_runs': _perfScenarioRuns,
+    };
+  }
+
+  String _perfReportText() {
+    return const JsonEncoder.withIndent('  ').convert(_collectPerfReport());
+  }
+
+  Future<void> _copyPerfReport() async {
+    final payload = _perfReportText();
+    await Clipboard.setData(ClipboardData(text: payload));
+    if (!mounted) return;
+    _showActionSnack(
+      'Perf report copiado al portapapeles.',
+      isError: false,
+      icon: Icons.speed_rounded,
+    );
+  }
+
+  Future<void> _runPerfScenario() async {
+    if (_perfScenarioRunning) return;
+    _perfScenarioRunning = true;
+    setState(() {});
+    try {
+      PerfOptimizer.resetStats();
+      _debugGridBuilds = 0;
+      _debugRowBuilds = 0;
+      _debugCellBuilds = 0;
+      _debugInputEvents = 0;
+      _debugInputLatencySamplesUs.clear();
+      _debugGridBuildsWindowStart = DateTime.now();
+
+      final maxRows = math.min(10, _rows.length);
+      final maxCols = math.min(10, math.max(0, _headers.length - 1));
+      for (int r = 0; r < maxRows; r++) {
+        for (int c = 0; c < maxCols; c++) {
+          _setCell(r, c, 'perf-${r + 1}-${c + 1}');
+        }
+        if (r.isEven) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      _setSelectionAndRefreshGrid(0, 0);
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+
+      if (_vScroll.hasClients) {
+        final max = _vScroll.position.maxScrollExtent;
+        _vScroll.jumpTo(math.min(max, 320.0));
+      }
+      if (_hScroll.hasClients) {
+        final max = _hScroll.position.maxScrollExtent;
+        _hScroll.jumpTo(math.min(max, 420.0));
+      }
+
+      if (mounted && _rows.isNotEmpty && _headers.isNotEmpty) {
+        await _openAttachmentPanelForCell(0, math.max(0, _headers.length - 1));
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+
+      _perfScenarioRuns += 1;
+      _perfScenarioLastAt = DateTime.now();
+    } finally {
+      _perfScenarioRunning = false;
+      if (mounted) setState(() {});
+    }
   }
 
   String _effectiveHeader(int c) {
@@ -3924,6 +4142,13 @@ class _EditorScreenState extends State<EditorScreen>
     return v == '1' || v == 'true' || v == 'yes';
   }
 
+  bool _isPerfRequested() {
+    final raw = Uri.base.queryParameters['perf'];
+    if (raw == null) return false;
+    final v = raw.trim().toLowerCase();
+    return v == '1' || v == 'true' || v == 'yes';
+  }
+
   Future<void> _maybeRunSmoke() async {
     if (!_smokeRequested || _smokeRan) return;
     final base = _engineBaseResolved?.trim() ?? '';
@@ -4029,6 +4254,368 @@ class _EditorScreenState extends State<EditorScreen>
     _lastToastMessage = trimmed;
     _lastToastAt = now;
     return shouldCoalesce;
+  }
+
+  Future<FlowBotParseResult> _parseFlowBotCommand(String transcript) async {
+    final text = transcript.trim();
+    if (text.isEmpty) {
+      return const FlowBotParseResult(
+        actions: <FlowBotAction>[],
+        engine: 'rule_based',
+        warning: 'Comando vacio.',
+      );
+    }
+
+    if (_flowBotUseLlm && _flowBotApiKey.trim().isNotEmpty) {
+      try {
+        final llmResult = await _flowBotLlmEngine.parse(
+          apiKey: _flowBotApiKey,
+          transcript: text,
+          selectedRow: _selRow,
+          selectedCol: _selCol,
+        );
+        if (llmResult.hasActions) return llmResult;
+      } catch (_) {
+        // Fallback seguro y determinista.
+      }
+    }
+
+    return _flowBotRuleEngine.parse(
+      text,
+      selectedRow: _selRow,
+      selectedCol: _selCol,
+    );
+  }
+
+  String _flowBotActionLabel(FlowBotAction action) {
+    switch (action.type) {
+      case FlowBotActionType.addRow:
+        return 'Agregar fila';
+      case FlowBotActionType.fillDown:
+        final row = (action.row ?? 0) + 1;
+        final col = (action.col ?? 0) + 1;
+        final count = action.count ?? 1;
+        final value = action.value ?? '';
+        return 'Rellenar desde F$row/C$col x$count = \"$value\"';
+      case FlowBotActionType.setCell:
+        final row = (action.row ?? 0) + 1;
+        final col = (action.col ?? 0) + 1;
+        final value = action.value ?? '';
+        return 'Set F$row/C$col = \"$value\"';
+    }
+  }
+
+  Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
+    if (actions.isEmpty) return 0;
+    var applied = 0;
+
+    for (final action in actions) {
+      switch (action.type) {
+        case FlowBotActionType.addRow:
+          _insertRow(_rows.length);
+          applied += 1;
+          break;
+        case FlowBotActionType.setCell:
+          final row = action.row ?? _selRow;
+          final col = action.col ?? _selCol;
+          if (col < 0 || col >= _headers.length - 1) continue;
+          while (row >= _rows.length) {
+            _insertRow(_rows.length);
+          }
+          if (row < 0 || row >= _rows.length) continue;
+          _setCell(row, col, action.value ?? '');
+          _setSelectionAndRefreshGrid(row, col);
+          applied += 1;
+          break;
+        case FlowBotActionType.fillDown:
+          final row = action.row ?? _selRow;
+          final col = action.col ?? _selCol;
+          final count = (action.count ?? 1).clamp(1, 200);
+          if (col < 0 || col >= _headers.length - 1) continue;
+          if (row < 0) continue;
+          for (int i = 0; i < count; i++) {
+            final rr = row + i;
+            while (rr >= _rows.length) {
+              _insertRow(_rows.length);
+            }
+            _setCell(rr, col, action.value ?? '');
+            applied += 1;
+          }
+          _setSelectionAndRefreshGrid(
+            (row + count - 1).clamp(0, _rows.length - 1),
+            col,
+          );
+          break;
+      }
+    }
+
+    return applied;
+  }
+
+  Future<void> _openFlowBotSheet() async {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final transcriptEC = TextEditingController();
+    final speech = SpeechService.I;
+
+    final parsedActions = await showModalBottomSheet<List<FlowBotAction>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        var preview = <FlowBotAction>[];
+        var parsing = false;
+        var listening = false;
+        var warning = '';
+        var level = 0.0;
+
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            Future<void> parseNow() async {
+              final text = transcriptEC.text.trim();
+              if (text.isEmpty) return;
+              setModalState(() {
+                parsing = true;
+                warning = '';
+              });
+              final result = await _parseFlowBotCommand(text);
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                preview = result.actions;
+                parsing = false;
+                warning = result.warning ?? '';
+              });
+            }
+
+            Future<void> startListening() async {
+              if (listening) {
+                await speech.cancel();
+                if (!modalCtx.mounted) return;
+                setModalState(() => listening = false);
+                return;
+              }
+              final ok = await speech.init(preferredLocale: 'es');
+              if (!ok) {
+                if (!modalCtx.mounted) return;
+                setModalState(() {
+                  warning = 'Voz no disponible en este dispositivo.';
+                });
+                return;
+              }
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                listening = true;
+                warning = '';
+              });
+              final text = await speech.listenOnce(
+                partial: (partial) {
+                  transcriptEC.text = partial;
+                  transcriptEC.selection = TextSelection.collapsed(
+                    offset: transcriptEC.text.length,
+                  );
+                },
+                level: (value) {
+                  if (!modalCtx.mounted) return;
+                  setModalState(() => level = value.clamp(0.0, 1.0));
+                },
+                autoTimeout: const Duration(seconds: 18),
+              );
+              if (!modalCtx.mounted) return;
+              setModalState(() => listening = false);
+              if (text != null && text.trim().isNotEmpty) {
+                transcriptEC.text = text.trim();
+                transcriptEC.selection = TextSelection.collapsed(
+                  offset: transcriptEC.text.length,
+                );
+                await parseNow();
+              }
+            }
+
+            return SafeArea(
+              top: false,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(
+                  color: pal.menuBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: pal.borderStrong, width: 1),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, color: pal.fg),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'FlowBot',
+                            style: TextStyle(
+                              color: pal.fg,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Cerrar',
+                          onPressed: () => Navigator.of(modalCtx).pop(),
+                          icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      controller: transcriptEC,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Ej: poner OK en B2; rellenar listo x 3',
+                        filled: true,
+                        fillColor: pal.mobileInputBg,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        AppleButton(
+                          label: listening ? 'Detener' : 'Voz',
+                          icon: listening
+                              ? Icons.stop_rounded
+                              : Icons.mic_none_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: () => unawaited(startListening()),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: LinearProgressIndicator(
+                            value: listening ? level : 0,
+                            minHeight: 4,
+                            borderRadius: BorderRadius.circular(999),
+                            backgroundColor:
+                                pal.cellText.withValues(alpha: 0.08),
+                            color: pal.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AppleButton(
+                          label: parsing ? 'Analizando...' : 'Analizar',
+                          icon: Icons.play_arrow_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.tonal,
+                          onPressed:
+                              parsing ? null : () => unawaited(parseNow()),
+                        ),
+                      ],
+                    ),
+                    if (warning.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        warning,
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: preview.length,
+                        itemBuilder: (itemCtx, index) {
+                          final action = preview[index];
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              Icons.bolt_rounded,
+                              size: 16,
+                              color: pal.fgMuted,
+                            ),
+                            title: Text(
+                              _flowBotActionLabel(action),
+                              style: TextStyle(
+                                color: pal.fg,
+                                fontSize: 12.2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppleButton(
+                            label: _flowBotUseLlm
+                                ? 'Motor: LLM'
+                                : 'Motor: Rule-based',
+                            icon: Icons.settings_suggest_rounded,
+                            dense: true,
+                            variant: AppleButtonVariant.ghost,
+                            onPressed: () async {
+                              final next = !_flowBotUseLlm;
+                              await _setEditorDefaultRules(
+                                flowBotUseLlm: next,
+                              );
+                              if (!modalCtx.mounted) return;
+                              setModalState(() {
+                                if (next && _flowBotApiKey.trim().isEmpty) {
+                                  warning =
+                                      'LLM activo sin API key: se usa parser offline.';
+                                } else {
+                                  warning = '';
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AppleButton(
+                          label: 'Cancelar',
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: () => Navigator.of(modalCtx).pop(),
+                        ),
+                        const SizedBox(width: 8),
+                        AppleButton(
+                          label: 'Aplicar',
+                          icon: Icons.check_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.filled,
+                          onPressed: preview.isEmpty
+                              ? null
+                              : () => Navigator.of(modalCtx).pop(preview),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    transcriptEC.dispose();
+    if (!mounted || parsedActions == null || parsedActions.isEmpty) return;
+    final applied = await _applyFlowBotActions(parsedActions);
+    if (!mounted) return;
+    if (applied > 0) {
+      _showActionSnack(
+        'FlowBot aplico $applied cambio(s).',
+        isError: false,
+        icon: Icons.auto_awesome_rounded,
+      );
+    }
   }
 
   String _cellLabelRc(int r, int c) => 'R${r + 1}C${c + 1}';
@@ -6495,6 +7082,170 @@ class _EditorScreenState extends State<EditorScreen>
       ),
     );
   }
+
+  Widget _buildPerfOverlay(
+    _SheetPalette pal, {
+    required bool isDesktop,
+  }) {
+    final topInset = isDesktop ? 18.0 : 72.0;
+    final width = isDesktop ? 340.0 : 318.0;
+    final bg = pal.isLight
+        ? Colors.white.withValues(alpha: 0.95)
+        : const Color(0xFF101114).withValues(alpha: 0.94);
+
+    return Positioned(
+      right: 12,
+      top: topInset,
+      child: RepaintBoundary(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: width),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: pal.borderStrong, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: ValueListenableBuilder<PerfStats>(
+                valueListenable: PerfOptimizer.stats,
+                builder: (ctx, stats, __) {
+                  final frameLabel =
+                      '${stats.avgFrame.inMilliseconds}ms / p95 ${stats.p95Frame.inMilliseconds}ms';
+                  final jankLabel =
+                      '${stats.jankyFrames}/${stats.framesMeasured} (${stats.jankPercent.toStringAsFixed(1)}%)';
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.speed_rounded, size: 16, color: pal.fg),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Perf Harness',
+                              style: TextStyle(
+                                color: pal.fg,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip:
+                                _perfOverlayExpanded ? 'Colapsar' : 'Expandir',
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 18,
+                            onPressed: () => setState(() {
+                              _perfOverlayExpanded = !_perfOverlayExpanded;
+                            }),
+                            icon: Icon(
+                              _perfOverlayExpanded
+                                  ? Icons.expand_less_rounded
+                                  : Icons.expand_more_rounded,
+                              color: pal.fgMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'frame avg/p95: $frameLabel',
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'jank: $jankLabel',
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'grid/row/cell: $_debugGridBuilds / $_debugRowBuilds / $_debugCellBuilds',
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'thumb cache: ${_thumbDecodeCache.entryCount} items · ${_formatBytes(_thumbDecodeCache.totalBytes)}',
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (_perfOverlayExpanded) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'scenario runs: $_perfScenarioRuns'
+                          '${_perfScenarioLastAt == null ? '' : ' · last ${_perfScenarioLastAt!.toLocal().toIso8601String().substring(11, 19)}'}',
+                          style: TextStyle(
+                            color: pal.fgMuted,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AppleButton(
+                              label: _perfScenarioRunning
+                                  ? 'Running...'
+                                  : 'Run scenario',
+                              icon: Icons.play_arrow_rounded,
+                              dense: true,
+                              variant: AppleButtonVariant.tonal,
+                              onPressed: _perfScenarioRunning
+                                  ? null
+                                  : () => unawaited(_runPerfScenario()),
+                            ),
+                            AppleButton(
+                              label: 'Copy report',
+                              icon: Icons.copy_all_rounded,
+                              dense: true,
+                              variant: AppleButtonVariant.ghost,
+                              onPressed: () => unawaited(_copyPerfReport()),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Route: /perf or ?perf=1',
+                          style: TextStyle(
+                            color: pal.fgMuted.withValues(alpha: 0.84),
+                            fontSize: 10.2,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ------------------------------ Build -----------------------------------
 
   @override
@@ -6700,23 +7451,33 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             )
                           else
-                            RepaintBoundary(
-                              child: _MobileCompactHeader(
-                                palette: pal,
-                                title: _sheetName,
-                                controller: _controller,
-                                pendingRequired: _invalidCells.length,
-                                pendingOfflineCount: _pendingOfflineCount,
-                                selectedRow: _selRow,
-                                selectedCol: _selCol,
-                                onSave: () =>
-                                    unawaited(_saveNowFromUserAction()),
-                                onExport: () => unawaited(_openExportMenu()),
-                                onMenu: () =>
-                                    _openMobileHeaderMenu(context, pal),
-                                onOpenOfflineQueue: _openOfflineQueueDialog,
-                                lastLocalSavedAt: _lastSavedAt,
+                            AnimatedCrossFade(
+                              duration: AppMotion.quick,
+                              firstCurve: AppMotion.standardOut,
+                              secondCurve: AppMotion.standardIn,
+                              sizeCurve: AppMotion.standardOut,
+                              crossFadeState: _mobileTopBarCollapsed
+                                  ? CrossFadeState.showSecond
+                                  : CrossFadeState.showFirst,
+                              firstChild: RepaintBoundary(
+                                child: _MobileCompactHeader(
+                                  palette: pal,
+                                  title: _sheetName,
+                                  controller: _controller,
+                                  pendingRequired: _invalidCells.length,
+                                  pendingOfflineCount: _pendingOfflineCount,
+                                  selectedRow: _selRow,
+                                  selectedCol: _selCol,
+                                  onSave: () =>
+                                      unawaited(_saveNowFromUserAction()),
+                                  onExport: () => unawaited(_openExportMenu()),
+                                  onMenu: () =>
+                                      _openMobileHeaderMenu(context, pal),
+                                  onOpenOfflineQueue: _openOfflineQueueDialog,
+                                  lastLocalSavedAt: _lastSavedAt,
+                                ),
                               ),
+                              secondChild: const SizedBox.shrink(),
                             ),
                           if (_isInAppBrowser)
                             _warningBanner(
@@ -7146,6 +7907,52 @@ class _EditorScreenState extends State<EditorScreen>
                                                     actualCol,
                                                   );
                                                 },
+                                                columnWrapLines: (c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  );
+                                                  return _colWrapLines(
+                                                    actualCol,
+                                                  );
+                                                },
+                                                columnTextAlign: (c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  );
+                                                  return _colTextAlign(
+                                                    actualCol,
+                                                  );
+                                                },
+                                                columnVerticalAlign: (c) {
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  );
+                                                  return _colVerticalAlign(
+                                                    actualCol,
+                                                  );
+                                                },
+                                                isAttachmentProcessing: (r, c) {
+                                                  final actualRow =
+                                                      _actualRowFromDisplay(
+                                                    r,
+                                                    visibleRows,
+                                                  );
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  );
+                                                  return _cellIsAttachmentProcessing(
+                                                    actualRow,
+                                                    actualCol,
+                                                  );
+                                                },
                                                 decodeThumb: _decodeThumbCached,
                                                 isInvalid: (r, c) {
                                                   final actualRow =
@@ -7436,6 +8243,46 @@ class _EditorScreenState extends State<EditorScreen>
                                               actualCol,
                                             );
                                           },
+                                          columnWrapLines: (c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            );
+                                            return _colWrapLines(actualCol);
+                                          },
+                                          columnTextAlign: (c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            );
+                                            return _colTextAlign(actualCol);
+                                          },
+                                          columnVerticalAlign: (c) {
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            );
+                                            return _colVerticalAlign(actualCol);
+                                          },
+                                          isAttachmentProcessing: (r, c) {
+                                            final actualRow =
+                                                _actualRowFromDisplay(
+                                              r,
+                                              visibleRows,
+                                            );
+                                            final actualCol =
+                                                _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            );
+                                            return _cellIsAttachmentProcessing(
+                                              actualRow,
+                                              actualCol,
+                                            );
+                                          },
                                           decodeThumb: _decodeThumbCached,
                                           verticalController: _vScroll,
                                           headerScrollController:
@@ -7531,6 +8378,8 @@ class _EditorScreenState extends State<EditorScreen>
                                               displayColumns,
                                             ),
                                           ),
+                                          onVerticalUserScroll:
+                                              _handleMobileGridScrollDirection,
                                           onRowBuild: _trackGridRowBuild,
                                           onCellBuild: _trackGridCellBuild,
                                         );
@@ -7592,6 +8441,23 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                         ),
                       ),
+                    Positioned(
+                      right: 12,
+                      bottom: isDesktop
+                          ? 14
+                          : (_mobileEditorOpen
+                              ? panelH + keyboardInset + 10
+                              : (_kMobileQuickBarH + bottomSafe + 18)),
+                      child: RepaintBoundary(
+                        child: AppleButton(
+                          label: 'FlowBot',
+                          icon: Icons.auto_awesome_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.tonal,
+                          onPressed: () => unawaited(_openFlowBotSheet()),
+                        ),
+                      ),
+                    ),
                     // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
                     if (!isDesktop)
                       _MobileInlineEditorBar(
@@ -7619,6 +8485,11 @@ class _EditorScreenState extends State<EditorScreen>
                         onOverflow: _openMobileOverflowSheet,
                         onCancel: _cancelMobileEdit,
                         onDone: _commitMobileEdit,
+                      ),
+                    if (_perfHarnessRequested && kDebugMode)
+                      _buildPerfOverlay(
+                        pal,
+                        isDesktop: isDesktop,
                       ),
                     if (_longOperation != null)
                       Positioned.fill(
@@ -8321,6 +9192,9 @@ class _EditorScreenState extends State<EditorScreen>
       numberMin: current?.numberMin,
       numberMax: current?.numberMax,
       regexPattern: current?.regexPattern,
+      wrapLines: current?.wrapLines ?? 1,
+      textAlign: current?.textAlign ?? _GridTextAlignX.left,
+      verticalAlign: current?.verticalAlign ?? _GridTextAlignY.middle,
     );
     _applyColumnPrefsAndOrder(
       columnPrefsById: next,
@@ -8356,6 +9230,9 @@ class _EditorScreenState extends State<EditorScreen>
       numberMin: current?.numberMin,
       numberMax: current?.numberMax,
       regexPattern: current?.regexPattern,
+      wrapLines: current?.wrapLines ?? 1,
+      textAlign: current?.textAlign ?? _GridTextAlignX.left,
+      verticalAlign: current?.verticalAlign ?? _GridTextAlignY.middle,
     );
     final nextFrozen = (_frozenColId == colId && hidden) ? null : _frozenColId;
     _applyColumnPrefsAndOrder(
@@ -8515,6 +9392,7 @@ class _EditorScreenState extends State<EditorScreen>
       _commitMobileDraftKeepingKeyboard();
     }
 
+    _mobileTopBarCollapsed = false;
     _mobileEditingHeader = isHeader;
     _mobileRow = row;
     _mobileCol = col;
@@ -8848,7 +9726,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobilePanelCompactH = 96.0;
+  static const double _kMobilePanelCompactH = 140.0;
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
     if (!_vScroll.hasClients) return;
@@ -9286,6 +10164,25 @@ class _EditorScreenState extends State<EditorScreen>
             excluding: initial,
           ).take(10).toList(growable: false);
     final overlay = Overlay.of(context, rootOverlay: true);
+    var committed = false;
+
+    void commitAndDismiss() {
+      if (committed) return;
+      committed = true;
+      onCommit(_cellEC.text);
+      _removeCellEditor();
+    }
+
+    void commitAndNavigate(_OverlayMove move) {
+      if (committed) return;
+      committed = true;
+      _overlayCommitAndNavigate(
+        context: context,
+        pal: pal,
+        onCommit: onCommit,
+        move: move,
+      );
+    }
 
     _cellEditorEntry = OverlayEntry(
       builder: (ctx) {
@@ -9294,10 +10191,7 @@ class _EditorScreenState extends State<EditorScreen>
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () {
-                  onCommit(_cellEC.text);
-                  _removeCellEditor();
-                },
+                onTap: commitAndDismiss,
               ),
             ),
             CompositedTransformFollower(
@@ -9324,29 +10218,22 @@ class _EditorScreenState extends State<EditorScreen>
 
                     // Cmd/Ctrl+Enter => commit y cerrar.
                     if (event.logicalKey == LogicalKeyboardKey.enter && isMod) {
-                      onCommit(_cellEC.text);
-                      _removeCellEditor();
+                      commitAndDismiss();
                       return KeyEventResult.handled;
                     }
 
                     // Tab / Shift+Tab => commit + mover.
                     if (event.logicalKey == LogicalKeyboardKey.tab) {
-                      _overlayCommitAndNavigate(
-                        context: context,
-                        pal: pal,
-                        onCommit: onCommit,
-                        move: isShift ? _OverlayMove.prev : _OverlayMove.next,
+                      commitAndNavigate(
+                        isShift ? _OverlayMove.prev : _OverlayMove.next,
                       );
                       return KeyEventResult.handled;
                     }
 
                     // Enter / Shift+Enter => commit + bajar/subir.
                     if (event.logicalKey == LogicalKeyboardKey.enter) {
-                      _overlayCommitAndNavigate(
-                        context: context,
-                        pal: pal,
-                        onCommit: onCommit,
-                        move: isShift ? _OverlayMove.up : _OverlayMove.down,
+                      commitAndNavigate(
+                        isShift ? _OverlayMove.up : _OverlayMove.down,
                       );
                       return KeyEventResult.handled;
                     }
@@ -9423,18 +10310,12 @@ class _EditorScreenState extends State<EditorScreen>
                                       hintStyle: TextStyle(color: pal.fgMuted),
                                       border: InputBorder.none,
                                     ),
-                                    onSubmitted: (v) {
-                                      onCommit(v);
-                                      _removeCellEditor();
-                                    },
+                                    onSubmitted: (_) => commitAndDismiss(),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 InkWell(
-                                  onTap: () {
-                                    onCommit(_cellEC.text);
-                                    _removeCellEditor();
-                                  },
+                                  onTap: commitAndDismiss,
                                   borderRadius: BorderRadius.circular(10),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -9763,6 +10644,11 @@ class _EditorScreenState extends State<EditorScreen>
                                 numberMin: current?.numberMin,
                                 numberMax: current?.numberMax,
                                 regexPattern: current?.regexPattern,
+                                wrapLines: current?.wrapLines ?? 1,
+                                textAlign:
+                                    current?.textAlign ?? _GridTextAlignX.left,
+                                verticalAlign: current?.verticalAlign ??
+                                    _GridTextAlignY.middle,
                               );
                             }
                             draftPrefs = next;
@@ -9784,6 +10670,10 @@ class _EditorScreenState extends State<EditorScreen>
                 final numberMin = pref?.numberMin;
                 final numberMax = pref?.numberMax;
                 final regexPattern = pref?.regexPattern;
+                final wrapLines = (pref?.wrapLines ?? 1).clamp(1, 3);
+                final textAlignPref = pref?.textAlign ?? _GridTextAlignX.left;
+                final verticalAlignPref =
+                    pref?.verticalAlign ?? _GridTextAlignY.middle;
                 final orderIndex = draftOrder.indexOf(colId);
 
                 return Container(
@@ -9865,6 +10755,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       numberMin: numberMin,
                                       numberMax: numberMax,
                                       regexPattern: regexPattern,
+                                      wrapLines: wrapLines,
+                                      textAlign: textAlignPref,
+                                      verticalAlign: verticalAlignPref,
                                     );
                                 });
                               },
@@ -9890,6 +10783,9 @@ class _EditorScreenState extends State<EditorScreen>
                                       numberMin: numberMin,
                                       numberMax: numberMax,
                                       regexPattern: regexPattern,
+                                      wrapLines: wrapLines,
+                                      textAlign: textAlignPref,
+                                      verticalAlign: verticalAlignPref,
                                     );
                                   if (!visible && draftFrozen == colId) {
                                     draftFrozen = null;
@@ -9939,12 +10835,139 @@ class _EditorScreenState extends State<EditorScreen>
                                       numberMin: numberMin,
                                       numberMax: numberMax,
                                       regexPattern: regexPattern,
+                                      wrapLines: wrapLines,
+                                      textAlign: textAlignPref,
+                                      verticalAlign: verticalAlignPref,
                                     );
                                 });
                               },
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: wrapLines,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                labelText: 'Wrap',
+                              ),
+                              items: const <int>[1, 2, 3].map((lines) {
+                                final label =
+                                    lines == 1 ? '1 linea' : '$lines lineas';
+                                return DropdownMenuItem<int>(
+                                  value: lines,
+                                  child: Text(label),
+                                );
+                              }).toList(growable: false),
+                              onChanged: (nextLines) {
+                                if (nextLines == null) return;
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: type,
+                                      hidden: hidden,
+                                      required: required,
+                                      enumValues: enumValues,
+                                      numberMin: numberMin,
+                                      numberMax: numberMax,
+                                      regexPattern: regexPattern,
+                                      wrapLines: nextLines.clamp(1, 3),
+                                      textAlign: textAlignPref,
+                                      verticalAlign: verticalAlignPref,
+                                    );
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<_GridTextAlignX>(
+                              value: textAlignPref,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                labelText: 'Alineacion',
+                              ),
+                              items: const <_GridTextAlignX>[
+                                _GridTextAlignX.left,
+                                _GridTextAlignX.center,
+                                _GridTextAlignX.right,
+                              ].map((entry) {
+                                final label = switch (entry) {
+                                  _GridTextAlignX.left => 'Izquierda',
+                                  _GridTextAlignX.center => 'Centro',
+                                  _GridTextAlignX.right => 'Derecha',
+                                };
+                                return DropdownMenuItem<_GridTextAlignX>(
+                                  value: entry,
+                                  child: Text(label),
+                                );
+                              }).toList(growable: false),
+                              onChanged: (nextAlign) {
+                                if (nextAlign == null) return;
+                                setModalState(() {
+                                  draftPrefs = _cloneColumnPrefs(draftPrefs)
+                                    ..[colId] = _ColumnPrefs(
+                                      type: type,
+                                      hidden: hidden,
+                                      required: required,
+                                      enumValues: enumValues,
+                                      numberMin: numberMin,
+                                      numberMax: numberMax,
+                                      regexPattern: regexPattern,
+                                      wrapLines: wrapLines,
+                                      textAlign: nextAlign,
+                                      verticalAlign: verticalAlignPref,
+                                    );
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      DropdownButtonFormField<_GridTextAlignY>(
+                        value: verticalAlignPref,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          labelText: 'Alineacion vertical',
+                        ),
+                        items: const <_GridTextAlignY>[
+                          _GridTextAlignY.top,
+                          _GridTextAlignY.middle,
+                          _GridTextAlignY.bottom,
+                        ].map((entry) {
+                          final label = switch (entry) {
+                            _GridTextAlignY.top => 'Arriba',
+                            _GridTextAlignY.middle => 'Centro',
+                            _GridTextAlignY.bottom => 'Abajo',
+                          };
+                          return DropdownMenuItem<_GridTextAlignY>(
+                            value: entry,
+                            child: Text(label),
+                          );
+                        }).toList(growable: false),
+                        onChanged: (nextAlign) {
+                          if (nextAlign == null) return;
+                          setModalState(() {
+                            draftPrefs = _cloneColumnPrefs(draftPrefs)
+                              ..[colId] = _ColumnPrefs(
+                                type: type,
+                                hidden: hidden,
+                                required: required,
+                                enumValues: enumValues,
+                                numberMin: numberMin,
+                                numberMax: numberMax,
+                                regexPattern: regexPattern,
+                                wrapLines: wrapLines,
+                                textAlign: textAlignPref,
+                                verticalAlign: nextAlign,
+                              );
+                          });
+                        },
                       ),
                       if (type == _ColType.status) ...[
                         const SizedBox(height: 4),
@@ -9973,6 +10996,9 @@ class _EditorScreenState extends State<EditorScreen>
                                   numberMin: numberMin,
                                   numberMax: numberMax,
                                   regexPattern: regexPattern,
+                                  wrapLines: wrapLines,
+                                  textAlign: textAlignPref,
+                                  verticalAlign: verticalAlignPref,
                                 );
                             });
                           },
@@ -10009,6 +11035,9 @@ class _EditorScreenState extends State<EditorScreen>
                                         numberMin: parsed,
                                         numberMax: numberMax,
                                         regexPattern: regexPattern,
+                                        wrapLines: wrapLines,
+                                        textAlign: textAlignPref,
+                                        verticalAlign: verticalAlignPref,
                                       );
                                   });
                                 },
@@ -10042,6 +11071,9 @@ class _EditorScreenState extends State<EditorScreen>
                                         numberMin: numberMin,
                                         numberMax: parsed,
                                         regexPattern: regexPattern,
+                                        wrapLines: wrapLines,
+                                        textAlign: textAlignPref,
+                                        verticalAlign: verticalAlignPref,
                                       );
                                   });
                                 },
@@ -10072,6 +11104,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 numberMin: numberMin,
                                 numberMax: numberMax,
                                 regexPattern: nextRegex,
+                                wrapLines: wrapLines,
+                                textAlign: textAlignPref,
+                                verticalAlign: verticalAlignPref,
                               );
                           });
                         },
@@ -12063,6 +13098,32 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   int _cellPhotoCount(int r, int c) => _cellMetaAt(r, c)?.photos.length ?? 0;
+  bool _cellIsAttachmentProcessing(int r, int c) =>
+      _attachmentProcessingCells.contains(_CellRef(r, c));
+
+  void _setAttachmentProcessing(CellRef ref, bool processing) {
+    final idx = _cellIndexForRef(ref);
+    if (idx == null) return;
+    final localRef = _CellRef(idx.r, idx.c);
+    final changed = processing
+        ? _attachmentProcessingCells.add(localRef)
+        : _attachmentProcessingCells.remove(localRef);
+    if (changed) {
+      _bumpRowVersionById(_rows[idx.r].id);
+    }
+  }
+
+  Future<T> _withAttachmentProcessing<T>(
+    CellRef ref,
+    Future<T> Function() action,
+  ) async {
+    _setAttachmentProcessing(ref, true);
+    try {
+      return await action();
+    } finally {
+      _setAttachmentProcessing(ref, false);
+    }
+  }
 
   Uint8List? _decodeThumbCached(String raw) => _thumbDecodeCache.decode(raw);
 
@@ -12441,6 +13502,42 @@ class _EditorScreenState extends State<EditorScreen>
   void debugSetCellDraft(int r, int c, String value) {
     assert(() {
       _setDraftCell(r, c, value);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSetColumnPresentation(
+    int c, {
+    int wrapLines = 1,
+    String textAlign = 'left',
+    String verticalAlign = 'middle',
+  }) {
+    assert(() {
+      if (c < 0 || c >= _headers.length - 1) return true;
+      final colId = _colIds[c];
+      final current = _columnPrefsById[colId];
+      final parsedTextAlign = _gridTextAlignXFromStorageName(textAlign);
+      final parsedVerticalAlign = _gridTextAlignYFromStorageName(verticalAlign);
+      final next = _cloneColumnPrefs(_columnPrefsById);
+      next[colId] = _ColumnPrefs(
+        type: current?.type ?? _colType(c),
+        hidden: current?.hidden ?? false,
+        required: current?.required ?? _isRequired(c),
+        enumValues: current?.enumValues ?? const <String>[],
+        numberMin: current?.numberMin,
+        numberMax: current?.numberMax,
+        regexPattern: current?.regexPattern,
+        wrapLines: wrapLines.clamp(1, 3),
+        textAlign: parsedTextAlign,
+        verticalAlign: parsedVerticalAlign,
+      );
+      _applyColumnPrefsAndOrder(
+        columnPrefsById: next,
+        columnOrder: _columnOrder,
+        frozenColId: _frozenColId,
+        snapshot: false,
+      );
       return true;
     }());
   }

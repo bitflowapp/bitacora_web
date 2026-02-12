@@ -68,6 +68,10 @@ class _GridView extends StatelessWidget {
     required this.cellPhotoThumb,
     required this.cellPhotoCount,
     required this.cellInlinePreviewAt,
+    required this.columnWrapLines,
+    required this.columnTextAlign,
+    required this.columnVerticalAlign,
+    required this.isAttachmentProcessing,
     required this.decodeThumb,
     required this.isInvalid,
     required this.isSearchHit,
@@ -103,6 +107,10 @@ class _GridView extends StatelessWidget {
   final String Function(int r, int c) cellPhotoThumb;
   final int Function(int r, int c) cellPhotoCount;
   final _CellInlinePreviewData? Function(int r, int c) cellInlinePreviewAt;
+  final int Function(int c) columnWrapLines;
+  final _GridTextAlignX Function(int c) columnTextAlign;
+  final _GridTextAlignY Function(int c) columnVerticalAlign;
+  final bool Function(int r, int c) isAttachmentProcessing;
   final Uint8List? Function(String raw) decodeThumb;
   final bool Function(int r, int c) isInvalid;
   final bool Function(int r, int c) isSearchHit;
@@ -283,6 +291,11 @@ class _GridView extends StatelessWidget {
                                                       r,
                                                       col,
                                                     );
+                                                    final processing =
+                                                        isAttachmentProcessing(
+                                                      r,
+                                                      col,
+                                                    );
                                                     return _DataCell(
                                                       palette: palette,
                                                       metrics: metrics,
@@ -304,6 +317,16 @@ class _GridView extends StatelessWidget {
                                                       inlinePreview: isPhotos
                                                           ? null
                                                           : inlinePreview,
+                                                      wrapLines:
+                                                          columnWrapLines(col),
+                                                      textAlign:
+                                                          columnTextAlign(col),
+                                                      verticalAlign:
+                                                          columnVerticalAlign(
+                                                        col,
+                                                      ),
+                                                      attachmentProcessing:
+                                                          processing,
                                                       zebra: r.isEven,
                                                       thumbB64: thumbB64,
                                                       decodeThumb: decodeThumb,
@@ -610,6 +633,10 @@ class _DataCell extends StatelessWidget {
     required this.photoThumbB64,
     required this.photosCount,
     required this.inlinePreview,
+    required this.wrapLines,
+    required this.textAlign,
+    required this.verticalAlign,
+    required this.attachmentProcessing,
     required this.zebra,
     required this.thumbB64,
     required this.decodeThumb,
@@ -640,6 +667,10 @@ class _DataCell extends StatelessWidget {
   final String photoThumbB64;
   final int photosCount;
   final _CellInlinePreviewData? inlinePreview;
+  final int wrapLines;
+  final _GridTextAlignX textAlign;
+  final _GridTextAlignY verticalAlign;
+  final bool attachmentProcessing;
   final bool zebra;
   final String thumbB64;
   final Uint8List? Function(String raw) decodeThumb;
@@ -837,7 +868,45 @@ class _DataCell extends StatelessWidget {
   }
 
   Widget _buildCellBody(BuildContext context) {
+    if (attachmentProcessing) {
+      return Row(
+        children: [
+          Expanded(
+            child: _ProcessingSkeleton(
+              palette: palette,
+              height: 12,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _chip(
+            Text(
+              'Procesando...',
+              style: TextStyle(
+                color: palette.chipText,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final inline = inlinePreview;
+    final requestedTextLines = wrapLines.clamp(1, 3);
+    final availableTextHeight =
+        (metrics.rowH - metrics.cellPadding.vertical).clamp(0.0, metrics.rowH);
+    final linesByHeight =
+        (availableTextHeight / (metrics.cellFontSize * 1.1)).floor();
+    final maxTextLines = math.max(
+      1,
+      math.min(requestedTextLines, linesByHeight),
+    );
+    final textAlignFlutter = _gridTextAlignToFlutter(textAlign);
+    final contentAlignment = _gridCellAlignment(
+      horizontal: textAlign,
+      vertical: verticalAlign,
+    );
     final displayText = text.trim().isNotEmpty
         ? text
         : (!isPhotos && inline != null
@@ -855,19 +924,17 @@ class _DataCell extends StatelessWidget {
         : Row(
             children: [
               Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    displayText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.cellText,
-                      fontSize: metrics.cellFontSize,
-                      height: 1.1,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                      letterSpacing: selected ? -0.12 : -0.04,
-                    ),
+                child: Text(
+                  displayText,
+                  maxLines: maxTextLines,
+                  textAlign: textAlignFlutter,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.cellText,
+                    fontSize: metrics.cellFontSize,
+                    height: 1.1,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    letterSpacing: selected ? -0.12 : -0.04,
                   ),
                 ),
               ),
@@ -966,25 +1033,76 @@ class _DataCell extends StatelessWidget {
       );
     }
 
-    if (badges.isEmpty) return content;
-
-    return Stack(
-      children: [
-        content,
-        Positioned(
-          top: 2,
-          right: 2,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+    final decorated = badges.isEmpty
+        ? content
+        : Stack(
             children: [
-              for (int i = 0; i < badges.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                badges[i],
-              ],
+              content,
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (int i = 0; i < badges.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 4),
+                      badges[i],
+                    ],
+                  ],
+                ),
+              ),
             ],
+          );
+
+    if (isPhotos) return decorated;
+    return Align(
+      alignment: contentAlignment,
+      child: SizedBox(width: double.infinity, child: decorated),
+    );
+  }
+}
+
+class _ProcessingSkeleton extends StatefulWidget {
+  const _ProcessingSkeleton({
+    required this.palette,
+    required this.height,
+  });
+
+  final _SheetPalette palette;
+  final double height;
+
+  @override
+  State<_ProcessingSkeleton> createState() => _ProcessingSkeletonState();
+}
+
+class _ProcessingSkeletonState extends State<_ProcessingSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 820),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        final alpha = 0.14 + (0.12 * t);
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: widget.palette.cellText.withValues(alpha: alpha),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

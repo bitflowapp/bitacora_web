@@ -146,6 +146,10 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.cellPhotoThumb,
     required this.cellPhotoCount,
     required this.cellInlinePreviewAt,
+    required this.columnWrapLines,
+    required this.columnTextAlign,
+    required this.columnVerticalAlign,
+    required this.isAttachmentProcessing,
     required this.decodeThumb,
     required this.verticalController,
     required this.headerScrollController,
@@ -165,6 +169,7 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.onPickPhoto,
     required this.onDeleteRow,
     required this.onOpenAttachments,
+    this.onVerticalUserScroll,
     required this.onRowBuild,
     required this.onCellBuild,
   });
@@ -179,6 +184,10 @@ class _MobileNotesGrid extends StatelessWidget {
   final String Function(int r, int c) cellPhotoThumb;
   final int Function(int r, int c) cellPhotoCount;
   final _CellInlinePreviewData? Function(int r, int c) cellInlinePreviewAt;
+  final int Function(int c) columnWrapLines;
+  final _GridTextAlignX Function(int c) columnTextAlign;
+  final _GridTextAlignY Function(int c) columnVerticalAlign;
+  final bool Function(int r, int c) isAttachmentProcessing;
   final Uint8List? Function(String raw) decodeThumb;
 
   final ScrollController verticalController;
@@ -201,6 +210,7 @@ class _MobileNotesGrid extends StatelessWidget {
   final ValueChanged<int> onPickPhoto;
   final ValueChanged<int> onDeleteRow;
   final void Function(int r, int c) onOpenAttachments;
+  final ValueChanged<ScrollDirection>? onVerticalUserScroll;
   final ValueChanged<String> onRowBuild;
   final VoidCallback onCellBuild;
 
@@ -233,31 +243,39 @@ class _MobileNotesGrid extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: shellRadius,
-          child: ListView.separated(
-            controller: verticalController,
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              0,
-              _mobileListPadTop(density),
-              0,
-              _mobileListPadBottom(density),
-            ),
-            itemCount: rowModels.length + 1,
-            separatorBuilder: (_, __) =>
-                SizedBox(height: _mobileRowSpacing(density)),
-            itemBuilder: (ctx, index) {
-              if (index == 0) {
-                return KeyedSubtree(
-                  key: headerKey,
-                  child: _buildHeaderRow(ctx),
-                );
+          child: NotificationListener<UserScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.axis == Axis.vertical) {
+                onVerticalUserScroll?.call(n.direction);
               }
-              final row = index - 1;
-              return KeyedSubtree(
-                key: rowKeys[row],
-                child: _buildDataRow(ctx, row),
-              );
+              return false;
             },
+            child: ListView.separated(
+              controller: verticalController,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                0,
+                _mobileListPadTop(density),
+                0,
+                _mobileListPadBottom(density),
+              ),
+              itemCount: rowModels.length + 1,
+              separatorBuilder: (_, __) =>
+                  SizedBox(height: _mobileRowSpacing(density)),
+              itemBuilder: (ctx, index) {
+                if (index == 0) {
+                  return KeyedSubtree(
+                    key: headerKey,
+                    child: _buildHeaderRow(ctx),
+                  );
+                }
+                final row = index - 1;
+                return KeyedSubtree(
+                  key: rowKeys[row],
+                  child: _buildDataRow(ctx, row),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -380,6 +398,30 @@ class _MobileNotesGrid extends StatelessWidget {
             final thumbB64 = cellPhotoThumb(row, col);
             final hasPhoto = cellPhotoCount(row, col) > 0;
             final inlinePreview = cellInlinePreviewAt(row, col);
+            final processing = isAttachmentProcessing(row, col);
+            final requestedWrapLines = columnWrapLines(col).clamp(1, 3);
+            final availableTextHeight =
+                (_mobileCardH(density) - (_mobileCardPadV(density) * 2)).clamp(
+              0.0,
+              _mobileCardH(density),
+            );
+            final lineHeight = _mobileTextSize(
+                  density,
+                  isHeader: false,
+                ) *
+                1.05;
+            final linesByHeight = (availableTextHeight / lineHeight).floor();
+            final wrapLines = math.max(
+              1,
+              math.min(requestedWrapLines, linesByHeight),
+            );
+            final horizontal = columnTextAlign(col);
+            final vertical = columnVerticalAlign(col);
+            final textAlign = _gridTextAlignToFlutter(horizontal);
+            final alignment = _gridCellAlignment(
+              horizontal: horizontal,
+              vertical: vertical,
+            );
             final displayText = text.trim().isNotEmpty
                 ? text
                 : (inlinePreview == null
@@ -400,18 +442,29 @@ class _MobileNotesGrid extends StatelessWidget {
               onTap: () => onCellTap(ctx, row, col),
               onLongPress: (pos) => onContextMenu(pos, row, col, false),
               onAttachmentsTap: () => onOpenAttachments(row, col),
-              child: isActive
-                  ? ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: activeController,
-                      builder: (ctx, value, __) {
-                        return _buildCardText(value.text, isHeader: false);
-                      },
-                    )
-                  : _buildCardTextWithPreview(
-                      displayText,
-                      isHeader: false,
-                      preview: inlinePreview,
-                    ),
+              child: processing
+                  ? _buildProcessingCardText()
+                  : isActive
+                      ? ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: activeController,
+                          builder: (ctx, value, __) {
+                            return _buildCardText(
+                              value.text,
+                              isHeader: false,
+                              maxLines: wrapLines,
+                              textAlign: textAlign,
+                              alignment: alignment,
+                            );
+                          },
+                        )
+                      : _buildCardTextWithPreview(
+                          displayText,
+                          isHeader: false,
+                          preview: inlinePreview,
+                          maxLines: wrapLines,
+                          textAlign: textAlign,
+                          alignment: alignment,
+                        ),
             );
           },
         ),
@@ -585,9 +638,18 @@ class _MobileNotesGrid extends StatelessWidget {
     String text, {
     required bool isHeader,
     _CellInlinePreviewData? preview,
+    int maxLines = 2,
+    TextAlign textAlign = TextAlign.left,
+    Alignment alignment = Alignment.centerLeft,
   }) {
     if (isHeader || preview == null) {
-      return _buildCardText(text, isHeader: isHeader);
+      return _buildCardText(
+        text,
+        isHeader: isHeader,
+        maxLines: maxLines,
+        textAlign: textAlign,
+        alignment: alignment,
+      );
     }
     final thumbBytes = preview.hasThumb ? decodeThumb(preview.thumbB64) : null;
     final leading = thumbBytes != null
@@ -608,7 +670,9 @@ class _MobileNotesGrid extends StatelessWidget {
           child: _buildCardText(
             text,
             isHeader: isHeader,
-            maxLines: 1,
+            maxLines: maxLines,
+            textAlign: textAlign,
+            alignment: alignment,
           ),
         ),
         const SizedBox(width: 6),
@@ -653,20 +717,53 @@ class _MobileNotesGrid extends StatelessWidget {
     String text, {
     required bool isHeader,
     int maxLines = 2,
+    TextAlign textAlign = TextAlign.left,
+    Alignment alignment = Alignment.centerLeft,
   }) {
     final t = text.trim();
     final display = t.isEmpty ? ' ' : t;
-    return Text(
-      display,
-      maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: isHeader ? palette.headerText : palette.cellText,
-        fontWeight: isHeader ? FontWeight.w700 : FontWeight.w600,
-        fontSize: _mobileTextSize(density, isHeader: isHeader),
-        height: 1.05,
-        letterSpacing: 0.0,
+    return Align(
+      alignment: alignment,
+      child: Text(
+        display,
+        textAlign: textAlign,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isHeader ? palette.headerText : palette.cellText,
+          fontWeight: isHeader ? FontWeight.w700 : FontWeight.w600,
+          fontSize: _mobileTextSize(density, isHeader: isHeader),
+          height: 1.05,
+          letterSpacing: 0.0,
+        ),
       ),
+    );
+  }
+
+  Widget _buildProcessingCardText() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: palette.cellText.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Procesando...',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: palette.cellTextMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 

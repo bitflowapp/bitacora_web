@@ -914,6 +914,8 @@ class _MobilePanelIconButton extends StatelessWidget {
       icon: Icon(icon, color: fg, size: iconSize),
       padding: padding,
       splashRadius: splashRadius,
+      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
