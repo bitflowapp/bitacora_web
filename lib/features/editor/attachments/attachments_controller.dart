@@ -529,6 +529,7 @@ extension _EditorAttachments on _EditorScreenState {
         permission: ph.Permission.camera,
       );
       if (!preflightOk) return;
+      if (!mounted) return;
     }
 
     try {

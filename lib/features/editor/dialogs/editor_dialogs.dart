@@ -9,8 +9,8 @@ extension _EditorDialogs on _EditorScreenState {
     var autoIncrement = _autoIncrementIdEnabled;
     var inlinePreviews = _cellInlinePreviewsEnabled;
     var mobileCompactMode = _mobileCompactModeEnabled;
-    var flowBotUseLlm = _flowBotUseLlm;
-    final flowBotApiEC = TextEditingController(text: _flowBotApiKey);
+    var mobileFocusCellMode = _mobileFocusCellModeEnabled;
+    var flowBotUseLocalLlm = _flowBotUseLocalLlm;
 
     final result = await showAppModal<_EditorDefaultsConfig>(
       context: context,
@@ -66,21 +66,25 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
               ),
               SwitchListTile(
-                value: flowBotUseLlm,
+                value: mobileFocusCellMode,
                 onChanged: (value) =>
-                    setModalState(() => flowBotUseLlm = value),
+                    setModalState(() => mobileFocusCellMode = value),
                 activeColor: _palette(ctx).accent,
-                title: const Text('FlowBot LLM (OpenAI)'),
-                subtitle: const Text('Opcional, OFF por defecto.'),
+                title: const Text('Focus cell mode (mobile)'),
+                subtitle: const Text(
+                  'Al editar, centra la celda activa sin reflow pesado.',
+                ),
               ),
-              TextField(
-                controller: flowBotApiEC,
-                maxLines: 1,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'FlowBot API key',
-                  hintText: 'sk-...',
+              SwitchListTile(
+                value: flowBotUseLocalLlm,
+                onChanged: (value) =>
+                    setModalState(() => flowBotUseLocalLlm = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('FlowBot Local LLM (sin API)'),
+                subtitle: Text(
+                  _flowBotLocalModelPath.trim().isEmpty
+                      ? 'No hay modelo instalado. Usa motor offline deterministico.'
+                      : 'Modelo local: ${_flowBotLocalModelPath.split(RegExp(r'[\\\\/]')).last}',
                 ),
               ),
             ],
@@ -104,8 +108,8 @@ extension _EditorDialogs on _EditorScreenState {
                 autoIncrement: autoIncrement,
                 inlinePreviews: inlinePreviews,
                 mobileCompactMode: mobileCompactMode,
-                flowBotUseLlm: flowBotUseLlm,
-                flowBotApiKey: flowBotApiEC.text.trim(),
+                mobileFocusCellMode: mobileFocusCellMode,
+                flowBotUseLocalLlm: flowBotUseLocalLlm,
               ),
             );
           },
@@ -114,20 +118,16 @@ extension _EditorDialogs on _EditorScreenState {
       showClose: false,
       barrierDismissible: true,
     );
-    if (result == null) {
-      flowBotApiEC.dispose();
-      return;
-    }
+    if (result == null) return;
     await _setEditorDefaultRules(
       defaultDateTodayEnabled: result.dateDefault,
       defaultStatusOkEnabled: result.statusDefault,
       autoIncrementIdEnabled: result.autoIncrement,
       cellInlinePreviewsEnabled: result.inlinePreviews,
       mobileCompactModeEnabled: result.mobileCompactMode,
-      flowBotUseLlm: result.flowBotUseLlm,
-      flowBotApiKey: result.flowBotApiKey,
+      mobileFocusCellModeEnabled: result.mobileFocusCellMode,
+      flowBotUseLocalLlm: result.flowBotUseLocalLlm,
     );
-    flowBotApiEC.dispose();
     if (!mounted) return;
     _showActionSnack(
       'Preferencias de editor actualizadas.',
@@ -165,10 +165,12 @@ extension _EditorDialogs on _EditorScreenState {
           _ShortcutLine(shortcut: 'Ctrl/Cmd+N', label: 'Crear fila'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+B', label: 'Aplicar valor'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+R', label: 'FlowBot'),
-          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+L', label: 'Cola offline'),
-          _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Exportar XLSX'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Centrar celda activa'),
           _ShortcutLine(
-              shortcut: 'Ctrl/Cmd+Shift+E', label: 'Exportar paquete'),
+              shortcut: 'Ctrl/Cmd+Shift+L', label: 'Wrap 1/2/3 lineas'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Alt+C', label: 'Centrar columna'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+E', label: 'Exportar XLSX'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Alt+E', label: 'Exportar paquete'),
           _ShortcutLine(
               shortcut: 'Ctrl/Cmd+Shift+I', label: 'Importar paquete'),
           SizedBox(height: 10),
@@ -339,8 +341,8 @@ class _EditorDefaultsConfig {
     required this.autoIncrement,
     required this.inlinePreviews,
     required this.mobileCompactMode,
-    required this.flowBotUseLlm,
-    required this.flowBotApiKey,
+    required this.mobileFocusCellMode,
+    required this.flowBotUseLocalLlm,
   });
 
   final bool dateDefault;
@@ -348,6 +350,6 @@ class _EditorDefaultsConfig {
   final bool autoIncrement;
   final bool inlinePreviews;
   final bool mobileCompactMode;
-  final bool flowBotUseLlm;
-  final String flowBotApiKey;
+  final bool mobileFocusCellMode;
+  final bool flowBotUseLocalLlm;
 }

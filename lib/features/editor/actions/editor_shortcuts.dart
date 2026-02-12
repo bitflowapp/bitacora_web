@@ -116,10 +116,31 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyE) {
-      if (isShift) {
+      if (isAlt) {
         unawaited(_exportZipBundle(share: false));
-      } else {
+        return KeyEventResult.handled;
+      }
+      if (isShift) {
         unawaited(_exportXlsxOnly());
+        return KeyEventResult.handled;
+      }
+      if (_selCol >= 0 && _selCol < _headers.length - 1) {
+        _setColumnPresentationForIndex(
+          _selCol,
+          textAlign: _GridTextAlignX.center,
+          verticalAlign: _GridTextAlignY.middle,
+        );
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && isAlt && event.logicalKey == LogicalKeyboardKey.keyC) {
+      if (_selCol >= 0 && _selCol < _headers.length - 1) {
+        _setColumnPresentationForIndex(
+          _selCol,
+          textAlign: _GridTextAlignX.center,
+          verticalAlign: _GridTextAlignY.middle,
+        );
       }
       return KeyEventResult.handled;
     }
@@ -140,6 +161,21 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyL) {
+      if (_selCol >= 0 && _selCol < _headers.length - 1) {
+        final colId = _colIds[_selCol];
+        final currentWrap = (_columnPrefsById[colId]?.wrapLines ?? 1).clamp(
+          1,
+          3,
+        );
+        _setColumnPresentationForIndex(
+          _selCol,
+          wrapLines: currentWrap == 1 ? 2 : (currentWrap == 2 ? 3 : 1),
+        );
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && isAlt && event.logicalKey == LogicalKeyboardKey.keyL) {
       unawaited(_openOfflineQueueDialog());
       return KeyEventResult.handled;
     }

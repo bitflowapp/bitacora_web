@@ -37,9 +37,14 @@ const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 const String _kPrefHistoryLog = 'bitflow.editor.history_log.v1';
-const String _kPrefFlowBotApiKey = 'bitflow.editor.flowbot.openai_api_key.v1';
-const String _kPrefFlowBotUseLlm = 'bitflow.editor.flowbot.use_llm.v1';
+const String _kPrefFlowBotUseLocalLlm =
+    'bitflow.editor.flowbot.use_local_llm.v1';
+const String _kPrefFlowBotLocalModelPath =
+    'bitflow.editor.flowbot.local_model_path.v1';
+const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
+const String _kPrefMobileFocusCellMode =
+    'bitflow.editor.mobile_focus_cell_mode.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -430,10 +435,17 @@ class _EditorScreenState extends State<EditorScreen>
   bool _autoIncrementIdEnabled = false;
   bool _cellInlinePreviewsEnabled = true;
   bool _mobileCompactModeEnabled = true;
-  bool _flowBotUseLlm = false;
-  String _flowBotApiKey = '';
+  bool _mobileFocusCellModeEnabled = true;
+  bool _flowBotUseLocalLlm = false;
+  String _flowBotLocalModelPath = '';
+  bool _flowBotModelDownloading = false;
+  double _flowBotModelDownloadProgress = 0;
+  static const int _maxFlowBotHistoryItems = 12;
+  final List<String> _flowBotHistory = <String>[];
   final RuleBasedFlowBot _flowBotRuleEngine = const RuleBasedFlowBot();
-  final FlowBotLlmEngine _flowBotLlmEngine = FlowBotLlmEngine();
+  final FlowBotLocalLlmEngine _flowBotLocalLlmEngine = FlowBotLocalLlmEngine();
+  final FlowBotLocalModelManager _flowBotLocalModelManager =
+      createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
@@ -556,6 +568,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
     unawaited(_loadEditorDefaultsPrefs());
+    unawaited(_loadFlowBotHistoryPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadColumnTemplatesPref());
@@ -687,6 +700,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _handleKbInsetChanged() {
     if (!_mobileEditorOpen) return;
+    if (!_mobileFocusCellModeEnabled) return;
     final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
     if (_mobileEditingHeader || _mobileRow >= 0) {
       _debouncedEnsureRowVisible(targetRow);
@@ -1853,9 +1867,13 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsEditorDefaultsKey);
-      if (raw == null || raw.trim().isEmpty) return;
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
+      Map decoded = const <String, Object?>{};
+      if (raw != null && raw.trim().isNotEmpty) {
+        final parsed = jsonDecode(raw);
+        if (parsed is Map) {
+          decoded = parsed;
+        }
+      }
       final nextDate = (decoded['defaultDateTodayEnabled'] as bool?) ?? true;
       final nextStatus = (decoded['defaultStatusOkEnabled'] as bool?) ?? true;
       final nextAutoIncrement =
@@ -1865,27 +1883,30 @@ class _EditorScreenState extends State<EditorScreen>
       final nextMobileCompact = (decoded['mobileCompactModeEnabled']
               as bool?) ??
           (prefs.getBool(_kPrefMobileCompactMode) ?? _mobileCompactModeEnabled);
-      final fallbackFlowBotUseLlm =
-          prefs.getBool(_kPrefFlowBotUseLlm) ?? _flowBotUseLlm;
-      final fallbackFlowBotApiKey =
-          (prefs.getString(_kPrefFlowBotApiKey) ?? _flowBotApiKey).trim();
-      final nextFlowBotUseLlm =
-          (decoded['flowBotUseLlm'] as bool?) ?? fallbackFlowBotUseLlm;
-      final nextFlowBotApiKey =
-          ((decoded['flowBotApiKey'] as String?)?.trim().isNotEmpty ?? false)
-              ? (decoded['flowBotApiKey'] as String).trim()
-              : fallbackFlowBotApiKey;
+      final nextMobileFocusCellMode =
+          (decoded['mobileFocusCellModeEnabled'] as bool?) ??
+              (prefs.getBool(_kPrefMobileFocusCellMode) ??
+                  _mobileFocusCellModeEnabled);
+      final nextFlowBotUseLocalLlm = (decoded['flowBotUseLocalLlm'] as bool?) ??
+          (prefs.getBool(_kPrefFlowBotUseLocalLlm) ?? _flowBotUseLocalLlm);
+      final fromJsonModelPath =
+          (decoded['flowBotLocalModelPath'] as String?)?.trim() ?? '';
+      final fromPrefModelPath =
+          (prefs.getString(_kPrefFlowBotLocalModelPath) ?? '').trim();
+      final nextFlowBotLocalModelPath =
+          fromJsonModelPath.isNotEmpty ? fromJsonModelPath : fromPrefModelPath;
       if (!mounted) {
         _defaultDateTodayEnabled = nextDate;
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
         if (!nextMobileCompact) {
           _mobileTopBarCollapsed = false;
         }
-        _flowBotUseLlm = nextFlowBotUseLlm;
-        _flowBotApiKey = nextFlowBotApiKey;
+        _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
+        _flowBotLocalModelPath = nextFlowBotLocalModelPath;
         return;
       }
       setState(() {
@@ -1894,11 +1915,12 @@ class _EditorScreenState extends State<EditorScreen>
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
         if (!nextMobileCompact) {
           _mobileTopBarCollapsed = false;
         }
-        _flowBotUseLlm = nextFlowBotUseLlm;
-        _flowBotApiKey = nextFlowBotApiKey;
+        _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
+        _flowBotLocalModelPath = nextFlowBotLocalModelPath;
       });
     } catch (_) {}
   }
@@ -1914,13 +1936,19 @@ class _EditorScreenState extends State<EditorScreen>
           'autoIncrementIdEnabled': _autoIncrementIdEnabled,
           'cellInlinePreviewsEnabled': _cellInlinePreviewsEnabled,
           'mobileCompactModeEnabled': _mobileCompactModeEnabled,
-          'flowBotUseLlm': _flowBotUseLlm,
-          'flowBotApiKey': _flowBotApiKey,
+          'mobileFocusCellModeEnabled': _mobileFocusCellModeEnabled,
+          'flowBotUseLocalLlm': _flowBotUseLocalLlm,
+          'flowBotLocalModelPath': _flowBotLocalModelPath,
         }),
       );
       await prefs.setBool(_kPrefMobileCompactMode, _mobileCompactModeEnabled);
-      await prefs.setBool(_kPrefFlowBotUseLlm, _flowBotUseLlm);
-      await prefs.setString(_kPrefFlowBotApiKey, _flowBotApiKey);
+      await prefs.setBool(
+          _kPrefMobileFocusCellMode, _mobileFocusCellModeEnabled);
+      await prefs.setBool(_kPrefFlowBotUseLocalLlm, _flowBotUseLocalLlm);
+      await prefs.setString(
+        _kPrefFlowBotLocalModelPath,
+        _flowBotLocalModelPath,
+      );
     } catch (_) {}
   }
 
@@ -1930,8 +1958,9 @@ class _EditorScreenState extends State<EditorScreen>
     bool? autoIncrementIdEnabled,
     bool? cellInlinePreviewsEnabled,
     bool? mobileCompactModeEnabled,
-    bool? flowBotUseLlm,
-    String? flowBotApiKey,
+    bool? mobileFocusCellModeEnabled,
+    bool? flowBotUseLocalLlm,
+    String? flowBotLocalModelPath,
   }) async {
     final nextDate = defaultDateTodayEnabled ?? _defaultDateTodayEnabled;
     final nextStatus = defaultStatusOkEnabled ?? _defaultStatusOkEnabled;
@@ -1940,15 +1969,19 @@ class _EditorScreenState extends State<EditorScreen>
         cellInlinePreviewsEnabled ?? _cellInlinePreviewsEnabled;
     final nextMobileCompact =
         mobileCompactModeEnabled ?? _mobileCompactModeEnabled;
-    final nextFlowBotUseLlm = flowBotUseLlm ?? _flowBotUseLlm;
-    final nextFlowBotApiKey = flowBotApiKey ?? _flowBotApiKey;
+    final nextMobileFocusCellMode =
+        mobileFocusCellModeEnabled ?? _mobileFocusCellModeEnabled;
+    final nextFlowBotUseLocalLlm = flowBotUseLocalLlm ?? _flowBotUseLocalLlm;
+    final nextFlowBotLocalModelPath =
+        (flowBotLocalModelPath ?? _flowBotLocalModelPath).trim();
     if (nextDate == _defaultDateTodayEnabled &&
         nextStatus == _defaultStatusOkEnabled &&
         nextAutoIncrement == _autoIncrementIdEnabled &&
         nextInlinePreviews == _cellInlinePreviewsEnabled &&
         nextMobileCompact == _mobileCompactModeEnabled &&
-        nextFlowBotUseLlm == _flowBotUseLlm &&
-        nextFlowBotApiKey == _flowBotApiKey) {
+        nextMobileFocusCellMode == _mobileFocusCellModeEnabled &&
+        nextFlowBotUseLocalLlm == _flowBotUseLocalLlm &&
+        nextFlowBotLocalModelPath == _flowBotLocalModelPath) {
       return;
     }
     if (mounted) {
@@ -1958,11 +1991,12 @@ class _EditorScreenState extends State<EditorScreen>
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
         if (!nextMobileCompact) {
           _mobileTopBarCollapsed = false;
         }
-        _flowBotUseLlm = nextFlowBotUseLlm;
-        _flowBotApiKey = nextFlowBotApiKey;
+        _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
+        _flowBotLocalModelPath = nextFlowBotLocalModelPath;
       });
       _bumpGridVersion();
     } else {
@@ -1971,13 +2005,130 @@ class _EditorScreenState extends State<EditorScreen>
       _autoIncrementIdEnabled = nextAutoIncrement;
       _cellInlinePreviewsEnabled = nextInlinePreviews;
       _mobileCompactModeEnabled = nextMobileCompact;
+      _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
       if (!nextMobileCompact) {
         _mobileTopBarCollapsed = false;
       }
-      _flowBotUseLlm = nextFlowBotUseLlm;
-      _flowBotApiKey = nextFlowBotApiKey;
+      _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
+      _flowBotLocalModelPath = nextFlowBotLocalModelPath;
     }
     await _saveEditorDefaultsPrefs();
+  }
+
+  Future<void> _loadFlowBotHistoryPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kPrefFlowBotHistory);
+      if (raw == null || raw.trim().isEmpty) return;
+      final parsed = jsonDecode(raw);
+      if (parsed is! List) return;
+      final cleaned = <String>[];
+      for (final item in parsed) {
+        final text = item.toString().trim();
+        if (text.isEmpty) continue;
+        if (cleaned
+            .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
+          continue;
+        }
+        cleaned.add(text);
+        if (cleaned.length >= _maxFlowBotHistoryItems) break;
+      }
+      if (!mounted) {
+        _flowBotHistory
+          ..clear()
+          ..addAll(cleaned);
+        return;
+      }
+      setState(() {
+        _flowBotHistory
+          ..clear()
+          ..addAll(cleaned);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveFlowBotHistoryPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefFlowBotHistory, jsonEncode(_flowBotHistory));
+    } catch (_) {}
+  }
+
+  void _rememberFlowBotHistory(String command) {
+    final text = command.trim();
+    if (text.isEmpty) return;
+    final existingIndex = _flowBotHistory.indexWhere(
+      (item) => item.toLowerCase() == text.toLowerCase(),
+    );
+    if (existingIndex == 0) return;
+    if (mounted) {
+      setState(() {
+        if (existingIndex > 0) {
+          _flowBotHistory.removeAt(existingIndex);
+        }
+        _flowBotHistory.insert(0, text);
+        if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
+          _flowBotHistory.removeRange(
+            _maxFlowBotHistoryItems,
+            _flowBotHistory.length,
+          );
+        }
+      });
+    } else {
+      if (existingIndex > 0) {
+        _flowBotHistory.removeAt(existingIndex);
+      }
+      if (_flowBotHistory.isEmpty ||
+          _flowBotHistory.first.toLowerCase() != text.toLowerCase()) {
+        _flowBotHistory.insert(0, text);
+      }
+      if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
+        _flowBotHistory.removeRange(
+          _maxFlowBotHistoryItems,
+          _flowBotHistory.length,
+        );
+      }
+    }
+    unawaited(_saveFlowBotHistoryPrefs());
+  }
+
+  Future<bool> _flowBotHasLocalModel() async {
+    return _flowBotLocalModelManager.modelExists(_flowBotLocalModelPath);
+  }
+
+  Future<void> _downloadFlowBotLocalModel() async {
+    if (_flowBotModelDownloading) return;
+    if (!mounted) return;
+    setState(() {
+      _flowBotModelDownloading = true;
+      _flowBotModelDownloadProgress = 0;
+    });
+    final result = await _flowBotLocalModelManager.downloadDefaultModel(
+      onProgress: (progress) {
+        if (!mounted) return;
+        setState(() {
+          _flowBotModelDownloadProgress = progress.clamp(0.0, 1.0);
+        });
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _flowBotModelDownloading = false;
+      if (result.ok && (result.modelPath?.trim().isNotEmpty ?? false)) {
+        _flowBotLocalModelPath = result.modelPath!.trim();
+        _flowBotUseLocalLlm = true;
+      }
+    });
+    await _saveEditorDefaultsPrefs();
+    if (!mounted) return;
+    _showActionSnack(
+      result.ok
+          ? 'Modelo local descargado (${_formatBytes(result.bytes)}).'
+          : (result.error ?? 'No se pudo descargar el modelo local.'),
+      isError: !result.ok,
+      icon:
+          result.ok ? Icons.download_done_rounded : Icons.error_outline_rounded,
+    );
   }
 
   bool _isValidExportPreset(String preset) {
@@ -3866,6 +4017,9 @@ class _EditorScreenState extends State<EditorScreen>
       'input_events_window': _debugInputEvents,
       'thumb_cache_entries': _thumbDecodeCache.entryCount,
       'thumb_cache_bytes': _thumbDecodeCache.totalBytes,
+      'thumb_cache_hits': _thumbDecodeCache.cacheHits,
+      'thumb_cache_misses': _thumbDecodeCache.cacheMisses,
+      'thumb_cache_evictions': _thumbDecodeCache.evictions,
       'perf_optimizer': stats.toJson(),
       if (_perfScenarioLastAt != null)
         'last_scenario_at': _perfScenarioLastAt!.toIso8601String(),
@@ -4300,87 +4454,279 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
 
-    if (_flowBotUseLlm && _flowBotApiKey.trim().isNotEmpty) {
-      try {
-        final llmResult = await _flowBotLlmEngine.parse(
-          apiKey: _flowBotApiKey,
-          transcript: text,
-          selectedRow: _selRow,
-          selectedCol: _selCol,
-        );
-        if (llmResult.hasActions) return llmResult;
-      } catch (_) {
-        // Fallback seguro y determinista.
-      }
+    final selectedRows = _batchTargetRows();
+    String? localWarning;
+    final modelPath = _flowBotLocalModelPath.trim();
+    if (_flowBotUseLocalLlm && modelPath.isNotEmpty) {
+      final llmResult = await _flowBotLocalLlmEngine.parse(
+        modelPath: modelPath,
+        transcript: text,
+        selectedRow: _selRow,
+        selectedCol: _selCol,
+        selectedRows: selectedRows,
+      );
+      if (llmResult.hasActions) return llmResult;
+      localWarning = llmResult.warning;
     }
 
-    return _flowBotRuleEngine.parse(
+    final fallback = _flowBotRuleEngine.parse(
       text,
       selectedRow: _selRow,
       selectedCol: _selCol,
+      selectedRows: selectedRows,
+      maxRows: _rows.length.clamp(1, 50000),
+      maxCols: _headers.length.clamp(1, 200),
     );
+    if ((localWarning ?? '').trim().isNotEmpty && !fallback.hasActions) {
+      return FlowBotParseResult(
+        actions: fallback.actions,
+        engine: fallback.engine,
+        warning: localWarning,
+      );
+    }
+    return fallback;
+  }
+
+  String _flowBotDateText(String? format) {
+    final now = DateTime.now();
+    final token = (format ?? '').trim().toLowerCase();
+    if (token == 'iso' || token == 'yyyy-mm-dd') {
+      return '${now.year}-${_two(now.month)}-${_two(now.day)}';
+    }
+    if (token == 'datetime' ||
+        token == 'iso_datetime' ||
+        token == 'yyyy-mm-dd hh:mm') {
+      return _formatDateTimeShort(now);
+    }
+    return _formatDateCellValue(now);
   }
 
   String _flowBotActionLabel(FlowBotAction action) {
     switch (action.type) {
-      case FlowBotActionType.addRow:
-        return 'Agregar fila';
-      case FlowBotActionType.fillDown:
-        final row = (action.row ?? 0) + 1;
-        final col = (action.col ?? 0) + 1;
+      case FlowBotActionType.setCell:
+        final row = (action.row ?? _selRow) + 1;
+        final col = (action.col ?? _selCol) + 1;
+        final value = action.value ?? '';
+        return 'Set F$row/C$col = "$value"';
+      case FlowBotActionType.fillRange:
+        final row = (action.row ?? _selRow) + 1;
+        final col = (action.col ?? _selCol) + 1;
         final count = action.count ?? 1;
         final value = action.value ?? '';
-        return 'Rellenar desde F$row/C$col x$count = \"$value\"';
-      case FlowBotActionType.setCell:
-        final row = (action.row ?? 0) + 1;
-        final col = (action.col ?? 0) + 1;
-        final value = action.value ?? '';
-        return 'Set F$row/C$col = \"$value\"';
+        return 'Rellenar desde F$row/C$col x$count = "$value"';
+      case FlowBotActionType.addRow:
+        return 'Agregar ${(action.count ?? 1).clamp(1, 500)} fila(s)';
+      case FlowBotActionType.setColumnAlign:
+        final col = (action.column ?? _selCol) + 1;
+        final align = (action.align ?? 'left').toLowerCase();
+        return 'Alinear columna C$col -> $align';
+      case FlowBotActionType.setWrap:
+        final col = (action.column ?? _selCol) + 1;
+        final lines = (action.lines ?? 2).clamp(1, 3);
+        return 'Wrap columna C$col -> $lines linea(s)';
+      case FlowBotActionType.applyStatus:
+        return 'Aplicar estado "${action.status ?? 'OK'}"';
+      case FlowBotActionType.setToday:
+        return 'Set fecha de hoy';
+      case FlowBotActionType.autoId:
+        return 'Autonumerar IDs';
+      case FlowBotActionType.copyGps:
+        final row = (action.fromRow ?? _selRow) + 1;
+        return 'Copiar GPS desde fila $row';
+      case FlowBotActionType.duplicateRow:
+        final row = (action.row ?? _selRow) + 1;
+        final times = (action.count ?? 1).clamp(1, 100);
+        return 'Duplicar fila $row x$times';
+      case FlowBotActionType.attachPhotoToCell:
+        final row = (action.row ?? _selRow) + 1;
+        final col = (action.col ?? _selCol) + 1;
+        return 'Adjuntar foto en F$row/C$col';
+      case FlowBotActionType.exportPdfPreset:
+        return 'Exportar PDF (${action.presetId ?? 'default'})';
     }
   }
 
   Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
     if (actions.isEmpty) return 0;
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return 0;
     var applied = 0;
+    var lastRow = _selRow;
+    var lastCol = _selCol.clamp(0, dataCols - 1);
 
     for (final action in actions) {
       switch (action.type) {
-        case FlowBotActionType.addRow:
-          _insertRow(_rows.length);
-          applied += 1;
-          break;
         case FlowBotActionType.setCell:
           final row = action.row ?? _selRow;
           final col = action.col ?? _selCol;
-          if (col < 0 || col >= _headers.length - 1) continue;
+          if (col < 0 || col >= dataCols) continue;
           while (row >= _rows.length) {
             _insertRow(_rows.length);
           }
           if (row < 0 || row >= _rows.length) continue;
           _setCell(row, col, action.value ?? '');
-          _setSelectionAndRefreshGrid(row, col);
           applied += 1;
+          lastRow = row;
+          lastCol = col;
           break;
-        case FlowBotActionType.fillDown:
-          final row = action.row ?? _selRow;
-          final col = action.col ?? _selCol;
-          final count = (action.count ?? 1).clamp(1, 200);
-          if (col < 0 || col >= _headers.length - 1) continue;
-          if (row < 0) continue;
-          for (int i = 0; i < count; i++) {
-            final rr = row + i;
+        case FlowBotActionType.fillRange:
+          final startRow = action.row ?? _selRow;
+          final startCol = (action.col ?? _selCol).clamp(0, dataCols - 1);
+          if (startRow < 0) continue;
+          final count = (action.count ?? 1).clamp(1, 500);
+          final endRow = (action.rowEnd == null)
+              ? startRow + count - 1
+              : math.max(startRow, action.rowEnd!);
+          final endCol = action.colEnd == null
+              ? startCol
+              : (action.colEnd!).clamp(startCol, dataCols - 1);
+          for (int rr = startRow; rr <= endRow; rr++) {
             while (rr >= _rows.length) {
               _insertRow(_rows.length);
             }
-            _setCell(rr, col, action.value ?? '');
+            for (int cc = startCol; cc <= endCol; cc++) {
+              _setCell(rr, cc, action.value ?? '');
+              applied += 1;
+              lastRow = rr;
+              lastCol = cc;
+            }
+          }
+          break;
+        case FlowBotActionType.addRow:
+          final count = (action.count ?? 1).clamp(1, 500);
+          for (int i = 0; i < count; i++) {
+            _insertRow(_rows.length);
             applied += 1;
           }
-          _setSelectionAndRefreshGrid(
-            (row + count - 1).clamp(0, _rows.length - 1),
+          lastRow = (_rows.length - 1).clamp(0, _rows.length - 1);
+          break;
+        case FlowBotActionType.setColumnAlign:
+          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+          final align = _gridTextAlignXFromStorageName(action.align);
+          _setColumnPresentationForIndex(
             col,
+            textAlign: align,
+            verticalAlign: _GridTextAlignY.middle,
           );
+          applied += 1;
+          lastCol = col;
+          break;
+        case FlowBotActionType.setWrap:
+          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+          _setColumnPresentationForIndex(
+            col,
+            wrapLines: (action.lines ?? 2).clamp(1, 3),
+          );
+          applied += 1;
+          lastCol = col;
+          break;
+        case FlowBotActionType.applyStatus:
+          final targets = _batchTargetRows();
+          final statusCol =
+              _statusColumnForBatchActions() ?? _selCol.clamp(0, dataCols - 1);
+          final value = (action.status ?? '').trim();
+          if (targets.isEmpty || value.isEmpty) continue;
+          for (final row in targets) {
+            if (row < 0 || row >= _rows.length) continue;
+            _setCell(row, statusCol, value);
+            applied += 1;
+            lastRow = row;
+            lastCol = statusCol;
+          }
+          break;
+        case FlowBotActionType.setToday:
+          final targets = _batchTargetRows();
+          final dateCol = _firstColumnByType(_ColType.date) ??
+              _selCol.clamp(0, dataCols - 1);
+          final value = _flowBotDateText(action.format);
+          for (final row in targets) {
+            if (row < 0 || row >= _rows.length) continue;
+            _setCell(row, dateCol, value);
+            applied += 1;
+            lastRow = row;
+            lastCol = dateCol;
+          }
+          break;
+        case FlowBotActionType.autoId:
+          final targets = _batchTargetRows();
+          if (targets.isEmpty) continue;
+          final col = _selCol.clamp(0, dataCols - 1);
+          final base = action.start ?? 1;
+          final step = (action.step ?? 1) == 0 ? 1 : (action.step ?? 1);
+          var index = 0;
+          for (final row in targets) {
+            if (row < 0 || row >= _rows.length) continue;
+            final value = (base + (index * step)).toString();
+            _setCell(row, col, value);
+            applied += 1;
+            lastRow = row;
+            lastCol = col;
+            index++;
+          }
+          break;
+        case FlowBotActionType.copyGps:
+          if (_rows.isEmpty) continue;
+          final sourceRow =
+              (action.fromRow ?? _selRow).clamp(0, _rows.length - 1);
+          final sourceCol = _selCol.clamp(0, dataCols - 1);
+          final meta = _cellMetaAt(sourceRow, sourceCol)?.gps;
+          if (meta == null) continue;
+          final fix = _GpsFix(
+            lat: meta.lat,
+            lng: meta.lng,
+            accuracyM: meta.accuracyM,
+            ts: meta.timestamp,
+            source: meta.source,
+            provider: meta.provider,
+          );
+          for (final row in _batchTargetRows()) {
+            if (row < 0 || row >= _rows.length) continue;
+            _applyGpsFixToCell(
+              row,
+              sourceCol,
+              fix,
+              writeText: true,
+              announce: false,
+            );
+            applied += 1;
+            lastRow = row;
+            lastCol = sourceCol;
+          }
+          break;
+        case FlowBotActionType.duplicateRow:
+          if (_rows.isEmpty) continue;
+          final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+          final count = (action.count ?? 1).clamp(1, 100);
+          _duplicateRowMultiple(row, times: count);
+          applied += count;
+          lastRow = (row + count).clamp(0, _rows.length - 1);
+          break;
+        case FlowBotActionType.attachPhotoToCell:
+          if (_rows.isEmpty) continue;
+          final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+          final col = (action.col ?? _selCol).clamp(0, dataCols - 1);
+          await _startPhotoFlowForCell(row, col);
+          applied += 1;
+          lastRow = row;
+          lastCol = col;
+          break;
+        case FlowBotActionType.exportPdfPreset:
+          final preset = (action.presetId ?? 'default').trim().toLowerCase();
+          await _exportPdf(
+            includeAttachments: preset != 'lite',
+            share: false,
+          );
+          applied += 1;
           break;
       }
+    }
+
+    if (_rows.isNotEmpty) {
+      _setSelectionAndRefreshGrid(
+        lastRow.clamp(0, _rows.length - 1),
+        lastCol.clamp(0, dataCols - 1),
+        preserveRowSelection: true,
+      );
     }
 
     return applied;
@@ -4403,6 +4749,8 @@ class _EditorScreenState extends State<EditorScreen>
         var listening = false;
         var warning = '';
         var level = 0.0;
+        var activeEngine = _flowBotUseLocalLlm ? 'local_llm' : 'rule_based';
+        var localModelReady = _flowBotLocalModelPath.trim().isNotEmpty;
 
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
@@ -4419,7 +4767,9 @@ class _EditorScreenState extends State<EditorScreen>
                 preview = result.actions;
                 parsing = false;
                 warning = result.warning ?? '';
+                activeEngine = result.engine;
               });
+              _rememberFlowBotHistory(text);
             }
 
             Future<void> startListening() async {
@@ -4583,33 +4933,105 @@ class _EditorScreenState extends State<EditorScreen>
                         },
                       ),
                     ),
+                    if (_flowBotHistory.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final item in _flowBotHistory.take(6))
+                            ActionChip(
+                              label: Text(
+                                item,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onPressed: () {
+                                transcriptEC.text = item;
+                                transcriptEC.selection =
+                                    TextSelection.collapsed(
+                                  offset: item.length,
+                                );
+                                unawaited(parseNow());
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      activeEngine == 'local_llm'
+                          ? 'Motor activo: Local LLM'
+                          : 'Motor activo: Offline deterministico',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (_flowBotModelDownloading) ...[
+                      const SizedBox(height: 6),
+                      LinearProgressIndicator(
+                        value: _flowBotModelDownloadProgress > 0
+                            ? _flowBotModelDownloadProgress
+                            : null,
+                        minHeight: 4,
+                        borderRadius: BorderRadius.circular(999),
+                        backgroundColor: pal.cellText.withValues(alpha: 0.08),
+                        color: pal.accent,
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
                           child: AppleButton(
-                            label: _flowBotUseLlm
-                                ? 'Motor: LLM'
-                                : 'Motor: Rule-based',
+                            label: _flowBotUseLocalLlm
+                                ? 'Motor: Local LLM'
+                                : 'Motor: Offline',
                             icon: Icons.settings_suggest_rounded,
                             dense: true,
                             variant: AppleButtonVariant.ghost,
                             onPressed: () async {
-                              final next = !_flowBotUseLlm;
+                              final next = !_flowBotUseLocalLlm;
                               await _setEditorDefaultRules(
-                                flowBotUseLlm: next,
+                                flowBotUseLocalLlm: next,
                               );
                               if (!modalCtx.mounted) return;
                               setModalState(() {
-                                if (next && _flowBotApiKey.trim().isEmpty) {
+                                if (next &&
+                                    _flowBotLocalModelPath.trim().isEmpty) {
                                   warning =
-                                      'LLM activo sin API key: se usa parser offline.';
+                                      'Local LLM activo sin modelo: se usa parser offline.';
                                 } else {
                                   warning = '';
                                 }
                               });
                             },
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        AppleButton(
+                          label: _flowBotModelDownloading
+                              ? 'Descargando...'
+                              : (localModelReady
+                                  ? 'Actualizar modelo'
+                                  : 'Descargar modelo'),
+                          icon: _flowBotModelDownloading
+                              ? Icons.downloading_rounded
+                              : Icons.download_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: _flowBotModelDownloading
+                              ? null
+                              : () async {
+                                  await _downloadFlowBotLocalModel();
+                                  if (!modalCtx.mounted) return;
+                                  final ready = await _flowBotHasLocalModel();
+                                  if (!modalCtx.mounted) return;
+                                  setModalState(() {
+                                    localModelReady = ready;
+                                  });
+                                },
                         ),
                         const SizedBox(width: 8),
                         AppleButton(
@@ -4640,6 +5062,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     transcriptEC.dispose();
+    await speech.cancel();
     if (!mounted || parsedActions == null || parsedActions.isEmpty) return;
     final applied = await _applyFlowBotActions(parsedActions);
     if (!mounted) return;
@@ -7216,7 +7639,7 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                       ),
                       Text(
-                        'thumb cache: ${_thumbDecodeCache.entryCount} items · ${_formatBytes(_thumbDecodeCache.totalBytes)}',
+                        'thumb cache: ${_thumbDecodeCache.entryCount} items | ${_formatBytes(_thumbDecodeCache.totalBytes)} | H:${_thumbDecodeCache.cacheHits} M:${_thumbDecodeCache.cacheMisses}',
                         style: TextStyle(
                           color: pal.fgMuted,
                           fontSize: 11,
@@ -7227,7 +7650,7 @@ class _EditorScreenState extends State<EditorScreen>
                         const SizedBox(height: 8),
                         Text(
                           'scenario runs: $_perfScenarioRuns'
-                          '${_perfScenarioLastAt == null ? '' : ' · last ${_perfScenarioLastAt!.toLocal().toIso8601String().substring(11, 19)}'}',
+                          '${_perfScenarioLastAt == null ? '' : ' | last ${_perfScenarioLastAt!.toLocal().toIso8601String().substring(11, 19)}'}',
                           style: TextStyle(
                             color: pal.fgMuted,
                             fontSize: 10.5,
@@ -9489,7 +9912,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _requestMobileFocusWithRetry();
 
-    if (row >= 0 || isHeader) {
+    if (_mobileFocusCellModeEnabled && (row >= 0 || isHeader)) {
       _scheduleEnsureRowVisiblePostFrame(row);
       _scheduleEnsureRowVisibleLate(row);
     }
@@ -9644,6 +10067,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _debouncedEnsureRowVisible(int row) {
+    if (!_mobileFocusCellModeEnabled) return;
     _kbEnsureDebounceT?.cancel();
     _kbEnsureDebounceT = Timer(const Duration(milliseconds: 80), () {
       if (!mounted || !_mobileEditorOpen) return;
