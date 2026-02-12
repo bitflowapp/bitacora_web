@@ -483,7 +483,15 @@ Publicar release Android (1 comando):
 - Pegar un bloque grande `10x10`; validar que no se congela y que los valores quedan correctos.
 - Adjuntar imagen y confirmar thumbnail inline sin click; abrir viewer y validar carga correcta.
 - Validar shortcuts: `Ctrl/Cmd+K`, `Ctrl/Cmd+S`, `Ctrl/Cmd+F`.
-2. Android:
+2. Perf harness:
+- Correr `flutter run -d chrome --web-renderer canvaskit --route /perf` o abrir editor con `?perf=1`.
+- Ejecutar escenario completo y copiar reporte (frame timings + rebuild counters + cache usage).
+- Confirmar que typing no dispara rebuild global de grilla.
+3. Android:
 - Editar celdas rapido y confirmar fluidez sin perdida de caracteres.
 - Adjuntar imagen desde galeria/camara (si aplica) y validar preview/visor.
 - Validar que export/share sigue operativo.
+4. FlowBot:
+- Abrir pill `FlowBot` (o atajo `Ctrl/Cmd+Shift+R`) y ejecutar comando de prueba.
+- Ver preview de acciones y aplicar; confirmar cambios correctos en celdas.
+- Sin API key/red, validar fallback a parser offline (sin bloquear UI).

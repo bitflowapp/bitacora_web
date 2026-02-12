@@ -317,6 +317,69 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
   - `<id>:bk:<timestamp>`
 - Evita que backups internos aparezcan como planillas fantasma en listados/tests.
 
+## Perf Harness + Instrumentation (P15)
+- Entrypoints de perf:
+  - ruta dedicada `/perf` (`lib/screens/editor_perf_harness_screen.dart`)
+  - query runtime `?perf=1` en editor.
+- Escenario base reproducible:
+  - carga demo `200x20`
+  - medir open/select/type/scroll/open-close panel/attach.
+- Instrumentacion activa solo en debug/perf:
+  - `SchedulerBinding.addTimingsCallback` via `PerfOptimizer`
+  - contadores de rebuild de grid/row/cell
+  - reporte copiable desde overlay de perf.
+
+## Typing Pipeline (P15)
+- Objetivo:
+  - editar sin rebuild global de grilla por keypress.
+- Estrategia:
+  - sesion de edicion aislada (overlay editor + controller estable).
+  - `ValueNotifier`/estado local para feedback inmediato de typing.
+  - commit controlado (submit/focus-loss/navegacion) para evitar doble commit.
+- Guardrails:
+  - flush de draft antes de eventos de background/save.
+  - shortcuts (`undo/redo/save/palette`) siguen en la ruta principal.
+
+## Grid Presentation + Overflow Safety (P15)
+- Preferencias por columna persistidas:
+  - `wrapLines` (1..3)
+  - `textAlign` (left/center/right)
+  - `verticalAlign` (top/center/bottom)
+- Render desktop/mobile:
+  - `grid_host.dart` y `mobile_notes_grid.dart` aplican estas preferencias.
+- Regla anti-overflow:
+  - `maxLines` efectivo se limita por altura disponible de la celda/tarjeta.
+  - evita `RenderFlex overflow` en densidades compactas.
+
+## Attachments Perf/UX (P15)
+- Pipeline no bloqueante:
+  - estado `Procesando...` por celda durante attach/thumbnail.
+  - placeholders skeleton monocromos mientras se genera thumb.
+- Cache segura:
+  - `ThumbDecodeLruCache` con limite por items + bytes (memoria acotada).
+- Render inline:
+  - preview en celda para imagen/documento sin click extra.
+  - fallback tile para no-imagen y acciones rapidas desde panel/hover.
+
+## Mobile Header + Inline Editor Reliability (P15)
+- Auto-hide header por direccion de scroll vertical.
+- Header expand on demand al abrir editor inline.
+- Inline editor mobile:
+  - altura compacta ajustada para evitar overflow de layout.
+  - icon buttons compactos para reducir costo visual sin perder acciones.
+
+## FlowBot (P15)
+- Capas:
+  - `RuleBasedFlowBot` offline determinista (parser -> acciones estructuradas).
+  - `FlowBotLlmEngine` opcional (OpenAI HTTP + parse/validacion estricta JSON).
+  - `SpeechService` para captura de voz (web/mobile segun soporte).
+- UX:
+  - pill flotante `FlowBot` en editor.
+  - modal: transcript, preview de acciones, `Aplicar/Cancelar`.
+  - fallback automatico a modo offline si no hay key/red.
+- Persistencia:
+  - toggle de uso LLM + API key en preferencias de editor.
+
 ## Validation gates
 - `dart format --set-exit-if-changed .`
 - `flutter analyze --no-fatal-warnings --no-fatal-infos`
