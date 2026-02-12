@@ -673,6 +673,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.onOverflow,
     required this.onCancel,
     required this.onDone,
+    required this.performanceMode,
   });
 
   final _SheetPalette palette;
@@ -700,6 +701,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
 
   final VoidCallback onCancel;
   final VoidCallback onDone;
+  final bool performanceMode;
 
   @override
   Widget build(BuildContext context) {
@@ -729,7 +731,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
       right: 0,
       bottom: 0,
       child: AnimatedPadding(
-        duration: const Duration(milliseconds: 140),
+        duration: performanceMode ? Duration.zero : const Duration(milliseconds: 140),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(bottom: keyboardInset),
         child: SafeArea(
@@ -738,7 +740,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
           child: AbsorbPointer(
             absorbing: !isOpen,
             child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 140),
+              duration: performanceMode ? Duration.zero : const Duration(milliseconds: 140),
               curve: Curves.easeOut,
               opacity: opacity,
               child: CallbackShortcuts(
@@ -756,22 +758,19 @@ class _MobileInlineEditorBar extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: palette.isLight ? 10 : 14,
-                        sigmaY: palette.isLight ? 10 : 14,
-                        tileMode: TileMode.decal,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                        decoration: BoxDecoration(
-                          color: palette.editorBg
-                              .withValues(alpha: palette.isLight ? 0.96 : 0.70),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                              color: palette.borderStrong,
-                              width: palette.hairline),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                      decoration: BoxDecoration(
+                        color: palette.editorBg.withValues(
+                          alpha: performanceMode
+                              ? (palette.isLight ? 0.98 : 0.92)
+                              : (palette.isLight ? 0.96 : 0.70),
                         ),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: palette.borderStrong,
+                            width: palette.hairline),
+                      ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

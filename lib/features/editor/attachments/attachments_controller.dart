@@ -1130,6 +1130,14 @@ extension _EditorAttachments on _EditorScreenState {
     );
   }
 
+  Future<Uint8List?> _thumbBytesForTile(PhotoAttachment photo) {
+    final cacheKey = '${photo.id}|${photo.storedRef}|${photo.thumbRef}';
+    return _attachmentThumbFutureCache.putIfAbsent(
+      cacheKey,
+      () => _loadPhotoBytesFromAttachment(photo, preferThumb: true),
+    );
+  }
+
   Future<Uint8List?> _readPhotoBytesFromPath(String path) async {
     final t = path.trim();
     if (t.isEmpty) return null;
@@ -1334,7 +1342,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                   return FutureBuilder<Uint8List?>(
-                    future: _loadPhotoBytesFromAttachment(p),
+                    future: _thumbBytesForTile(p),
                     builder: (ctx3, snap) {
                       final bytes = snap.data;
                       if (snap.hasError) {
@@ -1367,6 +1375,7 @@ extension _EditorAttachments on _EditorScreenState {
                               bytes,
                               fit: BoxFit.cover,
                               filterQuality: FilterQuality.low,
+                              cacheWidth: _performanceMode ? 360 : null,
                               errorBuilder: (_, __, ___) =>
                                   const SizedBox.shrink(),
                             );

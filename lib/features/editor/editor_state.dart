@@ -29,6 +29,7 @@ const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
 const String _kPrefColumnTemplates = 'bitflow.editor.column_templates.v1';
 const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
 const String _kPrefHistoryLog = 'bitflow.editor.history_log.v1';
+const String _kPrefPerformanceMode = 'bitflow.editor.performance_mode.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -132,6 +133,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _saveDebounce = Duration(milliseconds: 700);
   static const Duration _saveThrottle = Duration(milliseconds: 1500);
   static const Duration _validationDebounce = Duration(milliseconds: 260);
+  static const Duration _overlayValidationDebounce = Duration(milliseconds: 120);
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
   static const Duration _slowValidationThreshold = Duration(milliseconds: 12);
   static const String _kPhotoReadErrorMsg =
@@ -253,6 +255,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _storageWarned = false;
   VoidCallback? _cellDraftListener;
   VoidCallback? _mobileDraftListener;
+  final ValueNotifier<String?> _overlayValidationHint =
+      ValueNotifier<String?>(null);
+  final Map<String, Future<Uint8List?>> _attachmentThumbFutureCache =
+      <String, Future<Uint8List?>>{};
 
 // Blink visual
   final ValueNotifier<_CellRef?> _blinkCell = ValueNotifier<_CellRef?>(null);
@@ -272,6 +278,7 @@ class _EditorScreenState extends State<EditorScreen>
 // Guardado
   Timer? _saveT;
   Timer? _validationDebounceT;
+  Timer? _overlayValidationDebounceT;
   bool _saving = false;
   _EditorLongOperationState? _longOperation;
   bool _saveHapticPending = false;
@@ -393,6 +400,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _defaultDateTodayEnabled = true;
   bool _defaultStatusOkEnabled = true;
   bool _autoIncrementIdEnabled = false;
+  bool _performanceMode = kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
   String _lastExportPreset = 'pdf';
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
@@ -501,10 +509,7 @@ class _EditorScreenState extends State<EditorScreen>
     _updateOfflineStatus();
     _lastOnlineState = true;
     unawaited(_refreshOnlineState());
-    _quickCaptureSyncTimer = Timer.periodic(
-      const Duration(seconds: 8),
-      (_) => unawaited(_tickQuickCaptureSync(fromTimer: true)),
-    );
+    _startQuickCaptureTimer();
     unawaited(_loadQuickCaptureQueue());
 
     _pushUndoSnapshot(); // estado inicial
@@ -578,6 +583,7 @@ class _EditorScreenState extends State<EditorScreen>
     WidgetsBinding.instance.removeObserver(this);
     _saveT?.cancel();
     _validationDebounceT?.cancel();
+    _overlayValidationDebounceT?.cancel();
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
     _recentValuesSaveT?.cancel();
@@ -603,9 +609,11 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _mobileRowScrolls.clear();
     _mobileRowKeys.clear();
+    _attachmentThumbFutureCache.clear();
 
     _detachCellDraftListener();
     _detachMobileDraftListener();
+    _overlayValidationHint.dispose();
     _cellEC.dispose();
     _cellFocus.dispose();
 
@@ -652,10 +660,25 @@ class _EditorScreenState extends State<EditorScreen>
 // Guardar ???duro??? cuando la app pasa a background/inactive.
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      _stopQuickCaptureTimer();
       _flushLocalStateForBackground();
     } else if (state == AppLifecycleState.resumed) {
+      _startQuickCaptureTimer();
       unawaited(_tickQuickCaptureSync());
     }
+  }
+
+  void _startQuickCaptureTimer() {
+    _quickCaptureSyncTimer?.cancel();
+    _quickCaptureSyncTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => unawaited(_tickQuickCaptureSync(fromTimer: true)),
+    );
+  }
+
+  void _stopQuickCaptureTimer() {
+    _quickCaptureSyncTimer?.cancel();
+    _quickCaptureSyncTimer = null;
   }
 
   void _flushLocalStateForBackground() {
@@ -1490,8 +1513,10 @@ class _EditorScreenState extends State<EditorScreen>
     final throttleRemaining = sinceLastSave >= _saveThrottle
         ? Duration.zero
         : _saveThrottle - sinceLastSave;
+    final baseDebounce =
+        _performanceMode ? const Duration(milliseconds: 950) : _saveDebounce;
     final delay =
-        throttleRemaining > _saveDebounce ? throttleRemaining : _saveDebounce;
+        throttleRemaining > baseDebounce ? throttleRemaining : baseDebounce;
     _saveT = Timer(delay, () {
       unawaited(_saveLocalNow());
     });
@@ -1741,23 +1766,31 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsEditorDefaultsKey);
-      if (raw == null || raw.trim().isEmpty) return;
-      final decoded = jsonDecode(raw);
+      final legacyPerformance = prefs.getBool(_kPrefPerformanceMode);
+      final iosWebDefault = _isIosWeb;
+      final decoded = (raw == null || raw.trim().isEmpty)
+          ? const <String, dynamic>{}
+          : jsonDecode(raw);
       if (decoded is! Map) return;
       final nextDate = (decoded['defaultDateTodayEnabled'] as bool?) ?? true;
       final nextStatus = (decoded['defaultStatusOkEnabled'] as bool?) ?? true;
       final nextAutoIncrement =
           (decoded['autoIncrementIdEnabled'] as bool?) ?? false;
+      final nextPerformance = (decoded['performanceMode'] as bool?) ??
+          legacyPerformance ??
+          iosWebDefault;
       if (!mounted) {
         _defaultDateTodayEnabled = nextDate;
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
+        _performanceMode = nextPerformance;
         return;
       }
       setState(() {
         _defaultDateTodayEnabled = nextDate;
         _defaultStatusOkEnabled = nextStatus;
         _autoIncrementIdEnabled = nextAutoIncrement;
+        _performanceMode = nextPerformance;
       });
     } catch (_) {}
   }
@@ -1771,8 +1804,10 @@ class _EditorScreenState extends State<EditorScreen>
           'defaultDateTodayEnabled': _defaultDateTodayEnabled,
           'defaultStatusOkEnabled': _defaultStatusOkEnabled,
           'autoIncrementIdEnabled': _autoIncrementIdEnabled,
+          'performanceMode': _performanceMode,
         }),
       );
+      await prefs.setBool(_kPrefPerformanceMode, _performanceMode);
     } catch (_) {}
   }
 
@@ -3225,7 +3260,10 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     _validationDebounceT?.cancel();
-    _validationDebounceT = Timer(_validationDebounce, _recomputeValidation);
+    final validationDelay = _performanceMode
+        ? const Duration(milliseconds: 420)
+        : _validationDebounce;
+    _validationDebounceT = Timer(validationDelay, _recomputeValidation);
   }
 
   _ColType _inferColTypeFromHeader(String header) {
@@ -3801,6 +3839,7 @@ class _EditorScreenState extends State<EditorScreen>
       } else if (cellRef != null) {
         _setDraftCell(cellRef.r, cellRef.c, v);
       }
+      _scheduleOverlayValidationHint();
     };
     _cellEC.addListener(_cellDraftListener!);
   }
@@ -3810,6 +3849,22 @@ class _EditorScreenState extends State<EditorScreen>
     if (listener == null) return;
     _cellEC.removeListener(listener);
     _cellDraftListener = null;
+    _overlayValidationDebounceT?.cancel();
+    _overlayValidationHint.value = null;
+  }
+
+  void _scheduleOverlayValidationHint() {
+    final row = _overlayTargetCell?.r;
+    final col = _overlayTargetCell?.c;
+    if (row == null || col == null) {
+      _overlayValidationHint.value = null;
+      return;
+    }
+    _overlayValidationDebounceT?.cancel();
+    _overlayValidationDebounceT = Timer(_overlayValidationDebounce, () {
+      _overlayValidationHint.value =
+          _validationMessageForCell(row, col, overrideValue: _cellEC.text);
+    });
   }
 
   void _attachMobileDraftListener() {
@@ -7091,6 +7146,8 @@ class _EditorScreenState extends State<EditorScreen>
                                                             c, displayColumns)),
                                                 rowVersionListenable:
                                                     _rowVersionListenable,
+                                                performanceMode:
+                                                    _performanceMode,
                                               );
                                             },
                                           ),
@@ -7307,6 +7364,7 @@ class _EditorScreenState extends State<EditorScreen>
                         onOverflow: _openMobileOverflowSheet,
                         onCancel: _cancelMobileEdit,
                         onDone: _commitMobileEdit,
+                        performanceMode: _performanceMode,
                       ),
                     if (_longOperation != null)
                       Positioned.fill(
@@ -8947,6 +9005,7 @@ class _EditorScreenState extends State<EditorScreen>
         TextSelection(baseOffset: 0, extentOffset: _cellEC.text.length);
     _attachCellDraftListener();
     _cellDraftListener?.call();
+    _scheduleOverlayValidationHint();
 
     final metrics = _gridMetricsFor(_gridDensity);
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
@@ -9117,14 +9176,9 @@ class _EditorScreenState extends State<EditorScreen>
                               ],
                             ),
                             if (activeRow != null && activeCol != null)
-                              ValueListenableBuilder<TextEditingValue>(
-                                valueListenable: _cellEC,
-                                builder: (context, value, _) {
-                                  final message = _validationMessageForCell(
-                                    activeRow,
-                                    activeCol,
-                                    overrideValue: value.text,
-                                  );
+                              ValueListenableBuilder<String?>(
+                                valueListenable: _overlayValidationHint,
+                                builder: (context, message, _) {
                                   if (message == null) {
                                     return const SizedBox(height: 4);
                                   }
@@ -11653,6 +11707,7 @@ class _EditorScreenState extends State<EditorScreen>
       _cellMetaAt(r, c)?.audios ?? const <AudioAttachment>[];
 
   String _cellPhotoThumb(int r, int c) {
+    if (_performanceMode) return '';
     final meta = _cellMetaAt(r, c);
     if (meta == null || meta.photos.isEmpty) return '';
     return meta.photos.last.thumbRef;
