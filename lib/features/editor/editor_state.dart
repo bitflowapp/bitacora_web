@@ -43,6 +43,7 @@ const String _kPrefFlowBotLocalModelPath =
     'bitflow.editor.flowbot.local_model_path.v1';
 const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
+const String _kPrefZenMode = 'bitflow.editor.zen_mode.v1';
 const String _kPrefMobileFocusCellMode =
     'bitflow.editor.mobile_focus_cell_mode.v1';
 
@@ -436,6 +437,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _autoIncrementIdEnabled = false;
   bool _cellInlinePreviewsEnabled = true;
   bool _mobileCompactModeEnabled = true;
+  bool _zenModeEnabled = false;
   bool _mobileFocusCellModeEnabled = true;
   bool _flowBotUseLocalLlm = false;
   String _flowBotLocalModelPath = '';
@@ -726,6 +728,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _setMobileTopBarCollapsed(bool collapsed) {
+    if (_zenModeEnabled) return;
     if (!_mobileCompactModeEnabled && collapsed) return;
     if (_mobileTopBarCollapsed == collapsed) return;
     if (!mounted) {
@@ -736,6 +739,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _handleMobileGridScrollDirection(ScrollDirection direction) {
+    if (_zenModeEnabled) return;
     if (!_mobileCompactModeEnabled) return;
     if (_mobileEditorOpen) return;
     if (direction == ScrollDirection.idle) return;
@@ -747,6 +751,22 @@ class _EditorScreenState extends State<EditorScreen>
       _setMobileTopBarCollapsed(false);
     }
   }
+
+  Future<void> _setZenMode(bool enabled) async {
+    if (_zenModeEnabled == enabled) return;
+    if (mounted) {
+      setState(() {
+        _zenModeEnabled = enabled;
+        _mobileTopBarCollapsed = enabled;
+      });
+    } else {
+      _zenModeEnabled = enabled;
+      _mobileTopBarCollapsed = enabled;
+    }
+    await _saveEditorDefaultsPrefs();
+  }
+
+  Future<void> _toggleZenMode() => _setZenMode(!_zenModeEnabled);
 
   Future<void> _initPerfHarness() async {
     try {
@@ -1884,6 +1904,8 @@ class _EditorScreenState extends State<EditorScreen>
       final nextMobileCompact = (decoded['mobileCompactModeEnabled']
               as bool?) ??
           (prefs.getBool(_kPrefMobileCompactMode) ?? _mobileCompactModeEnabled);
+      final nextZenMode = (decoded['zenModeEnabled'] as bool?) ??
+          (prefs.getBool(_kPrefZenMode) ?? _zenModeEnabled);
       final nextMobileFocusCellMode =
           (decoded['mobileFocusCellModeEnabled'] as bool?) ??
               (prefs.getBool(_kPrefMobileFocusCellMode) ??
@@ -1902,10 +1924,9 @@ class _EditorScreenState extends State<EditorScreen>
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
-        if (!nextMobileCompact) {
-          _mobileTopBarCollapsed = false;
-        }
+        _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
         return;
@@ -1916,10 +1937,9 @@ class _EditorScreenState extends State<EditorScreen>
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
-        if (!nextMobileCompact) {
-          _mobileTopBarCollapsed = false;
-        }
+        _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
       });
@@ -1937,12 +1957,14 @@ class _EditorScreenState extends State<EditorScreen>
           'autoIncrementIdEnabled': _autoIncrementIdEnabled,
           'cellInlinePreviewsEnabled': _cellInlinePreviewsEnabled,
           'mobileCompactModeEnabled': _mobileCompactModeEnabled,
+          'zenModeEnabled': _zenModeEnabled,
           'mobileFocusCellModeEnabled': _mobileFocusCellModeEnabled,
           'flowBotUseLocalLlm': _flowBotUseLocalLlm,
           'flowBotLocalModelPath': _flowBotLocalModelPath,
         }),
       );
       await prefs.setBool(_kPrefMobileCompactMode, _mobileCompactModeEnabled);
+      await prefs.setBool(_kPrefZenMode, _zenModeEnabled);
       await prefs.setBool(
           _kPrefMobileFocusCellMode, _mobileFocusCellModeEnabled);
       await prefs.setBool(_kPrefFlowBotUseLocalLlm, _flowBotUseLocalLlm);
@@ -1959,6 +1981,7 @@ class _EditorScreenState extends State<EditorScreen>
     bool? autoIncrementIdEnabled,
     bool? cellInlinePreviewsEnabled,
     bool? mobileCompactModeEnabled,
+    bool? zenModeEnabled,
     bool? mobileFocusCellModeEnabled,
     bool? flowBotUseLocalLlm,
     String? flowBotLocalModelPath,
@@ -1970,6 +1993,7 @@ class _EditorScreenState extends State<EditorScreen>
         cellInlinePreviewsEnabled ?? _cellInlinePreviewsEnabled;
     final nextMobileCompact =
         mobileCompactModeEnabled ?? _mobileCompactModeEnabled;
+    final nextZenMode = zenModeEnabled ?? _zenModeEnabled;
     final nextMobileFocusCellMode =
         mobileFocusCellModeEnabled ?? _mobileFocusCellModeEnabled;
     final nextFlowBotUseLocalLlm = flowBotUseLocalLlm ?? _flowBotUseLocalLlm;
@@ -1980,6 +2004,7 @@ class _EditorScreenState extends State<EditorScreen>
         nextAutoIncrement == _autoIncrementIdEnabled &&
         nextInlinePreviews == _cellInlinePreviewsEnabled &&
         nextMobileCompact == _mobileCompactModeEnabled &&
+        nextZenMode == _zenModeEnabled &&
         nextMobileFocusCellMode == _mobileFocusCellModeEnabled &&
         nextFlowBotUseLocalLlm == _flowBotUseLocalLlm &&
         nextFlowBotLocalModelPath == _flowBotLocalModelPath) {
@@ -1992,10 +2017,9 @@ class _EditorScreenState extends State<EditorScreen>
         _autoIncrementIdEnabled = nextAutoIncrement;
         _cellInlinePreviewsEnabled = nextInlinePreviews;
         _mobileCompactModeEnabled = nextMobileCompact;
+        _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
-        if (!nextMobileCompact) {
-          _mobileTopBarCollapsed = false;
-        }
+        _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
       });
@@ -2006,10 +2030,9 @@ class _EditorScreenState extends State<EditorScreen>
       _autoIncrementIdEnabled = nextAutoIncrement;
       _cellInlinePreviewsEnabled = nextInlinePreviews;
       _mobileCompactModeEnabled = nextMobileCompact;
+      _zenModeEnabled = nextZenMode;
       _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
-      if (!nextMobileCompact) {
-        _mobileTopBarCollapsed = false;
-      }
+      _mobileTopBarCollapsed = nextZenMode;
       _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
       _flowBotLocalModelPath = nextFlowBotLocalModelPath;
     }
@@ -7936,114 +7959,127 @@ class _EditorScreenState extends State<EditorScreen>
                       child: Column(
                         children: [
                           if (isDesktop)
-                            RepaintBoundary(
-                              child: _PremiumAppleHeader(
-                                palette: pal,
-                                titleController: _nameEC,
-                                titleFocus: _nameFocus,
-                                controller: _controller,
-                                onTitleChanged: _onTitleChangedDebounced,
-                                onToggleTheme: _toggleTheme,
-                                onUndo: _undoOnce,
-                                onRedo: _redoOnce,
-                                onAddRow: () => _insertRow(_rows.length),
-                                onQuickCapture: () =>
-                                    unawaited(_startQuickCaptureFlow()),
-                                onForm: () => unawaited(
-                                  _openRowFormMode(
-                                    rowIndex: _selRow,
-                                    createNew: false,
-                                  ),
-                                ),
-                                onSearch: () => unawaited(_openSearchDialog()),
-                                onSearchEverywhere: () =>
-                                    unawaited(_openSearchEverywhereDialog()),
-                                onJumpTo: () => unawaited(_openJumpToDialog()),
-                                onColumns: () => unawaited(_openColumnPanel()),
-                                onHistory: () => unawaited(_openHistoryPanel()),
-                                onSaveView: () =>
-                                    unawaited(_openSaveViewDialog()),
-                                onSelectView: (viewId) =>
-                                    unawaited(_applySavedView(viewId)),
-                                onManageViews: () =>
-                                    unawaited(_openSavedViewsManager()),
-                                onMarkReviewed: () =>
-                                    unawaited(_markSelectedRowsReviewed()),
-                                onTogglePendingReviewView:
-                                    _togglePendingReviewView,
-                                onSave: () =>
-                                    unawaited(_saveNowFromUserAction()),
-                                onExport: () => unawaited(_openExportMenu()),
-                                onSmokeTest: () =>
-                                    unawaited(_runAttachmentSmokeTest()),
-                                onCompute: _engineBusy
-                                    ? null
-                                    : () => unawaited(_computeEngine()),
-                                onBatch: () =>
-                                    unawaited(_openBatchActionsSheet()),
-                                onGps: () => unawaited(
-                                  _requestGpsForCell(
-                                    _selRow,
-                                    _selCol,
-                                    forceWriteText: true,
-                                  ),
-                                ),
-                                onPhoto: () => unawaited(
-                                  _startPhotoFlowForCell(_selRow, _selCol),
-                                ),
-                                onVideo: () => unawaited(
-                                  _attachVideoForCell(_selRow, _selCol),
-                                ),
-                                onAudio: () {
-                                  if (_audioRecording) {
-                                    unawaited(_stopAudioRecording());
-                                  } else {
-                                    unawaited(
-                                      _startAudioRecordingForCell(
-                                        _selRow,
-                                        _selCol,
+                            (_zenModeEnabled
+                                ? const SizedBox.shrink()
+                                : RepaintBoundary(
+                                    child: _PremiumAppleHeader(
+                                      palette: pal,
+                                      titleController: _nameEC,
+                                      titleFocus: _nameFocus,
+                                      controller: _controller,
+                                      onTitleChanged: _onTitleChangedDebounced,
+                                      onToggleTheme: _toggleTheme,
+                                      onUndo: _undoOnce,
+                                      onRedo: _redoOnce,
+                                      onAddRow: () => _insertRow(_rows.length),
+                                      onQuickCapture: () =>
+                                          unawaited(_startQuickCaptureFlow()),
+                                      onForm: () => unawaited(
+                                        _openRowFormMode(
+                                          rowIndex: _selRow,
+                                          createNew: false,
+                                        ),
                                       ),
-                                    );
-                                  }
-                                },
-                                onFile: () => unawaited(
-                                  _attachDocumentForCell(_selRow, _selCol),
-                                ),
-                                onAttachments: () => unawaited(
-                                  _openAttachmentPanelForCell(_selRow, _selCol),
-                                ),
-                                onShare: () =>
-                                    unawaited(_exportZipBundle(share: true)),
-                                onCollaborate: () =>
-                                    unawaited(_openCollaborateFlowDialog()),
-                                onPalette: () =>
-                                    unawaited(_openCommandPalette()),
-                                onGpsMode: () =>
-                                    unawaited(_showGpsModePicker()),
-                                onDensity: () =>
-                                    unawaited(_showDensityPicker()),
-                                onOpenOfflineQueue: _openOfflineQueueDialog,
-                                lastLocalSavedAt: _lastSavedAt,
-                                sensorsEnabled: sensorsEnabled,
-                                selectedRow: _selRow,
-                                selectedCol: _selCol,
-                                selectedRowsCount: _selectedRows.length,
-                                pendingOfflineCount: _pendingOfflineCount,
-                                errorsCount: _invalidCells.length,
-                                savedViews: _savedViews,
-                                activeViewId: _activeSavedViewId,
-                                pendingReviewViewActive: _reviewFilterMode ==
-                                    _ReviewFilterMode.pending,
-                              ),
-                            )
+                                      onSearch: () =>
+                                          unawaited(_openSearchDialog()),
+                                      onSearchEverywhere: () => unawaited(
+                                          _openSearchEverywhereDialog()),
+                                      onJumpTo: () =>
+                                          unawaited(_openJumpToDialog()),
+                                      onColumns: () =>
+                                          unawaited(_openColumnPanel()),
+                                      onHistory: () =>
+                                          unawaited(_openHistoryPanel()),
+                                      onSaveView: () =>
+                                          unawaited(_openSaveViewDialog()),
+                                      onSelectView: (viewId) =>
+                                          unawaited(_applySavedView(viewId)),
+                                      onManageViews: () =>
+                                          unawaited(_openSavedViewsManager()),
+                                      onMarkReviewed: () => unawaited(
+                                          _markSelectedRowsReviewed()),
+                                      onTogglePendingReviewView:
+                                          _togglePendingReviewView,
+                                      onSave: () =>
+                                          unawaited(_saveNowFromUserAction()),
+                                      onExport: () =>
+                                          unawaited(_openExportMenu()),
+                                      onSmokeTest: () =>
+                                          unawaited(_runAttachmentSmokeTest()),
+                                      onCompute: _engineBusy
+                                          ? null
+                                          : () => unawaited(_computeEngine()),
+                                      onBatch: () =>
+                                          unawaited(_openBatchActionsSheet()),
+                                      onGps: () => unawaited(
+                                        _requestGpsForCell(
+                                          _selRow,
+                                          _selCol,
+                                          forceWriteText: true,
+                                        ),
+                                      ),
+                                      onPhoto: () => unawaited(
+                                        _startPhotoFlowForCell(
+                                            _selRow, _selCol),
+                                      ),
+                                      onVideo: () => unawaited(
+                                        _attachVideoForCell(_selRow, _selCol),
+                                      ),
+                                      onAudio: () {
+                                        if (_audioRecording) {
+                                          unawaited(_stopAudioRecording());
+                                        } else {
+                                          unawaited(
+                                            _startAudioRecordingForCell(
+                                              _selRow,
+                                              _selCol,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      onFile: () => unawaited(
+                                        _attachDocumentForCell(
+                                            _selRow, _selCol),
+                                      ),
+                                      onAttachments: () => unawaited(
+                                        _openAttachmentPanelForCell(
+                                            _selRow, _selCol),
+                                      ),
+                                      onShare: () => unawaited(
+                                          _exportZipBundle(share: true)),
+                                      onCollaborate: () => unawaited(
+                                          _openCollaborateFlowDialog()),
+                                      onPalette: () =>
+                                          unawaited(_openCommandPalette()),
+                                      onGpsMode: () =>
+                                          unawaited(_showGpsModePicker()),
+                                      onDensity: () =>
+                                          unawaited(_showDensityPicker()),
+                                      onOpenOfflineQueue:
+                                          _openOfflineQueueDialog,
+                                      lastLocalSavedAt: _lastSavedAt,
+                                      sensorsEnabled: sensorsEnabled,
+                                      selectedRow: _selRow,
+                                      selectedCol: _selCol,
+                                      selectedRowsCount: _selectedRows.length,
+                                      pendingOfflineCount: _pendingOfflineCount,
+                                      errorsCount: _invalidCells.length,
+                                      savedViews: _savedViews,
+                                      activeViewId: _activeSavedViewId,
+                                      pendingReviewViewActive:
+                                          _reviewFilterMode ==
+                                              _ReviewFilterMode.pending,
+                                    ),
+                                  ))
                           else
                             AnimatedCrossFade(
                               duration: AppMotion.quick,
                               firstCurve: AppMotion.standardOut,
                               secondCurve: AppMotion.standardIn,
                               sizeCurve: AppMotion.standardOut,
-                              crossFadeState: _mobileCompactModeEnabled &&
-                                      _mobileTopBarCollapsed
+                              crossFadeState: _zenModeEnabled ||
+                                      (_mobileCompactModeEnabled &&
+                                          _mobileTopBarCollapsed)
                                   ? CrossFadeState.showSecond
                                   : CrossFadeState.showFirst,
                               firstChild: RepaintBoundary(
@@ -8065,6 +8101,19 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                               secondChild: const SizedBox.shrink(),
+                            ),
+                          if (_zenModeEnabled)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _InlineMetaChip(
+                                  palette: pal,
+                                  icon: Icons.visibility_rounded,
+                                  label: 'Modo Zen activo · Mostrar barra',
+                                  onTap: () => unawaited(_setZenMode(false)),
+                                ),
+                              ),
                             ),
                           if (_isInAppBrowser)
                             _warningBanner(
@@ -14200,6 +14249,9 @@ class _EditorScreenState extends State<EditorScreen>
   bool get debugMobileCompactModeEnabled => _mobileCompactModeEnabled;
 
   @visibleForTesting
+  bool get debugZenModeEnabled => _zenModeEnabled;
+
+  @visibleForTesting
   int get debugMobileRowCacheSlots => _mobileRowScrolls.length;
 
   @visibleForTesting
@@ -14209,6 +14261,15 @@ class _EditorScreenState extends State<EditorScreen>
   @visibleForTesting
   void debugMaterializeMobileRowController(int row) {
     _mobileRowScrollAt(row);
+  }
+
+  @visibleForTesting
+  void debugSetZenMode(bool enabled) {
+    assert(() {
+      _zenModeEnabled = enabled;
+      _mobileTopBarCollapsed = enabled;
+      return true;
+    }());
   }
 
   @visibleForTesting

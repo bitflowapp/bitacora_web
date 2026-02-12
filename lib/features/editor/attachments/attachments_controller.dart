@@ -3325,6 +3325,18 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: _zenModeEnabled ? 'Modo Zen: ON' : 'Modo Zen: OFF',
+            icon: _zenModeEnabled
+                ? Icons.visibility_rounded
+                : Icons.visibility_off_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_toggleZenMode());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Deshacer',
             icon: Icons.undo_rounded,
             variant: AppButtonVariant.secondary,

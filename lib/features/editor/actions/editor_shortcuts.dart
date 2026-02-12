@@ -61,12 +61,13 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyZ) {
+      unawaited(_toggleZenMode());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyZ) {
-      if (isShift) {
-        _redoOnce();
-      } else {
-        _undoOnce();
-      }
+      _undoOnce();
       return KeyEventResult.handled;
     }
 

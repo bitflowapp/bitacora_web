@@ -9,6 +9,7 @@ extension _EditorDialogs on _EditorScreenState {
     var autoIncrement = _autoIncrementIdEnabled;
     var inlinePreviews = _cellInlinePreviewsEnabled;
     var mobileCompactMode = _mobileCompactModeEnabled;
+    var zenMode = _zenModeEnabled;
     var mobileFocusCellMode = _mobileFocusCellModeEnabled;
     var flowBotUseLocalLlm = _flowBotUseLocalLlm;
 
@@ -66,6 +67,15 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
               ),
               SwitchListTile(
+                value: zenMode,
+                onChanged: (value) => setModalState(() => zenMode = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Modo Zen'),
+                subtitle: const Text(
+                  'Oculta la barra superior hasta salir de Zen.',
+                ),
+              ),
+              SwitchListTile(
                 value: mobileFocusCellMode,
                 onChanged: (value) =>
                     setModalState(() => mobileFocusCellMode = value),
@@ -108,6 +118,7 @@ extension _EditorDialogs on _EditorScreenState {
                 autoIncrement: autoIncrement,
                 inlinePreviews: inlinePreviews,
                 mobileCompactMode: mobileCompactMode,
+                zenMode: zenMode,
                 mobileFocusCellMode: mobileFocusCellMode,
                 flowBotUseLocalLlm: flowBotUseLocalLlm,
               ),
@@ -125,6 +136,7 @@ extension _EditorDialogs on _EditorScreenState {
       autoIncrementIdEnabled: result.autoIncrement,
       cellInlinePreviewsEnabled: result.inlinePreviews,
       mobileCompactModeEnabled: result.mobileCompactMode,
+      zenModeEnabled: result.zenMode,
       mobileFocusCellModeEnabled: result.mobileFocusCellMode,
       flowBotUseLocalLlm: result.flowBotUseLocalLlm,
     );
@@ -156,6 +168,7 @@ extension _EditorDialogs on _EditorScreenState {
           _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Jump to fila/ID'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Z', label: 'Deshacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Y', label: 'Rehacer'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+Z', label: 'Toggle modo Zen'),
           SizedBox(height: 10),
           Text(
             'Productividad',
@@ -341,6 +354,7 @@ class _EditorDefaultsConfig {
     required this.autoIncrement,
     required this.inlinePreviews,
     required this.mobileCompactMode,
+    required this.zenMode,
     required this.mobileFocusCellMode,
     required this.flowBotUseLocalLlm,
   });
@@ -350,6 +364,7 @@ class _EditorDefaultsConfig {
   final bool autoIncrement;
   final bool inlinePreviews;
   final bool mobileCompactMode;
+  final bool zenMode;
   final bool mobileFocusCellMode;
   final bool flowBotUseLocalLlm;
 }

@@ -243,6 +243,16 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_showDensityPicker()),
         ),
         CommandAction(
+          id: 'toggle_zen',
+          label: _zenModeEnabled ? 'Salir modo Zen' : 'Activar modo Zen',
+          subtitle: 'Oculta o restaura la barra superior',
+          shortcut: 'Ctrl/Cmd+Shift+Z',
+          icon: _zenModeEnabled
+              ? Icons.visibility_rounded
+              : Icons.visibility_off_rounded,
+          onSelected: () => unawaited(_toggleZenMode()),
+        ),
+        CommandAction(
           id: 'editor_defaults',
           label: 'Preferencias de editor',
           icon: Icons.tune_rounded,
