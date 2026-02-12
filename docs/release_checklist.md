@@ -451,3 +451,23 @@ Publicar release Android (1 comando):
 3. Terms (`Terminos`)
 4. Diagnostics (`Diagnostico / Soporte`)
 5. Licenses (`Licencias`)
+
+## 3.7) P15-B smoke test (mobile freeze + CPU)
+1. Instrumentacion de apertura (debug/profile):
+- Ejecutar con `--dart-define=BITFLOW_PERF_INSTRUMENTATION=true`.
+- Abrir una planilla en Android Chrome y iOS Safari/WebView.
+- Verificar log agrupado `[editor_perf] open_sheet_timeline ...` con hitos:
+  - `open_sheet`
+  - `load_start` / `load_read_prefs`
+  - `hydrate_start` / `hydrate_end`
+  - `grid_deferred_placeholder` / `grid_mount`
+  - `first_frame`
+2. Fluidez y temperatura:
+- Abrir planilla grande (>=120 filas o >=80 adjuntos).
+- Confirmar que aparece banner discreto `Modo rendimiento activo`.
+- Escribir en celdas y hacer scroll continuo 20-30s.
+- Validar sin freeze al entrar, typing fluido y sin picos de CPU perceptibles.
+3. Toggle manual de performance:
+- En mobile editor abierto, `Overflow (...)` -> `Modo rendimiento`.
+- Activar/desactivar y comprobar impacto inmediato en previews inline.
+- Dejar en modo `Auto` al finalizar validacion.

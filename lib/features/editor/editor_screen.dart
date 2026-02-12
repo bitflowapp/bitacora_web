@@ -1,8 +1,10 @@
 // lib/features/editor/editor_screen.dart
 import 'dart:async' hide unawaited;
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:archive/archive.dart';

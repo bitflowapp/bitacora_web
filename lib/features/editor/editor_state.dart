@@ -11,6 +11,8 @@ const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
 const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
 const bool _kDebugGridBuildCounter =
     bool.fromEnvironment('BITFLOW_DEBUG_GRID_REBUILDS', defaultValue: false);
+const bool _kPerfInstrumentation =
+    bool.fromEnvironment('BITFLOW_PERF_INSTRUMENTATION', defaultValue: kDebugMode);
 
 // ??? Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
 const bool _kPersistPhotoThumbs = true;
@@ -246,6 +248,14 @@ class _EditorScreenState extends State<EditorScreen>
       <String, ValueNotifier<int>>{};
   int _debugGridBuilds = 0;
   DateTime _debugGridBuildsWindowStart = DateTime.now();
+  final Stopwatch _openPerfWatch = Stopwatch();
+  final Map<String, int> _openPerfMarksMs = <String, int>{};
+  bool _mobileGridDeferredMount = false;
+  bool _mobileGridFirstFrameLogged = false;
+  bool _performanceModeAuto = false;
+  bool _performanceModeManual = false;
+  final LinkedHashMap<String, Uint8List?> _thumbDecodeCache =
+      LinkedHashMap<String, Uint8List?>();
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -455,6 +465,11 @@ class _EditorScreenState extends State<EditorScreen>
 
     _isInAppBrowser = kIsWeb && WebCapabilities.isInAppBrowser;
     _isSecureContext = !kIsWeb || WebCapabilities.isSecureContext;
+    _openPerfWatch
+      ..reset()
+      ..start();
+    _markOpenPerf('open_sheet');
+    _mobileGridDeferredMount = _isMobilePlatform;
     unawaited(_loadStorageStatus());
 
     if (_isInAppBrowser) {
@@ -506,6 +521,13 @@ class _EditorScreenState extends State<EditorScreen>
       (_) => unawaited(_tickQuickCaptureSync(fromTimer: true)),
     );
     unawaited(_loadQuickCaptureQueue());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markOpenPerf('first_frame');
+      if (_mobileGridDeferredMount && mounted) {
+        setState(() => _mobileGridDeferredMount = false);
+      }
+    });
 
     _pushUndoSnapshot(); // estado inicial
     _smokeRequested = _isSmokeRequested();
@@ -1093,9 +1115,11 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _loadLocal() async {
+    _markOpenPerf('load_start');
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentRaw = prefs.getString(_prefsKey);
+      _markOpenPerf('load_read_prefs');
       final stagingRaw = prefs.getString(_prefsKeyStaging);
       _setRecoveryStagingCandidate(stagingRaw);
 
@@ -1104,6 +1128,7 @@ class _EditorScreenState extends State<EditorScreen>
         raw: currentRaw,
         source: 'prefs_current',
       )) {
+        _markOpenPerf('load_restored_current');
         return;
       }
 
@@ -1191,6 +1216,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _applyLoadedModel(_SheetModel loaded) {
     if (!mounted) return;
+    _markOpenPerf('hydrate_start');
 
     final loadedHeaders = _normalizeHeaders(loaded.headers);
     final colIds = _normalizeColIds(loadedHeaders, loaded.colIds);
@@ -1267,6 +1293,11 @@ class _EditorScreenState extends State<EditorScreen>
       ..add(_snapshot());
     _redo.clear();
     _seedRecentValuesFromRows();
+    _mobileGridFirstFrameLogged = false;
+    _thumbDecodeCache.clear();
+    _recomputePerformanceMode();
+    _markOpenPerf('hydrate_end');
+    _flushOpenPerfIfReady();
   }
 
   void _seedRecentValuesFromRows() {
@@ -3592,6 +3623,55 @@ class _EditorScreenState extends State<EditorScreen>
     _debugGridBuildsWindowStart = now;
   }
 
+  bool get _isMobilePlatform =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.android;
+
+  bool get _performanceModeEnabled =>
+      _performanceModeManual || _performanceModeAuto;
+
+  void _markOpenPerf(String stage) {
+    if (!_kPerfInstrumentation) return;
+    if (!_openPerfWatch.isRunning) return;
+    _openPerfMarksMs[stage] = _openPerfWatch.elapsedMilliseconds;
+  }
+
+  void _flushOpenPerfIfReady() {
+    if (!_kPerfInstrumentation || _openPerfMarksMs.isEmpty) return;
+    final marks = _openPerfMarksMs.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final timeline = marks.map((e) => '${e.key}:${e.value}ms').join(' | ');
+    debugPrint('[editor_perf] open_sheet_timeline $timeline');
+  }
+
+  void _recomputePerformanceMode() {
+    final attachmentCount = _cellMeta.values.fold<int>(
+      0,
+      (sum, meta) => sum + meta.photos.length + meta.audios.length,
+    );
+    final shouldAuto =
+        _isMobilePlatform && (_rows.length >= 120 || attachmentCount >= 80);
+    if (shouldAuto == _performanceModeAuto) return;
+    if (!mounted) {
+      _performanceModeAuto = shouldAuto;
+      return;
+    }
+    setState(() => _performanceModeAuto = shouldAuto);
+  }
+
+  Uint8List? _decodeThumbBytesCached(String b64) {
+    if (b64.trim().isEmpty) return null;
+    final cached = _thumbDecodeCache[b64];
+    if (cached != null || _thumbDecodeCache.containsKey(b64)) return cached;
+    final decoded = _tryDecodeB64(b64);
+    _thumbDecodeCache[b64] = decoded;
+    const maxEntries = 256;
+    if (_thumbDecodeCache.length > maxEntries) {
+      _thumbDecodeCache.remove(_thumbDecodeCache.keys.first);
+    }
+    return decoded;
+  }
+
   String _effectiveHeader(int c) {
     if (c < 0 || c >= _headers.length) return '';
     return _draftHeaders[c] ?? _headers[c];
@@ -5013,6 +5093,8 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       _cellMeta[ref.key] = meta;
     }
+    _thumbDecodeCache.clear();
+    _recomputePerformanceMode();
     if (markDirty) {
       _markDirty(snapshot: true);
     } else {
@@ -7091,6 +7173,10 @@ class _EditorScreenState extends State<EditorScreen>
                                                             c, displayColumns)),
                                                 rowVersionListenable:
                                                     _rowVersionListenable,
+                                                decodeThumbBytes:
+                                                    _decodeThumbBytesCached,
+                                                showInlinePhotoPreview:
+                                                    !_performanceModeEnabled,
                                               );
                                             },
                                           ),
@@ -7106,6 +7192,19 @@ class _EditorScreenState extends State<EditorScreen>
                                         final cardW = _mobileCardWidthForScreen(
                                             MediaQuery.of(ctx).size.width);
                                         _trackGridHostBuild('mobile');
+                                        if (_mobileGridDeferredMount) {
+                                          _markOpenPerf(
+                                              'grid_deferred_placeholder');
+                                          return const Center(
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2),
+                                          );
+                                        }
+                                        if (!_mobileGridFirstFrameLogged) {
+                                          _mobileGridFirstFrameLogged = true;
+                                          _markOpenPerf('grid_mount');
+                                          _flushOpenPerfIfReady();
+                                        }
                                         return _MobileNotesGrid(
                                           palette: pal,
                                           density: _gridDensity,
@@ -7229,6 +7328,10 @@ class _EditorScreenState extends State<EditorScreen>
                                                       r, visibleRows),
                                                   _actualColumnFromDisplay(
                                                       c, displayColumns)),
+                                          decodeThumbBytes:
+                                              _decodeThumbBytesCached,
+                                          showInlinePhotoPreview:
+                                              !_performanceModeEnabled,
                                         );
                                       },
                                     ),
@@ -7237,6 +7340,40 @@ class _EditorScreenState extends State<EditorScreen>
                         ],
                       ),
                     ),
+
+                    if (!isDesktop && _performanceModeEnabled)
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 84 + bottomSafe,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: pal.menuBg.withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: pal.gridBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.speed_rounded, size: 16),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Modo rendimiento activo',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    setState(() => _performanceModeManual = false),
+                                child: const Text('Auto'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
 
                     if (!isDesktop && !_mobileEditorOpen)
                       Positioned(
@@ -8508,6 +8645,16 @@ class _EditorScreenState extends State<EditorScreen>
                     unawaited(_showGpsModePicker());
                   },
                 ),
+              SwitchListTile.adaptive(
+                value: _performanceModeEnabled,
+                title: const Text('Modo rendimiento'),
+                subtitle: Text(_performanceModeAuto
+                    ? 'Activo automaticamente por tamano de planilla.'
+                    : 'Reduce previews inline y carga visual.'),
+                onChanged: (value) {
+                  setState(() => _performanceModeManual = value);
+                },
+              ),
               if (actions.isNotEmpty) const Divider(height: 1),
               for (final a in actions)
                 ListTile(
