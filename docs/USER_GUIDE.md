@@ -149,3 +149,24 @@
 - Motion iOS-style:
   - micro-animaciones cortas (120-180ms) en barras/acciones del editor.
   - comportamiento visual monocromo consistente (sin acentos azules).
+
+## 13) P17 - Editor premium sin freezes
+- FlowBot (sin API key):
+  - Voz: usa reconocimiento nativo disponible (web/app) y fallback manual por texto.
+  - Flujo recomendado: escribir o dictar -> `Analizar` -> revisar chips -> `Aplicar`.
+  - Comandos de confirmacion aceptados: `aceptar`, `aplicar`, `ok`, `listo`, `confirmar`.
+- Modo Zen / Compacto:
+  - `Modo compacto` (mobile): oculta/recupera barra superior por direccion de scroll.
+  - `Modo Zen`: oculta barra superior hasta salir explicitamente.
+  - Salida de Zen: chip `Modo Zen activo · Mostrar barra`, menu de acciones o `Ctrl/Cmd+Shift+Z`.
+- Texto en grilla:
+  - Wrap por columna estable (1/2/3 lineas).
+  - Alineacion por columna: izquierda, centro o derecha.
+  - Shortcut rapido: `Ctrl/Cmd+Shift+E` centra la columna activa.
+- Adjuntos inline (sin abrir detalle):
+  - Fotos/documentos muestran thumbnail en la celda.
+  - Si hay multiples adjuntos, se muestra badge `+N`.
+  - La generacion de thumbnails es no bloqueante para evitar congelamientos en mobile.
+- Performance operativa:
+  - Si trabajas con planillas muy grandes, mantener `Previews en celdas` activado solo cuando sea necesario.
+  - Para diagnostico, abrir `?perf=1` y validar frame pacing + cache de thumbnails.

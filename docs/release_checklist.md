@@ -517,3 +517,23 @@ Publicar release Android (1 comando):
   - `thumb_cache_hits`
   - `thumb_cache_misses`
   - `thumb_cache_evictions`
+
+## 3.16) P17 smoke test (editor no-jank + flowbot + attachments + zen)
+1. Abrir planilla en iPhone/movil:
+- Entrar a una planilla con varias filas y confirmar que no hay freeze al abrir.
+- Revisar temperatura/uso: no debe aparecer bloqueo sostenido al primer render.
+2. Escribir en celda durante 30s:
+- Editar continuo en una celda y luego alternar entre celdas.
+- Confirmar typing fluido, sin perdida de caracteres ni frames largos sostenidos.
+3. FlowBot `Analizar -> Aplicar`:
+- Abrir FlowBot, escribir comando (`poner OK en A1`), tocar `Analizar`.
+- Verificar que `Aplicar` queda habilitado cuando hay acciones.
+- Tocar `Aplicar` y confirmar cambio visible en celda + cierre/reset del panel.
+4. Adjuntar foto/documento:
+- Adjuntar imagen desde camara/galeria.
+- Confirmar que no se congela durante captura/adjunto.
+- Verificar thumbnail inline en la celda sin entrar a detalle.
+5. Modo Zen / compacto:
+- Alternar `Modo Zen` desde menu o `Ctrl/Cmd+Shift+Z`.
+- En mobile con compacto activo, validar auto-hide al scroll down y reveal al scroll up.
+- Confirmar que siempre existe salida clara de Zen (`Mostrar barra`).

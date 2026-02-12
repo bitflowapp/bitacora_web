@@ -389,3 +389,40 @@ BitFlow editor must stay fast, predictable, offline-first, and premium in UI/UX 
 - `flutter test`
 - `flutter build web --release --base-href "/bitacora_web/"`
 - `flutter build apk --release`
+
+## Perf Rules of the Grid (P17)
+- No global rebuild on keypress:
+  - typing en celda debe vivir en estado local del editor inline y confirmar en commit.
+  - evitar `setState` del arbol completo por cada caracter.
+- Row cache lazy en mobile:
+  - `ScrollController`/`GlobalKey` por fila se materializan bajo demanda.
+  - nunca preconstruir controladores para miles de filas.
+- Repaint isolation:
+  - mantener `RepaintBoundary` en capas de header/grid y overlays para reducir repaints cruzados.
+- Trabajo pesado fuera del frame:
+  - parseo/normalizacion/cargas pesadas deben usar async chunking o isolate (`compute`) cuando aplique.
+  - en input, validaciones costosas van con throttle/debounce o al commit.
+- Scroll guardrails:
+  - listeners de scroll solo cambian estado cuando hay transicion real (evitar toggles redundantes).
+  - en Zen mode, no forzar relayout de barra por eventos de scroll.
+
+## Attachments Pipeline (P17)
+- Flujo:
+  1. Captura/seleccion de archivo.
+  2. Persistencia de metadata/binario.
+  3. Generacion async de thumbnail inline (nunca bloquear UI thread).
+  4. Render inline con cache LRU de decode.
+- Reglas:
+  - no decodificar full-res para celdas de grilla.
+  - usar placeholders/skeleton mientras el thumb se procesa.
+  - fallback robusto para PDF/docs cuando no hay preview bitmap.
+
+## FlowBot Skills Pipeline (P17)
+- Arquitectura desacoplada:
+  - `FlowBotCommand` (texto/voz) -> parser deterministico offline -> `FlowBotAction` -> apply sobre editor.
+- Entrada de voz sin claves:
+  - web/app usa reconocimiento nativo cuando existe.
+  - fallback UX: input manual + analisis local.
+- Aplicacion de acciones:
+  - `Aplicar` habilitado solo con acciones validas o preview listo.
+  - si no se puede aplicar, se muestra razon explicita (sin boton muerto).
