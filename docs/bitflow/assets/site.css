@@ -44,7 +44,7 @@ a {
 .shell {
   width: min(1120px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 1rem 0 4rem;
+  padding: 1rem 0 5.5rem;
 }
 
 .topbar {
@@ -174,6 +174,22 @@ h3 {
   margin-top: 1.2rem;
 }
 
+.badge-row {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.3rem 0.58rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.82);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -223,6 +239,34 @@ h3 {
 
 .hero-panel h2 {
   margin-bottom: 0.8rem;
+}
+
+.install-card {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.9rem;
+}
+
+.install-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+
+.install-copy {
+  margin: 0.45rem 0 0;
+  color: var(--ink-soft);
+}
+
+.install-tip {
+  margin: 0.6rem 0 0;
+  font-size: 0.84rem;
+  color: var(--ink-soft);
 }
 
 .check-list {
@@ -285,6 +329,35 @@ h3 {
   display: grid;
   gap: 0.75rem;
   grid-template-columns: 1fr;
+}
+
+.compare-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+.compare-col {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.compare-col.best {
+  border-color: #111111;
+  box-shadow: 0 14px 32px rgba(17, 17, 17, 0.08);
+}
+
+.compare-col ul {
+  margin: 0.68rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--ink-soft);
+}
+
+.compare-col li + li {
+  margin-top: 0.4rem;
 }
 
 .onboarding {
@@ -354,6 +427,25 @@ h3 {
   background: #ffffff;
 }
 
+.floating-cta {
+  position: fixed;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.58rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid #111111;
+  background: #111111;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow: 0 12px 24px rgba(17, 17, 17, 0.2);
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(14px);
@@ -362,6 +454,10 @@ h3 {
 
 .delay-1 {
   animation-delay: 0.12s;
+}
+
+.install-pulse {
+  animation: installPulse 2s ease-in-out infinite;
 }
 
 @keyframes rise {
@@ -376,12 +472,26 @@ h3 {
   }
 }
 
+@keyframes installPulse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
 @media (min-width: 720px) {
   .shell {
     width: min(1120px, calc(100% - 2.5rem));
   }
 
   .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .compare-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -411,6 +521,11 @@ h3 {
 
   .nav-links {
     justify-content: flex-start;
+  }
+
+  .floating-cta {
+    left: 0.85rem;
+    right: 0.85rem;
   }
 }
 

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
+  <a class="floating-cta" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Probar ahora</a>
   <main class="shell">
     <nav class="topbar" aria-label="Navegacion principal">
       <a class="brand" href="#top" aria-label="Ir al inicio de BitFlow">
@@ -20,8 +21,10 @@
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
+        <a href="#for-who">Para quien es</a>
+        <a href="#cases">Casos reales</a>
+        <a href="#compare">Comparativa</a>
         <a href="#start">Como empezar</a>
-        <a href="#support">Soporte</a>
       </div>
     </nav>
 
@@ -33,13 +36,24 @@
           BitFlow prioriza velocidad y foco: interfaz limpia tipo Apple, performance mobile-first y cero
           dependencias online para usar el flujo base en campo.
         </p>
+        <div class="badge-row">
+          <span class="badge">Offline</span>
+          <span class="badge">Sin login</span>
+          <span class="badge">Sin nube obligatoria</span>
+        </div>
         <div class="cta-row">
           <a class="btn btn-primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
           <a class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK Android</a>
         </div>
-        <p class="url-row">
-          Web: <span class="mono">https://marcoluna-nqn.github.io/bitacora_web/</span>
-        </p>
+        <div id="install-smart" class="install-card" aria-live="polite">
+          <p class="install-title">Instalacion recomendada</p>
+          <p id="install-copy" class="install-copy">Detectando dispositivo...</p>
+          <div class="cta-row">
+            <button id="install-pwa-btn" type="button" class="btn btn-primary install-pulse">Instalar BitFlow</button>
+            <a id="install-apk-btn" class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK Android</a>
+          </div>
+          <p id="ios-install-tip" class="install-tip">En iPhone: Safari > Compartir > Agregar a pantalla de inicio.</p>
+        </div>
       </div>
       <aside class="hero-panel reveal delay-1" aria-label="Resumen de valor">
         <h2>Listo para operar</h2>
@@ -81,27 +95,53 @@
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" id="for-who">
+      <div class="section-head">
+        <p class="eyebrow">Segmentos</p>
+        <h2>Para quien es</h2>
+      </div>
       <div class="detail-grid">
-        <article class="detail-card" id="offline">
-          <h3>Offline-first</h3>
-          <p>La bitacora no depende de servidor activo para operar. Ideal para obra, campo o rutas inestables.</p>
+        <article class="detail-card"><h3>Cuadrillas de campo</h3><p>Registro diario de tareas, evidencias y estado sin perder tiempo.</p></article>
+        <article class="detail-card"><h3>Supervisores de obra</h3><p>Consolidacion rapida para reportes de avance y auditorias.</p></article>
+        <article class="detail-card"><h3>Mantenimiento industrial</h3><p>Checklists, eventos y seguimiento de acciones correctivas.</p></article>
+        <article class="detail-card"><h3>Equipos de relevamiento</h3><p>Captura estructurada en sitio y export inmediato al finalizar jornada.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="cases">
+      <div class="section-head">
+        <p class="eyebrow">Operacion</p>
+        <h2>Casos reales</h2>
+      </div>
+      <div class="detail-grid">
+        <article class="detail-card"><h3>Parte diario de obra</h3><p>Carga de actividades + fotos + observaciones y salida en XLSX el mismo dia.</p></article>
+        <article class="detail-card"><h3>Inspecciones tecnicas</h3><p>Checklist con adjuntos inline y trazabilidad de hallazgos por fila.</p></article>
+        <article class="detail-card"><h3>Bitacora de mantenimiento</h3><p>Registro historico por equipo, turnos y prioridades sin depender de red.</p></article>
+        <article class="detail-card"><h3>Auditoria interna</h3><p>Consolidacion de evidencia en un flujo que evita cambios de app.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="section-head">
+        <p class="eyebrow">Valor</p>
+        <h2>Excel vs BitFlow Campo</h2>
+      </div>
+      <div class="compare-grid">
+        <article class="compare-col">
+          <h3>Excel clasico</h3>
+          <ul>
+            <li>Sin flujo nativo mobile para campo.</li>
+            <li>Adjuntos fuera de la celda y contexto.</li>
+            <li>Riesgo alto de perdida sin guardado consistente.</li>
+          </ul>
         </article>
-        <article class="detail-card" id="adjuntos">
-          <h3>Adjuntos inline</h3>
-          <p>Evidencia a mano: miniaturas y acceso rapido desde cada registro sin cambiar de pantalla.</p>
-        </article>
-        <article class="detail-card" id="flowbot">
-          <h3>FlowBot (offline)</h3>
-          <p>Asistente local para automatizar entradas repetitivas y reducir errores de carga manual.</p>
-        </article>
-        <article class="detail-card" id="zen">
-          <h3>Zen mode</h3>
-          <p>Vista despejada para sesiones largas: menos fatiga visual y mejor continuidad operativa.</p>
-        </article>
-        <article class="detail-card" id="smart-paste">
-          <h3>Smart paste</h3>
-          <p>Pegado masivo con deteccion de columnas para migrar datos desde planillas externas al instante.</p>
+        <article class="compare-col best">
+          <h3>BitFlow Campo</h3>
+          <ul>
+            <li>UI mobile-first pensada para captura en sitio.</li>
+            <li>Adjuntos inline y evidencias en el mismo flujo.</li>
+            <li>Offline-first con salida a XLSX cuando haga falta.</li>
+          </ul>
         </article>
       </div>
     </section>
@@ -121,8 +161,8 @@
           <p>Agregar filas manualmente o usar Smart paste para importar TSV/CSV.</p>
         </li>
         <li>
-          <h3>Instalar APK Android</h3>
-          <p>Descargar la ultima release para uso dedicado en dispositivos Android.</p>
+          <h3>Instalar en tu dispositivo</h3>
+          <p>Usar PWA (web) o APK Android para acceso directo tipo app.</p>
         </li>
       </ol>
       <div class="cta-row">
@@ -135,9 +175,7 @@
       <div>
         <p class="eyebrow">Soporte</p>
         <h2>Soporte / Contacto</h2>
-        <p>
-          Reportes y consultas: usar el repositorio oficial para issues y seguimiento.
-        </p>
+        <p>Reportes y consultas: usar el repositorio oficial para issues y seguimiento.</p>
       </div>
       <div class="footer-links">
         <a href="https://github.com/marcoluna-nqn/bitacora_web/issues" target="_blank" rel="noopener">GitHub Issues</a>
@@ -146,5 +184,88 @@
       </div>
     </footer>
   </main>
+  <script>
+    (function () {
+      var deferredPrompt = null;
+      var installButton = document.getElementById('install-pwa-btn');
+      var installCopy = document.getElementById('install-copy');
+      var iosTip = document.getElementById('ios-install-tip');
+      var apkBtn = document.getElementById('install-apk-btn');
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      var isDesktop = !isAndroid && !isIOS;
+
+      function setInstallUI() {
+        if (isStandalone) {
+          installCopy.textContent = 'BitFlow ya esta instalado en este dispositivo.';
+          installButton.style.display = 'none';
+          iosTip.style.display = 'none';
+          apkBtn.style.display = 'none';
+          return;
+        }
+
+        if (isAndroid) {
+          installCopy.textContent = 'Android detectado: instala PWA o APK segun tu flujo.';
+          installButton.textContent = 'Instalar App (PWA)';
+          installButton.style.display = 'inline-flex';
+          apkBtn.style.display = 'inline-flex';
+          iosTip.style.display = 'none';
+          return;
+        }
+
+        if (isIOS) {
+          installCopy.textContent = 'iPhone/iPad detectado: usa Safari para instalar desde pantalla de inicio.';
+          installButton.style.display = 'none';
+          apkBtn.style.display = 'none';
+          iosTip.style.display = 'block';
+          return;
+        }
+
+        if (isDesktop) {
+          installCopy.textContent = 'Desktop detectado: instala BitFlow como app web.';
+          installButton.textContent = 'Instalar App Web';
+          installButton.style.display = 'inline-flex';
+          apkBtn.style.display = 'none';
+          iosTip.style.display = 'none';
+        }
+      }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferredPrompt = event;
+        if (!isIOS && !isStandalone) {
+          installButton.disabled = false;
+          installButton.classList.add('install-pulse');
+        }
+      });
+
+      window.addEventListener('appinstalled', function () {
+        deferredPrompt = null;
+        installCopy.textContent = 'Instalacion completada.';
+        installButton.style.display = 'none';
+        iosTip.style.display = 'none';
+      });
+
+      installButton.addEventListener('click', async function () {
+        if (!deferredPrompt) {
+          installCopy.textContent = 'La instalacion no esta disponible ahora. Abre la app web y reintenta.';
+          return;
+        }
+        try {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+        } catch (_) {
+          installCopy.textContent = 'No se pudo completar la instalacion. Puedes reintentar.';
+        } finally {
+          deferredPrompt = null;
+          installButton.classList.remove('install-pulse');
+        }
+      });
+
+      setInstallUI();
+    })();
+  </script>
 </body>
 </html>
