@@ -38,11 +38,7 @@ class PhotoAcquireResult {
 }
 
 class PhotoAcquireOutcome {
-  const PhotoAcquireOutcome._({
-    required this.status,
-    this.result,
-    this.error,
-  });
+  const PhotoAcquireOutcome._({required this.status, this.result, this.error});
 
   final PhotoAcquireStatus status;
   final PhotoAcquireResult? result;
@@ -60,14 +56,14 @@ class PhotoAcquireOutcome {
       const PhotoAcquireOutcome._(status: PhotoAcquireStatus.cancelled);
 
   factory PhotoAcquireOutcome.blocked(String message) => PhotoAcquireOutcome._(
-        status: PhotoAcquireStatus.blocked,
-        error: message.trim().isEmpty ? 'Bloqueado' : message.trim(),
-      );
+    status: PhotoAcquireStatus.blocked,
+    error: message.trim().isEmpty ? 'Bloqueado' : message.trim(),
+  );
 
   factory PhotoAcquireOutcome.error(String message) => PhotoAcquireOutcome._(
-        status: PhotoAcquireStatus.error,
-        error: message.trim().isEmpty ? 'Error desconocido' : message.trim(),
-      );
+    status: PhotoAcquireStatus.error,
+    error: message.trim().isEmpty ? 'Error desconocido' : message.trim(),
+  );
 }
 
 class PhotoAcquireBatchOutcome {
@@ -125,7 +121,7 @@ class PhotoAcquireService {
       'heic',
       'heif',
       'avif',
-      'gif'
+      'gif',
     ],
   );
 
@@ -139,7 +135,8 @@ class PhotoAcquireService {
     if (kIsWeb) {
       if (context == null) {
         return PhotoAcquireOutcome.blocked(
-            'Contexto no disponible para camara web.');
+          'Contexto no disponible para camara web.',
+        );
       }
       final web = await captureFromWebCamera(context: context);
       return _mapWebCameraOutcome(web);
@@ -150,14 +147,18 @@ class PhotoAcquireService {
         final file = await _picker.pickImage(
           source: ImageSource.camera,
           preferredCameraDevice: CameraDevice.rear,
+          maxWidth: 2048,
+          maxHeight: 2048,
+          imageQuality: 92,
         );
         if (file == null) return PhotoAcquireOutcome.cancelled();
 
         final bytes = await file.readAsBytes();
         final name = file.name.isNotEmpty ? file.name : _cameraNameFallback();
         final sniffed = sniffMime(bytes, name: name);
-        final mime =
-            sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
+        final mime = sniffed.isNotEmpty
+            ? sniffed
+            : (file.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
           PhotoAcquireResult(
@@ -167,7 +168,7 @@ class PhotoAcquireService {
           ),
         );
       } catch (e) {
-        return PhotoAcquireOutcome.error('No se pudo abrir la camara: ');
+        return PhotoAcquireOutcome.error('No se pudo abrir la camara: $e');
       }
     }
 
@@ -182,24 +183,32 @@ class PhotoAcquireService {
 
     if (_isMobilePlatform) {
       try {
-        final file = await _picker.pickImage(source: ImageSource.gallery);
-        if (file == null) return PhotoAcquireOutcome.cancelled();
+        final picked = await _picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 2048,
+          maxHeight: 2048,
+          imageQuality: 92,
+        );
+        if (picked == null) return PhotoAcquireOutcome.cancelled();
 
-        final bytes = await file.readAsBytes();
-        final name = file.name.isNotEmpty ? file.name : _galleryNameFallback();
+        final bytes = await picked.readAsBytes();
+        final name = picked.name.isNotEmpty
+            ? picked.name
+            : _galleryNameFallback();
         final sniffed = sniffMime(bytes, name: name);
-        final mime =
-            sniffed.isNotEmpty ? sniffed : (file.mimeType ?? _guessMime(name));
+        final mime = sniffed.isNotEmpty
+            ? sniffed
+            : (picked.mimeType ?? _guessMime(name));
 
         return PhotoAcquireOutcome.success(
           PhotoAcquireResult(
             PhotoBytes(bytes: bytes, name: name, mime: mime),
             size: bytes.length,
-            reportedMime: file.mimeType,
+            reportedMime: picked.mimeType,
           ),
         );
       } catch (e) {
-        return PhotoAcquireOutcome.error('No se pudo abrir la galeria: ');
+        return PhotoAcquireOutcome.error('No se pudo abrir la galeria: $e');
       }
     }
 
@@ -209,13 +218,18 @@ class PhotoAcquireService {
   Future<PhotoAcquireBatchOutcome> pickMultipleFromGallery() async {
     if (_isMobilePlatform && !kIsWeb) {
       try {
-        final files = await _picker.pickMultiImage();
+        final files = await _picker.pickMultiImage(
+          maxWidth: 2048,
+          maxHeight: 2048,
+          imageQuality: 90,
+        );
         if (files.isEmpty) return PhotoAcquireBatchOutcome.cancelled();
         final results = await _mapXFiles(files);
         return PhotoAcquireBatchOutcome.success(results);
       } catch (e) {
         return PhotoAcquireBatchOutcome.error(
-            'No se pudo abrir la galeria: $e');
+          'No se pudo abrir la galeria: $e',
+        );
       }
     }
 
@@ -238,8 +252,9 @@ class PhotoAcquireService {
 
       final bytes = await xf.readAsBytes();
       final sniffed = sniffMime(bytes, name: xf.name);
-      final mime =
-          sniffed.isNotEmpty ? sniffed : (xf.mimeType ?? _guessMime(xf.name));
+      final mime = sniffed.isNotEmpty
+          ? sniffed
+          : (xf.mimeType ?? _guessMime(xf.name));
       return PhotoAcquireOutcome.success(
         PhotoAcquireResult(
           PhotoBytes(bytes: bytes, name: xf.name, mime: mime),
@@ -254,8 +269,9 @@ class PhotoAcquireService {
 
   Future<PhotoAcquireBatchOutcome> _pickMultipleWithFileSelector() async {
     try {
-      final files =
-          await openFiles(acceptedTypeGroups: const [_imageTypeGroup]);
+      final files = await openFiles(
+        acceptedTypeGroups: const [_imageTypeGroup],
+      );
       if (files.isEmpty) return PhotoAcquireBatchOutcome.cancelled();
       final results = await _mapXFiles(files);
       return PhotoAcquireBatchOutcome.success(results);
@@ -266,11 +282,13 @@ class PhotoAcquireService {
 
   Future<List<PhotoAcquireResult>> _mapXFiles(List<XFile> files) async {
     final out = <PhotoAcquireResult>[];
+    var processed = 0;
     for (final xf in files) {
       final bytes = await xf.readAsBytes();
       final sniffed = sniffMime(bytes, name: xf.name);
-      final mime =
-          sniffed.isNotEmpty ? sniffed : (xf.mimeType ?? _guessMime(xf.name));
+      final mime = sniffed.isNotEmpty
+          ? sniffed
+          : (xf.mimeType ?? _guessMime(xf.name));
       out.add(
         PhotoAcquireResult(
           PhotoBytes(bytes: bytes, name: xf.name, mime: mime),
@@ -278,18 +296,23 @@ class PhotoAcquireService {
           reportedMime: xf.mimeType,
         ),
       );
+      processed++;
+      if (processed >= 6) {
+        processed = 0;
+        await Future<void>.delayed(Duration.zero);
+      }
     }
     return out;
   }
 
   String _cameraNameFallback() {
     final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
-    return 'camera_.jpg';
+    return 'camera_$ts.jpg';
   }
 
   String _galleryNameFallback() {
     final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
-    return 'gallery_.jpg';
+    return 'gallery_$ts.jpg';
   }
 
   String _guessMime(String name) {
@@ -310,9 +333,10 @@ class PhotoAcquireService {
         return PhotoAcquireOutcome.success(
           PhotoAcquireResult(
             PhotoBytes(
-                bytes: web.bytes ?? Uint8List(0),
-                name: web.name,
-                mime: web.mime),
+              bytes: web.bytes ?? Uint8List(0),
+              name: web.name,
+              mime: web.mime,
+            ),
             size: web.size ?? web.bytes?.lengthInBytes,
             reportedMime: web.mime,
             webFile: web.file,
@@ -326,7 +350,8 @@ class PhotoAcquireService {
         );
       case WebImageCaptureStatus.error:
         return PhotoAcquireOutcome.error(
-            web.error ?? 'No se pudo obtener la foto.');
+          web.error ?? 'No se pudo obtener la foto.',
+        );
     }
   }
 
@@ -348,7 +373,8 @@ class PhotoAcquireService {
         );
       case WebCameraCaptureStatus.error:
         return PhotoAcquireOutcome.error(
-            web.error ?? 'No se pudo abrir la camara.');
+          web.error ?? 'No se pudo abrir la camara.',
+        );
     }
   }
 }

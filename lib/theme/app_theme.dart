@@ -5,11 +5,11 @@ import 'gridnote_theme.dart';
 @immutable
 class AppRadii {
   const AppRadii({
-    this.xs = 10,
-    this.sm = 14,
-    this.md = 18,
-    this.lg = 22,
-    this.xl = 28,
+    this.xs = 12,
+    this.sm = 16,
+    this.md = 22,
+    this.lg = 28,
+    this.xl = 34,
     this.pill = 999,
   });
 
@@ -24,12 +24,12 @@ class AppRadii {
 @immutable
 class AppSpacing {
   const AppSpacing({
-    this.xs = 6,
-    this.sm = 10,
-    this.md = 14,
-    this.lg = 20,
-    this.xl = 28,
-    this.xxl = 36,
+    this.xs = 8,
+    this.sm = 12,
+    this.md = 16,
+    this.lg = 24,
+    this.xl = 32,
+    this.xxl = 42,
   });
 
   final double xs;
@@ -61,6 +61,8 @@ class AppColors {
     required this.surface,
     required this.surfaceMuted,
     required this.surfaceElevated,
+    required this.chromeGray,
+    required this.chromeGrayAlt,
     required this.border,
     required this.borderStrong,
     required this.textPrimary,
@@ -85,6 +87,8 @@ class AppColors {
   final Color surface;
   final Color surfaceMuted;
   final Color surfaceElevated;
+  final Color chromeGray;
+  final Color chromeGrayAlt;
   final Color border;
   final Color borderStrong;
   final Color textPrimary;
@@ -133,20 +137,27 @@ class AppTheme {
   static AppThemeData fromTheme(ThemeData theme) {
     final isLight = theme.brightness == Brightness.light;
 
-    final bg = theme.scaffoldBackgroundColor;
-    final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF121317);
-    final surfaceMuted =
-        isLight ? const Color(0xFFF4F4F6) : const Color(0xFF111216);
-    final surfaceElevated =
-        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF17181D);
+    final bg = isLight ? const Color(0xFFF6EEE4) : const Color(0xFF17120E);
+    final surface = isLight ? const Color(0xFFFFFCF8) : const Color(0xFF211A15);
+    final surfaceMuted = isLight
+        ? const Color(0xFFF1E7D8)
+        : const Color(0xFF2A231E);
+    final surfaceElevated = isLight
+        ? const Color(0xFFFFF8F1)
+        : const Color(0xFF241D18);
+    const chromeGray = Color(0xFFEFE2D1);
+    const chromeGrayAlt = Color(0xFFF6EEE3);
 
-    final neutralInk =
-        isLight ? const Color(0xFF111113) : const Color(0xFFF4F4F6);
-    final neutralMuted =
-        isLight ? const Color(0xFF575861) : const Color(0xFFB6B7C0);
-    final border = isLight ? const Color(0xFFE3E4E8) : const Color(0xFF2B2D34);
-    final borderStrong =
-        isLight ? const Color(0xFFD2D4DB) : const Color(0xFF3A3C45);
+    final neutralInk = isLight
+        ? const Color(0xFF2B241E)
+        : const Color(0xFFF5EEE5);
+    final neutralMuted = isLight
+        ? const Color(0xFF6C5E50)
+        : const Color(0xFFC8BBAD);
+    final border = isLight ? const Color(0xFFE3D4C2) : const Color(0xFF3A3028);
+    final borderStrong = isLight
+        ? const Color(0xFFD5C2AD)
+        : const Color(0xFF4B3E34);
 
     final accent = neutralInk;
     final accentMuted = accent.withValues(alpha: isLight ? 0.07 : 0.16);
@@ -157,18 +168,22 @@ class AppTheme {
     final warningBg = surfaceMuted;
     final warningFg = neutralInk;
 
-    final dangerBg =
-        isLight ? const Color(0xFFF5F5F6) : const Color(0xFF191A1F);
+    final dangerBg = isLight
+        ? const Color(0xFFF4E7E3)
+        : const Color(0xFF32231F);
     final dangerFg = neutralInk;
 
-    final successBg =
-        isLight ? const Color(0xFFF3F3F5) : const Color(0xFF1A1B20);
+    final successBg = isLight
+        ? const Color(0xFFEAF0E5)
+        : const Color(0xFF263022);
     final successFg = neutralInk;
 
-    final hover = (isLight ? Colors.black : Colors.white)
-        .withValues(alpha: isLight ? 0.035 : 0.07);
-    final pressed = (isLight ? Colors.black : Colors.white)
-        .withValues(alpha: isLight ? 0.09 : 0.15);
+    final hover = (isLight ? Colors.black : Colors.white).withValues(
+      alpha: isLight ? 0.035 : 0.07,
+    );
+    final pressed = (isLight ? Colors.black : Colors.white).withValues(
+      alpha: isLight ? 0.09 : 0.15,
+    );
     final focusRing = accent.withValues(alpha: isLight ? 0.28 : 0.40);
 
     final colors = AppColors(
@@ -177,6 +192,8 @@ class AppTheme {
       surface: surface,
       surfaceMuted: surfaceMuted,
       surfaceElevated: surfaceElevated,
+      chromeGray: isLight ? chromeGray : const Color(0xFF202226),
+      chromeGrayAlt: isLight ? chromeGrayAlt : const Color(0xFF1A1C20),
       border: border,
       borderStrong: borderStrong,
       textPrimary: neutralInk,
@@ -199,8 +216,12 @@ class AppTheme {
     final radii = const AppRadii();
     final spacing = const AppSpacing();
 
-    final shadowColor = Colors.black.withValues(alpha: isLight ? 0.10 : 0.48);
-    final softShadow = Colors.black.withValues(alpha: isLight ? 0.05 : 0.34);
+    final shadowColor = const Color(
+      0xFF2D2218,
+    ).withValues(alpha: isLight ? 0.11 : 0.34);
+    final softShadow = const Color(
+      0xFF2D2218,
+    ).withValues(alpha: isLight ? 0.06 : 0.24);
 
     final shadows = AppShadows(
       card: [

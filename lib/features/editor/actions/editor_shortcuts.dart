@@ -66,6 +66,11 @@ extension _EditorShortcuts on _EditorScreenState {
       return KeyEventResult.handled;
     }
 
+    if (isMod && isAlt && event.logicalKey == LogicalKeyboardKey.keyZ) {
+      unawaited(_toggleZenMode());
+      return KeyEventResult.handled;
+    }
+
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyZ) {
       _undoOnce();
       return KeyEventResult.handled;
@@ -206,12 +211,7 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyP) {
-      unawaited(
-        _exportPdf(
-          includeAttachments: true,
-          share: false,
-        ),
-      );
+      unawaited(_exportPdf(includeAttachments: true, share: false));
       return KeyEventResult.handled;
     }
 

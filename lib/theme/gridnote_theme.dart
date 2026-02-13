@@ -65,19 +65,20 @@ class GridnoteTheme {
 
   static GridnoteTheme build(bool light) {
     // Acento iOS-like.
-    final accentMono =
-        light ? const Color(0xFF0D0D0F) : const Color(0xFFF3F3F3);
+    final accentMono = light
+        ? const Color(0xFF0D0D0F)
+        : const Color(0xFFF3F3F3);
 
     // “Warm Apple” (beige/arena) para que se sienta premium.
     // Si querés más frío, cambiá scaffoldLight a 0xFFF5F5F7 y listo.
-    const scaffoldLight = Color(0xFFF5F5F7);
-    const scaffoldDark = Color(0xFF0A0A0C);
+    const scaffoldLight = Color(0xFFF6EEE4);
+    const scaffoldDark = Color(0xFF17120E);
 
-    const cardLight = Color(0xFFFFFFFF);
-    const cardDark = Color(0xFF121214);
+    const cardLight = Color(0xFFFFFCF8);
+    const cardDark = Color(0xFF211A15);
 
-    const dividerLight = Color(0xFFE5E7EB);
-    const dividerDark = Color(0xFF2B2B31);
+    const dividerLight = Color(0xFFE3D4C2);
+    const dividerDark = Color(0xFF3A3028);
 
     final brightness = light ? Brightness.light : Brightness.dark;
 
@@ -89,24 +90,29 @@ class GridnoteTheme {
     final scaffold = light ? scaffoldLight : scaffoldDark;
 
     // “Glass” muy sutil: card con alpha apenas, para no ensuciar lectura.
-    final card =
-        (light ? cardLight : cardDark).withAlpha(_a(light ? 0.985 : 0.97));
+    final card = (light ? cardLight : cardDark).withAlpha(
+      _a(light ? 0.985 : 0.97),
+    );
 
     final divider = light ? dividerLight : dividerDark;
 
     // Overlays controlados: esto es lo que más “delata” Material si no lo tocás.
-    final overlayPressed = (light ? Colors.black : Colors.white)
-        .withAlpha(_a(light ? 0.06 : 0.08));
-    final overlayHover = (light ? Colors.black : Colors.white)
-        .withAlpha(_a(light ? 0.035 : 0.05));
+    final overlayPressed = (light ? Colors.black : Colors.white).withAlpha(
+      _a(light ? 0.06 : 0.08),
+    );
+    final overlayHover = (light ? Colors.black : Colors.white).withAlpha(
+      _a(light ? 0.035 : 0.05),
+    );
     final overlayFocusRing = accentMono.withAlpha(_a(light ? 0.20 : 0.30));
 
     // Tonos secundarios para headers/variants.
-    final surfaceVariant =
-        light ? const Color(0xFFF2F2F4) : const Color(0xFF1A1A1E);
+    final surfaceVariant = light
+        ? const Color(0xFFF1E7D8)
+        : const Color(0xFF2A231E);
     final onSurfaceVariant =
-        (light ? const Color(0xFF111827) : const Color(0xFFE5E7EB))
-            .withAlpha(_a(light ? 0.78 : 0.82));
+        (light ? const Color(0xFF2B241E) : const Color(0xFFF5EEE5)).withAlpha(
+          _a(light ? 0.78 : 0.82),
+        );
 
     final scheme = baseScheme.copyWith(
       primary: accentMono,
@@ -121,8 +127,9 @@ class GridnoteTheme {
     );
 
     // Tipografía base estilo iOS (cupertino typography) pero usable en Material.
-    final cupertinoText =
-        light ? Typography.blackCupertino : Typography.whiteCupertino;
+    final cupertinoText = light
+        ? Typography.blackCupertino
+        : Typography.whiteCupertino;
 
     final textTheme = cupertinoText.copyWith(
       titleLarge: cupertinoText.titleLarge?.copyWith(
@@ -137,15 +144,9 @@ class GridnoteTheme {
         fontWeight: FontWeight.w700,
         letterSpacing: 0.0,
       ),
-      bodyLarge: cupertinoText.bodyLarge?.copyWith(
-        height: 1.25,
-      ),
-      bodyMedium: cupertinoText.bodyMedium?.copyWith(
-        height: 1.22,
-      ),
-      bodySmall: cupertinoText.bodySmall?.copyWith(
-        height: 1.18,
-      ),
+      bodyLarge: cupertinoText.bodyLarge?.copyWith(height: 1.25),
+      bodyMedium: cupertinoText.bodyMedium?.copyWith(height: 1.22),
+      bodySmall: cupertinoText.bodySmall?.copyWith(height: 1.18),
       labelLarge: cupertinoText.labelLarge?.copyWith(
         fontWeight: FontWeight.w700,
       ),
@@ -217,10 +218,7 @@ class GridnoteTheme {
         titleTextStyle: textTheme.titleMedium?.copyWith(
           color: scheme.onSurface,
         ),
-        iconTheme: IconThemeData(
-          color: scheme.onSurface,
-          size: 20,
-        ),
+        iconTheme: IconThemeData(color: scheme.onSurface, size: 20),
       ),
 
       // Cards: borde sutil, radio grande, sombra limpia.
@@ -251,9 +249,7 @@ class GridnoteTheme {
             width: 0.8,
           ),
         ),
-        titleTextStyle: textTheme.titleSmall?.copyWith(
-          color: scheme.onSurface,
-        ),
+        titleTextStyle: textTheme.titleSmall?.copyWith(color: scheme.onSurface),
         contentTextStyle: textTheme.bodyMedium?.copyWith(
           color: scheme.onSurface.withAlpha(_a(0.86)),
         ),
@@ -264,8 +260,10 @@ class GridnoteTheme {
         filled: true,
         fillColor: inputFill,
         isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         hintStyle: textTheme.bodyMedium?.copyWith(
           color: scheme.onSurfaceVariant,
         ),
@@ -386,8 +384,9 @@ class GridnoteTheme {
       chipTheme: ChipThemeData(
         shape: pillShape,
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.78 : 0.55))),
-        backgroundColor:
-            scheme.surfaceVariant.withAlpha(_a(light ? 0.65 : 0.55)),
+        backgroundColor: scheme.surfaceVariant.withAlpha(
+          _a(light ? 0.65 : 0.55),
+        ),
         selectedColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
         labelStyle: textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
@@ -425,15 +424,14 @@ class GridnoteTheme {
       // SnackBars tipo pill, flotantes.
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor:
-            (light ? Colors.black : Colors.white).withAlpha(_a(0.90)),
+        backgroundColor: (light ? Colors.black : Colors.white).withAlpha(
+          _a(0.90),
+        ),
         contentTextStyle: TextStyle(
           color: light ? Colors.white : Colors.black,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
 
       // BottomSheet tipo “sheet” iOS.
@@ -478,8 +476,9 @@ class GridnoteTheme {
       // Progreso/spinners.
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: accentMono,
-        linearTrackColor:
-            light ? const Color(0x22000000) : const Color(0x33FFFFFF),
+        linearTrackColor: light
+            ? const Color(0x22000000)
+            : const Color(0x33FFFFFF),
       ),
 
       // Scrollbars discretas.
@@ -538,8 +537,8 @@ class GridnoteTableStyle {
     final divider = g.divider;
 
     final headerBg = isLight
-        ? const Color(0xFFF7F7F9) // cálido, premium
-        : const Color(0xFF0F172A);
+        ? const Color(0xFFF4EBDF)
+        : const Color(0xFF2A231E);
 
     final cellBg = g.card;
 
@@ -547,7 +546,7 @@ class GridnoteTableStyle {
       zebra: true,
       zebraColor: divider.withAlpha(_a(isLight ? 0.10 : 0.18)),
       headerBg: headerBg,
-      headerText: isLight ? const Color(0xFF111827) : const Color(0xFFF9FAFB),
+      headerText: isLight ? const Color(0xFF2B241E) : const Color(0xFFF5EEE5),
       gridLine: divider.withAlpha(_a(isLight ? 0.88 : 0.62)),
       cellBg: cellBg,
       cellTextStyle: g.material.textTheme.bodyMedium?.copyWith(

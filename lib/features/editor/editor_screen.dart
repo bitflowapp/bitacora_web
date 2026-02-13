@@ -35,6 +35,7 @@ import 'package:bitacora_web/services/build_info.dart';
 import 'package:bitacora_web/services/diagnostics_log.dart';
 import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
+import 'package:bitacora_web/services/engine_health_checker.dart';
 import 'package:bitacora_web/services/expression_eval.dart';
 import 'package:bitacora_web/services/export_share_helper.dart';
 import 'package:bitacora_web/services/flowbot.dart';

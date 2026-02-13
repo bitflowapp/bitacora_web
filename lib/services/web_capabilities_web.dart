@@ -26,7 +26,8 @@ class WebCapabilitiesImpl {
         ua.contains('iphone') || ua.contains('ipad') || ua.contains('ipod');
     if (!isIos) return false;
     final isSafari = ua.contains('safari');
-    final excluded = ua.contains('crios') ||
+    final excluded =
+        ua.contains('crios') ||
         ua.contains('fxios') ||
         ua.contains('edgios') ||
         ua.contains('opios') ||
@@ -40,7 +41,8 @@ class WebCapabilitiesImpl {
     if (!isAndroid) return false;
     final isChrome = ua.contains('chrome') || ua.contains('crios');
     if (!isChrome) return false;
-    final excluded = ua.contains('edg') ||
+    final excluded =
+        ua.contains('edg') ||
         ua.contains('opr') ||
         ua.contains('opera') ||
         ua.contains('samsungbrowser') ||
@@ -112,6 +114,17 @@ class WebCapabilitiesImpl {
   static bool get imageCaptureSupported {
     try {
       return js_util.hasProperty(html.window, 'ImageCapture');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool get prefersReducedMotion {
+    try {
+      return html.window
+              .matchMedia('(prefers-reduced-motion: reduce)')
+              .matches ==
+          true;
     } catch (_) {
       return false;
     }

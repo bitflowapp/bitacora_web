@@ -18,4 +18,6 @@ class WebCapabilities {
   static bool get cameraAvailable => WebCapabilitiesImpl.cameraAvailable;
   static bool get imageCaptureSupported =>
       WebCapabilitiesImpl.imageCaptureSupported;
+  static bool get prefersReducedMotion =>
+      WebCapabilitiesImpl.prefersReducedMotion;
 }

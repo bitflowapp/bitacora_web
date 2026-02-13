@@ -10,13 +10,7 @@ class EditorSaveSnapshot {
   final DateTime? savedAt;
 }
 
-enum OfflineSyncState {
-  offline,
-  pending,
-  syncing,
-  synced,
-  failed,
-}
+enum OfflineSyncState { offline, pending, syncing, synced, failed }
 
 @immutable
 class OfflineSyncSnapshot {
@@ -34,8 +28,11 @@ class OfflineSyncSnapshot {
 }
 
 class _MobileAction {
-  const _MobileAction(
-      {required this.icon, required this.label, required this.onTap});
+  const _MobileAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -131,18 +128,18 @@ class _ColumnPrefs {
   }
 
   Map<String, dynamic> toJson() => {
-        'type': type.name,
-        'hidden': hidden,
-        if (required) 'required': true,
-        if (enumValues.isNotEmpty) 'enumValues': enumValues,
-        if (numberMin != null) 'numberMin': numberMin,
-        if (numberMax != null) 'numberMax': numberMax,
-        if (regexPattern?.trim().isNotEmpty ?? false) 'regex': regexPattern,
-        if (wrapLines != 1) 'wrapLines': wrapLines,
-        if (textAlign != _GridTextAlignX.left) 'textAlign': textAlign.name,
-        if (verticalAlign != _GridTextAlignY.middle)
-          'verticalAlign': verticalAlign.name,
-      };
+    'type': type.name,
+    'hidden': hidden,
+    if (required) 'required': true,
+    if (enumValues.isNotEmpty) 'enumValues': enumValues,
+    if (numberMin != null) 'numberMin': numberMin,
+    if (numberMax != null) 'numberMax': numberMax,
+    if (regexPattern?.trim().isNotEmpty ?? false) 'regex': regexPattern,
+    if (wrapLines != 1) 'wrapLines': wrapLines,
+    if (textAlign != _GridTextAlignX.left) 'textAlign': textAlign.name,
+    if (verticalAlign != _GridTextAlignY.middle)
+      'verticalAlign': verticalAlign.name,
+  };
 
   static _ColumnPrefs? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -207,22 +204,20 @@ class _SheetModel {
   final String? frozenColId;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'savedAt': savedAt?.toIso8601String(),
-        'headers': headers,
-        'colIds': colIds,
-        'rows': rows.map((r) => r.toJson()).toList(),
-        if (cellMeta.isNotEmpty)
-          'cellMeta': cellMeta.map(
-            (key, value) => MapEntry(key, value.toJson()),
-          ),
-        if (columnPrefsById.isNotEmpty)
-          'columnPrefs': columnPrefsById.map(
-            (key, value) => MapEntry(key, value.toJson()),
-          ),
-        if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
-        if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
-      };
+    'name': name,
+    'savedAt': savedAt?.toIso8601String(),
+    'headers': headers,
+    'colIds': colIds,
+    'rows': rows.map((r) => r.toJson()).toList(),
+    if (cellMeta.isNotEmpty)
+      'cellMeta': cellMeta.map((key, value) => MapEntry(key, value.toJson())),
+    if (columnPrefsById.isNotEmpty)
+      'columnPrefs': columnPrefsById.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
+    if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
+    if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
+  };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
     final name = (map['name'] as String?)?.toString();
@@ -230,10 +225,10 @@ class _SheetModel {
 
     final headers =
         (map['headers'] as List?)?.map((e) => (e ?? '').toString()).toList() ??
-            const <String>[];
+        const <String>[];
     final colIds =
         (map['colIds'] as List?)?.map((e) => (e ?? '').toString()).toList() ??
-            const <String>[];
+        const <String>[];
 
     final rowsRaw = (map['rows'] as List?) ?? const [];
     final rowModels = <_RowModel>[];
@@ -325,56 +320,56 @@ class _RowModel {
   final DateTime? reviewedAt;
 
   factory _RowModel.empty(int cols, {String id = ''}) => _RowModel(
-        id: id,
-        cells: List<String>.filled(cols, ''),
-        photos: <_RowPhoto>[],
-      );
+    id: id,
+    cells: List<String>.filled(cols, ''),
+    photos: <_RowPhoto>[],
+  );
 
   factory _RowModel.fromCells(List<String> cells, {String id = ''}) =>
       _RowModel(id: id, cells: cells, photos: <_RowPhoto>[]);
 
   _RowModel copy() => _RowModel(
-        id: id,
-        cells: List<String>.from(cells),
-        photos: photos.map((p) => p.copy()).toList(),
-        gpsLat: gpsLat,
-        gpsLng: gpsLng,
-        gpsAccuracyM: gpsAccuracyM,
-        gpsTs: gpsTs,
-        gpsIsLastKnown: gpsIsLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewedBy,
-        reviewedAt: reviewedAt,
-      );
+    id: id,
+    cells: List<String>.from(cells),
+    photos: photos.map((p) => p.copy()).toList(),
+    gpsLat: gpsLat,
+    gpsLng: gpsLng,
+    gpsAccuracyM: gpsAccuracyM,
+    gpsTs: gpsTs,
+    gpsIsLastKnown: gpsIsLastKnown,
+    reviewed: reviewed,
+    reviewedBy: reviewedBy,
+    reviewedAt: reviewedAt,
+  );
 
-// ??? Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
+  // ??? Snapshot para Undo/Redo: copia fotos SIN thumbs (liviano).
   _RowModel copyForSnapshot() => _RowModel(
-        id: id,
-        cells: List<String>.from(cells),
-        photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
-        gpsLat: gpsLat,
-        gpsLng: gpsLng,
-        gpsAccuracyM: gpsAccuracyM,
-        gpsTs: gpsTs,
-        gpsIsLastKnown: gpsIsLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewedBy,
-        reviewedAt: reviewedAt,
-      );
+    id: id,
+    cells: List<String>.from(cells),
+    photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
+    gpsLat: gpsLat,
+    gpsLng: gpsLng,
+    gpsAccuracyM: gpsAccuracyM,
+    gpsTs: gpsTs,
+    gpsIsLastKnown: gpsIsLastKnown,
+    reviewed: reviewed,
+    reviewedBy: reviewedBy,
+    reviewedAt: reviewedAt,
+  );
 
   _RowModel copyWithCells(List<String> newCells) => _RowModel(
-        id: id,
-        cells: List<String>.from(newCells),
-        photos: photos.map((p) => p.copy()).toList(),
-        gpsLat: gpsLat,
-        gpsLng: gpsLng,
-        gpsAccuracyM: gpsAccuracyM,
-        gpsTs: gpsTs,
-        gpsIsLastKnown: gpsIsLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewedBy,
-        reviewedAt: reviewedAt,
-      );
+    id: id,
+    cells: List<String>.from(newCells),
+    photos: photos.map((p) => p.copy()).toList(),
+    gpsLat: gpsLat,
+    gpsLng: gpsLng,
+    gpsAccuracyM: gpsAccuracyM,
+    gpsTs: gpsTs,
+    gpsIsLastKnown: gpsIsLastKnown,
+    reviewed: reviewed,
+    reviewedBy: reviewedBy,
+    reviewedAt: reviewedAt,
+  );
 
   _RowModel copyWithLocation({
     required double lat,
@@ -382,70 +377,68 @@ class _RowModel {
     required double accuracyM,
     required DateTime ts,
     required bool isLastKnown,
-  }) =>
-      _RowModel(
-        id: id,
-        cells: List<String>.from(cells),
-        photos: photos.map((p) => p.copy()).toList(),
-        gpsLat: lat,
-        gpsLng: lng,
-        gpsAccuracyM: accuracyM,
-        gpsTs: ts,
-        gpsIsLastKnown: isLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewedBy,
-        reviewedAt: reviewedAt,
-      );
+  }) => _RowModel(
+    id: id,
+    cells: List<String>.from(cells),
+    photos: photos.map((p) => p.copy()).toList(),
+    gpsLat: lat,
+    gpsLng: lng,
+    gpsAccuracyM: accuracyM,
+    gpsTs: ts,
+    gpsIsLastKnown: isLastKnown,
+    reviewed: reviewed,
+    reviewedBy: reviewedBy,
+    reviewedAt: reviewedAt,
+  );
 
   _RowModel copyWithReview({
     required bool reviewed,
     String? reviewedBy,
     DateTime? reviewedAt,
-  }) =>
-      _RowModel(
-        id: id,
-        cells: List<String>.from(cells),
-        photos: photos.map((p) => p.copy()).toList(),
-        gpsLat: gpsLat,
-        gpsLng: gpsLng,
-        gpsAccuracyM: gpsAccuracyM,
-        gpsTs: gpsTs,
-        gpsIsLastKnown: gpsIsLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewed ? reviewedBy : null,
-        reviewedAt: reviewed ? reviewedAt : null,
-      );
+  }) => _RowModel(
+    id: id,
+    cells: List<String>.from(cells),
+    photos: photos.map((p) => p.copy()).toList(),
+    gpsLat: gpsLat,
+    gpsLng: gpsLng,
+    gpsAccuracyM: gpsAccuracyM,
+    gpsTs: gpsTs,
+    gpsIsLastKnown: gpsIsLastKnown,
+    reviewed: reviewed,
+    reviewedBy: reviewed ? reviewedBy : null,
+    reviewedAt: reviewed ? reviewedAt : null,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'cells': cells,
-// ??? Persistencia segura: sin thumbs base64 (evita overflow prefs/localStorage).
-        'photos': photos
-            .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
-            .toList(),
-        if (gpsLat != null && gpsLng != null)
-          'gps': {
-            'lat': gpsLat,
-            'lng': gpsLng,
-            'accuracyM': gpsAccuracyM,
-            'ts': gpsTs?.toIso8601String(),
-            'lastKnown': gpsIsLastKnown,
-          },
-        if (reviewed ||
-            (reviewedBy?.trim().isNotEmpty ?? false) ||
-            reviewedAt != null)
-          'review': {
-            'done': reviewed,
-            if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
-            if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
-          },
-      };
+    'id': id,
+    'cells': cells,
+    // ??? Persistencia segura: sin thumbs base64 (evita overflow prefs/localStorage).
+    'photos': photos
+        .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
+        .toList(),
+    if (gpsLat != null && gpsLng != null)
+      'gps': {
+        'lat': gpsLat,
+        'lng': gpsLng,
+        'accuracyM': gpsAccuracyM,
+        'ts': gpsTs?.toIso8601String(),
+        'lastKnown': gpsIsLastKnown,
+      },
+    if (reviewed ||
+        (reviewedBy?.trim().isNotEmpty ?? false) ||
+        reviewedAt != null)
+      'review': {
+        'done': reviewed,
+        if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
+        if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
+      },
+  };
 
   static _RowModel fromJson(Map<String, dynamic> map) {
     final id = (map['id'] ?? '').toString();
     final cells =
         (map['cells'] as List?)?.map((e) => (e ?? '').toString()).toList() ??
-            const <String>[];
+        const <String>[];
     final photosRaw = (map['photos'] as List?) ?? const [];
     final photos = <_RowPhoto>[];
     for (final it in photosRaw) {
@@ -456,8 +449,8 @@ class _RowModel {
     final reviewed = review is Map ? (review['done'] as bool? ?? false) : false;
     final reviewedBy = review is Map
         ? (review['by'] ?? '').toString().trim().isEmpty
-            ? null
-            : (review['by'] ?? '').toString().trim()
+              ? null
+              : (review['by'] ?? '').toString().trim()
         : null;
     final reviewedAt = review is Map
         ? DateTime.tryParse((review['at'] ?? '').toString())
@@ -514,45 +507,45 @@ class _RowPhoto {
   final String dataB64;
 
   _RowPhoto copy() => _RowPhoto(
-        name: name,
-        mime: mime,
-        thumbB64: thumbB64,
-        addedAt: addedAt,
-        path: path,
-        lat: lat,
-        lng: lng,
-        accuracyM: accuracyM,
-        isLastKnown: isLastKnown,
-        dataB64: dataB64,
-      );
+    name: name,
+    mime: mime,
+    thumbB64: thumbB64,
+    addedAt: addedAt,
+    path: path,
+    lat: lat,
+    lng: lng,
+    accuracyM: accuracyM,
+    isLastKnown: isLastKnown,
+    dataB64: dataB64,
+  );
 
   _RowPhoto copyWithoutThumb() => _RowPhoto(
-        name: name,
-        mime: mime,
-        thumbB64: '',
-        addedAt: addedAt,
-        path: path,
-        lat: lat,
-        lng: lng,
-        accuracyM: accuracyM,
-        isLastKnown: isLastKnown,
-        dataB64: dataB64,
-      );
+    name: name,
+    mime: mime,
+    thumbB64: '',
+    addedAt: addedAt,
+    path: path,
+    lat: lat,
+    lng: lng,
+    accuracyM: accuracyM,
+    isLastKnown: isLastKnown,
+    dataB64: dataB64,
+  );
 
   Map<String, dynamic> toJson({required bool persistThumb}) => {
-        ...PhotoJson(
-          name: name,
-          mime: mime,
-          thumbB64: thumbB64,
-          addedAt: addedAt,
-          path: path,
-          dataB64: dataB64,
-          lat: lat,
-          lng: lng,
-          accuracyM: accuracyM,
-          isLastKnown: isLastKnown,
-        ).toJson(persistThumb: persistThumb),
-      };
+    ...PhotoJson(
+      name: name,
+      mime: mime,
+      thumbB64: thumbB64,
+      addedAt: addedAt,
+      path: path,
+      dataB64: dataB64,
+      lat: lat,
+      lng: lng,
+      accuracyM: accuracyM,
+      isLastKnown: isLastKnown,
+    ).toJson(persistThumb: persistThumb),
+  };
 
   static _RowPhoto fromJson(Map<String, dynamic> map) {
     final decoded = PhotoJson.fromJson(map);
@@ -628,10 +621,7 @@ class _BackupAsset {
 }
 
 class _BackupBundle {
-  const _BackupBundle({
-    required this.json,
-    required this.assets,
-  });
+  const _BackupBundle({required this.json, required this.assets});
 
   final Map<String, dynamic> json;
   final List<_BackupAsset> assets;
@@ -839,7 +829,8 @@ class _ColumnTemplate {
     final map = raw.cast<Object?, Object?>();
     final name = (map['name'] ?? '').toString().trim();
     if (name.isEmpty) return null;
-    final savedAt = DateTime.tryParse((map['savedAt'] ?? '').toString()) ??
+    final savedAt =
+        DateTime.tryParse((map['savedAt'] ?? '').toString()) ??
         DateTime.fromMillisecondsSinceEpoch(0);
 
     final prefsByLabel = <String, _ColumnPrefs>{};
@@ -963,8 +954,9 @@ class HistoryEventRecord {
     if (input.isEmpty) return const <HistoryEventRecord>[];
     final refNow = (now ?? DateTime.now()).toUtc();
     final minAt = refNow.subtract(Duration(days: maxDays));
-    final filtered =
-        input.where((event) => event.at.toUtc().isAfter(minAt)).toList();
+    final filtered = input
+        .where((event) => event.at.toUtc().isAfter(minAt))
+        .toList();
     filtered.sort((a, b) => b.at.compareTo(a.at));
     if (filtered.length > maxEvents) {
       filtered.removeRange(maxEvents, filtered.length);
@@ -1038,7 +1030,8 @@ class _SavedView {
     final id = (map['id'] ?? '').toString().trim();
     final name = (map['name'] ?? '').toString().trim();
     if (id.isEmpty || name.isEmpty) return null;
-    final createdAt = DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
+    final createdAt =
+        DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
         DateTime.fromMillisecondsSinceEpoch(0);
     final prefs = <String, _ColumnPrefs>{};
     final prefsRaw = map['columnPrefsById'];
@@ -1349,14 +1342,14 @@ class _QuickCapturePending {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'sheetId': sheetId,
-        'rowId': rowId,
-        'queuedAt': queuedAt.toIso8601String(),
-        'attempts': attempts,
-        if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
-        if (lastError != null && lastError!.trim().isNotEmpty)
-          'lastError': lastError,
-      };
+    'sheetId': sheetId,
+    'rowId': rowId,
+    'queuedAt': queuedAt.toIso8601String(),
+    'attempts': attempts,
+    if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
+    if (lastError != null && lastError!.trim().isNotEmpty)
+      'lastError': lastError,
+  };
 
   static _QuickCapturePending? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -1366,8 +1359,9 @@ class _QuickCapturePending {
     final queuedAt =
         DateTime.tryParse((raw['queuedAt'] ?? '').toString()) ?? DateTime.now();
     final attempts = (raw['attempts'] as num?)?.toInt() ?? 0;
-    final nextRetryAt =
-        DateTime.tryParse((raw['nextRetryAt'] ?? '').toString());
+    final nextRetryAt = DateTime.tryParse(
+      (raw['nextRetryAt'] ?? '').toString(),
+    );
     final lastError = (raw['lastError'] ?? '').toString().trim();
     return _QuickCapturePending(
       sheetId: sheetId,
@@ -1418,14 +1412,14 @@ class _EditPending {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'sheetId': sheetId,
-        'revision': revision,
-        'queuedAt': queuedAt.toIso8601String(),
-        'attempts': attempts,
-        if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
-        if (lastError != null && lastError!.trim().isNotEmpty)
-          'lastError': lastError,
-      };
+    'sheetId': sheetId,
+    'revision': revision,
+    'queuedAt': queuedAt.toIso8601String(),
+    'attempts': attempts,
+    if (nextRetryAt != null) 'nextRetryAt': nextRetryAt!.toIso8601String(),
+    if (lastError != null && lastError!.trim().isNotEmpty)
+      'lastError': lastError,
+  };
 
   static _EditPending? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -1435,8 +1429,9 @@ class _EditPending {
     final queuedAt =
         DateTime.tryParse((raw['queuedAt'] ?? '').toString()) ?? DateTime.now();
     final attempts = (raw['attempts'] as num?)?.toInt() ?? 0;
-    final nextRetryAt =
-        DateTime.tryParse((raw['nextRetryAt'] ?? '').toString());
+    final nextRetryAt = DateTime.tryParse(
+      (raw['nextRetryAt'] ?? '').toString(),
+    );
     final lastError = (raw['lastError'] ?? '').toString().trim();
     return _EditPending(
       sheetId: sheetId,
@@ -1492,15 +1487,17 @@ class _SheetPalette {
     Color? hoverBg,
     Color? pressedBg,
     Color? zebraBg,
-  })  : hoverBg = hoverBg ??
-            (isLight
-                ? cellText.withValues(alpha: 0.04)
-                : cellText.withValues(alpha: 0.08)),
-        pressedBg = pressedBg ??
-            (isLight
-                ? cellText.withValues(alpha: 0.08)
-                : cellText.withValues(alpha: 0.14)),
-        zebraBg = zebraBg ?? zebraB;
+  }) : hoverBg =
+           hoverBg ??
+           (isLight
+               ? cellText.withValues(alpha: 0.04)
+               : cellText.withValues(alpha: 0.08)),
+       pressedBg =
+           pressedBg ??
+           (isLight
+               ? cellText.withValues(alpha: 0.08)
+               : cellText.withValues(alpha: 0.14)),
+       zebraBg = zebraBg ?? zebraB;
 
   final bool isLight;
   final double hairline;
@@ -1560,10 +1557,14 @@ class _SheetPalette {
     final c = t.colors;
     final card = c.surfaceElevated;
     final monoInk = c.textPrimary;
-    final gridBg = c.surfaceElevated;
-    final headerBg = c.surfaceMuted;
-    final zebraA = c.surface;
-    final zebraB = c.surfaceMuted.withValues(alpha: c.isLight ? 0.34 : 0.16);
+    final chromeGray = c.chromeGray;
+    final chromeGrayAlt = c.chromeGrayAlt;
+    final gridBg = c.isLight ? c.surfaceElevated : c.surface;
+    final headerBg = c.isLight ? c.surfaceMuted : c.surfaceMuted;
+    final zebraA = c.isLight ? c.surface : c.surface;
+    final zebraB = c.isLight
+        ? chromeGray.withValues(alpha: 0.42)
+        : c.surfaceMuted.withValues(alpha: 0.12);
     final selectionFill = monoInk.withValues(alpha: c.isLight ? 0.08 : 0.14);
     final selectionBorder = monoInk.withValues(alpha: c.isLight ? 0.38 : 0.52);
     final focusRing = monoInk.withValues(alpha: c.isLight ? 0.42 : 0.62);
@@ -1593,14 +1594,15 @@ class _SheetPalette {
       appBarBg: c.bg,
       headerBg: headerBg,
       indexBg: headerBg,
-      cellBg: zebraA,
+      cellBg: c.isLight ? c.surface : zebraA,
       blinkBg: selectionFill,
       border: c.border,
       borderStrong: c.borderStrong,
       menuBg: c.surfaceElevated,
       editorBg: c.surfaceElevated,
-      mobileInputBg:
-          c.surfaceElevated.withValues(alpha: c.isLight ? 0.96 : 0.72),
+      mobileInputBg: c.surfaceElevated.withValues(
+        alpha: c.isLight ? 0.96 : 0.72,
+      ),
       accent: monoInk,
       statusBg: c.surfaceMuted,
       statusFg: c.textPrimary,

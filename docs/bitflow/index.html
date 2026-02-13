@@ -3,170 +3,131 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BitFlow | Planilla offline con fotos y export XLSX</title>
-  <meta name="description" content="BitFlow es una planilla offline para campo: escritura rapida en el celular, export XLSX real, fotos y compartir por WhatsApp o mail."/>
+  <title>BitFlow | Editor premium offline para campo</title>
+  <meta name="description" content="BitFlow: editor mobile-first sin trabas, adjuntos inline, FlowBot offline y export XLSX real."/>
   <link rel="stylesheet" href="assets/site.css"/>
 </head>
 <body>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
   <div class="page">
     <nav class="nav">
-      <div class="logo">
-        <div class="logo-badge">BF</div>
-        <div>
-          <div style="font-weight:800">BitFlow</div>
-          <div style="font-size:12px;color:var(--ink-soft)">Gridnote offline</div>
-        </div>
-      </div>
+      <a class="brand" href="#top">
+        <span class="brand-badge">BF</span>
+        <span>
+          <strong>BitFlow</strong>
+          <small>Editor offline premium</small>
+        </span>
+      </a>
       <div class="nav-links">
-        <a href="#beneficios">Beneficios</a>
-        <a href="#novedades">Novedades</a>
-        <a href="#casos">Casos</a>
-        <a href="#demo">Demo</a>
-        <a href="#descargas">Descargas</a>
+        <a href="#features">Features</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#field">Modo Campo</a>
+        <a href="#download">Descargas</a>
       </div>
     </nav>
 
-    <section class="hero">
-      <div class="hero-card">
-        <h1>Planilla offline para trabajo de campo, con fotos y XLSX real.</h1>
-        <p>
-          BitFlow es una planilla mobile-first para obras, relevamientos y control diario.
-          Escribis rapido en el celular, funciona offline y exporta Excel verdadero.
+    <header id="top" class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">P18 · No-jank mobile editor</p>
+        <h1>Planilla monocroma, fluida y offline para trabajo real.</h1>
+        <p class="lead">
+          Escritura en celdas sin freeze, thumbnails inline, FlowBot local sin API key y export XLSX con adjuntos.
+          Todo con UX sobria estilo Apple y foco en velocidad de campo.
         </p>
         <div class="cta-row">
-          <a class="pill primary" href="/bitacora_web/bitflow/app/" target="_blank" rel="noopener">Usar BitFlow Web</a>
-          <a class="pill" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar Android APK</a>
-          <a class="pill" href="#ios">iPhone / iPad</a>
-          <a class="pill" href="#demo">Ver demo</a>
+          <a class="btn btn-primary" href="/bitacora_web/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
+          <a class="btn" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK estable</a>
         </div>
-        <div class="notice" style="margin-top:18px;">
-          La app mobile tiene offline total + fotos en alta. La web usa cache del navegador (offline limitado).
+        <div class="chips">
+          <span>Offline-first</span>
+          <span>Adjuntos inline</span>
+          <span>FlowBot 2.0</span>
+          <span>Smart paste TSV/CSV</span>
         </div>
       </div>
-      <div class="hero-aside">
-        <div class="mock">
-          <img src="assets/demo-grid.svg" alt="Planilla BitFlow" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-        <div class="mock">
-          <img src="assets/demo-photos.svg" alt="Fotos en BitFlow" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
+      <div class="hero-visual">
+        <article class="glass-card rise">
+          <h3>Editor 120Hz target</h3>
+          <p>Grid + overlay desacoplados, validacion en chunks y reduce-motion para bajar calor en celular.</p>
+        </article>
+        <article class="glass-card rise delay-1">
+          <h3>Adjuntos sin bloqueo</h3>
+          <p>Pipeline asincrono para camara/galeria, miniaturas en celda y preview premium al tocar.</p>
+        </article>
+      </div>
+    </header>
+
+    <section id="features" class="section">
+      <h2>Features reales</h2>
+      <div class="grid-4">
+        <article class="panel">
+          <h3>Modo Campo</h3>
+          <p>Editor fijo sobre teclado, focus-cell visible y top bar auto-hide para no perder espacio util.</p>
+        </article>
+        <article class="panel">
+          <h3>Adjuntos inline</h3>
+          <p>Foto/audio/GPS visibles en celda con cache de thumbs y preview modal sin congelar UI.</p>
+        </article>
+        <article class="panel">
+          <h3>FlowBot offline</h3>
+          <p>Parser deterministico + voz con fallback manual. Aplicar acepta comando aun sin paso previo de analizar.</p>
+        </article>
+        <article class="panel">
+          <h3>Offline + export</h3>
+          <p>Guardado local robusto, cola offline y export XLSX/PDF/ZIP para compartir desde obra.</p>
+        </article>
       </div>
     </section>
 
-    <section id="beneficios" class="section">
-      <h2>Beneficios clave</h2>
-      <p>Disenado para escribir rapido en celular, sin cortes de teclado y con guardado local robusto.</p>
-      <div class="cards">
-        <div class="card">
-          <h3>Escritura fluida</h3>
-          <p>Editor fijo sobre el teclado, sin perder foco. Un toque y escribis.</p>
+    <section id="workflow" class="section split">
+      <article class="panel">
+        <h2>Workflow express</h2>
+        <ol class="steps">
+          <li>Captura datos o pega tabla TSV/CSV con opciones inteligentes.</li>
+          <li>Adjunta evidencia desde camara/galeria y valida inline.</li>
+          <li>Lanza FlowBot: “fila nueva, estado OK, fecha hoy...”.</li>
+          <li>Exporta XLSX/PDF o comparte paquete con adjuntos.</li>
+        </ol>
+      </article>
+      <article id="field" class="panel">
+        <h2>Modo Campo</h2>
+        <p>
+          Diseñado para pantallas chicas: top bar opcional, atajo Zen (`Ctrl/Cmd+Alt+Z`) y `Reduce motion`
+          para mantener estabilidad en jornadas largas.
+        </p>
+        <div class="mini-kpis">
+          <div><strong>0</strong><span>API key requerida</span></div>
+          <div><strong>TSV/CSV</strong><span>smart paste</span></div>
+          <div><strong>inline</strong><span>thumb preview</span></div>
         </div>
-        <div class="card">
-          <h3>Offline real</h3>
-          <p>Guarda en el dispositivo con autosave. Todo el workbook se preserva localmente.</p>
-        </div>
-        <div class="card">
-          <h3>Export XLSX</h3>
-          <p>Excel verdadero con auto ajuste de columnas y hoja de fotos.</p>
-        </div>
-        <div class="card">
-          <h3>Fotos + compartir</h3>
-          <p>Adjunta fotos offline y comparti por WhatsApp o mail sin servidor.</p>
-        </div>
-      </div>
+      </article>
     </section>
 
-    <section id="casos" class="section">
-      <h2>Casos de uso</h2>
-      <div class="split">
-        <div class="card">
-          <h3>Obras y mantenimiento</h3>
-          <p>Parte diario, mediciones, avances y evidencia fotografica en minutos.</p>
-        </div>
-        <div class="card">
-          <h3>Relevamientos y auditorias</h3>
-          <p>Checklist rapido, export a Excel y envio inmediato.</p>
-        </div>
-        <div class="card">
-          <h3>Gastos, stock y inventario</h3>
-          <p>Registro simple, sin senal. Exporta y comparti al cierre del dia.</p>
-        </div>
+    <section id="download" class="section">
+      <h2>Acceso directo</h2>
+      <div class="download-row">
+        <a class="download-card" href="/bitacora_web/" target="_blank" rel="noopener">
+          <h3>Pages</h3>
+          <p>https://marcoluna-nqn.github.io/bitacora_web/</p>
+        </a>
+        <a class="download-card" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">
+          <h3>APK estable</h3>
+          <p>Release oficial Android (latest)</p>
+        </a>
       </div>
-    </section>
-
-    <section id="demo" class="section">
-      <h2>Demo y capturas</h2>
-      <p>Placeholders de interfaz mientras cargamos capturas reales.</p>
-      <div class="split">
-        <div class="mock">
-          <img src="assets/demo-grid.svg" alt="Demo grilla" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-        <div class="mock">
-          <img src="assets/demo-photos.svg" alt="Demo fotos" style="width:100%;border-radius:16px;display:block;"/>
-        </div>
-      </div>
-    </section>
-
-    <section id="novedades" class="section">
-      <h2>Novedades P11</h2>
-      <div class="cards">
-        <div class="card">
-          <h3>Columnas persistentes + plantillas</h3>
-          <p>Visibilidad, orden, tipo, reglas y columna fijada quedan guardados por planilla. Incluye guardar/aplicar plantilla.</p>
-        </div>
-        <div class="card">
-          <h3>Validacion premium</h3>
-          <p>Errores con hint inline, panel de errores navegable y decision explicita al exportar cuando hay inconsistencias.</p>
-        </div>
-        <div class="card">
-          <h3>Edicion ultrarrapida</h3>
-          <p>Navegacion Enter/Tab/Shift y pegado multi-celda por chunks para mantener fluidez en planillas grandes.</p>
-        </div>
-      </div>
-      <div class="cta-row" style="margin-top:12px;">
-        <a class="pill primary" href="/bitacora_web/bitflow/app/" target="_blank" rel="noopener">Probar BitFlow ahora</a>
-        <a class="pill" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Instalar Android</a>
-      </div>
-    </section>
-
-    <section id="descargas" class="section">
-      <h2>Descargas y acceso</h2>
-      <div class="split">
-        <div class="card">
-          <h3>BitFlow Web</h3>
-          <p>Usa la app en el navegador (PWA). Exporta XLSX y descarga archivos.</p>
-          <div class="cta-row" style="margin-top:12px;">
-            <a class="pill primary" href="/bitacora_web/bitflow/app/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Android</h3>
-          <p>Descarga el APK y abre con Archivos o el instalador de Android.</p>
-          <div class="cta-row" style="margin-top:12px;">
-            <a class="pill" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK</a>
-          </div>
-        </div>
-        <div class="card" id="ios">
-          <h3>iPhone / iPad</h3>
-          <p>Instalacion recomendada via TestFlight o IPA interno.</p>
-          <ol style="padding-left:18px;color:var(--ink-soft)">
-            <li>Solicitar invitacion TestFlight.</li>
-            <li>Instalar y fijar en pantalla de inicio.</li>
-            <li>Offline total con fotos en alta.</li>
-          </ol>
-        </div>
-      </div>
-      <div class="notice" style="margin-top:16px;">
-        Export XLSX desde web descarga al dispositivo. En mobile, el share incluye ZIP con fotos cuando hay adjuntos.
-      </div>
+      <p class="foot-note">
+        iOS/iPadOS: abrir en Safari y agregar a pantalla de inicio para uso tipo app.
+      </p>
     </section>
 
     <footer class="footer">
-      <div>BitFlow / Gridnote - Offline-first</div>
-      <div>
-        <a href="/bitacora_web/bitflow/privacy.html">Privacidad</a> -
+      <span>BitFlow · Monocrome field UX</span>
+      <span>
+        <a href="/bitacora_web/bitflow/privacy.html">Privacidad</a>
+        ·
         <a href="/bitacora_web/bitflow/terms.html">Terminos</a>
-      </div>
+      </span>
     </footer>
   </div>
 </body>

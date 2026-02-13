@@ -10,6 +10,7 @@ extension _EditorDialogs on _EditorScreenState {
     var inlinePreviews = _cellInlinePreviewsEnabled;
     var mobileCompactMode = _mobileCompactModeEnabled;
     var zenMode = _zenModeEnabled;
+    var reduceMotion = _reduceMotionEnabled;
     var mobileFocusCellMode = _mobileFocusCellModeEnabled;
     var flowBotUseLocalLlm = _flowBotUseLocalLlm;
 
@@ -42,9 +43,7 @@ extension _EditorDialogs on _EditorScreenState {
                     setModalState(() => autoIncrement = value),
                 activeColor: _palette(ctx).accent,
                 title: const Text('ID/Progresiva: autoincrement'),
-                subtitle: const Text(
-                  'Toma el ultimo valor numerico y suma +1',
-                ),
+                subtitle: const Text('Toma el ultimo valor numerico y suma +1'),
               ),
               SwitchListTile(
                 value: inlinePreviews,
@@ -73,6 +72,15 @@ extension _EditorDialogs on _EditorScreenState {
                 title: const Text('Modo Zen'),
                 subtitle: const Text(
                   'Oculta la barra superior hasta salir de Zen.',
+                ),
+              ),
+              SwitchListTile(
+                value: reduceMotion,
+                onChanged: (value) => setModalState(() => reduceMotion = value),
+                activeColor: _palette(ctx).accent,
+                title: const Text('Reduce motion'),
+                subtitle: const Text(
+                  'Disminuye animaciones/haptics para evitar calentamiento en mobile.',
                 ),
               ),
               SwitchListTile(
@@ -119,6 +127,7 @@ extension _EditorDialogs on _EditorScreenState {
                 inlinePreviews: inlinePreviews,
                 mobileCompactMode: mobileCompactMode,
                 zenMode: zenMode,
+                reduceMotion: reduceMotion,
                 mobileFocusCellMode: mobileFocusCellMode,
                 flowBotUseLocalLlm: flowBotUseLocalLlm,
               ),
@@ -137,6 +146,7 @@ extension _EditorDialogs on _EditorScreenState {
       cellInlinePreviewsEnabled: result.inlinePreviews,
       mobileCompactModeEnabled: result.mobileCompactMode,
       zenModeEnabled: result.zenMode,
+      reduceMotionEnabled: result.reduceMotion,
       mobileFocusCellModeEnabled: result.mobileFocusCellMode,
       flowBotUseLocalLlm: result.flowBotUseLocalLlm,
     );
@@ -157,10 +167,7 @@ extension _EditorDialogs on _EditorScreenState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          Text(
-            'Atajos clave',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text('Atajos clave', style: TextStyle(fontWeight: FontWeight.w800)),
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+K', label: 'Paleta de comandos'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+S', label: 'Guardar'),
@@ -169,28 +176,27 @@ extension _EditorDialogs on _EditorScreenState {
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Z', label: 'Deshacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Y', label: 'Rehacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+Z', label: 'Toggle modo Zen'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Alt+Z', label: 'Zen rapido'),
           SizedBox(height: 10),
-          Text(
-            'Productividad',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text('Productividad', style: TextStyle(fontWeight: FontWeight.w800)),
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+N', label: 'Crear fila'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+B', label: 'Aplicar valor'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+R', label: 'FlowBot'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Centrar celda activa'),
           _ShortcutLine(
-              shortcut: 'Ctrl/Cmd+Shift+L', label: 'Wrap 1/2/3 lineas'),
+            shortcut: 'Ctrl/Cmd+Shift+L',
+            label: 'Wrap 1/2/3 lineas',
+          ),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Alt+C', label: 'Centrar columna'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+E', label: 'Exportar XLSX'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Alt+E', label: 'Exportar paquete'),
           _ShortcutLine(
-              shortcut: 'Ctrl/Cmd+Shift+I', label: 'Importar paquete'),
-          SizedBox(height: 10),
-          Text(
-            'Campo',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            shortcut: 'Ctrl/Cmd+Shift+I',
+            label: 'Importar paquete',
           ),
+          SizedBox(height: 10),
+          Text('Campo', style: TextStyle(fontWeight: FontWeight.w800)),
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+G', label: 'Adjuntar GPS'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+P', label: 'Adjuntar foto'),
@@ -280,8 +286,10 @@ extension _EditorDialogs on _EditorScreenState {
               ),
               subtitle: Text(
                 _gpsModeDesc(mode),
-                style:
-                    TextStyle(color: _palette(context).fgMuted, fontSize: 12),
+                style: TextStyle(
+                  color: _palette(context).fgMuted,
+                  fontSize: 12,
+                ),
               ),
               activeColor: _palette(context).accent,
             ),
@@ -305,10 +313,7 @@ extension _EditorDialogs on _EditorScreenState {
 }
 
 class _ShortcutLine extends StatelessWidget {
-  const _ShortcutLine({
-    required this.shortcut,
-    required this.label,
-  });
+  const _ShortcutLine({required this.shortcut, required this.label});
 
   final String shortcut;
   final String label;
@@ -355,6 +360,7 @@ class _EditorDefaultsConfig {
     required this.inlinePreviews,
     required this.mobileCompactMode,
     required this.zenMode,
+    required this.reduceMotion,
     required this.mobileFocusCellMode,
     required this.flowBotUseLocalLlm,
   });
@@ -365,6 +371,7 @@ class _EditorDefaultsConfig {
   final bool inlinePreviews;
   final bool mobileCompactMode;
   final bool zenMode;
+  final bool reduceMotion;
   final bool mobileFocusCellMode;
   final bool flowBotUseLocalLlm;
 }

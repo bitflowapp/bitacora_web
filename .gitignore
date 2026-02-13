@@ -97,6 +97,12 @@ Bitacora_Release_*.zip
 .env
 .env.*
 !.env.example
+.codex/
+auth.json
+*.key
+secrets.*
+credentials.*
+cookies.*
 
 # Logs
 *.log

@@ -1,0 +1,23 @@
+# Design System (Planilla)
+
+- Referencia usada: lineamientos de planilla de producto para look & feel "Apple cálido" (beige/arena + blancos suaves, sin neón).
+- Paleta base:
+  - Fondo app: beige cálido suave.
+  - Superficies: marfil/blanco cálido.
+  - Bordes/separadores: arena desaturado con contraste limpio.
+  - Texto: tinta cálida oscura + secundario desaturado.
+- Contenedores:
+  - Tarjetas con radios grandes y consistentes.
+  - Sombra suave de baja opacidad, sin efectos agresivos.
+  - Espaciado generoso para respiración visual.
+- Botones:
+  - Forma píldora global.
+  - Estados definidos: hover, pressed, disabled.
+  - Relieve sutil y bordes finos para tactilidad.
+- Tabla/Grilla:
+  - Encabezado minimalista en tono cálido.
+  - Líneas divisorias suaves (hairline), sin ruido visual.
+  - Zebra muy tenue para lectura sin saturación.
+- Consistencia:
+  - Tokens centralizados en tema (`lib/theme/app_theme.dart`, `lib/theme/gridnote_theme.dart`).
+  - Uso de tokens en editor/home para evitar hardcodes dispersos.

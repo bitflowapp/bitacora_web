@@ -11,4 +11,5 @@ class WebCapabilitiesImpl {
   static bool get indexedDbAvailable => false;
   static bool get cameraAvailable => false;
   static bool get imageCaptureSupported => false;
+  static bool get prefersReducedMotion => false;
 }

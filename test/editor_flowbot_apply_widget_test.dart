@@ -6,8 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('FlowBot parse and apply pipeline updates active cell',
-      (tester) async {
+  testWidgets('FlowBot parse and apply pipeline updates active cell', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
     tester.view.physicalSize = const Size(1700, 3000);
@@ -33,6 +34,37 @@ void main() {
     expect(parsed.actions, isNotEmpty);
 
     final applied = await state.debugApplyFlowBotActions(parsed.actions);
+    await tester.pump();
+
+    expect(applied, greaterThan(0));
+    expect(state.debugCellText(0, 0), 'OK');
+  });
+
+  testWidgets('FlowBot apply resolves transcript without explicit analyze', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(1700, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-apply-transcript',
+          initialHeaders: <String>['Notas', 'Photos'],
+          initialRows: <List<String>>[
+            <String>['', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final applied = await state.debugApplyFlowBotTranscript('poner OK en A1');
     await tester.pump();
 
     expect(applied, greaterThan(0));

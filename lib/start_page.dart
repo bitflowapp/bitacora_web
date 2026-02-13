@@ -185,239 +185,273 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefSavedViews = 'bitflow.editor.saved_views.v1';
   static const List<_PackTemplateSpec> _commercialTemplates =
       <_PackTemplateSpec>[
-    _PackTemplateSpec(
-      id: 'campo_inspeccion_general',
-      pack: 'Campo/Inspeccion',
-      name: 'Inspeccion general',
-      description: 'Checklist de campo con estados y responsables.',
-      icon: CupertinoIcons.doc_text_search,
-      tags: <String>['Campo', 'Control', 'Rapido'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
-          'Pendiente',
-          'En progreso',
-          'Completado',
-          'Urgente'
-        ]),
-        _PackColumnSpec(label: 'Sector', type: 'text', required: true),
-        _PackColumnSpec(label: 'Hallazgo', type: 'text', required: true),
-        _PackColumnSpec(label: 'Responsable', type: 'text'),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'campo_checklist_seguridad',
-      pack: 'Campo/Inspeccion',
-      name: 'Checklist seguridad',
-      description: 'Verificacion de seguridad por item y fecha.',
-      icon: CupertinoIcons.shield,
-      tags: <String>['Seguridad', 'Checklist', 'Cumplimiento'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Item', type: 'text', required: true),
-        _PackColumnSpec(
-            label: 'Estado',
-            type: 'status',
-            enumValues: <String>['Pendiente', 'OK', 'No cumple', 'Urgente']),
-        _PackColumnSpec(label: 'Evidencia', type: 'text'),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'campo_mantenimiento_rapido',
-      pack: 'Campo/Inspeccion',
-      name: 'Mantenimiento rapido',
-      description: 'Tareas de mantenimiento con proxima fecha.',
-      icon: CupertinoIcons.wrench,
-      tags: <String>['Mantenimiento', 'Equipo', 'Servicio'],
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Equipo', type: 'text', required: true),
-        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
-          'Pendiente',
-          'En progreso',
-          'Completado',
-          'Urgente'
-        ]),
-        _PackColumnSpec(label: 'Proxima fecha', type: 'date'),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'obra_avance_diario',
-      pack: 'Obra/Avance',
-      name: 'Avance diario',
-      description: 'Seguimiento de frente de obra y porcentaje.',
-      icon: CupertinoIcons.building_2_fill,
-      tags: <String>['Obra', 'Avance', 'Diario'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Frente', type: 'text', required: true),
-        _PackColumnSpec(
-            label: '% Avance', type: 'number', numberMin: 0, numberMax: 100),
-        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
-          'Pendiente',
-          'En progreso',
-          'Completado',
-          'Urgente'
-        ]),
-        _PackColumnSpec(label: 'Responsable', type: 'text'),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'obra_control_materiales',
-      pack: 'Obra/Avance',
-      name: 'Control de materiales',
-      description: 'Ingreso y uso de materiales por jornada.',
-      icon: CupertinoIcons.cube_box_fill,
-      tags: <String>['Materiales', 'Stock', 'Obra'],
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Material', type: 'text', required: true),
-        _PackColumnSpec(
-            label: 'Cantidad', type: 'number', required: true, numberMin: 0),
-        _PackColumnSpec(label: 'Unidad', type: 'text', defaultValue: 'u'),
-        _PackColumnSpec(
-            label: 'Estado',
-            type: 'status',
-            enumValues: <String>['Pendiente', 'En progreso', 'Completado']),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', textContains: 'faltante'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'obra_partes_trabajo',
-      pack: 'Obra/Avance',
-      name: 'Partes de trabajo',
-      description: 'Parte diario por OT, actividad y horas.',
-      icon: CupertinoIcons.doc_append,
-      tags: <String>['Parte', 'OT', 'Horas'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'OT ID', type: 'text', required: true),
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Actividad', type: 'text', required: true),
-        _PackColumnSpec(label: 'Horas', type: 'number', numberMin: 0),
-        _PackColumnSpec(
-            label: 'Estado',
-            type: 'status',
-            enumValues: <String>['Pendiente', 'En progreso', 'Completado']),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'gps_puntos',
-      pack: 'Relevamiento/GPS',
-      name: 'Puntos GPS',
-      description: 'Captura de puntos y estado en terreno.',
-      icon: CupertinoIcons.location_solid,
-      tags: <String>['GPS', 'Puntos', 'Terreno'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Punto ID', type: 'text', required: true),
-        _PackColumnSpec(label: 'Latitud', type: 'number', required: true),
-        _PackColumnSpec(label: 'Longitud', type: 'number', required: true),
-        _PackColumnSpec(
-            label: 'Estado',
-            type: 'status',
-            enumValues: <String>['Pendiente', 'Validado', 'Urgente']),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'gps_relevamiento_foto',
-      pack: 'Relevamiento/GPS',
-      name: 'Relevamiento foto',
-      description: 'Registro de ubicacion, estado y observacion.',
-      icon: CupertinoIcons.photo_on_rectangle,
-      tags: <String>['Relevamiento', 'Foto', 'Ubicacion'],
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Ubicacion', type: 'text', required: true),
-        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
-          'Pendiente',
-          'Revisar',
-          'Completado',
-          'Urgente'
-        ]),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
-        _PackColumnSpec(label: 'Referencia', type: 'text'),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Revisar'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-    _PackTemplateSpec(
-      id: 'gps_incidencias_ruta',
-      pack: 'Relevamiento/GPS',
-      name: 'Incidencias en ruta',
-      description: 'Incidencias con progresiva y prioridad.',
-      icon: CupertinoIcons.map_pin_ellipse,
-      tags: <String>['Ruta', 'Incidencias', 'Prioridad'],
-      workflowReview: true,
-      columns: <_PackColumnSpec>[
-        _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(
-            label: 'Km/Progresiva',
-            type: 'number',
-            required: true,
-            numberMin: 0),
-        _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
-          'Pendiente',
-          'En progreso',
-          'Resuelto',
-          'Urgente'
-        ]),
-        _PackColumnSpec(
-            label: 'Prioridad',
-            type: 'status',
-            enumValues: <String>['Baja', 'Media', 'Alta', 'Urgente']),
-        _PackColumnSpec(label: 'Detalle', type: 'text', required: true),
-      ],
-      views: <_PackViewPreset>[
-        _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
-        _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
-      ],
-    ),
-  ];
+        _PackTemplateSpec(
+          id: 'campo_inspeccion_general',
+          pack: 'Campo/Inspeccion',
+          name: 'Inspeccion general',
+          description: 'Checklist de campo con estados y responsables.',
+          icon: CupertinoIcons.doc_text_search,
+          tags: <String>['Campo', 'Control', 'Rapido'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>[
+                'Pendiente',
+                'En progreso',
+                'Completado',
+                'Urgente',
+              ],
+            ),
+            _PackColumnSpec(label: 'Sector', type: 'text', required: true),
+            _PackColumnSpec(label: 'Hallazgo', type: 'text', required: true),
+            _PackColumnSpec(label: 'Responsable', type: 'text'),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'campo_checklist_seguridad',
+          pack: 'Campo/Inspeccion',
+          name: 'Checklist seguridad',
+          description: 'Verificacion de seguridad por item y fecha.',
+          icon: CupertinoIcons.shield,
+          tags: <String>['Seguridad', 'Checklist', 'Cumplimiento'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Item', type: 'text', required: true),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>['Pendiente', 'OK', 'No cumple', 'Urgente'],
+            ),
+            _PackColumnSpec(label: 'Evidencia', type: 'text'),
+            _PackColumnSpec(label: 'Observacion', type: 'text'),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'campo_mantenimiento_rapido',
+          pack: 'Campo/Inspeccion',
+          name: 'Mantenimiento rapido',
+          description: 'Tareas de mantenimiento con proxima fecha.',
+          icon: CupertinoIcons.wrench,
+          tags: <String>['Mantenimiento', 'Equipo', 'Servicio'],
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Equipo', type: 'text', required: true),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>[
+                'Pendiente',
+                'En progreso',
+                'Completado',
+                'Urgente',
+              ],
+            ),
+            _PackColumnSpec(label: 'Proxima fecha', type: 'date'),
+            _PackColumnSpec(label: 'Observacion', type: 'text'),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'obra_avance_diario',
+          pack: 'Obra/Avance',
+          name: 'Avance diario',
+          description: 'Seguimiento de frente de obra y porcentaje.',
+          icon: CupertinoIcons.building_2_fill,
+          tags: <String>['Obra', 'Avance', 'Diario'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Frente', type: 'text', required: true),
+            _PackColumnSpec(
+              label: '% Avance',
+              type: 'number',
+              numberMin: 0,
+              numberMax: 100,
+            ),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>[
+                'Pendiente',
+                'En progreso',
+                'Completado',
+                'Urgente',
+              ],
+            ),
+            _PackColumnSpec(label: 'Responsable', type: 'text'),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'obra_control_materiales',
+          pack: 'Obra/Avance',
+          name: 'Control de materiales',
+          description: 'Ingreso y uso de materiales por jornada.',
+          icon: CupertinoIcons.cube_box_fill,
+          tags: <String>['Materiales', 'Stock', 'Obra'],
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Material', type: 'text', required: true),
+            _PackColumnSpec(
+              label: 'Cantidad',
+              type: 'number',
+              required: true,
+              numberMin: 0,
+            ),
+            _PackColumnSpec(label: 'Unidad', type: 'text', defaultValue: 'u'),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>['Pendiente', 'En progreso', 'Completado'],
+            ),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', textContains: 'faltante'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'obra_partes_trabajo',
+          pack: 'Obra/Avance',
+          name: 'Partes de trabajo',
+          description: 'Parte diario por OT, actividad y horas.',
+          icon: CupertinoIcons.doc_append,
+          tags: <String>['Parte', 'OT', 'Horas'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'OT ID', type: 'text', required: true),
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Actividad', type: 'text', required: true),
+            _PackColumnSpec(label: 'Horas', type: 'number', numberMin: 0),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>['Pendiente', 'En progreso', 'Completado'],
+            ),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'gps_puntos',
+          pack: 'Relevamiento/GPS',
+          name: 'Puntos GPS',
+          description: 'Captura de puntos y estado en terreno.',
+          icon: CupertinoIcons.location_solid,
+          tags: <String>['GPS', 'Puntos', 'Terreno'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Punto ID', type: 'text', required: true),
+            _PackColumnSpec(label: 'Latitud', type: 'number', required: true),
+            _PackColumnSpec(label: 'Longitud', type: 'number', required: true),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>['Pendiente', 'Validado', 'Urgente'],
+            ),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'gps_relevamiento_foto',
+          pack: 'Relevamiento/GPS',
+          name: 'Relevamiento foto',
+          description: 'Registro de ubicacion, estado y observacion.',
+          icon: CupertinoIcons.photo_on_rectangle,
+          tags: <String>['Relevamiento', 'Foto', 'Ubicacion'],
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(label: 'Ubicacion', type: 'text', required: true),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>[
+                'Pendiente',
+                'Revisar',
+                'Completado',
+                'Urgente',
+              ],
+            ),
+            _PackColumnSpec(label: 'Observacion', type: 'text'),
+            _PackColumnSpec(label: 'Referencia', type: 'text'),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Revisar'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+        _PackTemplateSpec(
+          id: 'gps_incidencias_ruta',
+          pack: 'Relevamiento/GPS',
+          name: 'Incidencias en ruta',
+          description: 'Incidencias con progresiva y prioridad.',
+          icon: CupertinoIcons.map_pin_ellipse,
+          tags: <String>['Ruta', 'Incidencias', 'Prioridad'],
+          workflowReview: true,
+          columns: <_PackColumnSpec>[
+            _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
+            _PackColumnSpec(
+              label: 'Km/Progresiva',
+              type: 'number',
+              required: true,
+              numberMin: 0,
+            ),
+            _PackColumnSpec(
+              label: 'Estado',
+              type: 'status',
+              enumValues: <String>[
+                'Pendiente',
+                'En progreso',
+                'Resuelto',
+                'Urgente',
+              ],
+            ),
+            _PackColumnSpec(
+              label: 'Prioridad',
+              type: 'status',
+              enumValues: <String>['Baja', 'Media', 'Alta', 'Urgente'],
+            ),
+            _PackColumnSpec(label: 'Detalle', type: 'text', required: true),
+          ],
+          views: <_PackViewPreset>[
+            _PackViewPreset(name: 'Campo'),
+            _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+            _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
+          ],
+        ),
+      ];
 
   // --------------------- Data ---------------------
   List<SheetMeta> _items = <SheetMeta>[];
@@ -758,9 +792,7 @@ class _StartPageState extends State<StartPage> {
                         onChanged: (v) => setLocal(() => dontShow = v),
                       ),
                       const SizedBox(width: 6),
-                      const Expanded(
-                        child: Text('No mostrar de nuevo'),
-                      ),
+                      const Expanded(child: Text('No mostrar de nuevo')),
                     ],
                   ),
                 ],
@@ -1000,8 +1032,8 @@ class _StartPageState extends State<StartPage> {
               decoration: BoxDecoration(
                 color: emphasized
                     ? (isLight
-                        ? const Color(0xFFF2F2F7)
-                        : const Color(0xFF1F1F24))
+                          ? const Color(0xFFF2F2F7)
+                          : const Color(0xFF1F1F24))
                     : pal.group,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: border),
@@ -1086,8 +1118,10 @@ class _StartPageState extends State<StartPage> {
                     const Spacer(),
                     IconButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      icon:
-                          Icon(CupertinoIcons.xmark, color: pal.textSecondary),
+                      icon: Icon(
+                        CupertinoIcons.xmark,
+                        color: pal.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -1250,13 +1284,14 @@ class _StartPageState extends State<StartPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final border =
-            !pal.isLight ? const Color(0xFF3A3A3C) : const Color(0xFFD9D9DE);
+        final border = !pal.isLight
+            ? const Color(0xFF3A3A3C)
+            : const Color(0xFFD9D9DE);
         final grouped = <String, List<_PackTemplateSpec>>{};
         for (final template in _commercialTemplates) {
-          grouped.putIfAbsent(template.pack, () => <_PackTemplateSpec>[]).add(
-                template,
-              );
+          grouped
+              .putIfAbsent(template.pack, () => <_PackTemplateSpec>[])
+              .add(template);
         }
 
         Widget card(_PackTemplateSpec template) {
@@ -1376,8 +1411,10 @@ class _StartPageState extends State<StartPage> {
                       const Spacer(),
                       IconButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        icon: Icon(CupertinoIcons.xmark,
-                            color: pal.textSecondary),
+                        icon: Icon(
+                          CupertinoIcons.xmark,
+                          color: pal.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -1474,9 +1511,7 @@ class _StartPageState extends State<StartPage> {
     for (int i = 0; i < template.columns.length; i++) {
       final col = template.columns[i];
       final colId = colIds[i];
-      final pref = <String, dynamic>{
-        'type': col.type,
-      };
+      final pref = <String, dynamic>{'type': col.type};
       if (col.required) pref['required'] = true;
       if (col.enumValues.isNotEmpty) pref['enumValues'] = col.enumValues;
       if (col.numberMin != null) pref['numberMin'] = col.numberMin;
@@ -1490,10 +1525,7 @@ class _StartPageState extends State<StartPage> {
       'headers': headers,
       'colIds': colIds,
       'rows': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'id': 'r_1',
-          'cells': rowDefaults,
-        },
+        <String, dynamic>{'id': 'r_1', 'cells': rowDefaults},
       ],
       'columnPrefs': columnPrefs,
       'columnOrder': colIds,
@@ -1569,11 +1601,13 @@ class _StartPageState extends State<StartPage> {
     await _seedTemplateSavedViews(
       sheetId: id,
       template: template,
-      colIds: (model['colIds'] as List?)
+      colIds:
+          (model['colIds'] as List?)
               ?.map((e) => e.toString())
               .toList(growable: false) ??
           const <String>[],
-      headers: (model['headers'] as List?)
+      headers:
+          (model['headers'] as List?)
               ?.map((e) => e.toString())
               .toList(growable: false) ??
           const <String>[],
@@ -1611,20 +1645,14 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _openDiagnostics() async {
     if (!mounted) return;
-    await Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (_) => DiagnosticsScreen(),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push(CupertinoPageRoute(builder: (_) => DiagnosticsScreen()));
   }
 
   Future<void> _openStaticPage(Widget page) async {
     if (!mounted) return;
-    await Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (_) => page,
-      ),
-    );
+    await Navigator.of(context).push(CupertinoPageRoute(builder: (_) => page));
   }
 
   Future<void> _openLicenses() async {
@@ -1643,13 +1671,7 @@ class _StartPageState extends State<StartPage> {
     if (_busy) return;
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
-    final headers = <String>[
-      'Actividad',
-      'GPS',
-      'Foto',
-      'Audio',
-      'Notas',
-    ];
+    final headers = <String>['Actividad', 'GPS', 'Foto', 'Audio', 'Notas'];
     final rows = <List<String>>[
       <String>['1) GPS', '', '', '', 'Toc GPS en esta fila.'],
       <String>['2) Foto', '', '', '', 'Adjunt una foto.'],
@@ -1861,8 +1883,9 @@ class _StartPageState extends State<StartPage> {
       late final Map<String, dynamic> sheetRaw;
       List<dynamic> assetsRaw = const <dynamic>[];
       if (backupFile != null) {
-        final backupRaw =
-            jsonDecode(utf8.decode(_archiveFileBytes(backupFile)));
+        final backupRaw = jsonDecode(
+          utf8.decode(_archiveFileBytes(backupFile)),
+        );
         if (backupRaw is! Map) {
           _reportStartPageErrorMessage(
             'backup_invalid_root',
@@ -1885,8 +1908,9 @@ class _StartPageState extends State<StartPage> {
         sheetRaw = Map<String, dynamic>.from(sheetCandidate);
         assetsRaw = (backupRaw['assets'] as List?) ?? const <dynamic>[];
       } else {
-        final sheetCandidate =
-            jsonDecode(utf8.decode(_archiveFileBytes(sheetFile!)));
+        final sheetCandidate = jsonDecode(
+          utf8.decode(_archiveFileBytes(sheetFile!)),
+        );
         if (sheetCandidate is! Map) {
           _reportStartPageErrorMessage(
             'package_invalid_sheet_json',
@@ -1898,8 +1922,9 @@ class _StartPageState extends State<StartPage> {
         }
         sheetRaw = Map<String, dynamic>.from(sheetCandidate);
         if (manifestFile != null) {
-          final manifestRaw =
-              jsonDecode(utf8.decode(_archiveFileBytes(manifestFile)));
+          final manifestRaw = jsonDecode(
+            utf8.decode(_archiveFileBytes(manifestFile)),
+          );
           if (manifestRaw is Map) {
             assetsRaw = (manifestRaw['assets'] as List?) ?? const <dynamic>[];
             if (assetsRaw.isEmpty) {
@@ -1945,7 +1970,8 @@ class _StartPageState extends State<StartPage> {
           rowIds.add((r['id'] ?? '').toString());
         }
       }
-      final colIds = (normalized['colIds'] as List?)
+      final colIds =
+          (normalized['colIds'] as List?)
               ?.map((e) => (e ?? '').toString())
               .toList() ??
           const <String>[];
@@ -2007,10 +2033,10 @@ class _StartPageState extends State<StartPage> {
               final asset =
                   assetsById['photo:$idRaw'] ?? assetsById['photo:$id'];
               final assetPath = (asset?['path'] ?? '').toString();
-              final fileName =
-                  (p['name'] ?? asset?['fileName'] ?? 'foto.jpg').toString();
-              final mime =
-                  (p['mime'] ?? asset?['mime'] ?? 'image/jpeg').toString();
+              final fileName = (p['name'] ?? asset?['fileName'] ?? 'foto.jpg')
+                  .toString();
+              final mime = (p['mime'] ?? asset?['mime'] ?? 'image/jpeg')
+                  .toString();
               final thumbRef = (p['thumbRef'] ?? '').toString();
 
               Uint8List? contentBytes;
@@ -2075,11 +2101,12 @@ class _StartPageState extends State<StartPage> {
               final asset =
                   assetsById['audio:$idRaw'] ?? assetsById['audio:$id'];
               final assetPath = (asset?['path'] ?? '').toString();
-              final fileName =
-                  (a['name'] ?? asset?['fileName'] ?? 'audio.m4a').toString();
-              final mime =
-                  (a['mime'] ?? asset?['mime'] ?? 'audio/m4a').toString();
-              final durationMs = (a['durationMs'] as num?)?.toInt() ??
+              final fileName = (a['name'] ?? asset?['fileName'] ?? 'audio.m4a')
+                  .toString();
+              final mime = (a['mime'] ?? asset?['mime'] ?? 'audio/m4a')
+                  .toString();
+              final durationMs =
+                  (a['durationMs'] as num?)?.toInt() ??
                   (asset?['durationMs'] as num?)?.toInt() ??
                   0;
 
@@ -2712,7 +2739,8 @@ class _StartPageState extends State<StartPage> {
             final engine = engineEC.text.trim();
             final isManual = engineMode == EngineConfig.modeManual;
             final engineOk = !isManual || _looksLikeHttpUrl(engine);
-            final resolvedLabel = (lastResolved ??
+            final resolvedLabel =
+                (lastResolved ??
                 (isManual ? 'Manual (sin resolver)' : 'Auto (sin resolver)'));
 
             return CupertinoAlertDialog(
@@ -2750,7 +2778,9 @@ class _StartPageState extends State<StartPage> {
                       autocorrect: false,
                       onChanged: (_) => setLocal(() {}),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                       prefix: const Padding(
                         padding: EdgeInsets.only(left: 10),
                         child: Icon(CupertinoIcons.cloud, size: 18),
@@ -2763,8 +2793,8 @@ class _StartPageState extends State<StartPage> {
                           'URL inválida (usa http/https + host)',
                           style: TextStyle(
                             color: widget.isLight
-                                ? const Color(0xFF1B1B1F)
-                                : const Color(0xFFE7E7EC),
+                                ? const Color(0xFF3B3026)
+                                : const Color(0xFFE6D8C8),
                             fontSize: 12,
                           ),
                         ),
@@ -2776,8 +2806,8 @@ class _StartPageState extends State<StartPage> {
                         'Base resuelta: $resolvedLabel',
                         style: TextStyle(
                           color: widget.isLight
-                              ? const Color(0x88000000)
-                              : const Color(0x99FFFFFF),
+                              ? const Color(0xAA5F5144)
+                              : const Color(0xAAC8B8A8),
                           fontSize: 12,
                         ),
                       ),
@@ -2803,13 +2833,16 @@ class _StartPageState extends State<StartPage> {
                                 _toast(result.message);
                               },
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         color: widget.isLight
-                            ? const Color(0xFFF0F2F7)
-                            : const Color(0xFF1B1F2B),
+                            ? const Color(0xFFF1E7D8)
+                            : const Color(0xFF3A3028),
                         borderRadius: BorderRadius.circular(10),
-                        child:
-                            Text(testing ? 'Probando...' : 'Probar conexion'),
+                        child: Text(
+                          testing ? 'Probando...' : 'Probar conexion',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -2828,7 +2861,9 @@ class _StartPageState extends State<StartPage> {
                       autocorrect: false,
                       onChanged: (_) => setLocal(() {}),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                       prefix: const Padding(
                         padding: EdgeInsets.only(left: 10),
                         child: Icon(CupertinoIcons.mail, size: 18),
@@ -2841,8 +2876,8 @@ class _StartPageState extends State<StartPage> {
                           'Correo inválido',
                           style: TextStyle(
                             color: widget.isLight
-                                ? const Color(0xFF1B1B1F)
-                                : const Color(0xFFE7E7EC),
+                                ? const Color(0xFF3B3026)
+                                : const Color(0xFFE6D8C8),
                             fontSize: 12,
                           ),
                         ),
@@ -2910,9 +2945,11 @@ class _StartPageState extends State<StartPage> {
         _manualEngineBaseUrl.trim().isNotEmpty) {
       _toast('Ajustes guardados. Engine: ${_manualEngineBaseUrl.trim()}');
     } else {
-      _toast(_defaultEmail.isEmpty
-          ? 'Ajustes guardados.'
-          : 'Ajustes guardados (correo ok).');
+      _toast(
+        _defaultEmail.isEmpty
+            ? 'Ajustes guardados.'
+            : 'Ajustes guardados (correo ok).',
+      );
     }
   }
 
@@ -3054,29 +3091,37 @@ class _StartPageState extends State<StartPage> {
     if (kIsWeb) {
       final result = await ForceUpdateService.I.forceUpdate();
       if (!mounted) return;
-      _toast(result.message.trim().isEmpty
-          ? 'Recargando version nueva...'
-          : result.message);
+      _toast(
+        result.message.trim().isEmpty
+            ? 'Recargando version nueva...'
+            : result.message,
+      );
       return;
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       final url = Uri.parse(AppUpdateService.androidLatestApkUrl);
       final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
-      _toast(opened
-          ? 'Abriendo descarga de Android...'
-          : 'No se pudo abrir la descarga.');
+      _toast(
+        opened
+            ? 'Abriendo descarga de Android...'
+            : 'No se pudo abrir la descarga.',
+      );
       return;
     }
 
     final releaseUrl = Uri.parse(
       'https://github.com/marcoluna-nqn/bitacora_web/releases/latest',
     );
-    final opened =
-        await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
-    _toast(opened
-        ? 'Abriendo pagina de release.'
-        : 'En iOS: usa Safari y actualiza desde la web/PWA.');
+    final opened = await launchUrl(
+      releaseUrl,
+      mode: LaunchMode.externalApplication,
+    );
+    _toast(
+      opened
+          ? 'Abriendo pagina de release.'
+          : 'En iOS: usa Safari y actualiza desde la web/PWA.',
+    );
   }
 
   Future<void> _openMoreSheet(_ApplePalette colors) async {
@@ -3117,8 +3162,8 @@ class _StartPageState extends State<StartPage> {
                 (_updateSnapshot?.updateAvailable ?? false)
                     ? 'Actualizacion disponible…'
                     : (_updateChecking
-                        ? 'Buscando actualizaciones...'
-                        : 'Buscar actualizaciones…'),
+                          ? 'Buscando actualizaciones...'
+                          : 'Buscar actualizaciones…'),
               ),
             ),
             CupertinoActionSheetAction(
@@ -3203,7 +3248,8 @@ class _StartPageState extends State<StartPage> {
                 });
               },
               child: Text(
-                  _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
+                _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas',
+              ),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -3484,10 +3530,7 @@ class _StartPageState extends State<StartPage> {
       flow: flow,
       fallbackMessage: fallbackMessage,
     );
-    AppErrorReporter.I.record(
-      appError,
-      operation: operation,
-    );
+    AppErrorReporter.I.record(appError, operation: operation);
     debugPrint('[StartPage] ${appError.toLogLine(operation: operation)}');
     _toast(appError.userMessage);
   }
@@ -3542,10 +3585,7 @@ class _StartPageState extends State<StartPage> {
           left: 16,
           right: 16,
           bottom: 24,
-          child: _AppleToast(
-            message: msg,
-            isLight: isLight,
-          ),
+          child: _AppleToast(message: msg, isLight: isLight),
         );
       },
     );
@@ -3590,8 +3630,10 @@ class _StartPageState extends State<StartPage> {
                 CupertinoTextField(
                   controller: ec,
                   placeholder: placeholder,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   autofocus: true,
                 ),
               ],
@@ -3861,7 +3903,9 @@ class _StartPageState extends State<StartPage> {
                               children: [
                                 CupertinoButton(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   color: colors.textPrimary,
                                   borderRadius: BorderRadius.circular(10),
                                   onPressed: _ackIosInstallHelper,
@@ -3875,11 +3919,14 @@ class _StartPageState extends State<StartPage> {
                                 ),
                                 CupertinoButton(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   color: colors.group,
                                   borderRadius: BorderRadius.circular(10),
                                   onPressed: () => unawaited(
-                                      _dismissIosInstallHelperForever()),
+                                    _dismissIosInstallHelperForever(),
+                                  ),
                                   child: Text(
                                     'No mostrar de nuevo',
                                     style: TextStyle(
@@ -3931,7 +3978,9 @@ class _StartPageState extends State<StartPage> {
                               children: [
                                 CupertinoButton(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   color: colors.textPrimary,
                                   borderRadius: BorderRadius.circular(10),
                                   onPressed: _applyAvailableUpdate,
@@ -3945,7 +3994,9 @@ class _StartPageState extends State<StartPage> {
                                 ),
                                 CupertinoButton(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   color: colors.group,
                                   borderRadius: BorderRadius.circular(10),
                                   onPressed: () {
@@ -3968,33 +4019,34 @@ class _StartPageState extends State<StartPage> {
                   ),
 
                 // Pull to refresh (iOS)
-                CupertinoSliverRefreshControl(
-                  onRefresh: () async => _reload(),
-                ),
+                CupertinoSliverRefreshControl(onRefresh: () async => _reload()),
 
                 // Dashboard (estilo Reminders)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                    child: _RemindersSummaryGrid(
-                      isLight: isLight,
-                      today: todayCount,
-                      scheduled: scheduledCount,
-                      all: allCount,
-                      flagged: flaggedCount,
-                      completed: completedCount,
-                      onTapToday: () => _applySummaryTap(_SummaryKind.today),
-                      onTapScheduled: () =>
-                          _applySummaryTap(_SummaryKind.scheduled),
-                      onTapAll: () => _applySummaryTap(_SummaryKind.all),
-                      onTapFlagged: () =>
-                          _applySummaryTap(_SummaryKind.flagged),
-                      onTapCompleted: () =>
-                          _applySummaryTap(_SummaryKind.completed),
-                    )
-                        .animate()
-                        .fadeIn(duration: 220.ms)
-                        .move(begin: const Offset(0, 6)),
+                    child:
+                        _RemindersSummaryGrid(
+                              isLight: isLight,
+                              today: todayCount,
+                              scheduled: scheduledCount,
+                              all: allCount,
+                              flagged: flaggedCount,
+                              completed: completedCount,
+                              onTapToday: () =>
+                                  _applySummaryTap(_SummaryKind.today),
+                              onTapScheduled: () =>
+                                  _applySummaryTap(_SummaryKind.scheduled),
+                              onTapAll: () =>
+                                  _applySummaryTap(_SummaryKind.all),
+                              onTapFlagged: () =>
+                                  _applySummaryTap(_SummaryKind.flagged),
+                              onTapCompleted: () =>
+                                  _applySummaryTap(_SummaryKind.completed),
+                            )
+                            .animate()
+                            .fadeIn(duration: 220.ms)
+                            .move(begin: const Offset(0, 6)),
                   ),
                 ),
 
@@ -4048,8 +4100,10 @@ class _StartPageState extends State<StartPage> {
                                 _applyListTap(_ListKind.root, folderId: '');
                                 break;
                               case _ListKind.folder:
-                                _applyListTap(_ListKind.folder,
-                                    folderId: item.folderId);
+                                _applyListTap(
+                                  _ListKind.folder,
+                                  folderId: item.folderId,
+                                );
                                 break;
                               case _ListKind.trash:
                                 _applyListTap(_ListKind.trash);
@@ -4104,12 +4158,12 @@ class _StartPageState extends State<StartPage> {
                       _tab == _HomeTab.trash
                           ? 'Papelera: ${data.length} planilla(s)'
                           : _quick == _QuickFilter.today
-                              ? 'Hoy: ${data.length} planilla(s)'
-                              : _quick == _QuickFilter.flagged
-                                  ? 'Con indicador: ${data.length} planilla(s)'
-                                  : (_searchAll
-                                      ? 'Mostrando ${data.length} (buscando en todas)'
-                                      : 'Mostrando ${data.length} en “${_folderName(_selectedFolderId)}'),
+                          ? 'Hoy: ${data.length} planilla(s)'
+                          : _quick == _QuickFilter.flagged
+                          ? 'Con indicador: ${data.length} planilla(s)'
+                          : (_searchAll
+                                ? 'Mostrando ${data.length} (buscando en todas)'
+                                : 'Mostrando ${data.length} en “${_folderName(_selectedFolderId)}'),
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 12,
@@ -4143,31 +4197,34 @@ class _StartPageState extends State<StartPage> {
                               children: [
                                 for (int i = 0; i < data.length; i++)
                                   _AppleSheetRow(
-                                    key: ValueKey('sheet_${data[i].id}'),
-                                    colors: colors,
-                                    meta: data[i],
-                                    note:
-                                        (_sheetNotes[data[i].id] ?? '').trim(),
-                                    folderName: _folderName(
-                                        _sheetFolder[data[i].id] ?? ''),
-                                    fmt: _fmt,
-                                    tab: _tab,
-                                    busy: _busy && _busySheetId == data[i].id,
-                                    daysLeftInTrash: _tab == _HomeTab.trash
-                                        ? _daysLeftInTrash(data[i].id)
-                                        : null,
-                                    onOpen: () => _open(data[i]),
-                                    onRename: () => _rename(data[i]),
-                                    onExport: () => _exportSheet(data[i]),
-                                    onEditNote: () => _editNote(data[i]),
-                                    onMoveFolder: () =>
-                                        _moveSheetToFolder(data[i]),
-                                    onMoveToTrash: () => _moveToTrash(data[i]),
-                                    onRestore: () =>
-                                        _restoreFromTrash(data[i].id),
-                                    onDeleteForever: () =>
-                                        _deleteForever(data[i]),
-                                  )
+                                        key: ValueKey('sheet_${data[i].id}'),
+                                        colors: colors,
+                                        meta: data[i],
+                                        note: (_sheetNotes[data[i].id] ?? '')
+                                            .trim(),
+                                        folderName: _folderName(
+                                          _sheetFolder[data[i].id] ?? '',
+                                        ),
+                                        fmt: _fmt,
+                                        tab: _tab,
+                                        busy:
+                                            _busy && _busySheetId == data[i].id,
+                                        daysLeftInTrash: _tab == _HomeTab.trash
+                                            ? _daysLeftInTrash(data[i].id)
+                                            : null,
+                                        onOpen: () => _open(data[i]),
+                                        onRename: () => _rename(data[i]),
+                                        onExport: () => _exportSheet(data[i]),
+                                        onEditNote: () => _editNote(data[i]),
+                                        onMoveFolder: () =>
+                                            _moveSheetToFolder(data[i]),
+                                        onMoveToTrash: () =>
+                                            _moveToTrash(data[i]),
+                                        onRestore: () =>
+                                            _restoreFromTrash(data[i].id),
+                                        onDeleteForever: () =>
+                                            _deleteForever(data[i]),
+                                      )
                                       .animate(delay: (30 + i * 20).ms)
                                       .fadeIn(duration: 180.ms)
                                       .move(begin: const Offset(0, 4)),
@@ -4175,42 +4232,41 @@ class _StartPageState extends State<StartPage> {
                             ),
                           )
                         : SliverGrid(
-                            delegate: SliverChildBuilderDelegate(
-                              (ctx, i) {
-                                final m = data[i];
-                                return _AppleSheetGridCard(
-                                  colors: colors,
-                                  meta: m,
-                                  note: (_sheetNotes[m.id] ?? '').trim(),
-                                  folderName:
-                                      _folderName(_sheetFolder[m.id] ?? ''),
-                                  tab: _tab,
-                                  busy: _busy && _busySheetId == m.id,
-                                  daysLeftInTrash: _tab == _HomeTab.trash
-                                      ? _daysLeftInTrash(m.id)
-                                      : null,
-                                  fmt: _fmt,
-                                  onOpen: () => _open(m),
-                                  onRename: () => _rename(m),
-                                  onExport: () => _exportSheet(m),
-                                  onEditNote: () => _editNote(m),
-                                  onMoveFolder: () => _moveSheetToFolder(m),
-                                  onMoveToTrash: () => _moveToTrash(m),
-                                  onRestore: () => _restoreFromTrash(m.id),
-                                  onDeleteForever: () => _deleteForever(m),
-                                )
-                                    .animate()
-                                    .fadeIn(duration: 200.ms, delay: 30.ms);
-                              },
-                              childCount: data.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((ctx, i) {
+                              final m = data[i];
+                              return _AppleSheetGridCard(
+                                colors: colors,
+                                meta: m,
+                                note: (_sheetNotes[m.id] ?? '').trim(),
+                                folderName: _folderName(
+                                  _sheetFolder[m.id] ?? '',
+                                ),
+                                tab: _tab,
+                                busy: _busy && _busySheetId == m.id,
+                                daysLeftInTrash: _tab == _HomeTab.trash
+                                    ? _daysLeftInTrash(m.id)
+                                    : null,
+                                fmt: _fmt,
+                                onOpen: () => _open(m),
+                                onRename: () => _rename(m),
+                                onExport: () => _exportSheet(m),
+                                onEditNote: () => _editNote(m),
+                                onMoveFolder: () => _moveSheetToFolder(m),
+                                onMoveToTrash: () => _moveToTrash(m),
+                                onRestore: () => _restoreFromTrash(m.id),
+                                onDeleteForever: () => _deleteForever(m),
+                              ).animate().fadeIn(
+                                duration: 200.ms,
+                                delay: 30.ms,
+                              );
+                            }, childCount: data.length),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio: 2.35,
-                            ),
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio: 2.35,
+                                ),
                           ),
                   ),
               ],
@@ -4221,8 +4277,10 @@ class _StartPageState extends State<StartPage> {
               bottom: 14 + bottomPad,
               child: IgnorePointer(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: colors.navBarBg.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(8),
@@ -4286,7 +4344,7 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.root,
         title: 'Raíz',
         icon: CupertinoIcons.list_bullet,
-        iconBg: const Color(0xFF1B1B1F),
+        iconBg: const Color(0xFF8C6B4F),
         count: _countSheetsInFolder(''),
         folderId: '',
         trailingBadge: null,
@@ -4303,7 +4361,7 @@ class _StartPageState extends State<StartPage> {
           kind: _ListKind.folder,
           title: f.name,
           icon: CupertinoIcons.folder,
-          iconBg: const Color(0xFF2D2D33),
+          iconBg: const Color(0xFFAB8461),
           count: _countSheetsInFolder(f.id),
           folderId: f.id,
           trailingBadge: null,
@@ -4318,7 +4376,7 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.trash,
         title: 'Papelera',
         icon: CupertinoIcons.trash,
-        iconBg: const Color(0xFF4A4A52),
+        iconBg: const Color(0xFF6E5644),
         count: trashCount,
         folderId: '',
         trailingBadge: trashCount > 0 ? '⚠' : null,
@@ -4411,10 +4469,12 @@ class _TopPillActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg =
-        colors.isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
-    final border =
-        colors.separator.withValues(alpha: colors.isLight ? 0.35 : 0.22);
+    final bg = colors.isLight
+        ? const Color(0xFFF2F2F7)
+        : const Color(0xFF1C1C1E);
+    final border = colors.separator.withValues(
+      alpha: colors.isLight ? 0.35 : 0.22,
+    );
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
@@ -4572,7 +4632,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF2A2A2F), Color(0xFF17171B)],
+                      colors: [Color(0xFFB99571), Color(0xFF8E6B4C)],
                     ),
                     onTap: onTapToday,
                   ),
@@ -4586,8 +4646,8 @@ class _RemindersSummaryGrid extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: isLight
-                          ? const [Color(0xFF3A3A3C), Color(0xFF1C1C1E)]
-                          : const [Color(0xFF2C2C2E), Color(0xFF1C1C1E)],
+                          ? const [Color(0xFF9A7B5E), Color(0xFF73563F)]
+                          : const [Color(0xFF594434), Color(0xFF3E2F24)],
                     ),
                     onTap: onTapAll,
                   ),
@@ -4601,8 +4661,8 @@ class _RemindersSummaryGrid extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: isLight
-                          ? const [Color(0xFFB5B5BA), Color(0xFF8E8E93)]
-                          : const [Color(0xFF8E8E93), Color(0xFF6B6B72)],
+                          ? const [Color(0xFFC3A98D), Color(0xFF9A7B61)]
+                          : const [Color(0xFF6A5140), Color(0xFF4D3C2F)],
                     ),
                     onTap: onTapCompleted,
                   ),
@@ -4621,7 +4681,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF404047), Color(0xFF25252B)],
+                      colors: [Color(0xFFB49B80), Color(0xFF856A51)],
                     ),
                     onTap: onTapScheduled,
                   ),
@@ -4634,7 +4694,7 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF4A4A53), Color(0xFF2B2B33)],
+                      colors: [Color(0xFFA88867), Color(0xFF785A41)],
                     ),
                     onTap: onTapFlagged,
                   ),
@@ -4681,7 +4741,9 @@ class _SummaryCard extends StatelessWidget {
           gradient: gradient,
           borderRadius: BorderRadius.circular(t.radii.lg),
           border: Border.all(
-              color: const Color(0xFFFFFFFF).withOpacity(0.18), width: 0.8),
+            color: const Color(0xFFFFFFFF).withOpacity(0.18),
+            width: 0.8,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(t.colors.isLight ? 0.22 : 0.45),
@@ -4702,8 +4764,9 @@ class _SummaryCard extends StatelessWidget {
                   color: const Color(0xFFFFFFFF).withOpacity(0.18),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFFFFFFFF).withOpacity(0.18),
-                      width: 1),
+                    color: const Color(0xFFFFFFFF).withOpacity(0.18),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(icon, size: 18, color: const Color(0xFFFFFFFF)),
               ),
@@ -4757,8 +4820,9 @@ class _SuggestedListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = colors.isLight ? colors.surface : const Color(0xFF1C1C1E);
-    final border =
-        colors.separator.withValues(alpha: colors.isLight ? 0.35 : 0.22);
+    final border = colors.separator.withValues(
+      alpha: colors.isLight ? 0.35 : 0.22,
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
@@ -4775,11 +4839,14 @@ class _SuggestedListCard extends StatelessWidget {
             height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
+              color: const Color(0xFF8E6C50),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Icon(CupertinoIcons.sparkles,
-                color: Color(0xFFFFFFFF), size: 18),
+            child: const Icon(
+              CupertinoIcons.sparkles,
+              color: Color(0xFFFFFFFF),
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -4821,13 +4888,16 @@ class _SuggestedListCard extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.isLight
-                    ? const Color(0xFFF2F2F7)
-                    : const Color(0xFF2C2C2E),
+                    ? const Color(0xFFF1E7D8)
+                    : const Color(0xFF3A3028),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: border),
               ),
-              child: const Icon(CupertinoIcons.add,
-                  color: Color(0xFF1A1A1E), size: 20),
+              child: const Icon(
+                CupertinoIcons.add,
+                color: Color(0xFF2B241E),
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -4932,8 +5002,10 @@ class _ListRow extends StatelessWidget {
                 ),
                 if (item.trailingBadge != null) ...[
                   const SizedBox(width: 8),
-                  Text(item.trailingBadge!,
-                      style: const TextStyle(fontSize: 16)),
+                  Text(
+                    item.trailingBadge!,
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ],
               ],
             ),
@@ -4957,10 +5029,7 @@ class _ListRow extends StatelessWidget {
 }
 
 class _FloatingAddButton extends StatelessWidget {
-  const _FloatingAddButton({
-    required this.color,
-    required this.onTap,
-  });
+  const _FloatingAddButton({required this.color, required this.onTap});
 
   final Color color;
   final VoidCallback? onTap;
@@ -4983,13 +5052,17 @@ class _FloatingAddButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             boxShadow: const [
               BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 22,
-                  offset: Offset(0, 12)),
+                color: Color(0x33000000),
+                blurRadius: 22,
+                offset: Offset(0, 12),
+              ),
             ],
           ),
-          child: const Icon(CupertinoIcons.add,
-              color: Color(0xFFFFFFFF), size: 28),
+          child: const Icon(
+            CupertinoIcons.add,
+            color: Color(0xFFFFFFFF),
+            size: 28,
+          ),
         ),
       ),
     );
@@ -5003,47 +5076,44 @@ class _ApplePalette {
 
   final bool isLight;
 
-  Color get bg => isLight ? const Color(0xFFF5F5F7) : const Color(0xFF050509);
+  Color get bg => isLight ? const Color(0xFFF6EEE4) : const Color(0xFF17120E);
 
   Color get surface =>
-      isLight ? const Color(0xFFFFFFFF) : const Color(0xFF0E0E12);
+      isLight ? const Color(0xFFFFFCF8) : const Color(0xFF221B16);
 
   Color get group =>
-      isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
+      isLight ? const Color(0xFFF1E7D8) : const Color(0xFF2A231E);
 
   Color get separator =>
-      isLight ? const Color(0x1F000000) : const Color(0x33FFFFFF);
+      isLight ? const Color(0x2A8B6A4A) : const Color(0x408A6B4E);
 
   Color get textPrimary =>
-      isLight ? const Color(0xFF0B0B0F) : const Color(0xFFF5F5F7);
+      isLight ? const Color(0xFF2B241E) : const Color(0xFFF5EEE5);
 
   Color get textSecondary =>
-      isLight ? const Color(0x990B0B0F) : const Color(0x99F5F5F7);
+      isLight ? const Color(0xAA6C5E50) : const Color(0xAAC8BBAD);
 
   Color get accent =>
-      isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
+      isLight ? const Color(0xFF8C6B4F) : const Color(0xFFE5D0B8);
 
   Color get muted =>
-      isLight ? const Color(0x660B0B0F) : const Color(0x66F5F5F7);
+      isLight ? const Color(0x886C5E50) : const Color(0x88C8BBAD);
 
   Color get navBarBg {
     // iOS-like translucent bar
-    final base = isLight ? const Color(0xFFF9F9FB) : const Color(0xFF0B0B0D);
+    final base = isLight ? const Color(0xFFF7EFE5) : const Color(0xFF1B1511);
     return base.withValues(alpha: 0.92);
   }
 
   BoxShadow get subtleShadow => BoxShadow(
-        color: isLight ? const Color(0x14000000) : const Color(0x22000000),
-        blurRadius: 16,
-        offset: const Offset(0, 8),
-      );
+    color: isLight ? const Color(0x1A5B4633) : const Color(0x2E000000),
+    blurRadius: 18,
+    offset: const Offset(0, 8),
+  );
 }
 
 class _AppleSectionCard extends StatelessWidget {
-  const _AppleSectionCard({
-    required this.colors,
-    required this.child,
-  });
+  const _AppleSectionCard({required this.colors, required this.child});
 
   final _ApplePalette colors;
   final Widget child;
@@ -5064,10 +5134,7 @@ class _AppleSectionCard extends StatelessWidget {
 }
 
 class _AppleInsetGroupedList extends StatelessWidget {
-  const _AppleInsetGroupedList({
-    required this.colors,
-    required this.children,
-  });
+  const _AppleInsetGroupedList({required this.colors, required this.children});
 
   final _ApplePalette colors;
   final List<Widget> children;
@@ -5087,7 +5154,9 @@ class _AppleInsetGroupedList extends StatelessWidget {
             children[i],
             if (i != children.length - 1)
               Container(
-                  height: 1, color: colors.separator.withValues(alpha: 0.75)),
+                height: 1,
+                color: colors.separator.withValues(alpha: 0.75),
+              ),
           ],
         ],
       ),
@@ -5096,10 +5165,7 @@ class _AppleInsetGroupedList extends StatelessWidget {
 }
 
 class _AppleToast extends StatefulWidget {
-  const _AppleToast({
-    required this.message,
-    required this.isLight,
-  });
+  const _AppleToast({required this.message, required this.isLight});
 
   final String message;
   final bool isLight;
@@ -5123,8 +5189,9 @@ class _AppleToastState extends State<_AppleToast> {
 
   @override
   Widget build(BuildContext context) {
-    final bg =
-        widget.isLight ? const Color(0xEE111114) : const Color(0xEE0F0F12);
+    final bg = widget.isLight
+        ? const Color(0xEE111114)
+        : const Color(0xEE0F0F12);
     return AnimatedOpacity(
       opacity: _opacity,
       duration: const Duration(milliseconds: 160),
@@ -5134,16 +5201,19 @@ class _AppleToastState extends State<_AppleToast> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: const [
             BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 20,
-                offset: Offset(0, 10)),
+              color: Color(0x33000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
+            ),
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Text(
           widget.message,
           style: const TextStyle(
-              color: Color(0xFFF5F5F7), fontWeight: FontWeight.w600),
+            color: Color(0xFFF5F5F7),
+            fontWeight: FontWeight.w600,
+          ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
@@ -5170,8 +5240,9 @@ class _SegmentedScope extends StatelessWidget {
     return CupertinoSlidingSegmentedControl<bool>(
       groupValue: value,
       thumbColor: isLight ? colors.group : colors.surface,
-      backgroundColor:
-          isLight ? colors.group : colors.group.withValues(alpha: 0.35),
+      backgroundColor: isLight
+          ? colors.group
+          : colors.group.withValues(alpha: 0.35),
       onValueChanged: (v) {
         if (v == null) return;
         onChanged(v);
@@ -5209,8 +5280,9 @@ class _AppleEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title =
-        tab == _HomeTab.trash ? 'Papelera vacía' : AppStrings.emptySheetsTitle;
+    final title = tab == _HomeTab.trash
+        ? 'Papelera vacía'
+        : AppStrings.emptySheetsTitle;
     final msg = tab == _HomeTab.trash
         ? 'Las planillas movidas a papelera aparecen acá durante un tiempo para poder recuperarlas.'
         : AppStrings.emptySheetsBody;
@@ -5313,9 +5385,13 @@ class _AppleOutlineButton extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: colors.accent),
           const SizedBox(width: 8),
-          Text(label,
-              style: TextStyle(
-                  color: colors.textPrimary, fontWeight: FontWeight.w800)),
+          Text(
+            label,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -5353,25 +5429,28 @@ class _CupertinoToggleRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        color: pal.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: pal.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle,
-                    style: TextStyle(
-                        color: pal.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: pal.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          CupertinoSwitch(
-            value: value,
-            onChanged: onChanged,
-          ),
+          CupertinoSwitch(value: value, onChanged: onChanged),
         ],
       ),
     );
@@ -5412,17 +5491,23 @@ class _CupertinoInfoBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        color: pal.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: pal.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(message,
-                    style: TextStyle(
-                        color: pal.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: pal.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -5532,18 +5617,24 @@ class _AppleSheetRow extends StatelessWidget {
                       Container(
                         margin: const EdgeInsets.only(left: 8),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(999),
                           color: colors.accent.withValues(alpha: 0.12),
                           border: Border.all(
-                              color: colors.accent.withValues(alpha: 0.18)),
+                            color: colors.accent.withValues(alpha: 0.18),
+                          ),
                         ),
-                        child: Text('Hoy',
-                            style: TextStyle(
-                                color: colors.accent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800)),
+                        child: Text(
+                          'Hoy',
+                          style: TextStyle(
+                            color: colors.accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -5551,9 +5642,10 @@ class _AppleSheetRow extends StatelessWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (note.isNotEmpty) ...[
@@ -5655,9 +5747,10 @@ class _AppleSheetGridCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.2),
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
               if (busy)
@@ -5683,9 +5776,10 @@ class _AppleSheetGridCard extends StatelessWidget {
                 ? '${meta.rows} filas · vence en ${daysLeftInTrash ?? 0} día(s)'
                 : '${meta.rows} filas · $folderName',
             style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600),
+              color: colors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           if (note.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -5694,9 +5788,10 @@ class _AppleSheetGridCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  color: colors.textSecondary.withValues(alpha: 0.92),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800),
+                color: colors.textSecondary.withValues(alpha: 0.92),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
           const Spacer(),
@@ -5852,10 +5947,10 @@ class _Folder {
   final int createdAtMs;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'createdAtMs': createdAtMs,
-      };
+    'id': id,
+    'name': name,
+    'createdAtMs': createdAtMs,
+  };
 
   factory _Folder.fromJson(Map<String, dynamic> j) {
     return _Folder(
@@ -5867,11 +5962,8 @@ class _Folder {
     );
   }
 
-  _Folder copyWith({String? name}) => _Folder(
-        id: id,
-        name: name ?? this.name,
-        createdAtMs: createdAtMs,
-      );
+  _Folder copyWith({String? name}) =>
+      _Folder(id: id, name: name ?? this.name, createdAtMs: createdAtMs);
 }
 
 // ---------------- Folder manager page (Cupertino) ----------------
@@ -5930,7 +6022,9 @@ class _FolderManagerPageState extends State<_FolderManagerPage> {
                   child: Text(
                     'No hay carpetas creadas todavía.',
                     style: TextStyle(
-                        color: pal.textSecondary, fontWeight: FontWeight.w600),
+                      color: pal.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 )
               : _AppleInsetGroupedList(
@@ -5993,7 +6087,8 @@ class _FolderRow extends StatelessWidget {
           builder: (ctx) => CupertinoActionSheet(
             title: Text(folder.name),
             message: Text(
-                '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}'),
+              '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}',
+            ),
             actions: [
               CupertinoActionSheetAction(
                 onPressed: () {
@@ -6026,16 +6121,21 @@ class _FolderRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(folder.name,
-                    style: TextStyle(
-                        color: pal.textPrimary, fontWeight: FontWeight.w900)),
+                Text(
+                  folder.name,
+                  style: TextStyle(
+                    color: pal.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}',
                   style: TextStyle(
-                      color: pal.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                    color: pal.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -6050,10 +6150,7 @@ class _FolderRow extends StatelessWidget {
 // ---------------- Prompt helper models ----------------
 
 class _PromptInfo {
-  const _PromptInfo({
-    required this.title,
-    required this.message,
-  });
+  const _PromptInfo({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -6086,16 +6183,16 @@ class _OnboardingPage extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
           Text(
             body,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  height: 1.4,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.4),
           ),
         ],
       ),
