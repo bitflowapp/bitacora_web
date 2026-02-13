@@ -13,6 +13,12 @@ void main() {
     );
     await tester.pump();
     expect(find.text(AboutScreen.routeTitle), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Licencias'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Licencias'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -35,6 +41,12 @@ void main() {
       const MaterialApp(home: AboutScreen()),
     );
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Licencias'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Licencias'));
     await tester.pumpAndSettle();
 
