@@ -15259,6 +15259,14 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  void debugOpenCommandPalette() {
+    assert(() {
+      unawaited(_openCommandPalette());
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   Future<int> debugApplyFlowBotActions(List<FlowBotAction> actions) {
     return _applyFlowBotActions(actions);
   }

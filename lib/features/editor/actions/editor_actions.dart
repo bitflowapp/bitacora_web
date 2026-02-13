@@ -267,7 +267,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'smart_paste_table',
           label: 'Pegar tabla inteligente',
-          subtitle: 'Detecta TSV/CSV y aplica en batch',
+          subtitle: 'Pega TSV/CSV y aparece preview para confirmar.',
           shortcut: 'Ctrl/Cmd+V',
           icon: Icons.table_chart_rounded,
           onSelected: () =>
@@ -391,8 +391,8 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'export_menu',
-          label: 'Menu de exportacion',
-          subtitle: 'Exportar, compartir o imprimir',
+          label: 'Exportar',
+          subtitle: 'Abrir flujo de exportacion, compartir o imprimir',
           icon: Icons.ios_share_rounded,
           onSelected: () => unawaited(_openExportMenu()),
         ),
