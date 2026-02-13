@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Bitacora Web" />
   <meta name="application-name" content="Bitacora Web" />
-  <meta name="theme-color" content="#0A84FF" />
+  <meta name="theme-color" content="#111111" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
   <link rel="manifest" href="manifest.json" />
@@ -129,6 +129,31 @@
       border-color: #111;
     }
 
+    #install-fab {
+      position: fixed;
+      left: 10px;
+      bottom: 10px;
+      z-index: 2147483645;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(17, 17, 17, 0.2);
+      border-radius: 999px;
+      background: #111;
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      animation: installPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes installPulse {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       * {
         animation: none !important;
@@ -141,6 +166,8 @@
     (function () {
       var bootGuardTimer = 0;
       var bootReady = false;
+      var installPromptEvent = null;
+      var startInvoked = false;
 
       function showBootFallback(reason) {
         try {
@@ -168,6 +195,31 @@
           bootGuardTimer = 0;
         }
         hideBootFallback();
+      }
+
+      function showInstallFab() {
+        var btn = document.getElementById('install-fab');
+        if (!btn) return;
+        btn.style.display = 'inline-flex';
+      }
+
+      function hideInstallFab() {
+        var btn = document.getElementById('install-fab');
+        if (!btn) return;
+        btn.style.display = 'none';
+      }
+
+      async function promptInstall() {
+        if (!installPromptEvent) return;
+        try {
+          installPromptEvent.prompt();
+          await installPromptEvent.userChoice;
+        } catch (_) {
+          // noop
+        } finally {
+          installPromptEvent = null;
+          hideInstallFab();
+        }
       }
 
       async function resolveBuildId() {
@@ -262,6 +314,17 @@
         } catch (_) {}
       }
 
+      function loadFlutterBootstrapDeferred(build) {
+        var startLoad = function () {
+          loadFlutterBootstrap(build);
+        };
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(startLoad, { timeout: 1200 });
+        } else {
+          setTimeout(startLoad, 120);
+        }
+      }
+
       // iOS Safari keyboard fix: “pega” los roots de Flutter al visualViewport
       var raf = 0;
       var lastH = -1, lastTop = -1;
@@ -336,6 +399,8 @@
       }
 
       async function start() {
+        if (startInvoked) return;
+        startInvoked = true;
         bootGuardTimer = setTimeout(function () {
           showBootFallback('Arranque demorado. Puedes reintentar sin perder estado local.');
         }, 12000);
@@ -348,13 +413,13 @@
           Promise.resolve().then(function () {
             return nukeCachesIfBuildChanged(build);
           }).catch(function () {});
-          loadFlutterBootstrap(build);
+          loadFlutterBootstrapDeferred(build);
         } catch (_) {
           var fallback = 'dev-' + Date.now();
           window.__BITFLOW_BUILD__ = fallback;
           mountBadge(fallback);
           boot();
-          loadFlutterBootstrap(fallback);
+          loadFlutterBootstrapDeferred(fallback);
         }
       }
 
@@ -363,6 +428,25 @@
       } else {
         start();
       }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        installPromptEvent = event;
+        showInstallFab();
+      });
+
+      window.addEventListener('appinstalled', function () {
+        installPromptEvent = null;
+        hideInstallFab();
+      });
+
+      window.addEventListener('DOMContentLoaded', function () {
+        var btn = document.getElementById('install-fab');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          promptInstall();
+        });
+      });
     })();
   </script>
 </head>
@@ -378,6 +462,7 @@
       </div>
     </div>
   </div>
+  <button id="install-fab" type="button" aria-label="Instalar BitFlow">Instalar BitFlow</button>
   <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
 </body>
 </html>
