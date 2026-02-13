@@ -3,8 +3,8 @@ name: Android Release
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -48,14 +48,37 @@ jobs:
           version_raw="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
           version_raw="${version_raw//[^0-9A-Za-z._+-]/-}"
           semver="${version_raw%%+*}"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            build_id="${GITHUB_REF_NAME}"
-          else
-            build_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          fi
+          release_tag="v${semver}"
+          build_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "raw=$version_raw" >> "$GITHUB_OUTPUT"
           echo "semver=$semver" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes
+        id: release_notes
+        shell: bash
+        run: |
+          if [[ -f CHANGELOG.md ]]; then
+            notes="$(awk 'BEGIN{capture=0} /^## \[/{if(capture==1) exit; capture=1} capture{print}' CHANGELOG.md)"
+            if [[ -n "${notes// }" ]]; then
+              {
+                echo "body<<EOF"
+                echo "$notes"
+                echo ""
+                echo "- APK estable: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BitFlow-android.apk"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          {
+            echo "body<<EOF"
+            echo "Release ${GITHUB_SHA}"
+            echo ""
+            echo "- APK estable: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BitFlow-android.apk"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build Android APK (release)
         run: |
@@ -67,9 +90,7 @@ jobs:
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android.apk"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android-${GITHUB_REF_NAME}.apk"
-          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/BitFlow-android-${{ steps.app_version.outputs.release_tag }}.apk"
 
       - name: Upload APK artifact
         if: github.event_name == 'workflow_dispatch'
@@ -80,21 +101,22 @@ jobs:
           if-no-files-found: error
 
       - name: Attach APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: BitFlow ${{ github.ref_name }}
-          generate_release_notes: true
+          tag_name: ${{ steps.app_version.outputs.release_tag }}
+          name: BitFlow ${{ steps.app_version.outputs.release_tag }}
+          body: ${{ steps.release_notes.outputs.body }}
+          target_commitish: ${{ github.sha }}
           make_latest: true
           overwrite_files: true
+          draft: false
+          prerelease: false
           fail_on_unmatched_files: true
           files: |
             dist/BitFlow-android.apk
-            dist/BitFlow-android-${{ github.ref_name }}.apk
+            dist/BitFlow-android-${{ steps.app_version.outputs.release_tag }}.apk
 
       - name: Verify stable APK URL
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           stable_url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BitFlow-android.apk"
