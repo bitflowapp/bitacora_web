@@ -76,4 +76,29 @@ void main() {
     expect(plan.rows[0][2], 'c');
     expect(plan.rows[0][3], '');
   });
+
+  test('planSmartTableBatch can insert rows at the active index', () {
+    final plan = planSmartTableBatch(
+      existingRows: <List<String>>[
+        <String>['old-1', 'x', ''],
+        <String>['old-2', 'y', ''],
+      ],
+      inputCells: <List<String>>[
+        <String>['new-1', 'n'],
+        <String>['new-2', 'm'],
+      ],
+      startRow: 1,
+      startCol: 0,
+      maxColsExclusive: 2,
+      insertRowsAtStart: true,
+    );
+
+    expect(plan.insertedRows, 2);
+    expect(plan.insertedAtRow, 1);
+    expect(plan.rows.length, 4);
+    expect(plan.rows[0][0], 'old-1');
+    expect(plan.rows[1][0], 'new-1');
+    expect(plan.rows[2][0], 'new-2');
+    expect(plan.rows[3][0], 'old-2');
+  });
 }
