@@ -77,6 +77,20 @@ class _EngineComputeOutcome {
   final _EngineErrorDetails? errorDetails;
 }
 
+class _ActionResult {
+  const _ActionResult({
+    required this.ok,
+    required this.message,
+    this.applied = 0,
+    this.undoToken,
+  });
+
+  final bool ok;
+  final String message;
+  final int applied;
+  final String? undoToken;
+}
+
 // ============================== Modelo =====================================
 
 class _ColumnPrefs {

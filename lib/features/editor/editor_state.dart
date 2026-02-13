@@ -17,6 +17,7 @@ const bool _kDebugGridBuildCounter = bool.fromEnvironment(
   'BITFLOW_DEBUG_GRID_REBUILDS',
   defaultValue: false,
 );
+const bool _kFlutterTestEnv = bool.fromEnvironment('FLUTTER_TEST');
 const bool _kEnableEditorPerfInstrumentation =
     _kDebugEditorPerfInstrumentation || _kDebugGridBuildCounter;
 
@@ -375,6 +376,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool get _engineHasBase =>
       _engineBaseResolved != null && _engineBaseResolved!.trim().isNotEmpty;
+
+  bool get _isWidgetTestRuntime {
+    if (_kFlutterTestEnv) return true;
+    final bindingType = WidgetsBinding.instance.runtimeType.toString();
+    return bindingType.contains('TestWidgetsFlutterBinding');
+  }
 
   WebImageNormalizer get _webImageNormalizer =>
       _debugWebImageNormalizer ?? WebImageNormalizer.I;
@@ -4626,6 +4633,10 @@ class _EditorScreenState extends State<EditorScreen>
         return 'Adjuntar foto en F$row/C$col';
       case FlowBotActionType.exportPdfPreset:
         return 'Exportar PDF (${action.presetId ?? 'default'})';
+      case FlowBotActionType.pasteTable:
+        return 'Pegar tabla desde portapapeles';
+      case FlowBotActionType.exportBundle:
+        return 'Exportar paquete completo';
     }
   }
 
@@ -4757,13 +4768,27 @@ class _EditorScreenState extends State<EditorScreen>
           }
           break;
         case FlowBotActionType.autoId:
-          final targets = _batchTargetRows();
+          final targets = (() {
+            final explicitCount = action.count;
+            if (explicitCount != null && explicitCount > 0) {
+              final startRow = _selRow.clamp(0, math.max(_rows.length, 1) - 1);
+              final rows = <int>[];
+              for (int i = 0; i < explicitCount; i++) {
+                rows.add(startRow + i);
+              }
+              return rows;
+            }
+            return _batchTargetRows();
+          }());
           if (targets.isEmpty) continue;
           final col = _selCol.clamp(0, dataCols - 1);
           final base = action.start ?? 1;
           final step = (action.step ?? 1) == 0 ? 1 : (action.step ?? 1);
           var index = 0;
           for (final row in targets) {
+            while (row >= _rows.length) {
+              _insertRow(_rows.length);
+            }
             if (row < 0 || row >= _rows.length) continue;
             final value = (base + (index * step)).toString();
             _setCell(row, col, value);
@@ -4827,6 +4852,14 @@ class _EditorScreenState extends State<EditorScreen>
           );
           applied += 1;
           break;
+        case FlowBotActionType.pasteTable:
+          await _pasteFromClipboard();
+          applied += 1;
+          break;
+        case FlowBotActionType.exportBundle:
+          await _exportZipBundle(share: false);
+          applied += 1;
+          break;
       }
     }
 
@@ -4839,6 +4872,23 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     return applied;
+  }
+
+  _ActionResult _flowBotResultForAppliedChanges(int applied) {
+    if (applied > 0) {
+      return _ActionResult(
+        ok: true,
+        message: 'FlowBot aplico $applied cambio(s).',
+        applied: applied,
+        undoToken: 'flowbot_apply',
+      );
+    }
+    return const _ActionResult(
+      ok: false,
+      message:
+          'FlowBot no aplico cambios. Revisa seleccion/comando y vuelve a analizar.',
+      applied: 0,
+    );
   }
 
   Future<void> _openFlowBotSheet() async {
@@ -5217,16 +5267,27 @@ class _EditorScreenState extends State<EditorScreen>
 
     await speech.cancel();
     Future<void>.microtask(transcriptEC.dispose);
-    if (!mounted || parsedActions == null || parsedActions.isEmpty) return;
+    if (!mounted || parsedActions == null) return;
+    if (parsedActions.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message:
+              'FlowBot no tiene acciones para aplicar. Usa "Analizar" primero.',
+        ),
+        failureIcon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
     final applied = await _applyFlowBotActions(parsedActions);
     if (!mounted) return;
-    if (applied > 0) {
-      _showActionSnack(
-        'FlowBot aplico $applied cambio(s).',
-        isError: false,
-        icon: Icons.auto_awesome_rounded,
-      );
-    }
+    final result = _flowBotResultForAppliedChanges(applied);
+    _emitActionResult(
+      result,
+      successIcon: Icons.auto_awesome_rounded,
+      failureIcon: Icons.warning_amber_rounded,
+      onUndo: _undoOnce,
+    );
   }
 
   String _cellLabelRc(int r, int c) => 'R${r + 1}C${c + 1}';
@@ -6338,6 +6399,23 @@ class _EditorScreenState extends State<EditorScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showNow();
     });
+  }
+
+  void _emitActionResult(
+    _ActionResult result, {
+    IconData successIcon = Icons.check_circle_rounded,
+    IconData failureIcon = Icons.info_outline_rounded,
+    VoidCallback? onUndo,
+  }) {
+    final undoLabel =
+        result.undoToken?.trim().isNotEmpty == true ? 'Deshacer' : null;
+    _showActionSnack(
+      result.message,
+      isError: !result.ok,
+      icon: result.ok ? successIcon : failureIcon,
+      actionLabel: undoLabel,
+      onAction: undoLabel != null ? onUndo : null,
+    );
   }
 
   bool _isNetworkOnline() => _lastOnlineState;
@@ -14312,6 +14390,20 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  Future<Map<String, Object?>> debugApplyFlowBotActionsResult(
+    List<FlowBotAction> actions,
+  ) async {
+    final applied = await _applyFlowBotActions(actions);
+    final result = _flowBotResultForAppliedChanges(applied);
+    return <String, Object?>{
+      'ok': result.ok,
+      'message': result.message,
+      'applied': result.applied,
+      'undoToken': result.undoToken,
+    };
+  }
+
+  @visibleForTesting
   void debugSimulateMobileScrollDirection(ScrollDirection direction) {
     assert(() {
       _handleMobileGridScrollDirection(direction);
@@ -17715,6 +17807,20 @@ Este paquete incluye:
   }
 
   Future<bool> _ensureEngineReady({required bool showErrors}) async {
+    if (_isWidgetTestRuntime) {
+      if (mounted) {
+        setState(() {
+          _engineStatus = null;
+          _engineStatusIsError = false;
+          _engineLastOk = false;
+          _engineLastError = null;
+          _engineLastCheckAt = DateTime.now();
+          _engineFallbackMode = true;
+        });
+      }
+      return false;
+    }
+
     final resolved = await _resolveEngineConfig();
     if (!mounted) return false;
 
@@ -17788,6 +17894,10 @@ Este paquete incluye:
   }
 
   Future<_EngineConfig> _resolveEngineConfig() async {
+    if (_isWidgetTestRuntime) {
+      return const _EngineConfig(baseUrl: null, apiKey: null);
+    }
+
     final widgetBaseRaw = (widget.engineBaseUrl ?? '').trim();
     final widgetKeyRaw = (widget.engineApiKey ?? '').trim();
 

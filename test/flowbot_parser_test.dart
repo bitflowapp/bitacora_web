@@ -65,6 +65,80 @@ void main() {
     expect(result.actions.last.column, 1);
     expect(result.actions.last.lines, 3);
   });
+
+  test('parses "fila nueva con gps y fecha"', () {
+    final result = parser.parse(
+      'fila nueva con gps y fecha',
+      selectedRow: 2,
+      selectedCol: 1,
+    );
+
+    expect(result.actions, isNotEmpty);
+    expect(
+      result.actions.any((a) => a.type == FlowBotActionType.addRow),
+      isTrue,
+    );
+    expect(
+      result.actions.any((a) => a.type == FlowBotActionType.setToday),
+      isTrue,
+    );
+  });
+
+  test('parses quick field pattern command in spanish', () {
+    final result = parser.parse(
+      'progresiva 120, estado ok, fecha hoy, obs revisar',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+
+    expect(result.actions, isNotEmpty);
+    expect(result.actions.first.type, FlowBotActionType.autoId);
+    expect(result.actions.first.start, 120);
+    expect(
+      result.actions.any((a) => a.type == FlowBotActionType.applyStatus),
+      isTrue,
+    );
+    expect(
+      result.actions.any((a) => a.type == FlowBotActionType.setToday),
+      isTrue,
+    );
+  });
+
+  test('parses progressive fill command with step and rows', () {
+    final result = parser.parse(
+      'rellenar progresiva desde 1200 cada 25 por 40 filas',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+
+    expect(result.actions, hasLength(1));
+    final action = result.actions.first;
+    expect(action.type, FlowBotActionType.autoId);
+    expect(action.start, 1200);
+    expect(action.step, 25);
+    expect(action.count, 40);
+  });
+
+  test('parses "pegar tabla"', () {
+    final result = parser.parse(
+      'pegar tabla',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.pasteTable);
+  });
+
+  test('parses "exportar paquete completo"', () {
+    final result = parser.parse(
+      'exportar paquete completo',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.exportBundle);
+  });
+
   test('accepts apply confirmation variants', () {
     expect(parser.isApplyConfirmation('aceptar'), isTrue);
     expect(parser.isApplyConfirmation('aplicar'), isTrue);

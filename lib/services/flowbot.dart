@@ -17,6 +17,8 @@ enum FlowBotActionType {
   duplicateRow,
   attachPhotoToCell,
   exportPdfPreset,
+  pasteTable,
+  exportBundle,
 }
 
 class FlowBotAction {
@@ -106,6 +108,8 @@ class FlowBotAction {
       'attachphoto' =>
         FlowBotActionType.attachPhotoToCell,
       'export_pdf_preset' || 'exportpdf' => FlowBotActionType.exportPdfPreset,
+      'paste_table' || 'pastetable' => FlowBotActionType.pasteTable,
+      'export_bundle' || 'exportbundle' => FlowBotActionType.exportBundle,
       _ => null,
     };
     if (type == null) return null;
@@ -173,6 +177,10 @@ class FlowBotAction {
         return FlowBotAction(type: type, row: row, col: col);
       case FlowBotActionType.exportPdfPreset:
         return FlowBotAction(type: type, presetId: presetId);
+      case FlowBotActionType.pasteTable:
+        return FlowBotAction(type: type);
+      case FlowBotActionType.exportBundle:
+        return FlowBotAction(type: type);
     }
   }
 
@@ -229,8 +237,8 @@ class RuleBasedFlowBot {
     final actions = <FlowBotAction>[];
     final normalized = input.toLowerCase();
 
-    if (_containsAny(
-        normalized, const <String>['agregar fila', 'nueva fila'])) {
+    if (_containsAny(normalized,
+        const <String>['agregar fila', 'nueva fila', 'fila nueva'])) {
       actions
           .add(const FlowBotAction(type: FlowBotActionType.addRow, count: 1));
     }
@@ -238,6 +246,23 @@ class RuleBasedFlowBot {
     for (final segment in _splitCommands(input)) {
       final cmd = segment.trim();
       if (cmd.isEmpty) continue;
+
+      final fillSeries = _fillSeriesRegex.firstMatch(cmd);
+      if (fillSeries != null) {
+        final start = int.tryParse(fillSeries.group(1) ?? '') ?? 1;
+        final step = int.tryParse(fillSeries.group(2) ?? '') ?? 1;
+        final count = int.tryParse(fillSeries.group(3) ?? '') ??
+            rows.length.clamp(1, 500);
+        actions.add(
+          FlowBotAction(
+            type: FlowBotActionType.autoId,
+            start: start,
+            step: step == 0 ? 1 : step,
+            count: count.clamp(1, 500),
+          ),
+        );
+        continue;
+      }
 
       final setRc = _setByRowColRegex.firstMatch(cmd);
       if (setRc != null) {
@@ -444,6 +469,60 @@ class RuleBasedFlowBot {
         continue;
       }
 
+      final pasteTable = _pasteTableRegex.firstMatch(cmd);
+      if (pasteTable != null) {
+        actions.add(const FlowBotAction(type: FlowBotActionType.pasteTable));
+        continue;
+      }
+
+      final exportBundle = _exportBundleRegex.firstMatch(cmd);
+      if (exportBundle != null) {
+        actions.add(const FlowBotAction(type: FlowBotActionType.exportBundle));
+        continue;
+      }
+
+      final quickPattern = _quickFieldPatternRegex.firstMatch(cmd);
+      if (quickPattern != null) {
+        final start = int.tryParse(quickPattern.group(1) ?? '');
+        final status = (quickPattern.group(2) ?? '').trim();
+        final obs = (quickPattern.group(4) ?? '').trim();
+        if (start != null) {
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.autoId,
+              start: start,
+              step: 1,
+              count: rows.length.clamp(1, 500),
+            ),
+          );
+        }
+        if (status.isNotEmpty) {
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.applyStatus,
+              status: _normalizeStatus(status),
+            ),
+          );
+        }
+        actions.add(
+          const FlowBotAction(
+            type: FlowBotActionType.setToday,
+            format: 'yyyy-mm-dd',
+          ),
+        );
+        if (obs.isNotEmpty) {
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.setCell,
+              row: selectedRow,
+              col: selectedCol,
+              value: obs,
+            ),
+          );
+        }
+        continue;
+      }
+
       final setActive = _setActiveRegex.firstMatch(cmd);
       if (setActive != null) {
         final value = (setActive.group(1) ?? '').trim();
@@ -486,6 +565,7 @@ class RuleBasedFlowBot {
   List<String> _splitCommands(String raw) {
     final normalized = raw
         .replaceAll('\n', ';')
+        .replaceAll(',', ';')
         .replaceAll(' y luego ', ';')
         .replaceAll(' y ', ';');
     return normalized.split(';');
@@ -567,12 +647,17 @@ class RuleBasedFlowBot {
   );
 
   static final RegExp _setTodayRegex = RegExp(
-    r'^(?:hoy|fecha hoy|set today)(?:\s+formato\s+([a-zA-Z0-9:/._-]+))?$',
+    r'^(?:hoy|fecha(?:\s+hoy)?|set today)(?:\s+formato\s+([a-zA-Z0-9:/._-]+))?$',
     caseSensitive: false,
   );
 
   static final RegExp _autoIdRegex = RegExp(
     r'^(?:autoid|id auto|autoid)(?:\s+desde\s*(\d+))?(?:\s+paso\s*(\d+))?$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _fillSeriesRegex = RegExp(
+    r'^(?:rellenar\s+)?progresiva(?:\s+desde)?\s*(\d+)?(?:\s+cada\s*(\d+))?(?:\s+(?:por|x)\s*(\d+)\s*filas?)?$',
     caseSensitive: false,
   );
 
@@ -593,6 +678,21 @@ class RuleBasedFlowBot {
 
   static final RegExp _exportPdfRegex = RegExp(
     r'^(?:exportar\s+pdf(?:\s+([a-zA-Z0-9_-]+))?)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _pasteTableRegex = RegExp(
+    r'^(?:pegar\s+tabla|pegar|paste\s+table)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _exportBundleRegex = RegExp(
+    r'^(?:exportar\s+paquete(?:\s+completo)?|exportar\s+zip|export\s+bundle)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _quickFieldPatternRegex = RegExp(
+    r'^progresiva\s+(\d+)\s*,?\s*estado\s+([a-zA-Z]+)\s*,?\s*fecha\s+hoy(?:\s*,?\s*(obs|observacion|observación)\s+(.+))?$',
     caseSensitive: false,
   );
 
