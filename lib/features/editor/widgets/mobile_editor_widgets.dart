@@ -185,19 +185,23 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.height < 920;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: AppleCard(
+        key: const ValueKey('editor-micro-onboarding'),
         radius: 16,
         color: palette.menuBg.withValues(alpha: palette.isLight ? 0.96 : 0.82),
         borderColor: palette.borderStrong,
         shadows: const <BoxShadow>[],
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: compact
+            ? const EdgeInsets.fromLTRB(10, 8, 10, 8)
+            : const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tour rapido del editor',
+              'Micro onboarding (3 pasos)',
               style: TextStyle(
                 color: palette.fg,
                 fontWeight: FontWeight.w800,
@@ -206,7 +210,9 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'En 30 segundos: +Registro, Command Palette (Ctrl/Cmd+K), acciones rapidas, adjuntos, exportar/compartir y estado offline.',
+              compact
+                  ? '3 atajos para arrancar rapido: pegar tabla, nuevo registro y deshacer.'
+                  : 'Guia corta para pegar tablas sin jank, crear registros rapidos y deshacer en un toque.',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontSize: 12.2,
@@ -215,34 +221,51 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: const [
-                _TourHintChip(icon: Icons.add_box_outlined, label: '+Registro'),
-                _TourHintChip(
-                  icon: Icons.keyboard_rounded,
-                  label: 'Ctrl/Cmd+K',
+            if (compact)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: palette.hintBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: palette.border,
+                    width: palette.hairline,
+                  ),
                 ),
-                _TourHintChip(
-                  icon: Icons.flash_on_outlined,
-                  label: 'Quick Actions',
+                child: Text(
+                  'Smart paste preview · Nuevo registro · Undo rapido',
+                  style: TextStyle(
+                    color: palette.fgMuted,
+                    fontSize: 11.3,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
                 ),
-                _TourHintChip(
-                  icon: Icons.attach_file_rounded,
-                  label: 'Adjuntos',
-                ),
-                _TourHintChip(
-                  icon: Icons.ios_share_rounded,
-                  label: 'Exportar/Share',
-                ),
-                _TourHintChip(
-                  icon: Icons.cloud_off_outlined,
-                  label: 'Offline chip',
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
+              )
+            else ...const [
+              _TourStepItem(
+                icon: Icons.table_chart_rounded,
+                title: '1) Smart paste premium',
+                body:
+                    'Pega TSV/CSV y aparece preview con opciones (insertar o reemplazar).',
+              ),
+              SizedBox(height: 6),
+              _TourStepItem(
+                icon: Icons.add_box_outlined,
+                title: '2) Nuevo registro',
+                body:
+                    'Usa +Registro o Ctrl/Cmd+N para crear fila con defaults y foco listo.',
+              ),
+              SizedBox(height: 6),
+              _TourStepItem(
+                icon: Icons.undo_rounded,
+                title: '3) Undo inmediato',
+                body:
+                    'Si algo no cierra, usa Deshacer en snackbar para revertir sin perder ritmo.',
+              ),
+            ],
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -273,11 +296,16 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
   }
 }
 
-class _TourHintChip extends StatelessWidget {
-  const _TourHintChip({required this.icon, required this.label});
+class _TourStepItem extends StatelessWidget {
+  const _TourStepItem({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
 
   final IconData icon;
-  final String label;
+  final String title;
+  final String body;
 
   @override
   Widget build(BuildContext context) {
@@ -286,23 +314,45 @@ class _TourHintChip extends StatelessWidget {
       hairline: math.max(0.5, 1 / MediaQuery.of(context).devicePixelRatio),
     );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: pal.hintBg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: pal.border, width: pal.hairline),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 13, color: pal.fgMuted),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: pal.fgMuted,
-              fontSize: 11.8,
-              fontWeight: FontWeight.w700,
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 14, color: pal.fgMuted),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: pal.fg,
+                    fontSize: 11.8,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: TextStyle(
+                    color: pal.fgMuted,
+                    fontSize: 11.3,
+                    fontWeight: FontWeight.w600,
+                    height: 1.22,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

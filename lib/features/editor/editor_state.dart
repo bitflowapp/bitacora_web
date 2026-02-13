@@ -32,6 +32,8 @@ const String _kPrefMicrophoneRationaleSeen =
 const String _kPrefQuickCaptureQueue = 'bitflow.quick_capture_queue.v1';
 const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
 const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
+const String _kPrefSmartPasteInteracted =
+    'bitflow.editor.smart_paste_interacted.v1';
 const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
@@ -472,6 +474,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _lastOnlineState = true;
   bool _editorTourVisible = false;
   bool _editorTourDismissed = false;
+  bool _editorSmartPasteInteracted = false;
   final List<_SavedView> _savedViews = <_SavedView>[];
   String? _activeSavedViewId;
   _ReviewFilterMode _reviewFilterMode = _ReviewFilterMode.all;
@@ -3306,16 +3309,38 @@ class _EditorScreenState extends State<EditorScreen>
       final prefs = await SharedPreferences.getInstance();
       final seen = prefs.getBool(_kPrefEditorTourSeen) ?? false;
       final dismissed = prefs.getBool(_kPrefEditorTourDismissed) ?? false;
-      final shouldShow = !seen && !dismissed;
+      final smartPasteInteracted =
+          prefs.getBool(_kPrefSmartPasteInteracted) ?? false;
+      final shouldShow = !seen && !dismissed && !smartPasteInteracted;
       if (!mounted) {
         _editorTourDismissed = dismissed;
+        _editorSmartPasteInteracted = smartPasteInteracted;
         _editorTourVisible = shouldShow;
         return;
       }
       setState(() {
         _editorTourDismissed = dismissed;
+        _editorSmartPasteInteracted = smartPasteInteracted;
         _editorTourVisible = shouldShow;
       });
+    } catch (_) {}
+  }
+
+  Future<void> _markSmartPasteInteracted() async {
+    if (_editorSmartPasteInteracted) return;
+    if (mounted) {
+      setState(() {
+        _editorSmartPasteInteracted = true;
+        _editorTourVisible = false;
+      });
+    } else {
+      _editorSmartPasteInteracted = true;
+      _editorTourVisible = false;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPrefSmartPasteInteracted, true);
+      await prefs.setBool(_kPrefEditorTourSeen, true);
     } catch (_) {}
   }
 
@@ -8345,7 +8370,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: child,
                               );
                             },
-                            child: _editorTourVisible
+                            child: (_editorTourVisible && _rows.length <= 40)
                                 ? KeyedSubtree(
                                     key: const ValueKey('editor-tour-open'),
                                     child: _EditorFirstRunTourBanner(
@@ -13704,6 +13729,9 @@ class _EditorScreenState extends State<EditorScreen>
     final parsed = parseSmartTable(raw);
     if (parsed.isEmpty) {
       return fail('No se detecto una tabla valida para pegar.');
+    }
+    if (parsed.looksLikeTable) {
+      unawaited(_markSmartPasteInteracted());
     }
 
     final startR = _selRow;
