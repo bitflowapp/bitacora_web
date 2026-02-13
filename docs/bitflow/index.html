@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <a class="floating-cta" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Probar ahora</a>
+  <a class="floating-cta" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener" aria-label="Probar ahora BitFlow Web">Probar ahora</a>
   <main class="shell">
     <nav class="topbar" aria-label="Navegacion principal">
       <a class="brand" href="#top" aria-label="Ir al inicio de BitFlow">
@@ -21,20 +21,20 @@
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
+        <a href="#automation">Automatizaciones</a>
         <a href="#for-who">Para quien es</a>
-        <a href="#cases">Casos reales</a>
+        <a href="#quick-start">En 30 segundos</a>
         <a href="#compare">Comparativa</a>
-        <a href="#start">Como empezar</a>
       </div>
     </nav>
 
     <section class="hero" id="top">
       <div class="reveal">
         <p class="eyebrow">Premium monocrome UX</p>
-        <h1>Bitacora premium para trabajo real, con onboarding en 3 pasos.</h1>
+        <h1>La bitacora premium para equipos de campo que necesitan resultados hoy.</h1>
         <p class="lead">
-          BitFlow prioriza velocidad y foco: interfaz limpia tipo Apple, performance mobile-first y cero
-          dependencias online para usar el flujo base en campo.
+          BitFlow fue creada para registrar trabajo real sin friccion: mobile-first, sin jank,
+          con captura offline y salida clara para que tu operacion avance incluso sin conectividad.
         </p>
         <div class="badge-row">
           <span class="badge">Offline</span>
@@ -42,15 +42,16 @@
           <span class="badge">Sin nube obligatoria</span>
         </div>
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
-          <a class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK Android</a>
+          <a class="btn btn-primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener" aria-label="Abrir BitFlow Web">Abrir BitFlow Web</a>
+          <a class="btn btn-secondary" href="https://marcoluna-nqn.github.io/bitacora_web/bitflow/" target="_blank" rel="noopener" aria-label="Ver landing BitFlow">Ver landing</a>
+          <a class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener" aria-label="Descargar APK Android de BitFlow">Descargar APK Android</a>
         </div>
         <div id="install-smart" class="install-card" aria-live="polite">
           <p class="install-title">Instalacion recomendada</p>
           <p id="install-copy" class="install-copy">Detectando dispositivo...</p>
           <div class="cta-row">
-            <button id="install-pwa-btn" type="button" class="btn btn-primary install-pulse">Instalar BitFlow</button>
-            <a id="install-apk-btn" class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK Android</a>
+            <button id="install-pwa-btn" type="button" class="btn btn-primary install-pulse" aria-label="Instalar BitFlow en este dispositivo">Instalar BitFlow</button>
+            <a id="install-apk-btn" class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener" aria-label="Descargar APK Android de BitFlow">Descargar APK Android</a>
           </div>
           <p id="ios-install-tip" class="install-tip">En iPhone: Safari > Compartir > Agregar a pantalla de inicio.</p>
         </div>
@@ -69,7 +70,7 @@
     <section class="section" id="features">
       <div class="section-head">
         <p class="eyebrow">Producto</p>
-        <h2>Features reales</h2>
+        <h2>Features reales para vender mas ejecucion, no promesas</h2>
       </div>
       <div class="card-grid">
         <article class="card">
@@ -88,9 +89,34 @@
           <h3>Zen mode</h3>
           <p>Interfaz minima para concentrarte en captura y validacion sin ruido ni distracciones.</p>
         </article>
+      </div>
+    </section>
+
+    <section class="section" id="automation">
+      <div class="section-head">
+        <p class="eyebrow">Automatizacion</p>
+        <h2>Automatizaciones que te ahorran tiempo</h2>
+      </div>
+      <div class="card-grid">
         <article class="card">
-          <h3>Smart paste</h3>
-          <p>Pegado inteligente de TSV/CSV para poblar tablas completas en segundos con estructura consistente.</p>
+          <h3>Pegado masivo inteligente</h3>
+          <p>Pega TSV/CSV y BitFlow ordena columnas sola.</p>
+          <p class="example">Ejemplo: en 20 segundos cargas 40 tareas del turno sin tipear una por una.</p>
+        </article>
+        <article class="card">
+          <h3>Plantillas por frente</h3>
+          <p>Repite estructuras de bitacora con un toque.</p>
+          <p class="example">Ejemplo: obra civil y mantenimiento arrancan con checklists listos cada manana.</p>
+        </article>
+        <article class="card">
+          <h3>Flujo de evidencia inline</h3>
+          <p>La foto queda junto al dato, no en otra app.</p>
+          <p class="example">Ejemplo: auditoria interna valida hallazgos con imagen y comentario en la misma fila.</p>
+        </article>
+        <article class="card">
+          <h3>Export rapido al cierre</h3>
+          <p>Envia XLSX al terminar jornada sin rehacer reportes.</p>
+          <p class="example">Ejemplo: el supervisor comparte el parte diario antes de salir del sitio.</p>
         </article>
       </div>
     </section>
@@ -100,24 +126,35 @@
         <p class="eyebrow">Segmentos</p>
         <h2>Para quien es</h2>
       </div>
-      <div class="detail-grid">
-        <article class="detail-card"><h3>Cuadrillas de campo</h3><p>Registro diario de tareas, evidencias y estado sin perder tiempo.</p></article>
-        <article class="detail-card"><h3>Supervisores de obra</h3><p>Consolidacion rapida para reportes de avance y auditorias.</p></article>
-        <article class="detail-card"><h3>Mantenimiento industrial</h3><p>Checklists, eventos y seguimiento de acciones correctivas.</p></article>
-        <article class="detail-card"><h3>Equipos de relevamiento</h3><p>Captura estructurada en sitio y export inmediato al finalizar jornada.</p></article>
+      <div class="detail-grid personas-grid">
+        <article class="detail-card"><h3>Jefe de cuadrilla</h3><p>Necesita capturar rapido en campo y evitar retrabajo al final del dia.</p></article>
+        <article class="detail-card"><h3>Supervisor de obra</h3><p>Quiere visibilidad inmediata del avance con evidencia valida para reportar.</p></article>
+        <article class="detail-card"><h3>Lider de mantenimiento</h3><p>Busca trazabilidad simple de eventos, prioridades y acciones correctivas.</p></article>
       </div>
     </section>
 
-    <section class="section" id="cases">
+    <section class="section onboarding" id="quick-start">
       <div class="section-head">
-        <p class="eyebrow">Operacion</p>
-        <h2>Casos reales</h2>
+        <p class="eyebrow">En 30 segundos</p>
+        <h2>Empieza sin friccion en 3 pasos</h2>
       </div>
-      <div class="detail-grid">
-        <article class="detail-card"><h3>Parte diario de obra</h3><p>Carga de actividades + fotos + observaciones y salida en XLSX el mismo dia.</p></article>
-        <article class="detail-card"><h3>Inspecciones tecnicas</h3><p>Checklist con adjuntos inline y trazabilidad de hallazgos por fila.</p></article>
-        <article class="detail-card"><h3>Bitacora de mantenimiento</h3><p>Registro historico por equipo, turnos y prioridades sin depender de red.</p></article>
-        <article class="detail-card"><h3>Auditoria interna</h3><p>Consolidacion de evidencia en un flujo que evita cambios de app.</p></article>
+      <ol class="steps">
+        <li>
+          <h3>1. Abre BitFlow</h3>
+          <p>Ingresa desde web o landing y empieza al instante.</p>
+        </li>
+        <li>
+          <h3>2. Carga tu primera jornada</h3>
+          <p>Agrega filas manuales o pega tu lista con Smart paste.</p>
+        </li>
+        <li>
+          <h3>3. Comparte resultado</h3>
+          <p>Exporta y envia reporte sin salir del flujo.</p>
+        </li>
+      </ol>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener" aria-label="Abrir BitFlow Web">Abrir BitFlow Web</a>
+        <a class="btn btn-secondary" href="https://marcoluna-nqn.github.io/bitacora_web/bitflow/" target="_blank" rel="noopener" aria-label="Ver landing BitFlow">Ver landing</a>
       </div>
     </section>
 
@@ -146,31 +183,6 @@
       </div>
     </section>
 
-    <section class="section onboarding" id="start">
-      <div class="section-head">
-        <p class="eyebrow">Onboarding</p>
-        <h2>C&oacute;mo empezar</h2>
-      </div>
-      <ol class="steps">
-        <li>
-          <h3>Abrir BitFlow Web</h3>
-          <p>Entrar a la app web para iniciar en segundos, sin instalar nada.</p>
-        </li>
-        <li>
-          <h3>Crear o cargar una bitacora</h3>
-          <p>Agregar filas manualmente o usar Smart paste para importar TSV/CSV.</p>
-        </li>
-        <li>
-          <h3>Instalar en tu dispositivo</h3>
-          <p>Usar PWA (web) o APK Android para acceso directo tipo app.</p>
-        </li>
-      </ol>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="https://marcoluna-nqn.github.io/bitacora_web/" target="_blank" rel="noopener">Abrir BitFlow Web</a>
-        <a class="btn btn-secondary" href="https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk" target="_blank" rel="noopener">Descargar APK Android</a>
-      </div>
-    </section>
-
     <footer class="footer" id="support">
       <div>
         <p class="eyebrow">Soporte</p>
@@ -178,9 +190,9 @@
         <p>Reportes y consultas: usar el repositorio oficial para issues y seguimiento.</p>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/marcoluna-nqn/bitacora_web/issues" target="_blank" rel="noopener">GitHub Issues</a>
-        <a href="privacy.html">Privacidad</a>
-        <a href="terms.html">Terminos</a>
+        <a href="https://github.com/marcoluna-nqn/bitacora_web/issues" target="_blank" rel="noopener" aria-label="Ir a GitHub Issues">GitHub Issues</a>
+        <a href="privacy.html" aria-label="Ver politica de privacidad">Privacidad</a>
+        <a href="terms.html" aria-label="Ver terminos y condiciones">Terminos</a>
       </div>
     </footer>
   </main>
