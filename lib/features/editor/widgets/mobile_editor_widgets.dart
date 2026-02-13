@@ -1,11 +1,19 @@
 part of '../editor_screen.dart';
 
 class _StatusBar extends StatelessWidget {
-  const _StatusBar({required this.text, required this.bg, required this.fg});
+  const _StatusBar({
+    required this.text,
+    required this.bg,
+    required this.fg,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String text;
   final Color bg;
   final Color fg;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -13,9 +21,39 @@ class _StatusBar extends StatelessWidget {
       width: double.infinity,
       color: bg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(
-        text,
-        style: TextStyle(color: fg, fontWeight: FontWeight.w900, height: 1.05),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+              ),
+            ),
+          ),
+          if (onAction != null && (actionLabel ?? '').trim().isNotEmpty) ...[
+            const SizedBox(width: 10),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 30),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                foregroundColor: fg,
+                backgroundColor: fg.withValues(alpha: 0.12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: Text(
+                actionLabel!,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

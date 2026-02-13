@@ -369,6 +369,8 @@ class _EditorScreenState extends State<EditorScreen>
   DateTime? _engineLastCheckAt;
   bool _engineLastOk = false;
   String? _engineLastError;
+  bool _engineHealthCheckInFlight = false;
+  bool _engineFallbackMode = false;
   late final EngineApi _engineApi = EngineApi();
 
   bool get _engineHasBase =>
@@ -7921,7 +7923,14 @@ class _EditorScreenState extends State<EditorScreen>
         final selectedDisplayRows = _selectedDisplayRows(visibleRows);
 
         if (isMobile) {
-          if (_engineStatusIsError && _engineStatus != null) {
+          if (_engineFallbackMode && _engineStatus != null) {
+            _maybeShowMobileStatusSnack(
+              ctx,
+              pal,
+              message: _engineStatus,
+              isError: false,
+            );
+          } else if (_engineStatusIsError && _engineStatus != null) {
             _maybeShowMobileStatusSnack(
               ctx,
               pal,
@@ -8426,6 +8435,15 @@ class _EditorScreenState extends State<EditorScreen>
                               fg: _engineStatusIsError
                                   ? _errorFg(pal)
                                   : pal.statusFg,
+                              actionLabel: _engineFallbackMode
+                                  ? (_engineHealthCheckInFlight
+                                      ? 'Verificando...'
+                                      : 'Reintentar')
+                                  : null,
+                              onAction: _engineFallbackMode &&
+                                      !_engineHealthCheckInFlight
+                                  ? () => unawaited(_retryEngineConnection())
+                                  : null,
                             ),
                           Expanded(
                             child: isDesktop
@@ -17651,8 +17669,49 @@ Este paquete incluye:
   }
   // ------------------------------ Engine compute (opcional) ----------------
 
-  Future<void> _initEngineConnection() async {
-    await _ensureEngineReady(showErrors: true);
+  Future<void> _initEngineConnection({bool manualRetry = false}) async {
+    if (_engineHealthCheckInFlight) return;
+    _engineHealthCheckInFlight = true;
+
+    try {
+      final ready = await _ensureEngineReady(showErrors: false);
+      if (!mounted) return;
+
+      if (ready) {
+        setState(() {
+          _engineFallbackMode = false;
+          if (!manualRetry) {
+            _engineStatus = null;
+            _engineStatusIsError = false;
+          } else {
+            _engineStatus = 'Engine OK';
+            _engineStatusIsError = false;
+          }
+        });
+        if (manualRetry) {
+          _showSnack('Engine listo', isError: false);
+        }
+        return;
+      }
+
+      setState(() {
+        _engineFallbackMode = true;
+        _engineStatus = _engineFallbackMessage;
+        _engineStatusIsError = false;
+      });
+      if (manualRetry) {
+        _showSnack(_engineFallbackMessage, isError: false);
+      }
+    } finally {
+      _engineHealthCheckInFlight = false;
+    }
+  }
+
+  String get _engineFallbackMessage =>
+      'Engine no disponible. Modo local activo.';
+
+  Future<void> _retryEngineConnection() async {
+    await _initEngineConnection(manualRetry: true);
   }
 
   Future<bool> _ensureEngineReady({required bool showErrors}) async {
@@ -17677,6 +17736,7 @@ Este paquete incluye:
           _engineLastOk = false;
           _engineLastError = 'URL invalida o vacia';
           _engineLastCheckAt = DateTime.now();
+          _engineFallbackMode = true;
         });
       }
       return false;
@@ -17699,6 +17759,7 @@ Este paquete incluye:
         _engineLastOk = true;
         _engineLastError = null;
         _engineLastCheckAt = DateTime.now();
+        _engineFallbackMode = false;
       });
       if (showErrors) {
         _showSnack('Engine listo', isError: false);
@@ -17716,6 +17777,7 @@ Este paquete incluye:
           _engineLastOk = false;
           _engineLastError = _engineErrorMessage(e);
           _engineLastCheckAt = DateTime.now();
+          _engineFallbackMode = true;
         });
         if (showErrors) {
           _showSnack(_engineStatus ?? 'Engine no disponible', isError: true);

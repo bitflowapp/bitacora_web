@@ -15,7 +15,7 @@ import 'screens/legal_screen.dart';
 import 'start_page.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
-import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
+import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'widgets/animated_video_background.dart';
@@ -30,11 +30,11 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   if (url.isEmpty) return;
 
   try {
-    // 1) Si tu app todavía usa EngineMathClient en otros lugares, mantenemos este override.
+    // 1) Si tu app todavÃ­a usa EngineMathClient en otros lugares, mantenemos este override.
     await EngineMathClient().setBaseUrl(url);
 
-    // 2) Y también persistimos para el EngineConfig (engine_client.dart),
-    //    así el EditorScreen grande usa el mismo baseUrl.
+    // 2) Y tambiÃ©n persistimos para el EngineConfig (engine_client.dart),
+    //    asÃ­ el EditorScreen grande usa el mismo baseUrl.
     await EngineConfig.instance.setOverride(url);
 
     final normalized = engine_cfg.EngineConfig.normalize(url);
@@ -82,7 +82,7 @@ Future<void> main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      // UI controlada (en vez de pantalla roja en producción web)
+      // UI controlada (en vez de pantalla roja en producciÃ³n web)
       return Material(
         color: const Color(0xFF0B0D1A),
         child: Center(
@@ -134,11 +134,9 @@ Future<void> main() async {
       );
     };
 
-    // IMPORTANTE: si abrís la web con ?engine=https://xxxxx.trycloudflare.com
-    // acá lo persistimos para que toda la app apunte al engine remoto.
-    await _applyEngineBaseUrlOverrideFromUrl();
-
     runApp(const App());
+    // Persistimos override de engine en background para no bloquear primera pintura.
+    unawaited(_applyEngineBaseUrlOverrideFromUrl());
   }, (error, stack) {
     if (kDebugMode) {
       // ignore: avoid_print
@@ -171,8 +169,12 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> {
+  static const Duration _bootWatchdogDelay = Duration(seconds: 14);
+
   late bool _isLight;
   late Future<_BootStatus> _bootFuture;
+  Timer? _bootWatchdogTimer;
+  bool _bootWatchdogTriggered = false;
   GoRouter? _router;
 
   @override
@@ -183,8 +185,31 @@ class _AppState extends State<App> {
         SchedulerBinding.instance.platformDispatcher.platformBrightness;
     _isLight = platformBrightness != Brightness.dark;
 
-    // No bloqueamos el primer frame: boot asíncrono.
-    _bootFuture = _boot();
+    // No bloqueamos el primer frame: boot asincrono + watchdog.
+    _startBoot();
+  }
+
+  @override
+  void dispose() {
+    _bootWatchdogTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startBoot() {
+    _bootWatchdogTimer?.cancel();
+    _bootWatchdogTriggered = false;
+    _bootFuture = _boot().whenComplete(() {
+      _bootWatchdogTimer?.cancel();
+    });
+    _bootWatchdogTimer = Timer(_bootWatchdogDelay, () {
+      if (!mounted) return;
+      setState(() {
+        _bootWatchdogTriggered = true;
+      });
+      if (kDebugMode) {
+        debugPrint('[boot] watchdog triggered after $_bootWatchdogDelay');
+      }
+    });
   }
 
   Future<_BootStatus> _boot() async {
@@ -214,25 +239,8 @@ class _AppState extends State<App> {
     try {
       await AppErrorReporter.I.init().timeout(const Duration(seconds: 2));
     } catch (_) {}
-
-    // EngineConfig init: resuelve override/version.json/cache/dart-define.
-    // No lo tratamos como “fatalâ€ para que la app pueda abrir igual (modo offline/demo).
-    try {
-      await EngineConfig.instance
-          .init(
-              timeout: const Duration(seconds: 6),
-              versionJsonPath: 'version.json')
-          .timeout(const Duration(seconds: 7));
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('[boot] Engine baseUri = ${EngineConfig.instance.baseUri}');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('[boot] EngineConfig init failed: $e');
-      }
-    }
+    // EngineConfig en background: no bloquea primera pintura.
+    unawaited(_initEngineConfigNonBlocking());
 
     return _BootStatus(
       firebaseOk: firebaseOk,
@@ -240,6 +248,24 @@ class _AppState extends State<App> {
       firebaseError: firebaseError,
       storeError: storeError,
     );
+  }
+
+  Future<void> _initEngineConfigNonBlocking() async {
+    try {
+      await EngineConfig.instance
+          .init(
+            timeout: const Duration(seconds: 6),
+            versionJsonPath: 'version.json',
+          )
+          .timeout(const Duration(seconds: 7));
+      if (kDebugMode) {
+        debugPrint('[boot] Engine baseUri = ${EngineConfig.instance.baseUri}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[boot] EngineConfig init failed: $e');
+      }
+    }
   }
 
   @override
@@ -271,11 +297,29 @@ class _AppState extends State<App> {
             snap.connectionState == ConnectionState.active;
 
         if (isWaiting) {
+          if (_bootWatchdogTriggered) {
+            return buildBoot(
+              _BootSplash(
+                isLight: _isLight,
+                onToggleTheme: _toggleTheme,
+                subtitle: 'Inicio demorado. La UI sigue en modo seguro.',
+                details:
+                    'El arranque tardo mas de ${_bootWatchdogDelay.inSeconds}s.\nPuedes reintentar sin recargar.',
+                showProgress: false,
+                actions: [
+                  _PillButton(
+                    label: 'Reintentar inicio',
+                    onPressed: () => setState(_startBoot),
+                  ),
+                ],
+              ),
+            );
+          }
           return buildBoot(
             _BootSplash(
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
-              subtitle: 'Inicializando…',
+              subtitle: 'Inicializandoâ€¦',
             ),
           );
         }
@@ -293,7 +337,7 @@ class _AppState extends State<App> {
                 _PillButton(
                   label: 'Reintentar',
                   onPressed: () {
-                    setState(() => _bootFuture = _boot());
+                    setState(_startBoot);
                   },
                 ),
               ],
@@ -416,6 +460,7 @@ class _BootSplash extends StatelessWidget {
     required this.subtitle,
     this.details,
     this.actions,
+    this.showProgress = true,
   });
 
   final bool isLight;
@@ -423,6 +468,7 @@ class _BootSplash extends StatelessWidget {
   final String subtitle;
   final String? details;
   final List<Widget>? actions;
+  final bool showProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +526,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         _PillButton(
-                          label: isLight ? 'Noche' : 'Día',
+                          label: isLight ? 'Noche' : 'DÃ­a',
                           outlined: true,
                           onPressed: onToggleTheme,
                         ),
@@ -523,15 +569,26 @@ class _BootSplash extends StatelessWidget {
                     ],
                     Row(
                       children: [
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        const SizedBox(width: 10),
+                        if (showProgress) ...[
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 10),
+                        ] else ...[
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 18,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
                         Expanded(
                           child: Text(
-                            'Si esto tarda, no es tu UI: es init/red/cache. Ahora al menos se ve y no queda “infinitoâ€.',
+                            showProgress
+                                ? 'Inicializando en segundo plano.'
+                                : 'Sin spinner infinito: puedes reintentar sin recargar.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: cs.onSurface.withOpacity(0.7),
                               height: 1.25,
