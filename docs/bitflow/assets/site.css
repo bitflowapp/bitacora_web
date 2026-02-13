@@ -333,6 +333,25 @@ h3 {
   grid-template-columns: 1fr;
 }
 
+.smart-paste-premium .premium-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(242, 242, 242, 0.9));
+  border-color: var(--line-strong);
+}
+
+.premium-bullets {
+  margin: 0.75rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.48rem;
+  color: var(--ink-soft);
+  font-size: 0.96rem;
+}
+
+.premium-bullets li::marker {
+  color: var(--ink);
+}
+
 .compare-grid {
   margin-top: 1rem;
   display: grid;
