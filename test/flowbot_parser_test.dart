@@ -84,6 +84,17 @@ void main() {
     );
   });
 
+  test('parses "nuevo registro" as add row automation', () {
+    final result = parser.parse(
+      'nuevo registro',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+
+    expect(result.actions, isNotEmpty);
+    expect(result.actions.first.type, FlowBotActionType.addRow);
+  });
+
   test('parses quick field pattern command in spanish', () {
     final result = parser.parse(
       'progresiva 120, estado ok, fecha hoy, obs revisar',
