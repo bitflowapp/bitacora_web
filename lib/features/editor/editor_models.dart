@@ -91,6 +91,60 @@ class _ActionResult {
   final String? undoToken;
 }
 
+enum _SmartPasteMode { replaceFromActive, insertRows }
+
+class _SmartPasteUserChoice {
+  const _SmartPasteUserChoice({
+    required this.mode,
+    required this.firstRowIsHeader,
+  });
+
+  final _SmartPasteMode mode;
+  final bool firstRowIsHeader;
+}
+
+class _SmartPasteUndoCell {
+  const _SmartPasteUndoCell({
+    required this.rowId,
+    required this.col,
+    required this.previousValue,
+    required this.nextValue,
+  });
+
+  final String rowId;
+  final int col;
+  final String previousValue;
+  final String nextValue;
+}
+
+class _SmartPasteUndoHeader {
+  const _SmartPasteUndoHeader({
+    required this.col,
+    required this.previousValue,
+    required this.nextValue,
+  });
+
+  final int col;
+  final String previousValue;
+  final String nextValue;
+}
+
+class _SmartPasteUndoSnapshot {
+  const _SmartPasteUndoSnapshot({
+    required this.cells,
+    required this.headers,
+    required this.insertedRowIds,
+    required this.previousSelRow,
+    required this.previousSelCol,
+  });
+
+  final List<_SmartPasteUndoCell> cells;
+  final List<_SmartPasteUndoHeader> headers;
+  final List<String> insertedRowIds;
+  final int previousSelRow;
+  final int previousSelCol;
+}
+
 // ============================== Modelo =====================================
 
 class _ColumnPrefs {

@@ -50,6 +50,7 @@ class SmartTableBatchPlan {
     required this.rows,
     required this.updates,
     required this.insertedRows,
+    required this.insertedAtRow,
     required this.lastRow,
     required this.lastCol,
   });
@@ -57,6 +58,7 @@ class SmartTableBatchPlan {
   final List<List<String>> rows;
   final List<SmartTableCellUpdate> updates;
   final int insertedRows;
+  final int insertedAtRow;
   final int lastRow;
   final int lastCol;
 
@@ -117,6 +119,7 @@ SmartTableBatchPlan planSmartTableBatch({
   required int startRow,
   required int startCol,
   required int maxColsExclusive,
+  bool insertRowsAtStart = false,
   SmartTableCellNormalizer? normalize,
 }) {
   final rows = existingRows
@@ -127,17 +130,33 @@ SmartTableBatchPlan planSmartTableBatch({
       rows: rows,
       updates: const <SmartTableCellUpdate>[],
       insertedRows: 0,
+      insertedAtRow: -1,
       lastRow: startRow,
       lastCol: startCol,
     );
   }
 
-  final requiredRows = startRow + inputCells.length;
-  final insertedRows =
-      requiredRows > rows.length ? requiredRows - rows.length : 0;
   final width = rows.first.length;
-  for (var i = 0; i < insertedRows; i++) {
-    rows.add(List<String>.filled(width, '', growable: false));
+  var insertedRows = 0;
+  var insertedAtRow = -1;
+  var baseRow = startRow;
+  if (insertRowsAtStart) {
+    insertedRows = inputCells.length;
+    insertedAtRow = startRow.clamp(0, rows.length).toInt();
+    final generated = List<List<String>>.generate(
+      insertedRows,
+      (_) => List<String>.filled(width, '', growable: false),
+      growable: false,
+    );
+    rows.insertAll(insertedAtRow, generated);
+    baseRow = insertedAtRow;
+  } else {
+    final requiredRows = startRow + inputCells.length;
+    insertedRows = requiredRows > rows.length ? requiredRows - rows.length : 0;
+    insertedAtRow = insertedRows > 0 ? rows.length : -1;
+    for (var i = 0; i < insertedRows; i++) {
+      rows.add(List<String>.filled(width, '', growable: false));
+    }
   }
 
   final updates = <SmartTableCellUpdate>[];
@@ -146,7 +165,7 @@ SmartTableBatchPlan planSmartTableBatch({
 
   for (var dr = 0; dr < inputCells.length; dr++) {
     final row = inputCells[dr];
-    final rr = startRow + dr;
+    final rr = baseRow + dr;
     if (rr < 0 || rr >= rows.length) continue;
     lastRow = rr;
     for (var dc = 0; dc < row.length; dc++) {
@@ -175,6 +194,7 @@ SmartTableBatchPlan planSmartTableBatch({
     rows: rows,
     updates: updates,
     insertedRows: insertedRows,
+    insertedAtRow: insertedAtRow,
     lastRow: lastRow,
     lastCol: lastCol,
   );

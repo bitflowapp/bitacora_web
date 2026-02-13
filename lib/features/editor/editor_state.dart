@@ -4855,6 +4855,7 @@ class _EditorScreenState extends State<EditorScreen>
         case FlowBotActionType.pasteTable:
           final pasteResult = await _pasteTableSmartFromClipboard(
             emitFeedback: false,
+            interactivePreview: false,
           );
           if (pasteResult.ok && pasteResult.applied > 0) {
             applied += pasteResult.applied;
@@ -12700,6 +12701,99 @@ class _EditorScreenState extends State<EditorScreen>
     return defaults.join(', ');
   }
 
+  bool _rowHasMetaForRow(String rowId) {
+    for (final key in _cellMeta.keys) {
+      final ref = CellRef.fromKey(key, defaultSheetId: widget.sheetId);
+      if (ref == null) continue;
+      if (ref.rowId == rowId) return true;
+    }
+    return false;
+  }
+
+  bool _newRecordWasEdited(
+    _RowModel row, {
+    required List<String> baselineCells,
+  }) {
+    if (row.cells.length != baselineCells.length) return true;
+    for (int i = 0; i < row.cells.length; i++) {
+      if (row.cells[i] != baselineCells[i]) return true;
+    }
+    if (row.photos.isNotEmpty) return true;
+    if (row.gpsLat != null || row.gpsLng != null) return true;
+    if (row.reviewed) return true;
+    if (_rowHasMetaForRow(row.id)) return true;
+    return false;
+  }
+
+  Future<bool> _confirmUndoEditedNewRecord() async {
+    if (!mounted) return false;
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: 'Deshacer nuevo registro',
+      child: const Text(
+        'La fila fue modificada despues de crearla. Quieres eliminarla igual?',
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: 'Eliminar fila',
+          icon: Icons.delete_outline_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    return accepted == true;
+  }
+
+  Future<void> _undoNewRecordById(
+    String rowId, {
+    required List<String> baselineCells,
+  }) async {
+    final rowIndex = _rows.indexWhere((row) => row.id == rowId);
+    if (rowIndex < 0 || rowIndex >= _rows.length) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No se pudo deshacer: la fila ya no existe.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final row = _rows[rowIndex];
+    final edited = _newRecordWasEdited(row, baselineCells: baselineCells);
+    if (edited) {
+      final accepted = await _confirmUndoEditedNewRecord();
+      if (!accepted) {
+        _emitActionResult(
+          const _ActionResult(
+            ok: false,
+            message: 'Se mantuvo la fila creada.',
+          ),
+          failureIcon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+    }
+
+    _deleteRow(rowIndex);
+    _emitActionResult(
+      const _ActionResult(
+        ok: true,
+        message: 'Nuevo registro revertido.',
+        applied: 1,
+      ),
+      successIcon: Icons.undo_rounded,
+    );
+  }
+
   Future<_ActionResult> _createNewRecordAction({
     bool emitFeedback = true,
     String origin = 'manual',
@@ -12721,6 +12815,8 @@ class _EditorScreenState extends State<EditorScreen>
     final insertAt = _rows.length;
     final targetCol = _firstEditableColumnIndex();
     final row = _buildSmartDefaultRow();
+    final rowId = row.id;
+    final baselineCells = List<String>.from(row.cells, growable: false);
     setState(() {
       _rows.insert(insertAt, row);
       _setSelection(insertAt, targetCol);
@@ -12756,7 +12852,12 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         result,
         successIcon: Icons.add_box_outlined,
-        onUndo: _undoOnce,
+        onUndo: () => unawaited(
+          _undoNewRecordById(
+            rowId,
+            baselineCells: baselineCells,
+          ),
+        ),
       );
     }
     return result;
@@ -13281,8 +13382,289 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  Future<_ActionResult> _pasteTableSmartFromClipboard({
+  String _smartPasteModeLabel(_SmartPasteMode mode) {
+    switch (mode) {
+      case _SmartPasteMode.insertRows:
+        return 'Insertar filas';
+      case _SmartPasteMode.replaceFromActive:
+        return 'Reemplazar desde celda activa';
+    }
+  }
+
+  List<List<String>> _smartPastePreviewRows(
+    SmartTableParseResult parsed, {
+    int maxRows = 3,
+  }) {
+    if (parsed.cells.isEmpty) return const <List<String>>[];
+    return parsed.cells.take(maxRows).toList(growable: false);
+  }
+
+  Future<_SmartPasteUserChoice?> _showSmartPasteOptionsSheet(
+    SmartTableParseResult parsed,
+  ) async {
+    if (!mounted) return null;
+    var mode = _SmartPasteMode.replaceFromActive;
+    var firstRowIsHeader = parsed.rowCount > 1 && parsed.columnCount > 1;
+    final previewRows = _smartPastePreviewRows(parsed);
+    final extraRows = parsed.rowCount > previewRows.length
+        ? parsed.rowCount - previewRows.length
+        : 0;
+    return showModalBottomSheet<_SmartPasteUserChoice>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return SafeArea(
+              top: false,
+              child: Container(
+                key: const Key('smart_paste_sheet'),
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: pal.menuBg,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: pal.border, width: pal.hairline),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Detecte ${parsed.rowCount}x${parsed.columnCount} (${_smartTableDelimiterLabel(parsed.delimiter)}).',
+                      key: const Key('smart_paste_detect_label'),
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Preview (primeras ${previewRows.length} fila(s))',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxHeight: 156),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: pal.hintBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: pal.border,
+                          width: pal.hairline,
+                        ),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < previewRows.length; i++)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: i == previewRows.length - 1 ? 0 : 6,
+                                ),
+                                child: Text(
+                                  previewRows[i]
+                                      .map((cell) => cell.isEmpty ? '·' : cell)
+                                      .join(' | '),
+                                  style: TextStyle(
+                                    color: pal.fg,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            if (extraRows > 0)
+                              Text(
+                                '+$extraRows fila(s) mas',
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    RadioListTile<_SmartPasteMode>(
+                      key: const Key('smart_paste_mode_replace'),
+                      value: _SmartPasteMode.replaceFromActive,
+                      groupValue: mode,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setModalState(() => mode = value);
+                      },
+                      title: const Text('Reemplazar desde celda activa'),
+                    ),
+                    RadioListTile<_SmartPasteMode>(
+                      key: const Key('smart_paste_mode_insert'),
+                      value: _SmartPasteMode.insertRows,
+                      groupValue: mode,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setModalState(() => mode = value);
+                      },
+                      title: const Text('Insertar filas'),
+                    ),
+                    SwitchListTile.adaptive(
+                      key: const Key('smart_paste_toggle_header'),
+                      value: firstRowIsHeader,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Primera fila es header'),
+                      subtitle: firstRowIsHeader
+                          ? const Text(
+                              'Mapeo simple: renombrar columnas visibles desde la celda activa.',
+                            )
+                          : const Text(
+                              'Se pega toda la tabla como datos.',
+                            ),
+                      onChanged: (value) =>
+                          setModalState(() => firstRowIsHeader = value),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppButton(
+                            label: AppStrings.cancel,
+                            variant: AppButtonVariant.ghost,
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppButton(
+                            key: const Key('smart_paste_apply'),
+                            label: 'Aplicar',
+                            icon: Icons.check_rounded,
+                            variant: AppButtonVariant.primary,
+                            onPressed: () {
+                              Navigator.of(ctx).pop(
+                                _SmartPasteUserChoice(
+                                  mode: mode,
+                                  firstRowIsHeader: firstRowIsHeader,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _undoSmartPasteSnapshot(_SmartPasteUndoSnapshot snapshot) async {
+    final refsToClear = <_CellRef>[];
+    final changedRowIds = <String>{};
+    final removedIndexes = <int>[];
+
+    for (int i = snapshot.insertedRowIds.length - 1; i >= 0; i--) {
+      final rowId = snapshot.insertedRowIds[i];
+      final index = _rows.indexWhere((row) => row.id == rowId);
+      if (index < 0 || index >= _rows.length) continue;
+      _rows.removeAt(index);
+      removedIndexes.add(index);
+    }
+    for (final index in removedIndexes) {
+      _removeMobileRowCache(index);
+    }
+    _ensureMobileRowCachesLength();
+
+    for (final header in snapshot.headers) {
+      if (header.col < 0 || header.col >= _headers.length - 1) continue;
+      _headers[header.col] = header.previousValue;
+    }
+
+    for (final cell in snapshot.cells) {
+      final rowIndex = _rows.indexWhere((row) => row.id == cell.rowId);
+      if (rowIndex < 0 || rowIndex >= _rows.length) continue;
+      if (cell.col < 0 || cell.col >= _headers.length - 1) continue;
+      if (_rows[rowIndex].cells[cell.col] == cell.previousValue) continue;
+      _rows[rowIndex].cells[cell.col] = cell.previousValue;
+      refsToClear.add(_CellRef(rowIndex, cell.col));
+      changedRowIds.add(cell.rowId);
+    }
+
+    if (removedIndexes.isEmpty &&
+        refsToClear.isEmpty &&
+        snapshot.headers.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No se pudo deshacer el pegado.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    if (_rows.isEmpty) {
+      _rows.add(_RowModel.empty(_headers.length, id: _genStableId('r_')));
+      _insertMobileRowCache(0);
+    }
+
+    if (refsToClear.isNotEmpty) {
+      _clearCellDrafts(refsToClear);
+    }
+    for (final rowId in changedRowIds) {
+      _bumpRowVersionById(rowId);
+    }
+    if (removedIndexes.isNotEmpty || snapshot.headers.isNotEmpty) {
+      _bumpGridVersion();
+    }
+
+    final maxRow = math.max(0, _rows.length - 1);
+    final maxCol = math.max(0, _headers.length - 2);
+    _setSelection(
+      snapshot.previousSelRow.clamp(0, maxRow),
+      snapshot.previousSelCol.clamp(0, maxCol),
+      preserveRowSelection: true,
+    );
+    _markDirty(snapshot: true);
+    _addHistoryEvent(
+      type: 'smart_paste_undo',
+      message: 'Deshacer pegado inteligente',
+      origin: 'manual',
+      row: _selRow,
+      col: _selCol,
+    );
+    _emitActionResult(
+      const _ActionResult(
+        ok: true,
+        message: 'Pegado inteligente revertido.',
+        applied: 1,
+      ),
+      successIcon: Icons.undo_rounded,
+    );
+  }
+
+  Future<_ActionResult> _pasteTableSmartFromRaw(
+    String raw, {
     bool emitFeedback = true,
+    bool interactivePreview = true,
   }) async {
     _ActionResult fail(String message) {
       final result = _ActionResult(ok: false, message: message);
@@ -13304,12 +13686,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (_selCol < 0 || _selCol >= _headers.length - 1) {
       return fail('Selecciona una celda editable para pegar.');
     }
-
-    String raw = '';
-    try {
-      final data = await Clipboard.getData('text/plain');
-      raw = data?.text ?? '';
-    } catch (_) {}
     if (raw.trim().isEmpty) {
       return fail('Portapapeles vacio. Copia una tabla TSV/CSV y reintenta.');
     }
@@ -13324,23 +13700,75 @@ class _EditorScreenState extends State<EditorScreen>
     final maxColsExclusive = _headers.length - 1;
     final selectedRows = _batchTargetRows();
 
-    if (parsed.rowCount == 1 &&
-        parsed.columnCount == 1 &&
-        selectedRows.length > 1) {
+    var mode = _SmartPasteMode.replaceFromActive;
+    var firstRowIsHeader = false;
+    if (interactivePreview && parsed.looksLikeTable) {
+      final picked = await _showSmartPasteOptionsSheet(parsed);
+      if (picked == null) return fail('Pegado cancelado.');
+      mode = picked.mode;
+      firstRowIsHeader = picked.firstRowIsHeader;
+    }
+
+    final previousSelRow = _selRow;
+    final previousSelCol = _selCol;
+    final headerChanges = <_SmartPasteUndoHeader>[];
+    var headerOverflow = false;
+    final headerSource =
+        firstRowIsHeader && parsed.cells.isNotEmpty ? parsed.cells.first : null;
+    if (headerSource != null) {
+      final availableCols = math.max(0, maxColsExclusive - startC);
+      final applyCols = math.min(headerSource.length, availableCols);
+      if (headerSource.length > applyCols) {
+        headerOverflow = true;
+      }
+      for (int dc = 0; dc < applyCols; dc++) {
+        final nextHeader = headerSource[dc].trim();
+        if (nextHeader.isEmpty) continue;
+        final col = startC + dc;
+        final previousHeader = _headers[col];
+        if (previousHeader == nextHeader) continue;
+        headerChanges.add(
+          _SmartPasteUndoHeader(
+            col: col,
+            previousValue: previousHeader,
+            nextValue: nextHeader,
+          ),
+        );
+      }
+    }
+
+    final inputCells = firstRowIsHeader && parsed.rowCount > 1
+        ? parsed.cells.sublist(1)
+        : parsed.cells;
+
+    if (inputCells.length == 1 &&
+        inputCells.first.length == 1 &&
+        selectedRows.length > 1 &&
+        mode != _SmartPasteMode.insertRows) {
       final normalized =
-          _normalizeCellValueForColumn(startC, parsed.cells.first.first);
+          _normalizeCellValueForColumn(startC, inputCells.first.first);
       final refsToClear = <_CellRef>[];
+      final undoCells = <_SmartPasteUndoCell>[];
       var changed = 0;
       final changedRowIds = <String>{};
       for (final r in selectedRows) {
         if (r < 0 || r >= _rows.length) continue;
-        if (_rows[r].cells[startC] == normalized) continue;
+        final previous = _rows[r].cells[startC];
+        if (previous == normalized) continue;
         _rows[r].cells[startC] = normalized;
+        undoCells.add(
+          _SmartPasteUndoCell(
+            rowId: _rows[r].id,
+            col: startC,
+            previousValue: previous,
+            nextValue: normalized,
+          ),
+        );
         refsToClear.add(_CellRef(r, startC));
         changedRowIds.add(_rows[r].id);
         changed++;
       }
-      if (changed <= 0) {
+      if (changed <= 0 && headerChanges.isEmpty) {
         return fail('Pegado sin cambios: las celdas ya tenian ese valor.');
       }
       _rememberValueForColumn(startC, normalized);
@@ -13348,12 +13776,18 @@ class _EditorScreenState extends State<EditorScreen>
       for (final rowId in changedRowIds) {
         _bumpRowVersionById(rowId);
       }
+      for (final header in headerChanges) {
+        _headers[header.col] = header.nextValue;
+      }
       _setSelection(selectedRows.first, startC, preserveRowSelection: true);
+      if (headerChanges.isNotEmpty) {
+        _bumpGridVersion();
+      }
       _markDirty(snapshot: true);
       _addHistoryEvent(
         type: 'batch_paste',
         message:
-            'Pegar valor inteligente en $changed celda(s) (${_smartTableDelimiterLabel(parsed.delimiter)})',
+            '${_smartPasteModeLabel(mode)} en $changed celda(s) (${_smartTableDelimiterLabel(parsed.delimiter)})',
         origin: 'manual',
         row: selectedRows.first,
         col: startC,
@@ -13361,16 +13795,22 @@ class _EditorScreenState extends State<EditorScreen>
       );
       final result = _ActionResult(
         ok: true,
-        message:
-            'Valor aplicado a $changed fila(s) (${_smartTableDelimiterLabel(parsed.delimiter)}).',
-        applied: changed,
+        message: 'Pegado OK ($changed celdas).',
+        applied: changed + headerChanges.length,
         undoToken: 'batch_paste',
       );
       if (emitFeedback) {
+        final undoSnapshot = _SmartPasteUndoSnapshot(
+          cells: undoCells,
+          headers: headerChanges,
+          insertedRowIds: const <String>[],
+          previousSelRow: previousSelRow,
+          previousSelCol: previousSelCol,
+        );
         _emitActionResult(
           result,
           successIcon: Icons.table_chart_rounded,
-          onUndo: _undoOnce,
+          onUndo: () => unawaited(_undoSmartPasteSnapshot(undoSnapshot)),
         );
       }
       return result;
@@ -13381,29 +13821,116 @@ class _EditorScreenState extends State<EditorScreen>
         .toList(growable: false);
     final plan = planSmartTableBatch(
       existingRows: existingRows,
-      inputCells: parsed.cells,
+      inputCells: inputCells,
       startRow: startR,
       startCol: startC,
       maxColsExclusive: maxColsExclusive,
+      insertRowsAtStart: mode == _SmartPasteMode.insertRows,
       normalize: _normalizeCellValueForColumn,
     );
 
-    if (plan.insertedRows > 0) {
-      for (var i = 0; i < plan.insertedRows; i++) {
-        _rows.add(_RowModel.empty(_headers.length, id: _genStableId('r_')));
-      }
-      _ensureMobileRowCachesLength();
-    }
-
-    if (plan.changedCells <= 0) {
+    if (plan.changedCells <= 0 &&
+        headerChanges.isEmpty &&
+        plan.insertedRows <= 0) {
       return fail(
           'Pegado sin cambios: el bloque coincide con los datos actuales.');
     }
 
+    final insertAt = plan.insertedRows > 0
+        ? plan.insertedAtRow.clamp(0, _rows.length).toInt()
+        : -1;
+    final insertedRows = List<_RowModel>.generate(
+      plan.insertedRows,
+      (_) => _RowModel.empty(_headers.length, id: _genStableId('r_')),
+      growable: false,
+    );
+    final insertedRowIds =
+        insertedRows.map((row) => row.id).toList(growable: false);
+
+    String? rowIdForPlannedRow(int rowIndex) {
+      if (insertedRows.isEmpty) {
+        if (rowIndex < _rows.length) return _rows[rowIndex].id;
+        final tail = rowIndex - _rows.length;
+        if (tail < 0 || tail >= insertedRows.length) return null;
+        return insertedRows[tail].id;
+      }
+      final insertEnd = insertAt + insertedRows.length;
+      if (rowIndex >= insertAt && rowIndex < insertEnd) {
+        return insertedRows[rowIndex - insertAt].id;
+      }
+      if (rowIndex < insertAt) {
+        return rowIndex >= 0 && rowIndex < _rows.length
+            ? _rows[rowIndex].id
+            : null;
+      }
+      final sourceIndex = rowIndex - insertedRows.length;
+      return sourceIndex >= 0 && sourceIndex < _rows.length
+          ? _rows[sourceIndex].id
+          : null;
+    }
+
+    final undoCells = <_SmartPasteUndoCell>[];
+    final totalOps = headerChanges.length + plan.changedCells;
+    const chunkCells = 200;
+    if (totalOps > 0) {
+      _beginLongOperation(
+        message: 'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... 0%',
+        cancellable: true,
+      );
+      try {
+        var processed = 0;
+        for (final header in headerChanges) {
+          processed++;
+          if (processed % chunkCells == 0 || processed == totalOps) {
+            final pct = ((processed / totalOps) * 100).round().clamp(0, 100);
+            _setLongOperationMessage(
+              'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... $pct%',
+            );
+            await Future<void>.delayed(Duration.zero);
+            _throwIfLongOperationCancelled();
+          }
+        }
+        for (final update in plan.updates) {
+          final rowId = rowIdForPlannedRow(update.row);
+          if (rowId != null) {
+            undoCells.add(
+              _SmartPasteUndoCell(
+                rowId: rowId,
+                col: update.col,
+                previousValue: update.previous,
+                nextValue: update.next,
+              ),
+            );
+          }
+          processed++;
+          if (processed % chunkCells == 0 || processed == totalOps) {
+            final pct = ((processed / totalOps) * 100).round().clamp(0, 100);
+            _setLongOperationMessage(
+              'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... $pct%',
+            );
+            await Future<void>.delayed(Duration.zero);
+            _throwIfLongOperationCancelled();
+          }
+        }
+      } on _EditorLongOperationCancelled {
+        return fail('Pegado cancelado por el usuario.');
+      } finally {
+        _clearLongOperation();
+      }
+    }
+
     final refsToClear = <_CellRef>[];
     final changedRowIds = <String>{};
-    var processed = 0;
-    const chunkCells = 240;
+    if (insertedRows.isNotEmpty) {
+      _rows.insertAll(insertAt, insertedRows);
+      for (var i = 0; i < insertedRows.length; i++) {
+        _insertMobileRowCache(insertAt + i);
+      }
+      _ensureMobileRowCachesLength();
+    }
+    for (final header in headerChanges) {
+      _headers[header.col] = header.nextValue;
+    }
     for (final update in plan.updates) {
       if (update.row < 0 || update.row >= _rows.length) continue;
       if (update.col < 0 || update.col >= _headers.length - 1) continue;
@@ -13411,14 +13938,6 @@ class _EditorScreenState extends State<EditorScreen>
       _rememberValueForColumn(update.col, update.next);
       refsToClear.add(_CellRef(update.row, update.col));
       changedRowIds.add(_rows[update.row].id);
-      processed++;
-      if (processed >= chunkCells) {
-        processed = 0;
-        await Future<void>.delayed(Duration.zero);
-        if (!mounted) {
-          return fail('Pegado cancelado: la vista ya no esta disponible.');
-        }
-      }
     }
 
     _clearCellDrafts(refsToClear);
@@ -13430,31 +13949,67 @@ class _EditorScreenState extends State<EditorScreen>
     for (final rowId in changedRowIds) {
       _bumpRowVersionById(rowId);
     }
+    if (plan.insertedRows > 0 || headerChanges.isNotEmpty) {
+      _bumpGridVersion();
+    }
     _markDirty(snapshot: true);
     _addHistoryEvent(
       type: 'batch_paste',
       message:
-          'Pegar tabla inteligente ${parsed.rowCount}x${parsed.columnCount} (${_smartTableDelimiterLabel(parsed.delimiter)}) en ${plan.changedCells} celda(s)',
+          '${_smartPasteModeLabel(mode)} ${parsed.rowCount}x${parsed.columnCount} en ${plan.changedCells} celda(s)',
       origin: 'manual',
       row: startR,
       col: startC,
     );
 
+    if (headerOverflow && mounted) {
+      _showActionSnack(
+        'Se aplicaron encabezados en columnas visibles; el resto fue omitido.',
+        isError: false,
+        icon: Icons.view_column_outlined,
+      );
+    }
+
+    final changedCellsCount = plan.changedCells + headerChanges.length;
+    final displayCellsCount =
+        changedCellsCount > 0 ? changedCellsCount : plan.insertedRows;
     final result = _ActionResult(
       ok: true,
-      message:
-          'Tabla ${parsed.rowCount}x${parsed.columnCount} aplicada en ${plan.changedCells} celda(s).',
-      applied: plan.changedCells,
+      message: 'Pegado OK ($displayCellsCount celdas).',
+      applied: changedCellsCount + plan.insertedRows,
       undoToken: 'batch_paste',
     );
     if (emitFeedback) {
+      final undoSnapshot = _SmartPasteUndoSnapshot(
+        cells: undoCells,
+        headers: headerChanges,
+        insertedRowIds: insertedRowIds,
+        previousSelRow: previousSelRow,
+        previousSelCol: previousSelCol,
+      );
       _emitActionResult(
         result,
         successIcon: Icons.table_chart_rounded,
-        onUndo: _undoOnce,
+        onUndo: () => unawaited(_undoSmartPasteSnapshot(undoSnapshot)),
       );
     }
     return result;
+  }
+
+  Future<_ActionResult> _pasteTableSmartFromClipboard({
+    bool emitFeedback = true,
+    bool interactivePreview = true,
+  }) async {
+    String raw = '';
+    try {
+      final data = await Clipboard.getData('text/plain');
+      raw = data?.text ?? '';
+    } catch (_) {}
+    return _pasteTableSmartFromRaw(
+      raw,
+      emitFeedback: emitFeedback,
+      interactivePreview: interactivePreview,
+    );
   }
 
   Future<void> _pasteFromClipboard() async {
@@ -14680,6 +15235,38 @@ class _EditorScreenState extends State<EditorScreen>
   @visibleForTesting
   Future<int> debugApplyFlowBotActions(List<FlowBotAction> actions) {
     return _applyFlowBotActions(actions);
+  }
+
+  @visibleForTesting
+  void debugStartSmartPastePreview(String raw) {
+    assert(() {
+      unawaited(
+        _pasteTableSmartFromRaw(
+          raw,
+          emitFeedback: true,
+          interactivePreview: true,
+        ),
+      );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<Map<String, Object?>> debugApplySmartPasteRaw(
+    String raw, {
+    bool interactivePreview = false,
+  }) async {
+    final result = await _pasteTableSmartFromRaw(
+      raw,
+      emitFeedback: true,
+      interactivePreview: interactivePreview,
+    );
+    return <String, Object?>{
+      'ok': result.ok,
+      'message': result.message,
+      'applied': result.applied,
+      'undoToken': result.undoToken,
+    };
   }
 
   @visibleForTesting
