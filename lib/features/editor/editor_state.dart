@@ -13391,6 +13391,17 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  String _smartPasteProgressMessage({
+    required int rows,
+    required int cols,
+    required int processed,
+    required int total,
+  }) {
+    final safeTotal = total <= 0 ? 1 : total;
+    final pct = ((processed / safeTotal) * 100).round().clamp(0, 100);
+    return 'Pegando tabla ${rows}x${cols}... $pct% ($processed/$safeTotal)';
+  }
+
   List<List<String>> _smartPastePreviewRows(
     SmartTableParseResult parsed, {
     int maxRows = 3,
@@ -13874,23 +13885,34 @@ class _EditorScreenState extends State<EditorScreen>
     const chunkCells = 200;
     if (totalOps > 0) {
       _beginLongOperation(
-        message: 'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... 0%',
+        message: _smartPasteProgressMessage(
+          rows: parsed.rowCount,
+          cols: parsed.columnCount,
+          processed: 0,
+          total: totalOps,
+        ),
         cancellable: true,
       );
       try {
         var processed = 0;
         for (final header in headerChanges) {
+          _throwIfLongOperationCancelled();
           processed++;
           if (processed % chunkCells == 0 || processed == totalOps) {
-            final pct = ((processed / totalOps) * 100).round().clamp(0, 100);
             _setLongOperationMessage(
-              'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... $pct%',
+              _smartPasteProgressMessage(
+                rows: parsed.rowCount,
+                cols: parsed.columnCount,
+                processed: processed,
+                total: totalOps,
+              ),
             );
             await Future<void>.delayed(Duration.zero);
             _throwIfLongOperationCancelled();
           }
         }
         for (final update in plan.updates) {
+          _throwIfLongOperationCancelled();
           final rowId = rowIdForPlannedRow(update.row);
           if (rowId != null) {
             undoCells.add(
@@ -13904,16 +13926,20 @@ class _EditorScreenState extends State<EditorScreen>
           }
           processed++;
           if (processed % chunkCells == 0 || processed == totalOps) {
-            final pct = ((processed / totalOps) * 100).round().clamp(0, 100);
             _setLongOperationMessage(
-              'Pegando tabla ${parsed.rowCount}x${parsed.columnCount}... $pct%',
+              _smartPasteProgressMessage(
+                rows: parsed.rowCount,
+                cols: parsed.columnCount,
+                processed: processed,
+                total: totalOps,
+              ),
             );
             await Future<void>.delayed(Duration.zero);
             _throwIfLongOperationCancelled();
           }
         }
       } on _EditorLongOperationCancelled {
-        return fail('Pegado cancelado por el usuario.');
+        return fail('Pegado cancelado por el usuario (sin cambios).');
       } finally {
         _clearLongOperation();
       }

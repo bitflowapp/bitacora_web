@@ -57,10 +57,22 @@ Runtime behavior:
 2. Pegar tabla inteligente:
 - Detects delimiter: TSV, CSV comma, CSV semicolon.
 - Parses quoted fields.
-- Applies batch from active cell.
-- Handles multi-row extension without per-cell rebuild loop.
+- Shows modal preview (`Detecte RxC`) with:
+  - first 3 rows preview
+  - `Insertar filas` / `Reemplazar desde celda activa`
+  - `Primera fila es header`
+- Applies batch from active cell with chunking and cancellable progress.
+- Handles multi-row extension/insert without per-cell `setState`.
 - Gives explicit reason on empty clipboard/no-op/invalid target.
-- Shows toast + supports undo token.
+- Shows toast + supports undo action that reverts affected range.
+
+3. Undo behavior:
+- Nuevo registro:
+  - Undo removes inserted row directly.
+  - If row was edited, asks simple confirmation before deleting.
+- Smart paste:
+  - Keeps affected-range snapshot (cells/headers/inserted rows).
+  - Undo restores previous values and removes inserted rows from the paste.
 
 ## Hermetic Testing Impact
 
