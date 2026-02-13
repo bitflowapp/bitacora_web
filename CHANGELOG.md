@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.2.5] - 2026-02-13
+
+Added
+- P21: Empty state premium con CTAs, acceso rapido mobile (boton rayo) a command palette y flujo Export PRO XLSX/PDF.
+- P22: About in-app con links (Privacidad, Terminos, Issues) y boton para copiar diagnostico en texto plano.
+- Android release automation en GitHub Actions para publicar `BitFlow-android.apk` en `releases/latest`.
+
+Changed
+- Versionado app a `1.2.5+3` y notas de release derivadas de CHANGELOG en CI.
+
 ## [1.2.4] - 2026-02-06
 
 Added
