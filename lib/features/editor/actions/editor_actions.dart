@@ -1,6 +1,100 @@
 part of '../editor_screen.dart';
 
 extension _EditorActions on _EditorScreenState {
+  void _runCenterActiveColumnAction() {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para centrar la columna.',
+    )) {
+      return;
+    }
+    _setColumnPresentationForIndex(
+      _selCol,
+      textAlign: _GridTextAlignX.center,
+      verticalAlign: _GridTextAlignY.middle,
+    );
+  }
+
+  void _runDuplicateActiveRowAction() {
+    if (_selRow < 0 || _selRow >= _rows.length) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una fila valida para duplicar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    _duplicateRow(_selRow);
+  }
+
+  Future<void> _runFillDownForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para rellenar.',
+    )) {
+      return;
+    }
+    await _promptFillDown(context, _selRow, _selCol);
+  }
+
+  Future<void> _runOpenAttachmentsForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para abrir adjuntos.',
+    )) {
+      return;
+    }
+    await _openAttachmentPanelForCell(_selRow, _selCol);
+  }
+
+  Future<void> _runPhotoForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para adjuntar foto.',
+    )) {
+      return;
+    }
+    await _startPhotoFlowForCell(_selRow, _selCol);
+  }
+
+  Future<void> _runGpsForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para adjuntar GPS.',
+    )) {
+      return;
+    }
+    await _requestGpsForCell(_selRow, _selCol, forceWriteText: true);
+  }
+
+  Future<void> _runAudioForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para grabar audio.',
+    )) {
+      return;
+    }
+    if (_audioRecording) {
+      await _stopAudioRecording();
+      return;
+    }
+    await _startAudioRecordingForCell(_selRow, _selCol);
+  }
+
+  Future<void> _runVideoForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para adjuntar video.',
+    )) {
+      return;
+    }
+    await _attachVideoForCell(_selRow, _selCol);
+  }
+
+  Future<void> _runFileForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda para adjuntar archivo.',
+    )) {
+      return;
+    }
+    await _attachDocumentForCell(_selRow, _selCol);
+  }
+
   Future<void> _openCommandPalette() async {
     if (!mounted) return;
     final activeCell = (_selRow >= 0 && _selCol >= 0)
@@ -54,11 +148,7 @@ extension _EditorActions on _EditorScreenState {
           label: 'Centrar columna activa',
           subtitle: activeCell,
           icon: Icons.format_align_center_rounded,
-          onSelected: () => _setColumnPresentationForIndex(
-            _selCol,
-            textAlign: _GridTextAlignX.center,
-            verticalAlign: _GridTextAlignY.middle,
-          ),
+          onSelected: _runCenterActiveColumnAction,
         ),
         CommandAction(
           id: 'history_log',
@@ -96,18 +186,20 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'create_row',
-          label: 'Crear fila',
-          subtitle: 'Inserta una nueva fila al final',
+          label: 'Nuevo registro',
+          subtitle: 'Inserta fila con defaults y foco en primera celda',
           shortcut: 'Ctrl/Cmd+N',
           icon: Icons.add_rounded,
-          onSelected: () => _insertRow(_rows.length),
+          onSelected: () => unawaited(
+            _createNewRecordAction(origin: 'command_palette'),
+          ),
         ),
         CommandAction(
           id: 'duplicate_row',
           label: 'Duplicar fila activa',
           subtitle: activeCell,
           icon: Icons.copy_all_outlined,
-          onSelected: () => _duplicateRow(_selRow),
+          onSelected: _runDuplicateActiveRowAction,
         ),
         CommandAction(
           id: 'duplicate_last_row',
@@ -173,21 +265,28 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_promptBatchApplyValue()),
         ),
         CommandAction(
+          id: 'smart_paste_table',
+          label: 'Pegar tabla inteligente',
+          subtitle: 'Detecta TSV/CSV y aplica en batch',
+          shortcut: 'Ctrl/Cmd+V',
+          icon: Icons.table_chart_rounded,
+          onSelected: () =>
+              unawaited(_pasteTableSmartFromClipboard(emitFeedback: true)),
+        ),
+        CommandAction(
           id: 'fill_down',
           label: 'Rellenar hacia abajo',
           subtitle: 'Repetir valor de la celda activa',
           shortcut: 'Ctrl/Cmd+D',
           icon: Icons.vertical_align_bottom_rounded,
-          onSelected: () =>
-              unawaited(_promptFillDown(context, _selRow, _selCol)),
+          onSelected: () => unawaited(_runFillDownForSelection()),
         ),
         CommandAction(
           id: 'open_attachments',
           label: 'Abrir adjuntos de celda activa',
           subtitle: activeCell,
           icon: Icons.attach_file_rounded,
-          onSelected: () =>
-              unawaited(_openAttachmentPanelForCell(_selRow, _selCol)),
+          onSelected: () => unawaited(_runOpenAttachmentsForSelection()),
         ),
         CommandAction(
           id: 'attach_photo',
@@ -195,9 +294,7 @@ extension _EditorActions on _EditorScreenState {
           subtitle: activeCell,
           shortcut: 'P',
           icon: Icons.photo_camera_outlined,
-          onSelected: () => unawaited(
-            _startPhotoFlowForCell(_selRow, _selCol),
-          ),
+          onSelected: () => unawaited(_runPhotoForSelection()),
         ),
         CommandAction(
           id: 'attach_gps',
@@ -205,8 +302,7 @@ extension _EditorActions on _EditorScreenState {
           subtitle: activeCell,
           shortcut: 'G',
           icon: Icons.my_location_rounded,
-          onSelected: () => unawaited(
-              _requestGpsForCell(_selRow, _selCol, forceWriteText: true)),
+          onSelected: () => unawaited(_runGpsForSelection()),
         ),
         CommandAction(
           id: 'audio',
@@ -214,13 +310,7 @@ extension _EditorActions on _EditorScreenState {
           subtitle: activeCell,
           shortcut: 'A',
           icon: Icons.mic_none_rounded,
-          onSelected: () {
-            if (_audioRecording) {
-              unawaited(_stopAudioRecording());
-            } else {
-              unawaited(_startAudioRecordingForCell(_selRow, _selCol));
-            }
-          },
+          onSelected: () => unawaited(_runAudioForSelection()),
         ),
         CommandAction(
           id: 'open_queue',

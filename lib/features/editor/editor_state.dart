@@ -4605,7 +4605,7 @@ class _EditorScreenState extends State<EditorScreen>
         final value = action.value ?? '';
         return 'Rellenar desde F$row/C$col x$count = "$value"';
       case FlowBotActionType.addRow:
-        return 'Agregar ${(action.count ?? 1).clamp(1, 500)} fila(s)';
+        return 'Nuevo registro ${(action.count ?? 1).clamp(1, 500)} fila(s)';
       case FlowBotActionType.setColumnAlign:
         final col = (action.column ?? _selCol) + 1;
         final align = (action.align ?? 'left').toLowerCase();
@@ -4634,7 +4634,7 @@ class _EditorScreenState extends State<EditorScreen>
       case FlowBotActionType.exportPdfPreset:
         return 'Exportar PDF (${action.presetId ?? 'default'})';
       case FlowBotActionType.pasteTable:
-        return 'Pegar tabla desde portapapeles';
+        return 'Pegar tabla inteligente desde portapapeles';
       case FlowBotActionType.exportBundle:
         return 'Exportar paquete completo';
     }
@@ -4831,7 +4831,7 @@ class _EditorScreenState extends State<EditorScreen>
           if (_rows.isEmpty) continue;
           final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
           final count = (action.count ?? 1).clamp(1, 100);
-          _duplicateRowMultiple(row, times: count);
+          _duplicateRowMultiple(row, times: count, announce: false);
           applied += count;
           lastRow = (row + count).clamp(0, _rows.length - 1);
           break;
@@ -4853,8 +4853,14 @@ class _EditorScreenState extends State<EditorScreen>
           applied += 1;
           break;
         case FlowBotActionType.pasteTable:
-          await _pasteFromClipboard();
-          applied += 1;
+          final pasteResult = await _pasteTableSmartFromClipboard(
+            emitFeedback: false,
+          );
+          if (pasteResult.ok && pasteResult.applied > 0) {
+            applied += pasteResult.applied;
+            lastRow = _selRow;
+            lastCol = _selCol;
+          }
           break;
         case FlowBotActionType.exportBundle:
           await _exportZipBundle(share: false);
@@ -5724,8 +5730,11 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _useLastValueForSelectedCell() {
-    if (_selRow < 0 || _selRow >= _rows.length) return;
-    if (_selCol < 0 || _selCol >= _headers.length - 1) return;
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para usar el ultimo valor.',
+    )) {
+      return;
+    }
     final suggestions = _recentValuesForColumn(_selCol);
     if (suggestions.isEmpty) {
       _showActionSnack(
@@ -6100,7 +6109,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _promptBatchApplyValue() async {
     final rows = _batchTargetRows();
-    if (rows.isEmpty || _headers.length < 2) return;
+    if (rows.isEmpty || _headers.length < 2) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona al menos una fila para aplicar el valor.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
     final targetCol = _resolveBatchTargetColumn();
     final initial = _effectiveCell(rows.first, targetCol);
     final controller = TextEditingController(text: initial);
@@ -6288,7 +6306,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _duplicateSelectedRows() {
     final targets = _batchTargetRows();
-    if (targets.isEmpty) return;
+    if (targets.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona al menos una fila para duplicar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
     final ordered = targets.toList(growable: false)..sort();
     final insertAtList = <int>[];
     var offset = 0;
@@ -6407,6 +6434,11 @@ class _EditorScreenState extends State<EditorScreen>
     IconData failureIcon = Icons.info_outline_rounded,
     VoidCallback? onUndo,
   }) {
+    if (result.ok) {
+      AppHaptics.light();
+    } else {
+      AppHaptics.error();
+    }
     final undoLabel =
         result.undoToken?.trim().isNotEmpty == true ? 'Deshacer' : null;
     _showActionSnack(
@@ -6416,6 +6448,40 @@ class _EditorScreenState extends State<EditorScreen>
       actionLabel: undoLabel,
       onAction: undoLabel != null ? onUndo : null,
     );
+  }
+
+  bool _hasActiveEditableCell({String? reason}) {
+    if (_rows.isEmpty || _headers.length <= 1) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No hay celdas editables disponibles.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return false;
+    }
+    if (_selRow < 0 || _selRow >= _rows.length) {
+      _emitActionResult(
+        _ActionResult(
+          ok: false,
+          message: reason ?? 'Selecciona una fila valida para continuar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return false;
+    }
+    if (_selCol < 0 || _selCol >= _headers.length - 1) {
+      _emitActionResult(
+        _ActionResult(
+          ok: false,
+          message: reason ?? 'Selecciona una celda editable para continuar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return false;
+    }
+    return true;
   }
 
   bool _isNetworkOnline() => _lastOnlineState;
@@ -8058,7 +8124,11 @@ class _EditorScreenState extends State<EditorScreen>
                                       onToggleTheme: _toggleTheme,
                                       onUndo: _undoOnce,
                                       onRedo: _redoOnce,
-                                      onAddRow: () => _insertRow(_rows.length),
+                                      onAddRow: () => unawaited(
+                                        _createNewRecordAction(
+                                          origin: 'toolbar',
+                                        ),
+                                      ),
                                       onQuickCapture: () =>
                                           unawaited(_startQuickCaptureFlow()),
                                       onForm: () => unawaited(
@@ -8098,39 +8168,18 @@ class _EditorScreenState extends State<EditorScreen>
                                           : () => unawaited(_computeEngine()),
                                       onBatch: () =>
                                           unawaited(_openBatchActionsSheet()),
-                                      onGps: () => unawaited(
-                                        _requestGpsForCell(
-                                          _selRow,
-                                          _selCol,
-                                          forceWriteText: true,
-                                        ),
-                                      ),
+                                      onGps: () =>
+                                          unawaited(this._runGpsForSelection()),
                                       onPhoto: () => unawaited(
-                                        _startPhotoFlowForCell(
-                                            _selRow, _selCol),
-                                      ),
+                                          this._runPhotoForSelection()),
                                       onVideo: () => unawaited(
-                                        _attachVideoForCell(_selRow, _selCol),
-                                      ),
-                                      onAudio: () {
-                                        if (_audioRecording) {
-                                          unawaited(_stopAudioRecording());
-                                        } else {
-                                          unawaited(
-                                            _startAudioRecordingForCell(
-                                              _selRow,
-                                              _selCol,
-                                            ),
-                                          );
-                                        }
-                                      },
+                                          this._runVideoForSelection()),
+                                      onAudio: () => unawaited(
+                                          this._runAudioForSelection()),
                                       onFile: () => unawaited(
-                                        _attachDocumentForCell(
-                                            _selRow, _selCol),
-                                      ),
+                                          this._runFileForSelection()),
                                       onAttachments: () => unawaited(
-                                        _openAttachmentPanelForCell(
-                                            _selRow, _selCol),
+                                        this._runOpenAttachmentsForSelection(),
                                       ),
                                       onShare: () => unawaited(
                                           _exportZipBundle(share: true)),
@@ -9132,8 +9181,11 @@ class _EditorScreenState extends State<EditorScreen>
                           child: _MobileQuickActionsBar(
                             palette: pal,
                             sensorsEnabled: sensorsEnabled,
-                            onQuickCapture: () =>
-                                unawaited(_startQuickCaptureFlow()),
+                            onQuickCapture: () => unawaited(
+                              _createNewRecordAction(
+                                origin: 'mobile_quick',
+                              ),
+                            ),
                             onForm: () => unawaited(
                               _openRowFormMode(
                                 rowIndex: _selRow,
@@ -9141,31 +9193,15 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             ),
                             onBatch: () => unawaited(_openBatchActionsSheet()),
-                            onGps: () => unawaited(
-                              _requestGpsForCell(
-                                _selRow,
-                                _selCol,
-                                forceWriteText: true,
-                              ),
-                            ),
-                            onPhoto: () => unawaited(
-                              _startPhotoFlowForCell(_selRow, _selCol),
-                            ),
-                            onVideo: () => unawaited(
-                              _attachVideoForCell(_selRow, _selCol),
-                            ),
-                            onAudio: () {
-                              if (_audioRecording) {
-                                unawaited(_stopAudioRecording());
-                              } else {
-                                unawaited(
-                                  _startAudioRecordingForCell(_selRow, _selCol),
-                                );
-                              }
-                            },
-                            onFile: () => unawaited(
-                              _attachDocumentForCell(_selRow, _selCol),
-                            ),
+                            onGps: () => unawaited(this._runGpsForSelection()),
+                            onPhoto: () =>
+                                unawaited(this._runPhotoForSelection()),
+                            onVideo: () =>
+                                unawaited(this._runVideoForSelection()),
+                            onAudio: () =>
+                                unawaited(this._runAudioForSelection()),
+                            onFile: () =>
+                                unawaited(this._runFileForSelection()),
                             onExport: () => unawaited(_openExportMenu()),
                             onShare: () =>
                                 unawaited(_exportZipBundle(share: true)),
@@ -12191,13 +12227,39 @@ class _EditorScreenState extends State<EditorScreen>
 
   // ------------------------------ Automatizaciones ------------------------
 
-  void _duplicateRow(int r) {
-    _duplicateRowMultiple(r, times: 1);
+  void _duplicateRow(int r, {bool announce = true}) {
+    _duplicateRowMultiple(r, times: 1, announce: announce);
   }
 
-  void _duplicateRowMultiple(int r, {required int times}) {
-    if (r < 0 || r >= _rows.length) return;
-    if (times <= 0) return;
+  void _duplicateRowMultiple(
+    int r, {
+    required int times,
+    bool announce = true,
+  }) {
+    if (r < 0 || r >= _rows.length) {
+      if (announce) {
+        _emitActionResult(
+          const _ActionResult(
+            ok: false,
+            message: 'Selecciona una fila valida para duplicar.',
+          ),
+          failureIcon: Icons.info_outline_rounded,
+        );
+      }
+      return;
+    }
+    if (times <= 0) {
+      if (announce) {
+        _emitActionResult(
+          const _ActionResult(
+            ok: false,
+            message: 'La cantidad de copias debe ser mayor a cero.',
+          ),
+          failureIcon: Icons.info_outline_rounded,
+        );
+      }
+      return;
+    }
     final safeTimes = times.clamp(1, 100);
     final src = _rows[r];
     final copies = <_RowModel>[];
@@ -12229,10 +12291,31 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _pushUndoSnapshot();
     _queueSave();
+    if (announce) {
+      _emitActionResult(
+        _ActionResult(
+          ok: true,
+          message: 'Fila duplicada en $safeTimes copia(s).',
+          applied: safeTimes,
+          undoToken: 'duplicate_row',
+        ),
+        successIcon: Icons.copy_all_outlined,
+        onUndo: _undoOnce,
+      );
+    }
   }
 
   Future<void> _promptDuplicateRowCount(int row) async {
-    if (row < 0 || row >= _rows.length) return;
+    if (row < 0 || row >= _rows.length) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una fila valida para duplicar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
     final controller = TextEditingController(text: '2');
     final count = await showDialog<int>(
       context: context,
@@ -12287,7 +12370,16 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _promptFillDown(BuildContext context, int r, int c) async {
-    if (c < 0 || c >= _headers.length - 1) return;
+    if (c < 0 || c >= _headers.length - 1) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una celda editable para rellenar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
     final controller = TextEditingController(text: _fillDownCount.toString());
     final count = await showDialog<int>(
       context: context,
@@ -12323,15 +12415,42 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _fillDownColumn(int r, int c, {required int count}) {
-    if (c < 0 || c >= _headers.length - 1) return;
-    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length - 1) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una celda editable para rellenar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    if (r < 0 || r >= _rows.length) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una fila valida para rellenar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
     final value = (_mobileEditorOpen &&
             _mobileRow == r &&
             _mobileCol == c &&
             !_mobileEditingHeader)
         ? _mobileEC.text
         : _effectiveCell(r, c);
-    if (count <= 0) return;
+    if (count <= 0) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'La cantidad para rellenar debe ser mayor a cero.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
 
     final targetRows = r + count;
     if (targetRows >= _rows.length) {
@@ -12348,6 +12467,16 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     _markDirty(snapshot: true);
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: 'Rellenado aplicado en $count fila(s).',
+        applied: count,
+        undoToken: 'fill_down',
+      ),
+      successIcon: Icons.vertical_align_bottom_rounded,
+      onUndo: _undoOnce,
+    );
   }
 
   Future<void> _promptIncrement(BuildContext context, int r, int c) async {
@@ -12554,6 +12683,83 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
     return row;
+  }
+
+  int _firstEditableColumnIndex() {
+    final visible = _visibleDataColumnIndexes();
+    if (visible.isNotEmpty) return visible.first;
+    return 0;
+  }
+
+  String _newRecordDefaultsSummary() {
+    final defaults = <String>[];
+    if (_defaultDateTodayEnabled) defaults.add('fecha hoy');
+    if (_autoIncrementIdEnabled) defaults.add('progresiva auto');
+    if (_defaultStatusOkEnabled) defaults.add('estado OK');
+    if (defaults.isEmpty) return 'sin defaults';
+    return defaults.join(', ');
+  }
+
+  Future<_ActionResult> _createNewRecordAction({
+    bool emitFeedback = true,
+    String origin = 'manual',
+  }) async {
+    if (_headers.length <= 1) {
+      final result = const _ActionResult(
+        ok: false,
+        message: 'No hay columnas editables para crear un registro.',
+      );
+      if (emitFeedback) {
+        _emitActionResult(
+          result,
+          failureIcon: Icons.info_outline_rounded,
+        );
+      }
+      return result;
+    }
+
+    final insertAt = _rows.length;
+    final targetCol = _firstEditableColumnIndex();
+    final row = _buildSmartDefaultRow();
+    setState(() {
+      _rows.insert(insertAt, row);
+      _setSelection(insertAt, targetCol);
+      _isDirty = true;
+      _rev++;
+    });
+    _updateSaveStatus();
+    _insertMobileRowCache(insertAt);
+    _pushUndoSnapshot();
+    _queueSave();
+    _addHistoryEvent(
+      type: 'new_record',
+      message: 'Nuevo registro ${insertAt + 1}',
+      origin: origin,
+      row: insertAt,
+      col: targetCol,
+    );
+
+    _setSelectionAndRefreshGrid(
+      insertAt,
+      targetCol,
+      blink: true,
+      preserveRowSelection: true,
+    );
+
+    final result = _ActionResult(
+      ok: true,
+      message: 'Nuevo registro listo (${_newRecordDefaultsSummary()}).',
+      applied: 1,
+      undoToken: 'new_record',
+    );
+    if (emitFeedback) {
+      _emitActionResult(
+        result,
+        successIcon: Icons.add_box_outlined,
+        onUndo: _undoOnce,
+      );
+    }
+    return result;
   }
 
   void _insertRow(int index) {
@@ -12983,10 +13189,32 @@ class _EditorScreenState extends State<EditorScreen>
   // ------------------------------ Clipboard -------------------------------
 
   Future<void> _copySelectionToClipboard() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para copiar.',
+    )) {
+      return;
+    }
     final txt = _getCellText(_selRow, _selCol);
     try {
       await Clipboard.setData(ClipboardData(text: txt));
-    } catch (_) {}
+      _emitActionResult(
+        _ActionResult(
+          ok: true,
+          message:
+              txt.trim().isEmpty ? 'Celda vacia copiada.' : 'Celda copiada.',
+          applied: 1,
+        ),
+        successIcon: Icons.copy_rounded,
+      );
+    } catch (_) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No se pudo copiar la celda activa.',
+        ),
+        failureIcon: Icons.copy_all_outlined,
+      );
+    }
   }
 
   Future<void> _copyActiveMobileCell() async {
@@ -12995,7 +13223,24 @@ class _EditorScreenState extends State<EditorScreen>
     final txt = _mobileEC.text;
     try {
       await Clipboard.setData(ClipboardData(text: txt));
-    } catch (_) {}
+      _emitActionResult(
+        _ActionResult(
+          ok: true,
+          message:
+              txt.trim().isEmpty ? 'Celda vacia copiada.' : 'Celda copiada.',
+          applied: 1,
+        ),
+        successIcon: Icons.copy_rounded,
+      );
+    } catch (_) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No se pudo copiar la celda activa.',
+        ),
+        failureIcon: Icons.copy_all_outlined,
+      );
+    }
   }
 
   Future<void> _pasteIntoActiveMobileCell() async {
@@ -13023,152 +13268,197 @@ class _EditorScreenState extends State<EditorScreen>
     return _rows[r].cells[c];
   }
 
-  Future<void> _pasteFromClipboard() async {
+  String _smartTableDelimiterLabel(SmartTableDelimiter delimiter) {
+    switch (delimiter) {
+      case SmartTableDelimiter.tab:
+        return 'TSV';
+      case SmartTableDelimiter.comma:
+        return 'CSV';
+      case SmartTableDelimiter.semicolon:
+        return 'CSV ;';
+      case SmartTableDelimiter.singleValue:
+        return 'texto';
+    }
+  }
+
+  Future<_ActionResult> _pasteTableSmartFromClipboard({
+    bool emitFeedback = true,
+  }) async {
+    _ActionResult fail(String message) {
+      final result = _ActionResult(ok: false, message: message);
+      if (emitFeedback) {
+        _emitActionResult(
+          result,
+          failureIcon: Icons.warning_amber_rounded,
+        );
+      }
+      return result;
+    }
+
+    if (_rows.isEmpty || _headers.length <= 1) {
+      return fail('No hay filas ni columnas editables para pegar.');
+    }
+    if (_selRow < 0 || _selRow >= _rows.length) {
+      return fail('Selecciona una fila valida para pegar.');
+    }
+    if (_selCol < 0 || _selCol >= _headers.length - 1) {
+      return fail('Selecciona una celda editable para pegar.');
+    }
+
     String raw = '';
     try {
       final data = await Clipboard.getData('text/plain');
       raw = data?.text ?? '';
     } catch (_) {}
-    if (raw.trim().isEmpty) return;
+    if (raw.trim().isEmpty) {
+      return fail('Portapapeles vacio. Copia una tabla TSV/CSV y reintenta.');
+    }
 
-    final grid = _parseGrid(raw);
-    if (grid.isEmpty) return;
+    final parsed = parseSmartTable(raw);
+    if (parsed.isEmpty) {
+      return fail('No se detecto una tabla valida para pegar.');
+    }
 
-    // ??? FIX: si est??s parado en Photos, peg?? en el ??ltimo editable.
     final startR = _selRow;
     final startC = math.min(_selCol, _headers.length - 2);
-    final maxColsExclusive = _headers.length - 1; // no pegamos sobre Photos
+    final maxColsExclusive = _headers.length - 1;
     final selectedRows = _batchTargetRows();
 
-    if (grid.length == 1 && grid.first.length == 1 && selectedRows.length > 1) {
-      final normalized = _normalizeCellValueForColumn(startC, grid.first.first);
+    if (parsed.rowCount == 1 &&
+        parsed.columnCount == 1 &&
+        selectedRows.length > 1) {
+      final normalized =
+          _normalizeCellValueForColumn(startC, parsed.cells.first.first);
       final refsToClear = <_CellRef>[];
       var changed = 0;
+      final changedRowIds = <String>{};
       for (final r in selectedRows) {
         if (r < 0 || r >= _rows.length) continue;
         if (_rows[r].cells[startC] == normalized) continue;
         _rows[r].cells[startC] = normalized;
         refsToClear.add(_CellRef(r, startC));
+        changedRowIds.add(_rows[r].id);
         changed++;
       }
-      if (changed <= 0) return;
+      if (changed <= 0) {
+        return fail('Pegado sin cambios: las celdas ya tenian ese valor.');
+      }
       _rememberValueForColumn(startC, normalized);
       _clearCellDrafts(refsToClear);
-      for (final r in selectedRows) {
-        if (r < 0 || r >= _rows.length) continue;
-        _bumpRowVersionById(_rows[r].id);
+      for (final rowId in changedRowIds) {
+        _bumpRowVersionById(rowId);
       }
       _setSelection(selectedRows.first, startC, preserveRowSelection: true);
       _markDirty(snapshot: true);
       _addHistoryEvent(
         type: 'batch_paste',
-        message: 'Pegar valor en $changed celda(s)',
+        message:
+            'Pegar valor inteligente en $changed celda(s) (${_smartTableDelimiterLabel(parsed.delimiter)})',
         origin: 'manual',
         row: selectedRows.first,
         col: startC,
         afterValue: normalized,
       );
-      return;
+      final result = _ActionResult(
+        ok: true,
+        message:
+            'Valor aplicado a $changed fila(s) (${_smartTableDelimiterLabel(parsed.delimiter)}).',
+        applied: changed,
+        undoToken: 'batch_paste',
+      );
+      if (emitFeedback) {
+        _emitActionResult(
+          result,
+          successIcon: Icons.table_chart_rounded,
+          onUndo: _undoOnce,
+        );
+      }
+      return result;
     }
 
-    // Extender filas si hace falta
-    final neededRows = startR + grid.length;
-    if (neededRows > _rows.length) {
-      final add = neededRows - _rows.length;
-      for (int i = 0; i < add; i++) {
+    final existingRows = _rows
+        .map((row) => List<String>.from(row.cells, growable: false))
+        .toList(growable: false);
+    final plan = planSmartTableBatch(
+      existingRows: existingRows,
+      inputCells: parsed.cells,
+      startRow: startR,
+      startCol: startC,
+      maxColsExclusive: maxColsExclusive,
+      normalize: _normalizeCellValueForColumn,
+    );
+
+    if (plan.insertedRows > 0) {
+      for (var i = 0; i < plan.insertedRows; i++) {
         _rows.add(_RowModel.empty(_headers.length, id: _genStableId('r_')));
       }
+      _ensureMobileRowCachesLength();
     }
-    _ensureMobileRowCachesLength();
+
+    if (plan.changedCells <= 0) {
+      return fail(
+          'Pegado sin cambios: el bloque coincide con los datos actuales.');
+    }
 
     final refsToClear = <_CellRef>[];
-    var changed = 0;
+    final changedRowIds = <String>{};
     var processed = 0;
     const chunkCells = 240;
-    final changedRowIds = <String>{};
-    for (int dr = 0; dr < grid.length; dr++) {
-      final row = grid[dr];
-      for (int dc = 0; dc < row.length; dc++) {
-        final rr = startR + dr;
-        final cc = startC + dc;
-        if (cc >= maxColsExclusive) break;
-        processed++;
-        final normalized = _normalizeCellValueForColumn(cc, row[dc]);
-        if (_rows[rr].cells[cc] == normalized) continue;
-        _rows[rr].cells[cc] = normalized;
-        changedRowIds.add(_rows[rr].id);
-        _rememberValueForColumn(cc, normalized);
-        refsToClear.add(_CellRef(rr, cc));
-        changed++;
-        if (processed >= chunkCells) {
-          processed = 0;
-          await Future<void>.delayed(Duration.zero);
-          if (!mounted) return;
+    for (final update in plan.updates) {
+      if (update.row < 0 || update.row >= _rows.length) continue;
+      if (update.col < 0 || update.col >= _headers.length - 1) continue;
+      _rows[update.row].cells[update.col] = update.next;
+      _rememberValueForColumn(update.col, update.next);
+      refsToClear.add(_CellRef(update.row, update.col));
+      changedRowIds.add(_rows[update.row].id);
+      processed++;
+      if (processed >= chunkCells) {
+        processed = 0;
+        await Future<void>.delayed(Duration.zero);
+        if (!mounted) {
+          return fail('Pegado cancelado: la vista ya no esta disponible.');
         }
       }
     }
 
-    if (changed <= 0) return;
     _clearCellDrafts(refsToClear);
-    final lastRow =
-        (startR + grid.length - 1).clamp(0, _rows.length - 1).toInt();
-    final lastCol = (startC + math.max(0, grid.first.length - 1))
-        .clamp(0, maxColsExclusive - 1)
-        .toInt();
-    _setSelection(lastRow, lastCol, preserveRowSelection: true);
+    _setSelection(
+      plan.lastRow.clamp(0, _rows.length - 1),
+      plan.lastCol.clamp(0, maxColsExclusive - 1),
+      preserveRowSelection: true,
+    );
     for (final rowId in changedRowIds) {
       _bumpRowVersionById(rowId);
     }
     _markDirty(snapshot: true);
     _addHistoryEvent(
       type: 'batch_paste',
-      message: 'Pegar bloque en $changed celda(s)',
+      message:
+          'Pegar tabla inteligente ${parsed.rowCount}x${parsed.columnCount} (${_smartTableDelimiterLabel(parsed.delimiter)}) en ${plan.changedCells} celda(s)',
       origin: 'manual',
       row: startR,
       col: startC,
     );
+
+    final result = _ActionResult(
+      ok: true,
+      message:
+          'Tabla ${parsed.rowCount}x${parsed.columnCount} aplicada en ${plan.changedCells} celda(s).',
+      applied: plan.changedCells,
+      undoToken: 'batch_paste',
+    );
+    if (emitFeedback) {
+      _emitActionResult(
+        result,
+        successIcon: Icons.table_chart_rounded,
+        onUndo: _undoOnce,
+      );
+    }
+    return result;
   }
 
-  List<List<String>> _parseGrid(String raw) {
-    final txt = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    final lines = txt.split('\n').where((e) => e.isNotEmpty).toList();
-    if (lines.isEmpty) return const [];
-
-    final out = <List<String>>[];
-    for (final line in lines) {
-      final hasTab = line.contains('\t');
-      final parts = hasTab
-          ? line.split('\t')
-          : (line.contains(',') ? _parseCsvLine(line) : <String>[line]);
-      out.add(parts.map((e) => e.trimRight()).toList());
-    }
-    return out;
-  }
-
-  List<String> _parseCsvLine(String line) {
-    final out = <String>[];
-    var buffer = StringBuffer();
-    var inQuotes = false;
-    for (int i = 0; i < line.length; i++) {
-      final ch = line[i];
-      if (ch == '"') {
-        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-          buffer.write('"');
-          i++;
-          continue;
-        }
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (!inQuotes && ch == ',') {
-        out.add(buffer.toString());
-        buffer = StringBuffer();
-        continue;
-      }
-      buffer.write(ch);
-    }
-    out.add(buffer.toString());
-    return out;
+  Future<void> _pasteFromClipboard() async {
+    await _pasteTableSmartFromClipboard(emitFeedback: true);
   }
 
   Future<void> _openSearchDialog() async {
@@ -14339,6 +14629,9 @@ class _EditorScreenState extends State<EditorScreen>
   bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
 
   @visibleForTesting
+  int get debugRowCount => _rows.length;
+
+  @visibleForTesting
   bool get debugMobileTopBarCollapsed => _mobileTopBarCollapsed;
 
   @visibleForTesting
@@ -14743,6 +15036,16 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _openMapsForCell(int r, int c) async {
+    if (r < 0 || r >= _rows.length || c < 0 || c >= _headers.length - 1) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Selecciona una celda valida para abrir en Maps.',
+        ),
+        failureIcon: Icons.map_outlined,
+      );
+      return;
+    }
     final meta = _cellMetaAt(r, c)?.gps;
     final txt = _getCellText(r, c);
     double? lat;
@@ -14754,11 +15057,29 @@ class _EditorScreenState extends State<EditorScreen>
       final m = RegExp(
         r'(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)',
       ).firstMatch(txt);
-      if (m == null) return;
+      if (m == null) {
+        _emitActionResult(
+          const _ActionResult(
+            ok: false,
+            message: 'La celda no contiene coordenadas validas.',
+          ),
+          failureIcon: Icons.map_outlined,
+        );
+        return;
+      }
       lat = double.tryParse(m.group(1) ?? '');
       lng = double.tryParse(m.group(2) ?? '');
     }
-    if (lat == null || lng == null) return;
+    if (lat == null || lng == null) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No hay coordenadas para abrir en Maps.',
+        ),
+        failureIcon: Icons.map_outlined,
+      );
+      return;
+    }
 
     final uri = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=$lat,$lng',

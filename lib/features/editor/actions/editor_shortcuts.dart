@@ -112,7 +112,7 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyN) {
-      _insertRow(_rows.length);
+      unawaited(_createNewRecordAction(origin: 'shortcut'));
       return KeyEventResult.handled;
     }
 
@@ -125,24 +125,12 @@ extension _EditorShortcuts on _EditorScreenState {
         unawaited(_exportXlsxOnly());
         return KeyEventResult.handled;
       }
-      if (_selCol >= 0 && _selCol < _headers.length - 1) {
-        _setColumnPresentationForIndex(
-          _selCol,
-          textAlign: _GridTextAlignX.center,
-          verticalAlign: _GridTextAlignY.middle,
-        );
-      }
+      _runCenterActiveColumnAction();
       return KeyEventResult.handled;
     }
 
     if (isMod && isAlt && event.logicalKey == LogicalKeyboardKey.keyC) {
-      if (_selCol >= 0 && _selCol < _headers.length - 1) {
-        _setColumnPresentationForIndex(
-          _selCol,
-          textAlign: _GridTextAlignX.center,
-          verticalAlign: _GridTextAlignY.middle,
-        );
-      }
+      _runCenterActiveColumnAction();
       return KeyEventResult.handled;
     }
 
@@ -157,7 +145,7 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyD) {
-      unawaited(_promptFillDown(context, _selRow, _selCol));
+      unawaited(_runFillDownForSelection());
       return KeyEventResult.handled;
     }
 
@@ -192,16 +180,12 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyG) {
-      unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
+      unawaited(_runGpsForSelection());
       return KeyEventResult.handled;
     }
 
     if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyA) {
-      if (_audioRecording) {
-        unawaited(_stopAudioRecording());
-      } else {
-        unawaited(_startAudioRecordingForCell(_selRow, _selCol));
-      }
+      unawaited(_runAudioForSelection());
       return KeyEventResult.handled;
     }
 
@@ -216,25 +200,21 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyP) {
-      unawaited(_startPhotoFlowForCell(_selRow, _selCol));
+      unawaited(_runPhotoForSelection());
       return KeyEventResult.handled;
     }
 
     if (!isMod && !isAlt) {
       if (event.logicalKey == LogicalKeyboardKey.keyG) {
-        unawaited(_requestGpsForCell(_selRow, _selCol, forceWriteText: true));
+        unawaited(_runGpsForSelection());
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.keyP) {
-        unawaited(_startPhotoFlowForCell(_selRow, _selCol));
+        unawaited(_runPhotoForSelection());
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.keyA) {
-        if (_audioRecording) {
-          unawaited(_stopAudioRecording());
-        } else {
-          unawaited(_startAudioRecordingForCell(_selRow, _selCol));
-        }
+        unawaited(_runAudioForSelection());
         return KeyEventResult.handled;
       }
     }

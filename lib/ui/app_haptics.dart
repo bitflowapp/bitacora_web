@@ -22,4 +22,9 @@ class AppHaptics {
     if (!_supported) return;
     HapticFeedback.lightImpact();
   }
+
+  static void error() {
+    if (!_supported) return;
+    HapticFeedback.mediumImpact();
+  }
 }
