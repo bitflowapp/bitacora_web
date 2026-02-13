@@ -76,8 +76,15 @@ jobs:
             --dart-define=GIT_SHA=${{ github.sha }} \
             --dart-define=BUILD_TIME="${{ env.BUILD_TIME }}"
 
+      - name: Include BitFlow landing in artifact
+        run: |
+          mkdir -p build/web/bitflow
+          cp -R docs/bitflow/. build/web/bitflow/
+          test -f build/web/index.html
+          test -f build/web/bitflow/index.html
+
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: build/web
 
