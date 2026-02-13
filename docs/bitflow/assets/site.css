@@ -295,6 +295,8 @@ h3 {
 
 .section {
   margin-top: 2rem;
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 620px;
 }
 
 .section-head {

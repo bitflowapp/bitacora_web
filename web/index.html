@@ -171,8 +171,10 @@
 
       function showBootFallback(reason) {
         try {
+          if (bootReady) return;
           var root = document.getElementById('boot-fallback');
           if (!root) return;
+          if (root.style.display === 'flex') return;
           root.style.display = 'flex';
           var msg = root.querySelector('[data-role=\"message\"]');
           if (msg && reason) msg.textContent = reason;
