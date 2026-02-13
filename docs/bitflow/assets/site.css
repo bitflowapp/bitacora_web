@@ -339,6 +339,13 @@ h3 {
   border-color: var(--line-strong);
 }
 
+.export-pro .premium-card,
+.mobile-actions .detail-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(242, 242, 242, 0.9));
+  border-color: var(--line-strong);
+}
+
 .premium-bullets {
   margin: 0.75rem 0 0;
   padding-left: 1rem;
