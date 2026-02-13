@@ -1,41 +1,68 @@
-# UI Action Audit (P0)
+# UI Action Audit (Final)
 
 Date: 2026-02-13  
-Scope: Agent/FlowBot/command palette/mobile quick actions in `EditorScreen`.
+Scope: Agent/FlowBot, editor toolbar, command palette, mobile quick actions, context menu.
 
-## Summary
+## Result
 
-- No decorative/no-op action was kept in the audited set.
-- FlowBot apply path now returns standardized action outcome (`ok`, `message`, `undoToken`) and always shows feedback.
-- Disabled states now expose explicit reason text in FlowBot sheet.
+- No main action remains as decorative/no-op.
+- Every audited action now does one of these:
+  - Executes a real state change/export/flow.
+  - Shows explicit feedback with reason when it cannot run.
+- Feedback standard is unified through `_ActionResult` + toast + haptic.
 
-## Audited Actions
+## ActionResult Standard
 
-| Area | Action | Current behavior | Disabled reason / guard |
-|---|---|---|---|
-| Command palette | `FlowBot` | Opens FlowBot sheet (`_openFlowBotSheet`) | N/A |
-| FlowBot sheet | `Analizar` | Parses text/voice into preview actions | Disabled while parsing |
-| FlowBot sheet | `Aplicar` | Applies preview actions, shows success/error toast, exposes undo token on success | Disabled with reason when preview is empty or still parsing |
-| FlowBot sheet | `Voz` | Starts/stops speech capture | If speech unavailable, shows warning text |
-| FlowBot sheet | `Motor: Local/Offline` | Toggles parser engine preference | If local model missing, warning shown and parser falls back to offline deterministic mode |
-| FlowBot sheet | `Descargar modelo` | Triggers local model download flow | Disabled while download is in progress |
-| Command palette | `Aplicar valor a seleccion` | Opens batch apply dialog and applies in selection | Action validates selection and input |
-| Mobile quick bar | `Aplicar mismo valor` | Batch applies to selected rows | Guarded by selection state in editor logic |
+All primary user actions now converge to:
 
-## Standardized Outcome (new)
+- `ok`: action executed with effect.
+- `message`: user-facing result/reason.
+- `undoToken` (optional): enables `Deshacer`.
 
-FlowBot apply now uses a uniform outcome object:
+Runtime behavior:
 
-- `ok`: whether at least one action was applied.
-- `message`: user-facing feedback.
-- `undoToken`: present when undo is available (`flowbot_apply`).
+- `ok=true`: success toast + light haptic.
+- `ok=false`: warning/error toast + distinct fail haptic.
 
-Behavior:
+## Audited Areas
 
-- Success: toast with applied count + undo action.
-- No-op: warning toast with explicit reason, never silent.
+| Area | Action | Final status |
+|---|---|---|
+| Desktop header | `+` (Nuevo registro) | Executes real automation (`fila + defaults + focus`) |
+| Mobile quick bar | `+ Registro` | Executes real automation (`fila + defaults + focus`) |
+| Command palette | `Nuevo registro` | Executes same automation |
+| Command palette | `Pegar tabla inteligente` | Detects TSV/CSV and applies batch paste |
+| FlowBot sheet | `Analizar` | Always returns plan or warning |
+| FlowBot sheet | `Aplicar` | Disabled with reason if invalid; applies real actions when valid |
+| FlowBot actions | `addRow/pasteTable` | Wired to real editor changes (`new record`, `smart paste`) |
+| Command palette | `Centrar columna activa` | If no celda activa editable => explicit reason |
+| Command palette | `Duplicar fila activa` | If no fila activa => explicit reason |
+| Command palette | `Rellenar hacia abajo` | If no celda activa => explicit reason |
+| Command palette | `Abrir adjuntos` | If no celda activa => explicit reason |
+| Command palette | `Adjuntar foto/GPS/audio/video/archivo` | If no celda activa => explicit reason |
+| Quick actions | `Lote` sin filas | Explicit reason (`No hay filas seleccionadas`) |
+| Context menu | `Copiar/Pegar` | No silent return: success or reason message |
 
-## Test Coverage Added/Updated
+## New Real Automations (minimum set)
 
-- `test/no_network_hermetic_test.dart`: verifies outbound HTTP is blocked by default in tests.
-- `test/editor_flowbot_apply_widget_test.dart`: verifies no-op apply returns explicit failure result and successful apply returns `undoToken`.
+1. Nuevo registro:
+- Inserts a new row.
+- Applies persisted defaults:
+  - fecha de hoy (if enabled)
+  - progresiva/autoincrement (if enabled)
+  - estado OK (if enabled)
+- Focuses first editable column.
+- Shows toast + supports undo token.
+
+2. Pegar tabla inteligente:
+- Detects delimiter: TSV, CSV comma, CSV semicolon.
+- Parses quoted fields.
+- Applies batch from active cell.
+- Handles multi-row extension without per-cell rebuild loop.
+- Gives explicit reason on empty clipboard/no-op/invalid target.
+- Shows toast + supports undo token.
+
+## Hermetic Testing Impact
+
+- No outbound HTTP is introduced by these UI actions.
+- Existing `flutter_test_config.dart` HTTP block remains active by default.

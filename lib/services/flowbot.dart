@@ -237,8 +237,12 @@ class RuleBasedFlowBot {
     final actions = <FlowBotAction>[];
     final normalized = input.toLowerCase();
 
-    if (_containsAny(normalized,
-        const <String>['agregar fila', 'nueva fila', 'fila nueva'])) {
+    if (_containsAny(normalized, const <String>[
+      'agregar fila',
+      'nueva fila',
+      'fila nueva',
+      'nuevo registro',
+    ])) {
       actions
           .add(const FlowBotAction(type: FlowBotActionType.addRow, count: 1));
     }
