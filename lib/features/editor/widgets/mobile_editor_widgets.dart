@@ -601,6 +601,89 @@ class _SelectionQuickActionsBar extends StatelessWidget {
   }
 }
 
+class _EditorPremiumEmptyStatePanel extends StatelessWidget {
+  const _EditorPremiumEmptyStatePanel({
+    required this.palette,
+    required this.onNewRecord,
+    required this.onSmartPaste,
+  });
+
+  final _SheetPalette palette;
+  final VoidCallback onNewRecord;
+  final VoidCallback onSmartPaste;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppleCard(
+      key: const ValueKey('editor-premium-empty-state'),
+      radius: 16,
+      color: palette.menuBg.withValues(alpha: palette.isLight ? 0.96 : 0.84),
+      borderColor: palette.borderStrong,
+      shadows: const <BoxShadow>[],
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Hoja vacia',
+            style: TextStyle(
+              color: palette.fg,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Empieza en segundos: crea un registro, pega una tabla o importa cuando este habilitado.',
+            style: TextStyle(
+              color: palette.fgMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 10),
+          AppButton(
+            key: const ValueKey('empty-state-cta-new-record'),
+            label: 'Nuevo registro',
+            icon: Icons.add_box_outlined,
+            variant: AppButtonVariant.primary,
+            onPressed: onNewRecord,
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            key: const ValueKey('empty-state-cta-smart-paste'),
+            label: 'Pegar tabla',
+            icon: Icons.table_chart_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: onSmartPaste,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tip: pega TSV/CSV y aparece preview para confirmar.',
+            style: TextStyle(
+              color: palette.fgMuted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Tooltip(
+            message: 'Proximamente',
+            child: AppButton(
+              key: const ValueKey('empty-state-cta-import-disabled'),
+              label: 'Importar',
+              icon: Icons.file_open_rounded,
+              variant: AppButtonVariant.ghost,
+              onPressed: null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MobileQuickActionsBar extends StatelessWidget {
   const _MobileQuickActionsBar({
     required this.palette,

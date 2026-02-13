@@ -8091,6 +8091,11 @@ class _EditorScreenState extends State<EditorScreen>
         );
         final selectedDisplayRow = _displayRowForActual(_selRow, visibleRows);
         final selectedDisplayRows = _selectedDisplayRows(visibleRows);
+        final showPremiumEmptyState = _shouldShowPremiumEmptyState();
+        final canShowEditorTour = _editorTourVisible &&
+            _rows.length <= 40 &&
+            !showPremiumEmptyState &&
+            (isDesktop || mq.size.height > 860);
 
         if (isMobile) {
           if (_engineFallbackMode && _engineStatus != null) {
@@ -8370,7 +8375,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: child,
                               );
                             },
-                            child: (_editorTourVisible && _rows.length <= 40)
+                            child: canShowEditorTour
                                 ? KeyedSubtree(
                                     key: const ValueKey('editor-tour-open'),
                                     child: _EditorFirstRunTourBanner(
@@ -8599,600 +8604,641 @@ class _EditorScreenState extends State<EditorScreen>
                                   : null,
                             ),
                           Expanded(
-                            child: isDesktop
-                                ? Focus(
-                                    autofocus: true,
-                                    onKeyEvent: _onKeyEvent,
-                                    child: FocusTraversalOrder(
-                                      order: const NumericFocusOrder(2.0),
-                                      child: Semantics(
-                                        container: true,
-                                        label: 'Grilla de planilla',
-                                        child: RepaintBoundary(
-                                          child: ValueListenableBuilder<int>(
-                                            valueListenable: _gridVersion,
-                                            builder: (ctx, _, __) {
-                                              _trackGridHostBuild('desktop');
-                                              return _GridView(
-                                                palette: pal,
-                                                metrics: metrics,
-                                                headers: displayHeaders,
-                                                rowModels: visibleRowModels,
-                                                cellTextAt: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _effectiveCell(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellHasGps: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellHasGps(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellHasAudios: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellHasAudios(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellPhotoThumb: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellPhotoThumb(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellPhotoCount: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellPhotoCount(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellInlinePreviewAt: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellInlinePreviewAt(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                columnWrapLines: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colWrapLines(
-                                                    actualCol,
-                                                  );
-                                                },
-                                                columnTextAlign: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colTextAlign(
-                                                    actualCol,
-                                                  );
-                                                },
-                                                columnVerticalAlign: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colVerticalAlign(
-                                                    actualCol,
-                                                  );
-                                                },
-                                                isAttachmentProcessing: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellIsAttachmentProcessing(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                decodeThumb: _decodeThumbCached,
-                                                isInvalid: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _invalidCells.contains(
-                                                    _CellRef(
-                                                      actualRow,
-                                                      actualCol,
-                                                    ),
-                                                  );
-                                                },
-                                                isSearchHit: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _isSearchHit(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                vScroll: _vScroll,
-                                                hScroll: _hScroll,
-                                                selRow: selectedDisplayRow,
-                                                selCol: selectedDisplayCol,
-                                                selectedRows:
-                                                    selectedDisplayRows,
-                                                blink: _blinkCell,
-                                                editorLink: _editorLink,
-                                                overlayTargetCell:
-                                                    _overlayTargetCell == null
-                                                        ? null
-                                                        : _CellRef(
-                                                            _overlayTargetCell!
-                                                                .r,
-                                                            _displayColumnIndexForActual(
-                                                              _overlayTargetCell!
-                                                                  .c,
-                                                              displayColumns,
-                                                            ),
-                                                          ),
-                                                overlayTargetHeaderCol:
-                                                    _overlayTargetHeaderCol ==
-                                                            null
-                                                        ? null
-                                                        : _displayColumnIndexForActual(
-                                                            _overlayTargetHeaderCol!,
-                                                            displayColumns,
-                                                          ),
-                                                onSelect: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  _setSelectionAndRefreshGrid(
-                                                    actualRow,
-                                                    actualCol,
-                                                    blink: true,
-                                                  );
-                                                },
-                                                onRowIndexTap: (r) =>
-                                                    _handleRowIndexTap(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                                ),
-                                                onEditRequested: (r, c, w) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _beginEditCell(
-                                                    context,
-                                                    pal,
-                                                    actualRow,
-                                                    actualCol,
-                                                    w,
-                                                  );
-                                                },
-                                                onHeaderEditRequested: (c, w) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _beginEditHeader(
-                                                    context,
-                                                    pal,
-                                                    actualCol,
-                                                    w,
-                                                  );
-                                                },
-                                                onContextMenu:
-                                                    (pos, r, c, isHeader) {
-                                                  final actualRow = isHeader
-                                                      ? r
-                                                      : _actualRowFromDisplay(
-                                                          r,
-                                                          visibleRows,
-                                                        );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  unawaited(
-                                                    _openContextMenu(
-                                                      context,
-                                                      pal,
-                                                      pos,
-                                                      actualRow,
-                                                      actualCol,
-                                                      isHeader,
-                                                    ),
-                                                  );
-                                                },
-                                                onDeleteRow: (r) => _deleteRow(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                                ),
-                                                onPickPhoto: (r) =>
-                                                    _startPhotoFlowForCell(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                                  _headers.length - 1,
-                                                ),
-                                                onOpenAttachments: (r, c) =>
-                                                    _openAttachmentPanelForCell(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                                  _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  ),
-                                                ),
-                                                rowVersionListenable:
-                                                    _rowVersionListenable,
-                                                onRowBuild: _trackGridRowBuild,
-                                                onCellBuild:
-                                                    _trackGridCellBuild,
-                                              );
-                                            },
+                            child: showPremiumEmptyState
+                                ? Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      0,
+                                      12,
+                                      8,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.topCenter,
+                                      child: SingleChildScrollView(
+                                        child: _EditorPremiumEmptyStatePanel(
+                                          palette: pal,
+                                          onNewRecord: () => unawaited(
+                                            _createNewRecordAction(
+                                              origin: 'empty_state',
+                                            ),
+                                          ),
+                                          onSmartPaste: () => unawaited(
+                                            _pasteTableSmartFromClipboard(
+                                              emitFeedback: true,
+                                              interactivePreview: true,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   )
-                                : RepaintBoundary(
-                                    child: ValueListenableBuilder<int>(
-                                      valueListenable: _gridVersion,
-                                      builder: (ctx, _, __) {
-                                        _ensureMobileRowCachesLength();
-                                        final cardW = _mobileCardWidthForScreen(
-                                          MediaQuery.of(ctx).size.width,
-                                        );
-                                        _trackGridHostBuild('mobile');
-                                        return _MobileNotesGrid(
-                                          palette: pal,
-                                          density: _gridDensity,
-                                          headers: displayHeaders,
-                                          rowModels: visibleRowModels,
-                                          cellTextAt: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
+                                : isDesktop
+                                    ? Focus(
+                                        autofocus: true,
+                                        onKeyEvent: _onKeyEvent,
+                                        child: FocusTraversalOrder(
+                                          order: const NumericFocusOrder(2.0),
+                                          child: Semantics(
+                                            container: true,
+                                            label: 'Grilla de planilla',
+                                            child: RepaintBoundary(
+                                              child:
+                                                  ValueListenableBuilder<int>(
+                                                valueListenable: _gridVersion,
+                                                builder: (ctx, _, __) {
+                                                  _trackGridHostBuild(
+                                                      'desktop');
+                                                  return _GridView(
+                                                    palette: pal,
+                                                    metrics: metrics,
+                                                    headers: displayHeaders,
+                                                    rowModels: visibleRowModels,
+                                                    cellTextAt: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _effectiveCell(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    cellHasGps: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellHasGps(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    cellHasAudios: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellHasAudios(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    cellPhotoThumb: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellPhotoThumb(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    cellPhotoCount: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellPhotoCount(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    cellInlinePreviewAt:
+                                                        (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellInlinePreviewAt(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    columnWrapLines: (c) {
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _colWrapLines(
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    columnTextAlign: (c) {
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _colTextAlign(
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    columnVerticalAlign: (c) {
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _colVerticalAlign(
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    isAttachmentProcessing:
+                                                        (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _cellIsAttachmentProcessing(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    decodeThumb:
+                                                        _decodeThumbCached,
+                                                    isInvalid: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _invalidCells
+                                                          .contains(
+                                                        _CellRef(
+                                                          actualRow,
+                                                          actualCol,
+                                                        ),
+                                                      );
+                                                    },
+                                                    isSearchHit: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _isSearchHit(
+                                                        actualRow,
+                                                        actualCol,
+                                                      );
+                                                    },
+                                                    vScroll: _vScroll,
+                                                    hScroll: _hScroll,
+                                                    selRow: selectedDisplayRow,
+                                                    selCol: selectedDisplayCol,
+                                                    selectedRows:
+                                                        selectedDisplayRows,
+                                                    blink: _blinkCell,
+                                                    editorLink: _editorLink,
+                                                    overlayTargetCell:
+                                                        _overlayTargetCell ==
+                                                                null
+                                                            ? null
+                                                            : _CellRef(
+                                                                _overlayTargetCell!
+                                                                    .r,
+                                                                _displayColumnIndexForActual(
+                                                                  _overlayTargetCell!
+                                                                      .c,
+                                                                  displayColumns,
+                                                                ),
+                                                              ),
+                                                    overlayTargetHeaderCol:
+                                                        _overlayTargetHeaderCol ==
+                                                                null
+                                                            ? null
+                                                            : _displayColumnIndexForActual(
+                                                                _overlayTargetHeaderCol!,
+                                                                displayColumns,
+                                                              ),
+                                                    onSelect: (r, c) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      _setSelectionAndRefreshGrid(
+                                                        actualRow,
+                                                        actualCol,
+                                                        blink: true,
+                                                      );
+                                                    },
+                                                    onRowIndexTap: (r) =>
+                                                        _handleRowIndexTap(
+                                                      _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      ),
+                                                    ),
+                                                    onEditRequested: (r, c, w) {
+                                                      final actualRow =
+                                                          _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _beginEditCell(
+                                                        context,
+                                                        pal,
+                                                        actualRow,
+                                                        actualCol,
+                                                        w,
+                                                      );
+                                                    },
+                                                    onHeaderEditRequested:
+                                                        (c, w) {
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      return _beginEditHeader(
+                                                        context,
+                                                        pal,
+                                                        actualCol,
+                                                        w,
+                                                      );
+                                                    },
+                                                    onContextMenu:
+                                                        (pos, r, c, isHeader) {
+                                                      final actualRow = isHeader
+                                                          ? r
+                                                          : _actualRowFromDisplay(
+                                                              r,
+                                                              visibleRows,
+                                                            );
+                                                      final actualCol =
+                                                          _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      );
+                                                      unawaited(
+                                                        _openContextMenu(
+                                                          context,
+                                                          pal,
+                                                          pos,
+                                                          actualRow,
+                                                          actualCol,
+                                                          isHeader,
+                                                        ),
+                                                      );
+                                                    },
+                                                    onDeleteRow: (r) =>
+                                                        _deleteRow(
+                                                      _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      ),
+                                                    ),
+                                                    onPickPhoto: (r) =>
+                                                        _startPhotoFlowForCell(
+                                                      _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      ),
+                                                      _headers.length - 1,
+                                                    ),
+                                                    onOpenAttachments: (r, c) =>
+                                                        _openAttachmentPanelForCell(
+                                                      _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      ),
+                                                      _actualColumnFromDisplay(
+                                                        c,
+                                                        displayColumns,
+                                                      ),
+                                                    ),
+                                                    rowVersionListenable:
+                                                        _rowVersionListenable,
+                                                    onRowBuild:
+                                                        _trackGridRowBuild,
+                                                    onCellBuild:
+                                                        _trackGridCellBuild,
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : RepaintBoundary(
+                                        child: ValueListenableBuilder<int>(
+                                          valueListenable: _gridVersion,
+                                          builder: (ctx, _, __) {
+                                            _ensureMobileRowCachesLength();
+                                            final cardW =
+                                                _mobileCardWidthForScreen(
+                                              MediaQuery.of(ctx).size.width,
                                             );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _effectiveCell(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          cellHasGps: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellHasGps(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          cellHasAudios: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellHasAudios(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          cellPhotoThumb: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellPhotoThumb(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          cellPhotoCount: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellPhotoCount(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          cellInlinePreviewAt: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellInlinePreviewAt(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          columnWrapLines: (c) {
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _colWrapLines(actualCol);
-                                          },
-                                          columnTextAlign: (c) {
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _colTextAlign(actualCol);
-                                          },
-                                          columnVerticalAlign: (c) {
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _colVerticalAlign(actualCol);
-                                          },
-                                          isAttachmentProcessing: (r, c) {
-                                            final actualRow =
-                                                _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            );
-                                            final actualCol =
-                                                _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            );
-                                            return _cellIsAttachmentProcessing(
-                                              actualRow,
-                                              actualCol,
-                                            );
-                                          },
-                                          decodeThumb: _decodeThumbCached,
-                                          verticalController: _vScroll,
-                                          headerScrollController:
-                                              _mobileHeaderScroll,
-                                          rowScrollControllerFor:
-                                              _mobileRowScrollAt,
-                                          headerKey: _mobileHeaderKey,
-                                          rowKeyFor: _mobileRowKeyAt,
-                                          selectedRow: selectedDisplayRow,
-                                          selectedCol: selectedDisplayCol,
-                                          activeRow: _mobileEditorOpen &&
-                                                  !_mobileEditingHeader
-                                              ? _displayRowForActual(
-                                                  _mobileRow,
+                                            _trackGridHostBuild('mobile');
+                                            return _MobileNotesGrid(
+                                              palette: pal,
+                                              density: _gridDensity,
+                                              headers: displayHeaders,
+                                              rowModels: visibleRowModels,
+                                              cellTextAt: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
                                                   visibleRows,
-                                                )
-                                              : -1,
-                                          activeCol: _mobileEditorOpen
-                                              ? _displayColumnIndexForActual(
-                                                  _mobileCol,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
                                                   displayColumns,
-                                                )
-                                              : -1,
-                                          activeIsHeader: _mobileEditorOpen &&
-                                              _mobileEditingHeader,
-                                          activeController: _mobileEC,
-                                          onHorizontalScroll:
-                                              _syncMobileHorizontal,
-                                          onCellTap: (cellCtx, r, c) =>
-                                              _beginEditCell(
-                                            cellCtx,
-                                            pal,
-                                            _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            ),
-                                            _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            ),
-                                            cardW,
-                                          ),
-                                          onHeaderTap: (cellCtx, c) =>
-                                              _beginEditHeader(
-                                            cellCtx,
-                                            pal,
-                                            _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            ),
-                                            cardW,
-                                          ),
-                                          onContextMenu:
-                                              (pos, r, c, isHeader) =>
-                                                  _openContextMenu(
-                                            ctx,
-                                            pal,
-                                            pos,
-                                            isHeader
-                                                ? r
-                                                : _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                            _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            ),
-                                            isHeader,
-                                          ),
-                                          onDeleteRow: (r) => _deleteRow(
-                                            _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            ),
-                                          ),
-                                          onPickPhoto: (r) =>
-                                              _startPhotoFlowForCell(
-                                            _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            ),
-                                            _headers.length - 1,
-                                          ),
-                                          onOpenAttachments: (r, c) =>
-                                              _openAttachmentPanelForCell(
-                                            _actualRowFromDisplay(
-                                              r,
-                                              visibleRows,
-                                            ),
-                                            _actualColumnFromDisplay(
-                                              c,
-                                              displayColumns,
-                                            ),
-                                          ),
-                                          onVerticalUserScroll:
-                                              _handleMobileGridScrollDirection,
-                                          onRowBuild: _trackGridRowBuild,
-                                          onCellBuild: _trackGridCellBuild,
-                                        );
-                                      },
-                                    ),
-                                  ),
+                                                );
+                                                return _effectiveCell(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              cellHasGps: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellHasGps(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              cellHasAudios: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellHasAudios(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              cellPhotoThumb: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellPhotoThumb(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              cellPhotoCount: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellPhotoCount(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              cellInlinePreviewAt: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellInlinePreviewAt(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              columnWrapLines: (c) {
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _colWrapLines(actualCol);
+                                              },
+                                              columnTextAlign: (c) {
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _colTextAlign(actualCol);
+                                              },
+                                              columnVerticalAlign: (c) {
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _colVerticalAlign(
+                                                    actualCol);
+                                              },
+                                              isAttachmentProcessing: (r, c) {
+                                                final actualRow =
+                                                    _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                );
+                                                final actualCol =
+                                                    _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                );
+                                                return _cellIsAttachmentProcessing(
+                                                  actualRow,
+                                                  actualCol,
+                                                );
+                                              },
+                                              decodeThumb: _decodeThumbCached,
+                                              verticalController: _vScroll,
+                                              headerScrollController:
+                                                  _mobileHeaderScroll,
+                                              rowScrollControllerFor:
+                                                  _mobileRowScrollAt,
+                                              headerKey: _mobileHeaderKey,
+                                              rowKeyFor: _mobileRowKeyAt,
+                                              selectedRow: selectedDisplayRow,
+                                              selectedCol: selectedDisplayCol,
+                                              activeRow: _mobileEditorOpen &&
+                                                      !_mobileEditingHeader
+                                                  ? _displayRowForActual(
+                                                      _mobileRow,
+                                                      visibleRows,
+                                                    )
+                                                  : -1,
+                                              activeCol: _mobileEditorOpen
+                                                  ? _displayColumnIndexForActual(
+                                                      _mobileCol,
+                                                      displayColumns,
+                                                    )
+                                                  : -1,
+                                              activeIsHeader:
+                                                  _mobileEditorOpen &&
+                                                      _mobileEditingHeader,
+                                              activeController: _mobileEC,
+                                              onHorizontalScroll:
+                                                  _syncMobileHorizontal,
+                                              onCellTap: (cellCtx, r, c) =>
+                                                  _beginEditCell(
+                                                cellCtx,
+                                                pal,
+                                                _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                ),
+                                                _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                ),
+                                                cardW,
+                                              ),
+                                              onHeaderTap: (cellCtx, c) =>
+                                                  _beginEditHeader(
+                                                cellCtx,
+                                                pal,
+                                                _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                ),
+                                                cardW,
+                                              ),
+                                              onContextMenu:
+                                                  (pos, r, c, isHeader) =>
+                                                      _openContextMenu(
+                                                ctx,
+                                                pal,
+                                                pos,
+                                                isHeader
+                                                    ? r
+                                                    : _actualRowFromDisplay(
+                                                        r,
+                                                        visibleRows,
+                                                      ),
+                                                _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                ),
+                                                isHeader,
+                                              ),
+                                              onDeleteRow: (r) => _deleteRow(
+                                                _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                ),
+                                              ),
+                                              onPickPhoto: (r) =>
+                                                  _startPhotoFlowForCell(
+                                                _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                ),
+                                                _headers.length - 1,
+                                              ),
+                                              onOpenAttachments: (r, c) =>
+                                                  _openAttachmentPanelForCell(
+                                                _actualRowFromDisplay(
+                                                  r,
+                                                  visibleRows,
+                                                ),
+                                                _actualColumnFromDisplay(
+                                                  c,
+                                                  displayColumns,
+                                                ),
+                                              ),
+                                              onVerticalUserScroll:
+                                                  _handleMobileGridScrollDirection,
+                                              onRowBuild: _trackGridRowBuild,
+                                              onCellBuild: _trackGridCellBuild,
+                                            );
+                                          },
+                                        ),
+                                      ),
                           ),
                         ],
                       ),
@@ -9235,6 +9281,31 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                         ),
                       ),
+                    Positioned(
+                      left: 12,
+                      bottom: isDesktop
+                          ? 14
+                          : (_mobileEditorOpen
+                              ? panelH + keyboardInset + 10
+                              : (_kMobileQuickBarH + bottomSafe + 18)),
+                      child: RepaintBoundary(
+                        child: Semantics(
+                          button: true,
+                          label: 'Abrir command palette',
+                          child: AppleButton(
+                            key: const ValueKey('mobile-palette-bolt'),
+                            label: '⚡',
+                            icon: Icons.bolt_rounded,
+                            dense: true,
+                            variant: AppleButtonVariant.tonal,
+                            onPressed: () {
+                              AppHaptics.light();
+                              unawaited(_openCommandPalette());
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
                     Positioned(
                       right: 12,
                       bottom: isDesktop
@@ -12733,6 +12804,23 @@ class _EditorScreenState extends State<EditorScreen>
       if (ref.rowId == rowId) return true;
     }
     return false;
+  }
+
+  bool _rowIsEffectivelyEmpty(_RowModel row) {
+    final dataCols = math.max(0, _headers.length - 1);
+    for (int c = 0; c < dataCols && c < row.cells.length; c++) {
+      if (row.cells[c].trim().isNotEmpty) return false;
+    }
+    if (row.photos.isNotEmpty) return false;
+    if (row.gpsLat != null || row.gpsLng != null) return false;
+    if (row.reviewed) return false;
+    if (_rowHasMetaForRow(row.id)) return false;
+    return true;
+  }
+
+  bool _shouldShowPremiumEmptyState() {
+    if (_rows.isEmpty) return true;
+    return _rows.every(_rowIsEffectivelyEmpty);
   }
 
   bool _newRecordWasEdited(
@@ -18722,12 +18810,10 @@ Este paquete incluye:
   }
 
   String _buildCommercialExportFileName(String extension) {
-    final now = DateTime.now().toLocal();
-    final safeSheet = _safeFile(
-      _sheetName,
-    ).replaceAll(RegExp(r'\s+'), '_').trim();
-    final normalizedExt = extension.trim().toLowerCase().replaceAll('.', '');
-    return 'BitFlow_${now.year}-${_two(now.month)}-${_two(now.day)}_$safeSheet.$normalizedExt';
+    return buildBitFlowExportFileName(
+      sheetName: _sheetName,
+      extension: extension,
+    );
   }
   // ------------------------------ Engine compute (opcional) ----------------
 
