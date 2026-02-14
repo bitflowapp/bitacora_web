@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
@@ -18,6 +19,7 @@ import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
+import 'services/demo_templates.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
@@ -366,9 +368,11 @@ class _AppState extends State<App> {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => LandingScreen(
+          builder: (context, state) => buildRootPageForUri(
+            uri: state.uri,
             isLight: _isLight,
             onToggleTheme: _toggleTheme,
+            firebaseOk: status.firebaseOk,
           ),
         ),
         GoRoute(
@@ -414,25 +418,64 @@ class _AppState extends State<App> {
   }
 }
 
+Widget buildRootPageForUri({
+  required Uri uri,
+  required bool isLight,
+  required VoidCallback onToggleTheme,
+  required bool firebaseOk,
+}) {
+  final template = resolveDemoTemplateFromSlug(uri.queryParameters['template']);
+  if (template != null) {
+    return _AppHome(
+      isLight: isLight,
+      onToggleTheme: onToggleTheme,
+      firebaseOk: firebaseOk,
+      initialTemplate: template,
+    );
+  }
+  return LandingScreen(
+    isLight: isLight,
+    onToggleTheme: onToggleTheme,
+  );
+}
+
 class _AppHome extends StatelessWidget {
   const _AppHome({
     required this.isLight,
     required this.onToggleTheme,
     required this.firebaseOk,
+    this.initialTemplate,
   });
 
   final bool isLight;
   final VoidCallback onToggleTheme;
   final bool firebaseOk;
+  final DemoTemplateSpec? initialTemplate;
 
   @override
   Widget build(BuildContext context) {
-    final home = AuthGate(
-      child: StartPage(
-        isLight: isLight,
-        onToggleTheme: onToggleTheme,
-      ),
-    );
+    final home = () {
+      if (initialTemplate != null) {
+        final template = initialTemplate!;
+        return AuthGate(
+          child: EditorScreen(
+            isLight: isLight,
+            onToggleTheme: onToggleTheme,
+            sheetId:
+                'demo_${template.slug}_${DateTime.now().millisecondsSinceEpoch}',
+            initialName: template.sheetName,
+            initialHeaders: template.headers,
+            initialRows: template.rows,
+          ),
+        );
+      }
+      return AuthGate(
+        child: StartPage(
+          isLight: isLight,
+          onToggleTheme: onToggleTheme,
+        ),
+      );
+    }();
 
     final body = AnimatedVideoBackground(
       child: Scaffold(
