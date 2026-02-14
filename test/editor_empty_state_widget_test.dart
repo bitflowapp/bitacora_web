@@ -25,33 +25,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('premium empty state appears for empty sheet', (tester) async {
+  testWidgets('empty sheet still renders grid host (no blank screen)',
+      (tester) async {
     await pumpEditor(tester);
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
-    // ignore: avoid_print
-    print('debugRowCount=${state.debugRowCount}');
-    // ignore: avoid_print
-    print('debugCell00=${state.debugCellText(0, 0)}');
-    expect(
-      find.byKey(const ValueKey('editor-premium-empty-state')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('empty-state-cta-new-record')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('empty-state-cta-smart-paste')),
-        findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('empty-state-cta-template')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('editor-grid-root')), findsOneWidget);
+    expect(state.debugRowCount, greaterThan(0));
   });
 
-  testWidgets('empty state new record CTA inserts a row', (tester) async {
+  testWidgets('mobile FAB new record inserts a row', (tester) async {
     await pumpEditor(tester);
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
     final before = state.debugRowCount as int;
 
-    await tester.tap(find.byKey(const ValueKey('empty-state-cta-new-record')));
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    final action = tester.widget(
+      find.byKey(const ValueKey('mobile-fab-action-new-record')),
+    ) as dynamic;
+    action.onPressed?.call();
     await tester.pumpAndSettle();
 
     expect(state.debugRowCount, before + 1);

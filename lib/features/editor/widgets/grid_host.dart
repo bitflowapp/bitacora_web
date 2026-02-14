@@ -158,9 +158,16 @@ class _GridView extends StatelessWidget {
         return LayoutBuilder(
           builder: (ctx2, c) {
             final viewSize = MediaQuery.sizeOf(ctx2);
-            final safeH = (c.hasBoundedHeight && c.maxHeight.isFinite)
+            final rawSafeH = (c.hasBoundedHeight && c.maxHeight.isFinite)
                 ? c.maxHeight
                 : viewSize.height;
+            final safeH = rawSafeH < 220 ? 220.0 : rawSafeH;
+            if (kDebugMode && rawSafeH <= 1) {
+              debugPrint(
+                '[editor:grid] zero-ish constraints maxH=${c.maxHeight} maxW=${c.maxWidth} '
+                'boundedH=${c.hasBoundedHeight} boundedW=${c.hasBoundedWidth}',
+              );
+            }
             final shellRadius = BorderRadius.circular(22);
             final shellShadow = palette.cellText.withValues(
               alpha: palette.isLight ? 0.05 : 0.2,
