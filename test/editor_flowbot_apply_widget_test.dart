@@ -73,4 +73,66 @@ void main() {
     expect(result['undoToken'], isNotNull);
     expect(state.debugCellText(0, 0), 'OK');
   });
+
+  testWidgets('FlowBot real commands mutate grid (new row, today, clear)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(1700, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-real-commands',
+          initialHeaders: <String>[
+            'Fecha',
+            'Estado',
+            'Progresiva',
+            'Observaciones',
+            'Photos',
+          ],
+          initialRows: <List<String>>[
+            <String>['', '', '', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final beforeRows = state.debugRowCount as int;
+
+    final newRowParsed = await state.debugParseFlowBotCommand(
+      'fila nueva: estado=OK, progresiva=1200, observaciones=revisar',
+    );
+    expect(newRowParsed.actions, isNotEmpty);
+    final newRowApplied = await state.debugApplyFlowBotActions(
+      newRowParsed.actions,
+    );
+    await tester.pump();
+    expect(newRowApplied, greaterThan(0));
+    expect(state.debugRowCount, beforeRows + 1);
+    expect(state.debugCellText(beforeRows, 1), 'OK');
+    expect(state.debugCellText(beforeRows, 2), '1200');
+    expect(state.debugCellText(beforeRows, 3), 'revisar');
+
+    final dateParsed =
+        await state.debugParseFlowBotCommand('fecha hoy columna completa');
+    final dateApplied =
+        await state.debugApplyFlowBotActions(dateParsed.actions);
+    await tester.pump();
+    expect(dateApplied, greaterThan(0));
+    expect(state.debugCellText(0, 0), isNotEmpty);
+    expect(state.debugCellText(beforeRows, 0), isNotEmpty);
+
+    final clearParsed = await state.debugParseFlowBotCommand('limpiar fila');
+    final clearApplied =
+        await state.debugApplyFlowBotActions(clearParsed.actions);
+    await tester.pump();
+    expect(clearApplied, greaterThan(0));
+    expect(state.debugCellText(beforeRows, 1), '');
+  });
 }

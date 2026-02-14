@@ -150,6 +150,57 @@ void main() {
     expect(result.actions.first.type, FlowBotActionType.exportBundle);
   });
 
+  test('parses "fila nueva: campo=valor" payload', () {
+    final result = parser.parse(
+      'fila nueva: estado=OK, observaciones=revisar',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.addRow);
+    expect(result.actions.first.value, contains('estado=OK'));
+  });
+
+  test('parses "fecha hoy columna completa"', () {
+    final result = parser.parse(
+      'fecha hoy columna completa',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.setToday);
+    expect(result.actions.first.value, contains('columna'));
+  });
+
+  test('parses "autonumerar progresiva desde N paso P"', () {
+    final result = parser.parse(
+      'autonumerar progresiva desde 1200 paso 25',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.autoId);
+    expect(result.actions.first.start, 1200);
+    expect(result.actions.first.step, 25);
+  });
+
+  test('parses "limpiar seleccion" and "limpiar fila"', () {
+    final selection = parser.parse(
+      'limpiar seleccion',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    final row = parser.parse(
+      'limpiar fila',
+      selectedRow: 0,
+      selectedCol: 0,
+    );
+    expect(selection.actions, hasLength(1));
+    expect(selection.actions.first.type, FlowBotActionType.clearSelection);
+    expect(row.actions, hasLength(1));
+    expect(row.actions.first.type, FlowBotActionType.clearRow);
+  });
+
   test('accepts apply confirmation variants', () {
     expect(parser.isApplyConfirmation('aceptar'), isTrue);
     expect(parser.isApplyConfirmation('aplicar'), isTrue);
