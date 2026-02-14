@@ -195,6 +195,13 @@ extension _EditorActions on _EditorScreenState {
           ),
         ),
         CommandAction(
+          id: 'templates',
+          label: 'Plantillas',
+          subtitle: 'Abrir galeria de plantillas demo',
+          icon: Icons.grid_view_rounded,
+          onSelected: () => unawaited(_openDemoTemplateSheet()),
+        ),
+        CommandAction(
           id: 'duplicate_row',
           label: 'Duplicar fila activa',
           subtitle: activeCell,
@@ -263,6 +270,20 @@ extension _EditorActions on _EditorScreenState {
           subtitle: 'Carga rapida por columna activa',
           icon: Icons.format_color_text_rounded,
           onSelected: () => unawaited(_promptBatchApplyValue()),
+        ),
+        CommandAction(
+          id: 'today_selection',
+          label: 'Fecha hoy en seleccion',
+          subtitle: 'Aplica YYYY-MM-DD en filas seleccionadas',
+          icon: Icons.today_rounded,
+          onSelected: _applyDateTodayToSelection,
+        ),
+        CommandAction(
+          id: 'autonumber_progressive',
+          label: 'Autonumerar progresiva',
+          subtitle: 'Serie con incremento configurable (default 10)',
+          icon: Icons.auto_mode_rounded,
+          onSelected: () => unawaited(_runAutonumberProgressiveAction()),
         ),
         CommandAction(
           id: 'smart_paste_table',

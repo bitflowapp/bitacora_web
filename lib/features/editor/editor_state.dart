@@ -34,6 +34,7 @@ const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
 const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
 const String _kPrefSmartPasteInteracted =
     'bitflow.editor.smart_paste_interacted.v1';
+const String _kPrefTemplateInteracted = 'bitflow.editor.template_interacted.v1';
 const String _kPrefAndroidInstallHelperDismissed =
     'bitflow.editor.android_install_helper_dismissed.v1';
 const String _kPrefExportPreset = 'bitflow.editor.export_preset.v1';
@@ -475,6 +476,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _editorTourVisible = false;
   bool _editorTourDismissed = false;
   bool _editorSmartPasteInteracted = false;
+  bool _editorTemplateInteracted = false;
+  int _progressiveAutoStep = 10;
   final List<_SavedView> _savedViews = <_SavedView>[];
   String? _activeSavedViewId;
   _ReviewFilterMode _reviewFilterMode = _ReviewFilterMode.all;
@@ -3311,16 +3314,21 @@ class _EditorScreenState extends State<EditorScreen>
       final dismissed = prefs.getBool(_kPrefEditorTourDismissed) ?? false;
       final smartPasteInteracted =
           prefs.getBool(_kPrefSmartPasteInteracted) ?? false;
-      final shouldShow = !seen && !dismissed && !smartPasteInteracted;
+      final templateInteracted =
+          prefs.getBool(_kPrefTemplateInteracted) ?? false;
+      final shouldShow =
+          !seen && !dismissed && !smartPasteInteracted && !templateInteracted;
       if (!mounted) {
         _editorTourDismissed = dismissed;
         _editorSmartPasteInteracted = smartPasteInteracted;
+        _editorTemplateInteracted = templateInteracted;
         _editorTourVisible = shouldShow;
         return;
       }
       setState(() {
         _editorTourDismissed = dismissed;
         _editorSmartPasteInteracted = smartPasteInteracted;
+        _editorTemplateInteracted = templateInteracted;
         _editorTourVisible = shouldShow;
       });
     } catch (_) {}
@@ -3340,6 +3348,24 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kPrefSmartPasteInteracted, true);
+      await prefs.setBool(_kPrefEditorTourSeen, true);
+    } catch (_) {}
+  }
+
+  Future<void> _markTemplateInteracted() async {
+    if (_editorTemplateInteracted) return;
+    if (mounted) {
+      setState(() {
+        _editorTemplateInteracted = true;
+        _editorTourVisible = false;
+      });
+    } else {
+      _editorTemplateInteracted = true;
+      _editorTourVisible = false;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPrefTemplateInteracted, true);
       await prefs.setBool(_kPrefEditorTourSeen, true);
     } catch (_) {}
   }
@@ -8628,6 +8654,8 @@ class _EditorScreenState extends State<EditorScreen>
                                               interactivePreview: true,
                                             ),
                                           ),
+                                          onUseTemplate: () => unawaited(
+                                              _openDemoTemplateSheet()),
                                         ),
                                       ),
                                     ),
@@ -12235,6 +12263,20 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
       }
+      actions.add(
+        _CtxAction(
+          'Fecha hoy en seleccion',
+          Icons.today_rounded,
+          _applyDateTodayToSelection,
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Autonumerar progresiva',
+          Icons.auto_mode_rounded,
+          () => unawaited(_runAutonumberProgressiveAction()),
+        ),
+      );
 
       actions.add(
         _CtxAction(
@@ -12821,6 +12863,200 @@ class _EditorScreenState extends State<EditorScreen>
   bool _shouldShowPremiumEmptyState() {
     if (_rows.isEmpty) return true;
     return _rows.every(_rowIsEffectivelyEmpty);
+  }
+
+  Future<void> _openDemoTemplateSheet() async {
+    if (!mounted) return;
+    final picked = await showAppModal<DemoTemplateSpec>(
+      context: context,
+      title: 'Plantillas',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Elige una plantilla demo para iniciar en segundos.',
+            style: TextStyle(color: _palette(context).fgMuted),
+          ),
+          const SizedBox(height: 10),
+          for (final spec in kDemoTemplateSpecs)
+            ListTile(
+              key: ValueKey('template-item-${spec.slug}'),
+              leading: const Icon(Icons.grid_view_rounded),
+              title: Text(spec.name),
+              subtitle: Text(
+                '${spec.headers.length} columnas · ${spec.rows.length} filas demo',
+              ),
+              onTap: () => Navigator.of(context).pop(spec),
+            ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (picked == null || !mounted) return;
+    _applyDemoTemplate(picked);
+  }
+
+  void _applyDemoTemplate(DemoTemplateSpec spec) {
+    final headers = _normalizeHeaders(spec.headers);
+    final rows = <_RowModel>[];
+    for (final raw in spec.rows) {
+      rows.add(
+        _RowModel.fromCells(
+          _normalizeRow(raw, headers.length),
+          id: _genStableId('r_'),
+        ),
+      );
+    }
+    if (rows.isEmpty) {
+      rows.add(_RowModel.empty(headers.length, id: _genStableId('r_')));
+    }
+    _sheetName = spec.sheetName;
+    _nameEC.text = _sheetName;
+    _headers = headers;
+    _colIds = _normalizeColIds(headers, null);
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: const <String, _ColumnPrefs>{},
+    );
+    _columnOrder = _normalizeColumnOrder(colIds: _colIds, incoming: null);
+    _frozenColId = null;
+    _rows = rows;
+    _selectedRows.clear();
+    _rowSelectionAnchor = null;
+    _selRow = 0;
+    _selCol = 0;
+    _draftCells.clear();
+    _draftHeaders.clear();
+    _markDirty(snapshot: true);
+    _setSelectionAndRefreshGrid(0, 0, preserveRowSelection: false);
+    unawaited(_markTemplateInteracted());
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: 'Plantilla "${spec.name}" aplicada.',
+        applied: spec.rows.length,
+        undoToken: 'template_apply',
+      ),
+      successIcon: Icons.grid_view_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
+  void _applyDateTodayToSelection() {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para aplicar fecha.',
+    )) {
+      return;
+    }
+    final rows = _batchTargetRows();
+    if (rows.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(ok: false, message: 'No hay filas seleccionadas.'),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final col = _selCol.clamp(0, _headers.length - 2);
+    final value = formatDateTodayYmd(DateTime.now());
+    var applied = 0;
+    for (final row in rows) {
+      if (row < 0 || row >= _rows.length) continue;
+      _rows[row].cells[col] = value;
+      applied++;
+    }
+    if (applied <= 0) return;
+    _markDirty(snapshot: true);
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: 'Fecha de hoy aplicada ($applied celdas).',
+        applied: applied,
+        undoToken: 'date_today',
+      ),
+      successIcon: Icons.today_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
+  Future<void> _runAutonumberProgressiveAction() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para autonumerar.',
+    )) {
+      return;
+    }
+    final rows = _batchTargetRows();
+    if (rows.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(ok: false, message: 'No hay filas seleccionadas.'),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final stepController = TextEditingController(
+      text: _progressiveAutoStep.toString(),
+    );
+    final step = await showAppModal<int>(
+      context: context,
+      title: 'Autonumerar progresiva',
+      child: TextField(
+        controller: stepController,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'Incremento (default 10)'),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: 'Aplicar',
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context)
+              .pop(int.tryParse(stepController.text.trim())),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    stepController.dispose();
+    if (step == null || step <= 0) return;
+    _progressiveAutoStep = step;
+    final col = _selCol.clamp(0, _headers.length - 2);
+    final base = int.tryParse(_effectiveCell(_selRow, col).trim()) ?? step;
+    final series = buildProgressiveSeries(
+      start: base,
+      step: step,
+      count: rows.length,
+    );
+    var applied = 0;
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      if (row < 0 || row >= _rows.length) continue;
+      _rows[row].cells[col] = series[i].toString();
+      applied++;
+    }
+    if (applied <= 0) return;
+    _markDirty(snapshot: true);
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: 'Autonumerado aplicado ($applied celdas).',
+        applied: applied,
+        undoToken: 'autonumber_progressive',
+      ),
+      successIcon: Icons.auto_mode_rounded,
+      onUndo: _undoOnce,
+    );
   }
 
   bool _newRecordWasEdited(

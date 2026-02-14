@@ -211,8 +211,8 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               compact
-                  ? '3 atajos para arrancar rapido: pegar tabla, nuevo registro y deshacer.'
-                  : 'Guia corta para pegar tablas sin jank, crear registros rapidos y deshacer en un toque.',
+                  ? '30s: abre palette (Ctrl/Cmd+K o rayo), pega con preview+undo y exporta.'
+                  : 'Guia 30s: palette (Ctrl/Cmd+K o rayo), smart paste con undo y exportar.',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontSize: 12.2,
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Smart paste preview · Nuevo registro · Undo rapido',
+                  'Palette (Ctrl/Cmd+K / rayo) · Smart paste + Undo · Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -245,24 +245,24 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
               )
             else ...const [
               _TourStepItem(
+                icon: Icons.bolt_rounded,
+                title: '1) Command palette',
+                body:
+                    'Abrela con Ctrl/Cmd+K en desktop o con el boton rayo en mobile.',
+              ),
+              SizedBox(height: 6),
+              _TourStepItem(
                 icon: Icons.table_chart_rounded,
-                title: '1) Smart paste premium',
+                title: '2) Smart paste + Undo',
                 body:
-                    'Pega TSV/CSV y aparece preview con opciones (insertar o reemplazar).',
+                    'Pega TSV/CSV, revisa preview y revierte con Undo si hace falta.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
-                icon: Icons.add_box_outlined,
-                title: '2) Nuevo registro',
+                icon: Icons.ios_share_rounded,
+                title: '3) Exportar',
                 body:
-                    'Usa +Registro o Ctrl/Cmd+N para crear fila con defaults y foco listo.',
-              ),
-              SizedBox(height: 6),
-              _TourStepItem(
-                icon: Icons.undo_rounded,
-                title: '3) Undo inmediato',
-                body:
-                    'Si algo no cierra, usa Deshacer en snackbar para revertir sin perder ritmo.',
+                    'Cuando cierres la carga, exporta en XLSX o PDF desde el menu.',
               ),
             ],
             const SizedBox(height: 8),
@@ -519,7 +519,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Acciones rapidas · $rowsLabel · $selectionLabel',
+              'Acciones rapidas Â· $rowsLabel Â· $selectionLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -606,11 +606,13 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
     required this.palette,
     required this.onNewRecord,
     required this.onSmartPaste,
+    required this.onUseTemplate,
   });
 
   final _SheetPalette palette;
   final VoidCallback onNewRecord;
   final VoidCallback onSmartPaste;
+  final VoidCallback onUseTemplate;
 
   @override
   Widget build(BuildContext context) {
@@ -668,15 +670,12 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Tooltip(
-            message: 'Proximamente',
-            child: AppButton(
-              key: const ValueKey('empty-state-cta-import-disabled'),
-              label: 'Importar',
-              icon: Icons.file_open_rounded,
-              variant: AppButtonVariant.ghost,
-              onPressed: null,
-            ),
+          AppButton(
+            key: const ValueKey('empty-state-cta-template'),
+            label: 'Usar plantilla',
+            icon: Icons.grid_view_rounded,
+            variant: AppButtonVariant.ghost,
+            onPressed: onUseTemplate,
           ),
         ],
       ),

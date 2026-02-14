@@ -41,7 +41,7 @@ void main() {
     expect(find.byKey(const ValueKey('empty-state-cta-smart-paste')),
         findsOneWidget);
     expect(
-      find.byKey(const ValueKey('empty-state-cta-import-disabled')),
+      find.byKey(const ValueKey('empty-state-cta-template')),
       findsOneWidget,
     );
   });
