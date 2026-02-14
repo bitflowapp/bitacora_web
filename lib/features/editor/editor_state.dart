@@ -358,6 +358,7 @@ class _EditorScreenState extends State<EditorScreen>
   // Undo/Redo
   final List<_SheetSnapshot> _undo = <_SheetSnapshot>[];
   final List<_SheetSnapshot> _redo = <_SheetSnapshot>[];
+  bool _suspendUndoSnapshot = false;
 
   // Engine compute (opcional)
   bool _engineBusy = false;
@@ -3619,7 +3620,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _markDirty({bool snapshot = true}) {
-    if (snapshot) _pushUndoSnapshot();
+    if (snapshot && !_suspendUndoSnapshot) _pushUndoSnapshot();
     _rev++;
 
     if (mounted) {
@@ -4664,7 +4665,16 @@ class _EditorScreenState extends State<EditorScreen>
         final value = action.value ?? '';
         return 'Rellenar desde F$row/C$col x$count = "$value"';
       case FlowBotActionType.addRow:
-        return 'Nuevo registro ${(action.count ?? 1).clamp(1, 500)} fila(s)';
+        final count = (action.count ?? 1).clamp(1, 500);
+        final hasAssignments = (action.value ?? '').trim().isNotEmpty;
+        if (hasAssignments) {
+          return 'Nuevo registro ($count) + campos: ${action.value}';
+        }
+        return 'Nuevo registro $count fila(s)';
+      case FlowBotActionType.clearSelection:
+        return 'Limpiar seleccion';
+      case FlowBotActionType.clearRow:
+        return 'Limpiar fila activa';
       case FlowBotActionType.setColumnAlign:
         final col = (action.column ?? _selCol) + 1;
         final align = (action.align ?? 'left').toLowerCase();
@@ -4676,9 +4686,12 @@ class _EditorScreenState extends State<EditorScreen>
       case FlowBotActionType.applyStatus:
         return 'Aplicar estado "${action.status ?? 'OK'}"';
       case FlowBotActionType.setToday:
-        return 'Set fecha de hoy';
+        final scope = (action.value ?? 'seleccion').trim();
+        return 'Set fecha de hoy ($scope)';
       case FlowBotActionType.autoId:
-        return 'Autonumerar IDs';
+        final start = action.start ?? 1;
+        final step = action.step ?? 1;
+        return 'Autonumerar desde $start paso $step';
       case FlowBotActionType.copyGps:
         final row = (action.fromRow ?? _selRow) + 1;
         return 'Copiar GPS desde fila $row';
@@ -4732,201 +4745,269 @@ class _EditorScreenState extends State<EditorScreen>
     var applied = 0;
     var lastRow = _selRow;
     var lastCol = _selCol.clamp(0, dataCols - 1);
+    var changed = false;
+    final previousUndoFlag = _suspendUndoSnapshot;
+    _suspendUndoSnapshot = true;
 
-    for (final action in actions) {
-      switch (action.type) {
-        case FlowBotActionType.setCell:
-          final row = action.row ?? _selRow;
-          final col = action.col ?? _selCol;
-          if (col < 0 || col >= dataCols) continue;
-          while (row >= _rows.length) {
-            _insertRow(_rows.length);
-          }
-          if (row < 0 || row >= _rows.length) continue;
-          _setCell(row, col, action.value ?? '');
-          applied += 1;
-          lastRow = row;
-          lastCol = col;
-          break;
-        case FlowBotActionType.fillRange:
-          final startRow = action.row ?? _selRow;
-          final startCol = (action.col ?? _selCol).clamp(0, dataCols - 1);
-          if (startRow < 0) continue;
-          final count = (action.count ?? 1).clamp(1, 500);
-          final endRow = (action.rowEnd == null)
-              ? startRow + count - 1
-              : math.max(startRow, action.rowEnd!);
-          final endCol = action.colEnd == null
-              ? startCol
-              : (action.colEnd!).clamp(startCol, dataCols - 1);
-          for (int rr = startRow; rr <= endRow; rr++) {
-            while (rr >= _rows.length) {
-              _insertRow(_rows.length);
-            }
-            for (int cc = startCol; cc <= endCol; cc++) {
-              _setCell(rr, cc, action.value ?? '');
-              applied += 1;
-              lastRow = rr;
-              lastCol = cc;
-            }
-          }
-          break;
-        case FlowBotActionType.addRow:
-          final count = (action.count ?? 1).clamp(1, 500);
-          for (int i = 0; i < count; i++) {
-            _insertRow(_rows.length);
-            applied += 1;
-          }
-          lastRow = (_rows.length - 1).clamp(0, _rows.length - 1);
-          break;
-        case FlowBotActionType.setColumnAlign:
-          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
-          final align = _gridTextAlignXFromStorageName(action.align);
-          _setColumnPresentationForIndex(
-            col,
-            textAlign: align,
-            verticalAlign: _GridTextAlignY.middle,
-          );
-          applied += 1;
-          lastCol = col;
-          break;
-        case FlowBotActionType.setWrap:
-          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
-          _setColumnPresentationForIndex(
-            col,
-            wrapLines: (action.lines ?? 2).clamp(1, 3),
-          );
-          applied += 1;
-          lastCol = col;
-          break;
-        case FlowBotActionType.applyStatus:
-          final targets = _batchTargetRows();
-          final statusCol =
-              _statusColumnForBatchActions() ?? _selCol.clamp(0, dataCols - 1);
-          final value = (action.status ?? '').trim();
-          if (targets.isEmpty || value.isEmpty) continue;
-          for (final row in targets) {
-            if (row < 0 || row >= _rows.length) continue;
-            _setCell(row, statusCol, value);
-            applied += 1;
-            lastRow = row;
-            lastCol = statusCol;
-          }
-          break;
-        case FlowBotActionType.setToday:
-          final targets = _batchTargetRows();
-          final dateCol = _firstColumnByType(_ColType.date) ??
-              _selCol.clamp(0, dataCols - 1);
-          final value = _flowBotDateText(action.format);
-          for (final row in targets) {
-            if (row < 0 || row >= _rows.length) continue;
-            _setCell(row, dateCol, value);
-            applied += 1;
-            lastRow = row;
-            lastCol = dateCol;
-          }
-          break;
-        case FlowBotActionType.autoId:
-          final targets = (() {
-            final explicitCount = action.count;
-            if (explicitCount != null && explicitCount > 0) {
-              final startRow = _selRow.clamp(0, math.max(_rows.length, 1) - 1);
-              final rows = <int>[];
-              for (int i = 0; i < explicitCount; i++) {
-                rows.add(startRow + i);
-              }
-              return rows;
-            }
-            return _batchTargetRows();
-          }());
-          if (targets.isEmpty) continue;
-          final col = _selCol.clamp(0, dataCols - 1);
-          final base = action.start ?? 1;
-          final step = (action.step ?? 1) == 0 ? 1 : (action.step ?? 1);
-          var index = 0;
-          for (final row in targets) {
+    try {
+      for (final action in actions) {
+        switch (action.type) {
+          case FlowBotActionType.setCell:
+            final row = action.row ?? _selRow;
+            final col = action.col ?? _selCol;
+            if (col < 0 || col >= dataCols) continue;
             while (row >= _rows.length) {
               _insertRow(_rows.length);
+              changed = true;
             }
             if (row < 0 || row >= _rows.length) continue;
-            final value = (base + (index * step)).toString();
-            _setCell(row, col, value);
+            _setCell(row, col, action.value ?? '');
             applied += 1;
+            changed = true;
             lastRow = row;
             lastCol = col;
-            index++;
-          }
-          break;
-        case FlowBotActionType.copyGps:
-          if (_rows.isEmpty) continue;
-          final sourceRow =
-              (action.fromRow ?? _selRow).clamp(0, _rows.length - 1);
-          final sourceCol = _selCol.clamp(0, dataCols - 1);
-          final meta = _cellMetaAt(sourceRow, sourceCol)?.gps;
-          if (meta == null) continue;
-          final fix = _GpsFix(
-            lat: meta.lat,
-            lng: meta.lng,
-            accuracyM: meta.accuracyM,
-            ts: meta.timestamp,
-            source: meta.source,
-            provider: meta.provider,
-          );
-          for (final row in _batchTargetRows()) {
-            if (row < 0 || row >= _rows.length) continue;
-            _applyGpsFixToCell(
-              row,
-              sourceCol,
-              fix,
-              writeText: true,
-              announce: false,
+            break;
+          case FlowBotActionType.fillRange:
+            final startRow = action.row ?? _selRow;
+            final startCol = (action.col ?? _selCol).clamp(0, dataCols - 1);
+            if (startRow < 0) continue;
+            final count = (action.count ?? 1).clamp(1, 500);
+            final endRow = (action.rowEnd == null)
+                ? startRow + count - 1
+                : math.max(startRow, action.rowEnd!);
+            final endCol = action.colEnd == null
+                ? startCol
+                : (action.colEnd!).clamp(startCol, dataCols - 1);
+            for (int rr = startRow; rr <= endRow; rr++) {
+              while (rr >= _rows.length) {
+                _insertRow(_rows.length);
+                changed = true;
+              }
+              for (int cc = startCol; cc <= endCol; cc++) {
+                _setCell(rr, cc, action.value ?? '');
+                applied += 1;
+                changed = true;
+                lastRow = rr;
+                lastCol = cc;
+              }
+            }
+            break;
+          case FlowBotActionType.addRow:
+            final count = (action.count ?? 1).clamp(1, 500);
+            for (int i = 0; i < count; i++) {
+              _insertRow(_rows.length);
+              final insertedRow = (_rows.length - 1).clamp(0, _rows.length - 1);
+              applied += 1;
+              changed = true;
+              lastRow = insertedRow;
+              final assignments = _parseFlowBotColumnAssignments(action.value);
+              assignments.forEach((col, rawValue) {
+                if (col < 0 || col >= dataCols) return;
+                _setCell(insertedRow, col, rawValue);
+                applied += 1;
+                changed = true;
+                lastCol = col;
+              });
+            }
+            break;
+          case FlowBotActionType.clearSelection:
+            final rows = _batchTargetRows();
+            if (rows.isEmpty) continue;
+            final col = _selCol.clamp(0, dataCols - 1);
+            for (final row in rows) {
+              if (row < 0 || row >= _rows.length) continue;
+              _setCell(row, col, '');
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = col;
+            }
+            break;
+          case FlowBotActionType.clearRow:
+            if (_rows.isEmpty) continue;
+            final row = _selRow.clamp(0, _rows.length - 1);
+            for (int col = 0; col < dataCols; col++) {
+              _setCell(row, col, '');
+              applied += 1;
+              changed = true;
+              lastCol = col;
+            }
+            lastRow = row;
+            break;
+          case FlowBotActionType.setColumnAlign:
+            final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+            final align = _gridTextAlignXFromStorageName(action.align);
+            _setColumnPresentationForIndex(
+              col,
+              textAlign: align,
+              verticalAlign: _GridTextAlignY.middle,
             );
             applied += 1;
+            changed = true;
+            lastCol = col;
+            break;
+          case FlowBotActionType.setWrap:
+            final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+            _setColumnPresentationForIndex(
+              col,
+              wrapLines: (action.lines ?? 2).clamp(1, 3),
+            );
+            applied += 1;
+            changed = true;
+            lastCol = col;
+            break;
+          case FlowBotActionType.applyStatus:
+            final targets = _batchTargetRows();
+            final statusCol = _statusColumnForBatchActions() ??
+                _selCol.clamp(0, dataCols - 1);
+            final value = (action.status ?? '').trim();
+            if (targets.isEmpty || value.isEmpty) continue;
+            for (final row in targets) {
+              if (row < 0 || row >= _rows.length) continue;
+              _setCell(row, statusCol, value);
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = statusCol;
+            }
+            break;
+          case FlowBotActionType.setToday:
+            final scope = _normalizeFlowBotToken(action.value ?? '');
+            final targets = scope.contains('columna')
+                ? List<int>.generate(_rows.length, (index) => index)
+                : scope.contains('celda activa')
+                    ? <int>[_selRow]
+                    : _batchTargetRows();
+            final dateCol = _firstColumnByType(_ColType.date) ??
+                _selCol.clamp(0, dataCols - 1);
+            final value = _flowBotDateText(action.format);
+            for (final row in targets) {
+              if (row < 0 || row >= _rows.length) continue;
+              _setCell(row, dateCol, value);
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = dateCol;
+            }
+            break;
+          case FlowBotActionType.autoId:
+            final targets = (() {
+              final explicitCount = action.count;
+              if (explicitCount != null && explicitCount > 0) {
+                final startRow =
+                    _selRow.clamp(0, math.max(_rows.length, 1) - 1);
+                final rows = <int>[];
+                for (int i = 0; i < explicitCount; i++) {
+                  rows.add(startRow + i);
+                }
+                return rows;
+              }
+              return _batchTargetRows();
+            }());
+            if (targets.isEmpty) continue;
+            final detectedCol = action.column ??
+                _firstColumnMatchingFlowBotName('progresiva') ??
+                _selCol;
+            final col = detectedCol.clamp(0, dataCols - 1);
+            final base = action.start ?? 1;
+            final step = (action.step ?? 1) == 0 ? 1 : (action.step ?? 1);
+            var index = 0;
+            for (final row in targets) {
+              while (row >= _rows.length) {
+                _insertRow(_rows.length);
+                changed = true;
+              }
+              if (row < 0 || row >= _rows.length) continue;
+              final value = (base + (index * step)).toString();
+              _setCell(row, col, value);
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = col;
+              index++;
+            }
+            break;
+          case FlowBotActionType.copyGps:
+            if (_rows.isEmpty) continue;
+            final sourceRow =
+                (action.fromRow ?? _selRow).clamp(0, _rows.length - 1);
+            final sourceCol = _selCol.clamp(0, dataCols - 1);
+            final meta = _cellMetaAt(sourceRow, sourceCol)?.gps;
+            if (meta == null) continue;
+            final fix = _GpsFix(
+              lat: meta.lat,
+              lng: meta.lng,
+              accuracyM: meta.accuracyM,
+              ts: meta.timestamp,
+              source: meta.source,
+              provider: meta.provider,
+            );
+            for (final row in _batchTargetRows()) {
+              if (row < 0 || row >= _rows.length) continue;
+              _applyGpsFixToCell(
+                row,
+                sourceCol,
+                fix,
+                writeText: true,
+                announce: false,
+              );
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = sourceCol;
+            }
+            break;
+          case FlowBotActionType.duplicateRow:
+            if (_rows.isEmpty) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            final count = (action.count ?? 1).clamp(1, 100);
+            _duplicateRowMultiple(row, times: count, announce: false);
+            applied += count;
+            changed = true;
+            lastRow = (row + count).clamp(0, _rows.length - 1);
+            break;
+          case FlowBotActionType.attachPhotoToCell:
+            if (_rows.isEmpty) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            final col = (action.col ?? _selCol).clamp(0, dataCols - 1);
+            await _startPhotoFlowForCell(row, col);
+            applied += 1;
+            changed = true;
             lastRow = row;
-            lastCol = sourceCol;
-          }
-          break;
-        case FlowBotActionType.duplicateRow:
-          if (_rows.isEmpty) continue;
-          final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
-          final count = (action.count ?? 1).clamp(1, 100);
-          _duplicateRowMultiple(row, times: count, announce: false);
-          applied += count;
-          lastRow = (row + count).clamp(0, _rows.length - 1);
-          break;
-        case FlowBotActionType.attachPhotoToCell:
-          if (_rows.isEmpty) continue;
-          final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
-          final col = (action.col ?? _selCol).clamp(0, dataCols - 1);
-          await _startPhotoFlowForCell(row, col);
-          applied += 1;
-          lastRow = row;
-          lastCol = col;
-          break;
-        case FlowBotActionType.exportPdfPreset:
-          final preset = (action.presetId ?? 'default').trim().toLowerCase();
-          await _exportPdf(
-            includeAttachments: preset != 'lite',
-            share: false,
-          );
-          applied += 1;
-          break;
-        case FlowBotActionType.pasteTable:
-          final pasteResult = await _pasteTableSmartFromClipboard(
-            emitFeedback: false,
-            interactivePreview: false,
-          );
-          if (pasteResult.ok && pasteResult.applied > 0) {
-            applied += pasteResult.applied;
-            lastRow = _selRow;
-            lastCol = _selCol;
-          }
-          break;
-        case FlowBotActionType.exportBundle:
-          await _exportZipBundle(share: false);
-          applied += 1;
-          break;
+            lastCol = col;
+            break;
+          case FlowBotActionType.exportPdfPreset:
+            final preset = (action.presetId ?? 'default').trim().toLowerCase();
+            await _exportPdf(
+              includeAttachments: preset != 'lite',
+              share: false,
+            );
+            applied += 1;
+            break;
+          case FlowBotActionType.pasteTable:
+            final pasteResult = await _pasteTableSmartFromClipboard(
+              emitFeedback: false,
+              interactivePreview: false,
+            );
+            if (pasteResult.ok && pasteResult.applied > 0) {
+              applied += pasteResult.applied;
+              changed = true;
+              lastRow = _selRow;
+              lastCol = _selCol;
+            }
+            break;
+          case FlowBotActionType.exportBundle:
+            await _exportZipBundle(share: false);
+            applied += 1;
+            break;
+        }
       }
+    } finally {
+      _suspendUndoSnapshot = previousUndoFlag;
+    }
+
+    if (changed) {
+      _pushUndoSnapshot();
     }
 
     if (_rows.isNotEmpty) {
@@ -13239,7 +13320,9 @@ class _EditorScreenState extends State<EditorScreen>
     });
     _updateSaveStatus();
     _insertMobileRowCache(idx);
-    _pushUndoSnapshot();
+    if (!_suspendUndoSnapshot) {
+      _pushUndoSnapshot();
+    }
     _queueSave();
     _addHistoryEvent(
       type: 'insert_row',
@@ -13270,6 +13353,57 @@ class _EditorScreenState extends State<EditorScreen>
       if (_colType(c) == type) return c;
     }
     return null;
+  }
+
+  String _normalizeFlowBotToken(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower.isEmpty) return '';
+    final map = <String, String>{
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
+    };
+    final sb = StringBuffer();
+    for (final rune in lower.runes) {
+      final ch = String.fromCharCode(rune);
+      sb.write(map[ch] ?? ch);
+    }
+    return sb.toString().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  }
+
+  int? _firstColumnMatchingFlowBotName(String name) {
+    final query = _normalizeFlowBotToken(name);
+    if (query.isEmpty) return null;
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final label = _normalizeFlowBotToken(_headerLabel(c));
+      if (label == query || label.contains(query) || query.contains(label)) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  Map<int, String> _parseFlowBotColumnAssignments(String? raw) {
+    final out = <int, String>{};
+    final text = raw?.trim() ?? '';
+    if (text.isEmpty) return out;
+    for (final chunk in text.split(',')) {
+      final pair = chunk.trim();
+      if (pair.isEmpty) continue;
+      final separator = pair.indexOf('=');
+      if (separator <= 0 || separator >= pair.length - 1) continue;
+      final key = pair.substring(0, separator).trim();
+      final value = pair.substring(separator + 1).trim();
+      if (key.isEmpty) continue;
+      final col = _firstColumnMatchingFlowBotName(key);
+      if (col == null) continue;
+      out[col] = value;
+    }
+    return out;
   }
 
   Future<void> _openRowFormMode({int? rowIndex, bool createNew = false}) async {

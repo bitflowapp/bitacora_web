@@ -35,6 +35,10 @@ Runtime behavior:
 | FlowBot sheet | `Analizar` | Always returns plan or warning |
 | FlowBot sheet | `Aplicar` | Disabled with reason if invalid; applies real actions when valid |
 | FlowBot actions | `addRow/pasteTable` | Wired to real editor changes (`new record`, `smart paste`) |
+| FlowBot actions | `fila nueva: campo=valor` | Inserta fila + mapea campos por nombre de columna |
+| FlowBot actions | `fecha hoy (seleccion/columna/celda)` | Aplica fecha en scope real, con feedback |
+| FlowBot actions | `autonumerar progresiva desde N paso P` | Serie real sobre columna progresiva/activa |
+| FlowBot actions | `limpiar seleccion` / `limpiar fila` | Limpia celdas reales, no-op eliminado |
 | Command palette | `Centrar columna activa` | If no celda activa editable => explicit reason |
 | Command palette | `Duplicar fila activa` | If no fila activa => explicit reason |
 | Command palette | `Rellenar hacia abajo` | If no celda activa => explicit reason |
@@ -78,3 +82,4 @@ Runtime behavior:
 
 - No outbound HTTP is introduced by these UI actions.
 - Existing `flutter_test_config.dart` HTTP block remains active by default.
+- New parser/widget tests cover FlowBot offline commands (`fila nueva`, `fecha hoy`, `autonumerar`, `limpiar`).
