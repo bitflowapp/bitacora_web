@@ -8,6 +8,8 @@ enum FlowBotActionType {
   setCell,
   fillRange,
   addRow,
+  clearSelection,
+  clearRow,
   setColumnAlign,
   setWrap,
   applyStatus,
@@ -94,6 +96,8 @@ class FlowBotAction {
       'insert_row' ||
       'new_row' =>
         FlowBotActionType.addRow,
+      'clear_selection' || 'clearselection' => FlowBotActionType.clearSelection,
+      'clear_row' || 'clearrow' => FlowBotActionType.clearRow,
       'set_column_align' ||
       'setcolumnalign' ||
       'column_align' =>
@@ -151,7 +155,15 @@ class FlowBotAction {
           colEnd: colEnd,
         );
       case FlowBotActionType.addRow:
-        return FlowBotAction(type: type, count: (count ?? 1).clamp(1, 500));
+        return FlowBotAction(
+          type: type,
+          count: (count ?? 1).clamp(1, 500),
+          value: value,
+        );
+      case FlowBotActionType.clearSelection:
+        return FlowBotAction(type: type);
+      case FlowBotActionType.clearRow:
+        return FlowBotAction(type: type);
       case FlowBotActionType.setColumnAlign:
         if (column == null || (align ?? '').trim().isEmpty) return null;
         return FlowBotAction(type: type, column: column, align: align);
@@ -164,7 +176,13 @@ class FlowBotAction {
       case FlowBotActionType.setToday:
         return FlowBotAction(type: type, format: format);
       case FlowBotActionType.autoId:
-        return FlowBotAction(type: type, start: start, step: step);
+        return FlowBotAction(
+          type: type,
+          start: start,
+          step: step,
+          count: count,
+          column: column,
+        );
       case FlowBotActionType.copyGps:
         return FlowBotAction(type: type, fromRow: fromRow);
       case FlowBotActionType.duplicateRow:
@@ -236,20 +254,48 @@ class RuleBasedFlowBot {
 
     final actions = <FlowBotAction>[];
     final normalized = input.toLowerCase();
+    var parseInput = input;
+
+    final newRowWithValues = _newRowWithValuesRegex.firstMatch(input);
+    if (newRowWithValues != null) {
+      final payload = (newRowWithValues.group(1) ?? '').trim();
+      actions.add(
+        FlowBotAction(
+          type: FlowBotActionType.addRow,
+          count: 1,
+          value: payload,
+        ),
+      );
+      parseInput = input.replaceFirst(newRowWithValues.group(0)!, '').trim();
+    }
 
     if (_containsAny(normalized, const <String>[
-      'agregar fila',
-      'nueva fila',
-      'fila nueva',
-      'nuevo registro',
-    ])) {
+          'agregar fila',
+          'nueva fila',
+          'fila nueva',
+          'nuevo registro',
+        ]) &&
+        newRowWithValues == null) {
       actions
           .add(const FlowBotAction(type: FlowBotActionType.addRow, count: 1));
     }
 
-    for (final segment in _splitCommands(input)) {
+    for (final segment in _splitCommands(parseInput)) {
       final cmd = segment.trim();
       if (cmd.isEmpty) continue;
+
+      final clearSelection = _clearSelectionRegex.firstMatch(cmd);
+      if (clearSelection != null) {
+        actions
+            .add(const FlowBotAction(type: FlowBotActionType.clearSelection));
+        continue;
+      }
+
+      final clearRow = _clearRowRegex.firstMatch(cmd);
+      if (clearRow != null) {
+        actions.add(const FlowBotAction(type: FlowBotActionType.clearRow));
+        continue;
+      }
 
       final fillSeries = _fillSeriesRegex.firstMatch(cmd);
       if (fillSeries != null) {
@@ -263,6 +309,20 @@ class RuleBasedFlowBot {
             start: start,
             step: step == 0 ? 1 : step,
             count: count.clamp(1, 500),
+          ),
+        );
+        continue;
+      }
+
+      final autonumber = _autonumberRegex.firstMatch(cmd);
+      if (autonumber != null) {
+        final start = int.tryParse(autonumber.group(1) ?? '') ?? 1;
+        final step = int.tryParse(autonumber.group(2) ?? '') ?? 1;
+        actions.add(
+          FlowBotAction(
+            type: FlowBotActionType.autoId,
+            start: start,
+            step: step == 0 ? 1 : step,
           ),
         );
         continue;
@@ -381,10 +441,12 @@ class RuleBasedFlowBot {
       final setToday = _setTodayRegex.firstMatch(cmd);
       if (setToday != null) {
         final format = (setToday.group(1) ?? '').trim();
+        final scope = (setToday.group(2) ?? '').trim().toLowerCase();
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.setToday,
             format: format.isEmpty ? null : format,
+            value: scope.isEmpty ? null : scope,
           ),
         );
         continue;
@@ -650,13 +712,33 @@ class RuleBasedFlowBot {
     caseSensitive: false,
   );
 
+  static final RegExp _newRowWithValuesRegex = RegExp(
+    r'^fila\s+nueva\s*:\s*(.+)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _clearSelectionRegex = RegExp(
+    r'^(?:limpiar|borrar)\s+(?:seleccion|selección)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _clearRowRegex = RegExp(
+    r'^(?:limpiar|borrar)\s+fila(?:\s+actual)?$',
+    caseSensitive: false,
+  );
+
   static final RegExp _setTodayRegex = RegExp(
-    r'^(?:hoy|fecha(?:\s+hoy)?|set today)(?:\s+formato\s+([a-zA-Z0-9:/._-]+))?$',
+    r'^(?:hoy|fecha(?:\s+hoy)?|set today)(?:\s+formato\s+([a-zA-Z0-9:/._-]+))?(?:\s+(seleccion|selección|columna(?:\s+completa)?|celda\s+activa))?$',
     caseSensitive: false,
   );
 
   static final RegExp _autoIdRegex = RegExp(
     r'^(?:autoid|id auto|autoid)(?:\s+desde\s*(\d+))?(?:\s+paso\s*(\d+))?$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _autonumberRegex = RegExp(
+    r'^autonumerar(?:\s+progresiva)?(?:\s+desde\s*(\d+))?(?:\s+paso\s*(\d+))?$',
     caseSensitive: false,
   );
 
