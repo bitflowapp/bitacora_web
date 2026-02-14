@@ -172,6 +172,24 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openFlowBotSheet()),
         ),
         CommandAction(
+          id: 'flowbot_save_macro',
+          label: 'Guardar macro FlowBot',
+          subtitle: 'Guarda el ultimo comando FlowBot valido',
+          icon: Icons.bookmark_add_rounded,
+          onSelected: () => unawaited(_saveCurrentFlowBotMacro()),
+        ),
+        CommandAction(
+          id: 'toggle_field_mode',
+          label: _fieldModeEnabled
+              ? 'Desactivar modo campo'
+              : 'Activar modo campo',
+          subtitle: 'UI limpia + movimiento reducido + FAB simplificado',
+          icon: _fieldModeEnabled
+              ? Icons.terrain_rounded
+              : Icons.landscape_rounded,
+          onSelected: () => unawaited(_toggleFieldMode()),
+        ),
+        CommandAction(
           id: 'form_mode',
           label: 'Formulario de fila',
           subtitle: 'Editar fila activa con inputs por tipo',
@@ -454,6 +472,25 @@ extension _EditorActions on _EditorScreenState {
           label: 'Ver tour rapido',
           icon: Icons.explore_outlined,
           onSelected: _reopenEditorTour,
+        ),
+        ..._flowBotMacros.map(
+          (macro) => CommandAction(
+            id: 'flowbot_macro_run_${macro.name.toLowerCase().replaceAll(' ', '_')}',
+            label: 'Macro: ${macro.name}',
+            subtitle: macro.command,
+            icon: Icons.flash_on_rounded,
+            onSelected: () =>
+                unawaited(_runFlowBotCommandDirect(macro.command)),
+          ),
+        ),
+        ..._flowBotMacros.map(
+          (macro) => CommandAction(
+            id: 'flowbot_macro_delete_${macro.name.toLowerCase().replaceAll(' ', '_')}',
+            label: 'Eliminar macro: ${macro.name}',
+            subtitle: 'Quitar macro guardada',
+            icon: Icons.delete_outline_rounded,
+            onSelected: () => unawaited(_removeFlowBotMacro(macro.name)),
+          ),
         ),
       ],
     );
