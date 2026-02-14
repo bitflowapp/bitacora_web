@@ -706,6 +706,7 @@ class _MobileExpandableFabMenu extends StatelessWidget {
     required this.onMainTap,
     required this.onDismiss,
     required this.actions,
+    this.forceReducedMotion = false,
   });
 
   final _SheetPalette palette;
@@ -715,10 +716,12 @@ class _MobileExpandableFabMenu extends StatelessWidget {
   final VoidCallback onMainTap;
   final VoidCallback onDismiss;
   final List<_MobileFabAction> actions;
+  final bool forceReducedMotion;
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final reduceMotion =
+        forceReducedMotion || MediaQuery.of(context).disableAnimations;
     final openDuration = reduceMotion ? Duration.zero : AppMotion.quick;
     return Stack(
       children: [

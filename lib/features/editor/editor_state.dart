@@ -46,10 +46,13 @@ const String _kPrefFlowBotUseLocalLlm =
 const String _kPrefFlowBotLocalModelPath =
     'bitflow.editor.flowbot.local_model_path.v1';
 const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
+const String _kPrefFlowBotLastScope = 'bitflow.editor.flowbot.last_scope.v1';
+const String _kPrefFlowBotMacros = 'bitflow.editor.flowbot.macros.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
 const String _kPrefZenMode = 'bitflow.editor.zen_mode.v1';
 const String _kPrefMobileFocusCellMode =
     'bitflow.editor.mobile_focus_cell_mode.v1';
+const String _kPrefFieldMode = 'bitflow.editor.field_mode.v1';
 
 enum _OverlayMove { none, next, prev, down, up }
 
@@ -458,6 +461,10 @@ class _EditorScreenState extends State<EditorScreen>
   double _flowBotModelDownloadProgress = 0;
   static const int _maxFlowBotHistoryItems = 12;
   final List<String> _flowBotHistory = <String>[];
+  final List<FlowBotMacroPreset> _flowBotMacros = <FlowBotMacroPreset>[];
+  String _flowBotLastScope = 'seleccion';
+  String _lastFlowBotValidCommand = '';
+  bool _fieldModeEnabled = false;
   final RuleBasedFlowBot _flowBotRuleEngine = const RuleBasedFlowBot();
   final FlowBotLocalLlmEngine _flowBotLocalLlmEngine = FlowBotLocalLlmEngine();
   final FlowBotLocalModelManager _flowBotLocalModelManager =
@@ -596,6 +603,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGridDensity());
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadFlowBotHistoryPrefs());
+    unawaited(_loadFlowBotUiPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
     unawaited(_loadColumnTemplatesPref());
@@ -2138,6 +2146,153 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
     unawaited(_saveFlowBotHistoryPrefs());
+  }
+
+  String _normalizeFlowBotScopeToken(String raw) {
+    final normalized = _normalizeFlowBotToken(raw);
+    if (normalized.contains('celda')) return 'celda';
+    if (normalized.contains('fila')) return 'fila';
+    if (normalized.contains('columna')) return 'columna';
+    return 'seleccion';
+  }
+
+  Future<void> _loadFlowBotUiPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedScope = _normalizeFlowBotScopeToken(
+          prefs.getString(_kPrefFlowBotLastScope) ?? '');
+      final fieldMode = prefs.getBool(_kPrefFieldMode) ?? _fieldModeEnabled;
+      final macrosRaw = prefs.getString(_kPrefFlowBotMacros);
+      final macros = FlowBotMacroStore.decode(macrosRaw ?? '', maxItems: 24);
+      if (!mounted) {
+        _flowBotLastScope = savedScope;
+        _fieldModeEnabled = fieldMode;
+        _flowBotMacros
+          ..clear()
+          ..addAll(macros);
+        return;
+      }
+      setState(() {
+        _flowBotLastScope = savedScope;
+        _fieldModeEnabled = fieldMode;
+        _flowBotMacros
+          ..clear()
+          ..addAll(macros);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveFlowBotUiPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefFlowBotLastScope, _flowBotLastScope);
+      await prefs.setBool(_kPrefFieldMode, _fieldModeEnabled);
+      await prefs.setString(
+        _kPrefFlowBotMacros,
+        FlowBotMacroStore.encode(_flowBotMacros),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _setFlowBotLastScope(String scope) async {
+    final next = _normalizeFlowBotScopeToken(scope);
+    if (_flowBotLastScope == next) return;
+    if (mounted) {
+      setState(() => _flowBotLastScope = next);
+    } else {
+      _flowBotLastScope = next;
+    }
+    await _saveFlowBotUiPrefs();
+  }
+
+  Future<void> _toggleFieldMode() async {
+    final next = !_fieldModeEnabled;
+    if (mounted) {
+      setState(() => _fieldModeEnabled = next);
+    } else {
+      _fieldModeEnabled = next;
+    }
+    await _setEditorDefaultRules(mobileCompactModeEnabled: true);
+    await _setGridDensity(next ? _GridDensity.roomy : _GridDensity.normal);
+    await _saveFlowBotUiPrefs();
+    if (!mounted) return;
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: next
+            ? 'Modo campo activado: UI simplificada y movimiento reducido.'
+            : 'Modo campo desactivado.',
+      ),
+      successIcon: Icons.terrain_rounded,
+    );
+  }
+
+  List<FlowBotAction> _applyScopeToFlowBotActions(
+    List<FlowBotAction> actions,
+    String scope,
+  ) {
+    final normalizedScope = _normalizeFlowBotScopeToken(scope);
+    return actions.map((action) {
+      if (action.type == FlowBotActionType.setToday) {
+        final value = switch (normalizedScope) {
+          'celda' => 'celda activa',
+          'fila' => 'fila',
+          'columna' => 'columna completa',
+          _ => 'seleccion',
+        };
+        return FlowBotAction(
+          type: action.type,
+          format: action.format,
+          value: value,
+          row: action.row,
+          col: action.col,
+          rowEnd: action.rowEnd,
+          colEnd: action.colEnd,
+          column: action.column,
+          count: action.count,
+          align: action.align,
+          lines: action.lines,
+          status: action.status,
+          start: action.start,
+          step: action.step,
+          fromRow: action.fromRow,
+          presetId: action.presetId,
+        );
+      }
+      if (action.type == FlowBotActionType.clearSelection ||
+          action.type == FlowBotActionType.clearRow) {
+        return FlowBotAction(
+          type: action.type,
+          value: normalizedScope,
+          row: action.row,
+          col: action.col,
+          rowEnd: action.rowEnd,
+          colEnd: action.colEnd,
+          column: action.column,
+          count: action.count,
+          align: action.align,
+          lines: action.lines,
+          status: action.status,
+          format: action.format,
+          start: action.start,
+          step: action.step,
+          fromRow: action.fromRow,
+          presetId: action.presetId,
+        );
+      }
+      return action;
+    }).toList(growable: false);
+  }
+
+  bool _flowBotActionsSupportScope(List<FlowBotAction> actions) {
+    for (final action in actions) {
+      if (action.type == FlowBotActionType.setToday ||
+          action.type == FlowBotActionType.clearSelection ||
+          action.type == FlowBotActionType.clearRow) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<bool> _flowBotHasLocalModel() async {
@@ -4712,6 +4867,160 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  List<({int row, int col, String before, String after})>
+      _flowBotPreviewPatches(
+    List<FlowBotAction> actions,
+  ) {
+    final patches = <({int row, int col, String before, String after})>[];
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return patches;
+
+    void addPatch(int row, int col, String after) {
+      if (row < 0 || col < 0 || col >= dataCols) return;
+      final before =
+          row >= 0 && row < _rows.length ? _getCellText(row, col) : '';
+      patches.add((row: row, col: col, before: before, after: after));
+    }
+
+    for (final action in actions) {
+      switch (action.type) {
+        case FlowBotActionType.setCell:
+          addPatch(
+              action.row ?? _selRow, action.col ?? _selCol, action.value ?? '');
+          break;
+        case FlowBotActionType.fillRange:
+          final startRow = action.row ?? _selRow;
+          final startCol = (action.col ?? _selCol).clamp(0, dataCols - 1);
+          final count = (action.count ?? 1).clamp(1, 500);
+          final endRow = action.rowEnd ?? (startRow + count - 1);
+          final endCol = action.colEnd ?? startCol;
+          for (int r = startRow; r <= endRow; r++) {
+            for (int c = startCol; c <= endCol && c < dataCols; c++) {
+              addPatch(r, c, action.value ?? '');
+            }
+          }
+          break;
+        case FlowBotActionType.setToday:
+          final scope =
+              _normalizeFlowBotScopeToken(action.value ?? _flowBotLastScope);
+          final col = (_firstColumnByType(_ColType.date) ?? _selCol)
+              .clamp(0, dataCols - 1);
+          final after = _flowBotDateText(action.format);
+          final rows = switch (scope) {
+            'columna' => List<int>.generate(_rows.length, (index) => index),
+            'fila' => <int>[_selRow],
+            'celda' => <int>[_selRow],
+            _ => _batchTargetRows(),
+          };
+          for (final r in rows) {
+            addPatch(r, col, after);
+          }
+          break;
+        case FlowBotActionType.clearSelection:
+        case FlowBotActionType.clearRow:
+          final scope =
+              _normalizeFlowBotScopeToken(action.value ?? _flowBotLastScope);
+          final rows = switch (scope) {
+            'columna' => List<int>.generate(_rows.length, (index) => index),
+            'fila' => <int>[_selRow],
+            'celda' => <int>[_selRow],
+            _ => _batchTargetRows(),
+          };
+          if (action.type == FlowBotActionType.clearRow || scope == 'fila') {
+            for (final r in rows) {
+              for (int c = 0; c < dataCols; c++) {
+                addPatch(r, c, '');
+              }
+            }
+          } else {
+            final col = _selCol.clamp(0, dataCols - 1);
+            for (final r in rows) {
+              addPatch(r, col, '');
+            }
+          }
+          break;
+        case FlowBotActionType.addRow:
+          final r = _rows.length;
+          addPatch(r, _selCol.clamp(0, dataCols - 1), '(nueva fila)');
+          break;
+        case FlowBotActionType.autoId:
+          final col = (action.column ??
+                  _firstColumnMatchingFlowBotName('progresiva') ??
+                  _selCol)
+              .clamp(0, dataCols - 1);
+          final start = action.start ?? 1;
+          final step = action.step ?? 1;
+          final rows = _batchTargetRows();
+          for (int i = 0; i < rows.length; i++) {
+            addPatch(rows[i], col, '${start + (i * step)}');
+          }
+          break;
+        case FlowBotActionType.setColumnAlign:
+        case FlowBotActionType.setWrap:
+        case FlowBotActionType.applyStatus:
+        case FlowBotActionType.copyGps:
+        case FlowBotActionType.duplicateRow:
+        case FlowBotActionType.attachPhotoToCell:
+        case FlowBotActionType.exportPdfPreset:
+        case FlowBotActionType.pasteTable:
+        case FlowBotActionType.exportBundle:
+          break;
+      }
+    }
+    return patches;
+  }
+
+  ({int cells, int rows, int cols}) _flowBotPreviewSummary(
+    List<({int row, int col, String before, String after})> patches,
+  ) {
+    final rows = <int>{};
+    final cols = <int>{};
+    for (final patch in patches) {
+      rows.add(patch.row);
+      cols.add(patch.col);
+    }
+    return (cells: patches.length, rows: rows.length, cols: cols.length);
+  }
+
+  Widget _flowBotPreviewHeaderCell(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10.8,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _flowBotPreviewDataCell(
+    String text,
+    Color color, {
+    bool highlighted = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(2, 2, 2, 2),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: highlighted ? color.withValues(alpha: 0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: highlighted ? FontWeight.w700 : FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   bool _isFlowBotApplyIntent(String text) {
     return _flowBotRuleEngine.isApplyConfirmation(text);
   }
@@ -4811,28 +5120,50 @@ class _EditorScreenState extends State<EditorScreen>
             }
             break;
           case FlowBotActionType.clearSelection:
-            final rows = _batchTargetRows();
+            final scope = _normalizeFlowBotScopeToken(action.value ?? '');
+            final rows = switch (scope) {
+              'celda' => <int>[_selRow],
+              'fila' => <int>[_selRow],
+              'columna' => List<int>.generate(_rows.length, (index) => index),
+              _ => _batchTargetRows(),
+            };
             if (rows.isEmpty) continue;
             final col = _selCol.clamp(0, dataCols - 1);
             for (final row in rows) {
               if (row < 0 || row >= _rows.length) continue;
-              _setCell(row, col, '');
-              applied += 1;
-              changed = true;
-              lastRow = row;
-              lastCol = col;
+              if (scope == 'fila') {
+                for (int c = 0; c < dataCols; c++) {
+                  _setCell(row, c, '');
+                  applied += 1;
+                  changed = true;
+                  lastCol = c;
+                }
+                lastRow = row;
+              } else {
+                _setCell(row, col, '');
+                applied += 1;
+                changed = true;
+                lastRow = row;
+                lastCol = col;
+              }
             }
             break;
           case FlowBotActionType.clearRow:
             if (_rows.isEmpty) continue;
-            final row = _selRow.clamp(0, _rows.length - 1);
-            for (int col = 0; col < dataCols; col++) {
-              _setCell(row, col, '');
-              applied += 1;
-              changed = true;
-              lastCol = col;
+            final scope = _normalizeFlowBotScopeToken(action.value ?? 'fila');
+            final targetRows = scope == 'seleccion'
+                ? _batchTargetRows()
+                : <int>[_selRow.clamp(0, _rows.length - 1)];
+            for (final row in targetRows) {
+              if (row < 0 || row >= _rows.length) continue;
+              for (int col = 0; col < dataCols; col++) {
+                _setCell(row, col, '');
+                applied += 1;
+                changed = true;
+                lastCol = col;
+              }
+              lastRow = row;
             }
-            lastRow = row;
             break;
           case FlowBotActionType.setColumnAlign:
             final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
@@ -4877,7 +5208,9 @@ class _EditorScreenState extends State<EditorScreen>
                 ? List<int>.generate(_rows.length, (index) => index)
                 : scope.contains('celda activa')
                     ? <int>[_selRow]
-                    : _batchTargetRows();
+                    : scope.contains('fila')
+                        ? <int>[_selRow]
+                        : _batchTargetRows();
             final dateCol = _firstColumnByType(_ColType.date) ??
                 _selCol.clamp(0, dataCols - 1);
             final value = _flowBotDateText(action.format);
@@ -5025,7 +5358,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (applied > 0) {
       return _ActionResult(
         ok: true,
-        message: 'FlowBot aplico $applied cambio(s).',
+        message: 'Aplicado: $applied cambio(s).',
         applied: applied,
         undoToken: 'flowbot_apply',
       );
@@ -5056,6 +5389,7 @@ class _EditorScreenState extends State<EditorScreen>
         var listening = false;
         var warning = '';
         var level = 0.0;
+        var chosenScope = _flowBotLastScope;
         var activeEngine = _flowBotUseLocalLlm ? 'local_llm' : 'rule_based';
         var localModelReady = _flowBotLocalModelPath.trim().isNotEmpty;
 
@@ -5066,16 +5400,21 @@ class _EditorScreenState extends State<EditorScreen>
               if (text.isEmpty) return;
 
               if (_isFlowBotApplyIntent(text)) {
+                final scopedPreview = _applyScopeToFlowBotActions(
+                  preview,
+                  chosenScope,
+                );
                 final canApply = _flowBotCanApplyPreview(
-                  preview: preview,
+                  preview: scopedPreview,
                   parsing: parsing,
                 );
                 if (canApply) {
-                  Navigator.of(modalCtx).pop(List<FlowBotAction>.from(preview));
+                  Navigator.of(modalCtx)
+                      .pop(List<FlowBotAction>.from(scopedPreview));
                 } else {
                   setModalState(() {
                     warning = _flowBotApplyDisabledReason(
-                      preview: preview,
+                      preview: scopedPreview,
                       parsing: parsing,
                       useLocalLlm: _flowBotUseLocalLlm,
                       localModelReady: localModelReady,
@@ -5097,6 +5436,9 @@ class _EditorScreenState extends State<EditorScreen>
                 warning = result.warning ?? '';
                 activeEngine = result.engine;
               });
+              if (result.actions.isNotEmpty) {
+                _lastFlowBotValidCommand = text;
+              }
               _rememberFlowBotHistory(text);
             }
 
@@ -5144,8 +5486,14 @@ class _EditorScreenState extends State<EditorScreen>
               }
             }
 
+            final scopedPreview = _applyScopeToFlowBotActions(
+              preview,
+              chosenScope,
+            );
+            final previewPatches = _flowBotPreviewPatches(scopedPreview);
+            final summary = _flowBotPreviewSummary(previewPatches);
             final canApply = _flowBotCanApplyPreview(
-              preview: preview,
+              preview: scopedPreview,
               parsing: parsing,
             );
 
@@ -5239,13 +5587,140 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                     ],
                     const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          'Resumen',
+                          style: TextStyle(
+                            color: pal.fg,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
+                          style: TextStyle(
+                            color: pal.fgMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (_flowBotActionsSupportScope(preview))
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final option in const <String>[
+                            'celda',
+                            'seleccion',
+                            'fila',
+                            'columna',
+                          ])
+                            ChoiceChip(
+                              label: Text(
+                                option == 'seleccion' ? 'seleccion' : option,
+                              ),
+                              selected: chosenScope == option,
+                              onSelected: (selected) {
+                                if (!selected) return;
+                                setModalState(() => chosenScope = option);
+                                unawaited(_setFlowBotLastScope(option));
+                              },
+                            ),
+                        ],
+                      ),
+                    if (_flowBotActionsSupportScope(preview))
+                      const SizedBox(height: 6),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 230),
+                      decoration: BoxDecoration(
+                        color: pal.mobileInputBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: pal.border, width: 1),
+                      ),
+                      child: previewPatches.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Text(
+                                'Analiza un comando para ver preview de celdas.',
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.all(8),
+                              child: Table(
+                                defaultVerticalAlignment:
+                                    TableCellVerticalAlignment.middle,
+                                columnWidths: const <int, TableColumnWidth>{
+                                  0: IntrinsicColumnWidth(),
+                                  1: IntrinsicColumnWidth(),
+                                  2: FlexColumnWidth(),
+                                  3: FlexColumnWidth(),
+                                },
+                                children: [
+                                  TableRow(
+                                    children: [
+                                      _flowBotPreviewHeaderCell(
+                                          'Fila', pal.fgMuted),
+                                      _flowBotPreviewHeaderCell(
+                                          'Col', pal.fgMuted),
+                                      _flowBotPreviewHeaderCell(
+                                          'Antes', pal.fgMuted),
+                                      _flowBotPreviewHeaderCell(
+                                          'Despues', pal.fgMuted),
+                                    ],
+                                  ),
+                                  for (final patch in previewPatches.take(5))
+                                    TableRow(
+                                      children: [
+                                        _flowBotPreviewDataCell(
+                                          '${patch.row + 1}',
+                                          pal.fgMuted,
+                                        ),
+                                        _flowBotPreviewDataCell(
+                                          _headerLabel(
+                                            patch.col.clamp(
+                                              0,
+                                              math.max(0, _headers.length - 2),
+                                            ),
+                                          ),
+                                          pal.fgMuted,
+                                        ),
+                                        _flowBotPreviewDataCell(
+                                          patch.before.isEmpty
+                                              ? '""'
+                                              : patch.before,
+                                          pal.fgMuted,
+                                        ),
+                                        _flowBotPreviewDataCell(
+                                          patch.after.isEmpty
+                                              ? '""'
+                                              : patch.after,
+                                          pal.fg,
+                                          highlighted: true,
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 6),
                     ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 180),
+                      constraints: const BoxConstraints(maxHeight: 120),
                       child: ListView.builder(
                         shrinkWrap: true,
-                        itemCount: preview.length,
+                        itemCount: scopedPreview.length,
                         itemBuilder: (itemCtx, index) {
-                          final action = preview[index];
+                          final action = scopedPreview[index];
                           return ListTile(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
@@ -5381,7 +5856,7 @@ class _EditorScreenState extends State<EditorScreen>
                           variant: AppleButtonVariant.filled,
                           onPressed: canApply
                               ? () => Navigator.of(modalCtx).pop(
-                                    List<FlowBotAction>.from(preview),
+                                    List<FlowBotAction>.from(scopedPreview),
                                   )
                               : null,
                         ),
@@ -5391,7 +5866,7 @@ class _EditorScreenState extends State<EditorScreen>
                       const SizedBox(height: 6),
                       Text(
                         _flowBotApplyDisabledReason(
-                          preview: preview,
+                          preview: scopedPreview,
                           parsing: parsing,
                           useLocalLlm: _flowBotUseLocalLlm,
                           localModelReady: localModelReady,
@@ -5434,6 +5909,159 @@ class _EditorScreenState extends State<EditorScreen>
       successIcon: Icons.auto_awesome_rounded,
       failureIcon: Icons.warning_amber_rounded,
       onUndo: _undoOnce,
+    );
+  }
+
+  Future<void> _runFlowBotCommandDirect(String command) async {
+    final text = command.trim();
+    if (text.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(ok: false, message: 'Comando vacio.'),
+        failureIcon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
+    final parsed = await _parseFlowBotCommand(text);
+    if (parsed.actions.isEmpty) {
+      _emitActionResult(
+        _ActionResult(
+          ok: false,
+          message: parsed.warning ?? 'FlowBot no detecto acciones aplicables.',
+        ),
+        failureIcon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
+    _rememberFlowBotHistory(text);
+    _lastFlowBotValidCommand = text;
+    final scoped =
+        _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
+    final applied = await _applyFlowBotActions(scoped);
+    if (!mounted) return;
+    _emitActionResult(
+      _flowBotResultForAppliedChanges(applied),
+      successIcon: Icons.auto_awesome_rounded,
+      failureIcon: Icons.warning_amber_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
+  Future<void> _saveCurrentFlowBotMacro() async {
+    final command = _lastFlowBotValidCommand.trim();
+    if (command.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Primero analiza/aplica un comando FlowBot valido.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+    final nameEC = TextEditingController(
+      text: 'Macro ${_flowBotMacros.length + 1}',
+    );
+    final accepted = await showAppModal<bool>(
+      context: context,
+      title: 'Guardar macro',
+      child: TextField(
+        controller: nameEC,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Nombre de macro'),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: 'Guardar',
+          icon: Icons.bookmark_add_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final name = nameEC.text.trim();
+    nameEC.dispose();
+    if (accepted != true || name.isEmpty) return;
+
+    await _upsertFlowBotMacro(
+      name: name,
+      command: command,
+      emitFeedback: true,
+    );
+  }
+
+  Future<void> _upsertFlowBotMacro({
+    required String name,
+    required String command,
+    required bool emitFeedback,
+  }) async {
+    final safeName = name.trim();
+    final safeCommand = command.trim();
+    if (safeName.isEmpty || safeCommand.isEmpty) return;
+    final nextMacro = FlowBotMacroPreset(name: safeName, command: safeCommand);
+    if (mounted) {
+      setState(() {
+        _flowBotMacros.removeWhere(
+          (m) => m.name.toLowerCase() == safeName.toLowerCase(),
+        );
+        _flowBotMacros.insert(0, nextMacro);
+        if (_flowBotMacros.length > 24) {
+          _flowBotMacros.removeRange(24, _flowBotMacros.length);
+        }
+      });
+    } else {
+      _flowBotMacros.removeWhere(
+        (m) => m.name.toLowerCase() == safeName.toLowerCase(),
+      );
+      _flowBotMacros.insert(0, nextMacro);
+      if (_flowBotMacros.length > 24) {
+        _flowBotMacros.removeRange(24, _flowBotMacros.length);
+      }
+    }
+    await _saveFlowBotUiPrefs();
+    if (emitFeedback && mounted) {
+      _emitActionResult(
+        _ActionResult(ok: true, message: 'Macro "$safeName" guardada.'),
+        successIcon: Icons.bookmark_added_rounded,
+      );
+    }
+  }
+
+  Future<void> _removeFlowBotMacro(String name) async {
+    final key = name.trim().toLowerCase();
+    if (key.isEmpty) return;
+    var removed = false;
+    int indexOfMacro(List<FlowBotMacroPreset> source) {
+      return source.indexWhere((m) => m.name.toLowerCase() == key);
+    }
+
+    if (mounted) {
+      setState(() {
+        final idx = indexOfMacro(_flowBotMacros);
+        if (idx >= 0) {
+          _flowBotMacros.removeAt(idx);
+          removed = true;
+        }
+      });
+    } else {
+      final idx = indexOfMacro(_flowBotMacros);
+      if (idx >= 0) {
+        _flowBotMacros.removeAt(idx);
+        removed = true;
+      }
+    }
+    if (!removed) return;
+    await _saveFlowBotUiPrefs();
+    if (!mounted) return;
+    _emitActionResult(
+      _ActionResult(ok: true, message: 'Macro "$name" eliminada.'),
+      successIcon: Icons.delete_outline_rounded,
     );
   }
 
@@ -9415,6 +10043,7 @@ class _EditorScreenState extends State<EditorScreen>
                         palette: pal,
                         isOpen: !_mobileEditorOpen && _mobileFabMenuOpen,
                         hidden: _mobileEditorOpen,
+                        forceReducedMotion: _fieldModeEnabled,
                         bottomOffset: _mobileEditorOpen
                             ? (panelH + keyboardInset + 10)
                             : (bottomSafe + 12),
@@ -9429,47 +10058,98 @@ class _EditorScreenState extends State<EditorScreen>
                           if (!_mobileFabMenuOpen) return;
                           setState(() => _mobileFabMenuOpen = false);
                         },
-                        actions: [
-                          _MobileFabAction(
-                            key: const ValueKey('mobile-fab-action-new-record'),
-                            icon: Icons.add_box_outlined,
-                            label: 'Nuevo registro',
-                            onTap: () => unawaited(
-                              _createNewRecordAction(origin: 'mobile_fab'),
-                            ),
-                          ),
-                          _MobileFabAction(
-                            key: const ValueKey(
-                              'mobile-fab-action-smart-paste',
-                            ),
-                            icon: Icons.table_chart_rounded,
-                            label: 'Pegar tabla',
-                            onTap: () => unawaited(
-                              _pasteTableSmartFromClipboard(
-                                emitFeedback: true,
-                                interactivePreview: true,
-                              ),
-                            ),
-                          ),
-                          _MobileFabAction(
-                            key: const ValueKey('mobile-fab-action-export'),
-                            icon: Icons.ios_share_rounded,
-                            label: 'Exportar',
-                            onTap: () => unawaited(_openExportMenu()),
-                          ),
-                          _MobileFabAction(
-                            key: const ValueKey('mobile-fab-action-templates'),
-                            icon: Icons.grid_view_rounded,
-                            label: 'Plantillas',
-                            onTap: () => unawaited(_openDemoTemplateSheet()),
-                          ),
-                          _MobileFabAction(
-                            key: const ValueKey('mobile-fab-action-undo'),
-                            icon: Icons.undo_rounded,
-                            label: 'Undo',
-                            onTap: _undoOnce,
-                          ),
-                        ],
+                        actions: _fieldModeEnabled
+                            ? [
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-new-record'),
+                                  icon: Icons.add_box_outlined,
+                                  label: 'Nuevo registro',
+                                  onTap: () => unawaited(
+                                    _createNewRecordAction(
+                                        origin: 'mobile_fab'),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-flowbot'),
+                                  icon: Icons.auto_awesome_rounded,
+                                  label: 'FlowBot',
+                                  onTap: () => unawaited(_openFlowBotSheet()),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-smart-paste'),
+                                  icon: Icons.table_chart_rounded,
+                                  label: 'Pegar tabla',
+                                  onTap: () => unawaited(
+                                    _pasteTableSmartFromClipboard(
+                                      emitFeedback: true,
+                                      interactivePreview: true,
+                                    ),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-field-mode'),
+                                  icon: Icons.terrain_rounded,
+                                  label: 'Salir modo campo',
+                                  onTap: () => unawaited(_toggleFieldMode()),
+                                ),
+                              ]
+                            : [
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-new-record'),
+                                  icon: Icons.add_box_outlined,
+                                  label: 'Nuevo registro',
+                                  onTap: () => unawaited(
+                                    _createNewRecordAction(
+                                        origin: 'mobile_fab'),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-smart-paste',
+                                  ),
+                                  icon: Icons.table_chart_rounded,
+                                  label: 'Pegar tabla',
+                                  onTap: () => unawaited(
+                                    _pasteTableSmartFromClipboard(
+                                      emitFeedback: true,
+                                      interactivePreview: true,
+                                    ),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-export'),
+                                  icon: Icons.ios_share_rounded,
+                                  label: 'Exportar',
+                                  onTap: () => unawaited(_openExportMenu()),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-templates'),
+                                  icon: Icons.grid_view_rounded,
+                                  label: 'Plantillas',
+                                  onTap: () =>
+                                      unawaited(_openDemoTemplateSheet()),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey('mobile-fab-action-undo'),
+                                  icon: Icons.undo_rounded,
+                                  label: 'Undo',
+                                  onTap: _undoOnce,
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-field-mode'),
+                                  icon: Icons.landscape_rounded,
+                                  label: 'Modo campo',
+                                  onTap: () => unawaited(_toggleFieldMode()),
+                                ),
+                              ],
                       ),
                     if (_perfHarnessRequested && kDebugMode)
                       _buildPerfOverlay(
@@ -15768,6 +16448,52 @@ class _EditorScreenState extends State<EditorScreen>
   @visibleForTesting
   Future<FlowBotParseResult> debugParseFlowBotCommand(String transcript) {
     return _parseFlowBotCommand(transcript);
+  }
+
+  @visibleForTesting
+  int get debugFlowBotMacroCount => _flowBotMacros.length;
+
+  @visibleForTesting
+  bool get debugFieldModeEnabled => _fieldModeEnabled;
+
+  @visibleForTesting
+  void debugSetLastFlowBotValidCommand(String command) {
+    assert(() {
+      _lastFlowBotValidCommand = command.trim();
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<void> debugSaveFlowBotMacro(String name) async {
+    final command = _lastFlowBotValidCommand.trim();
+    if (name.trim().isEmpty || command.isEmpty) return;
+    await _upsertFlowBotMacro(
+      name: name,
+      command: command,
+      emitFeedback: false,
+    );
+  }
+
+  @visibleForTesting
+  Future<void> debugRunFlowBotMacro(String name) async {
+    final key = name.trim().toLowerCase();
+    if (key.isEmpty) return;
+    FlowBotMacroPreset? macro;
+    for (final item in _flowBotMacros) {
+      if (item.name.toLowerCase() == key) {
+        macro = item;
+        break;
+      }
+    }
+    if (macro == null) return;
+    await _runFlowBotCommandDirect(macro.command);
+  }
+
+  @visibleForTesting
+  Future<void> debugSetFieldMode(bool enabled) async {
+    if (_fieldModeEnabled == enabled) return;
+    await _toggleFieldMode();
   }
 
   @visibleForTesting
