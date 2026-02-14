@@ -8,7 +8,7 @@ void main() {
 
   Future<void> pumpMobileEditor(WidgetTester tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    tester.view.physicalSize = const Size(390, 2200);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -27,13 +27,58 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('mobile bolt button opens command palette', (tester) async {
+  testWidgets('mobile FAB exists and expands actions', (tester) async {
     await pumpMobileEditor(tester);
 
-    await tester.tap(find.byKey(const ValueKey('mobile-palette-bolt')));
+    expect(find.byKey(const ValueKey('mobile-fab-main')), findsOneWidget);
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
     await tester.pumpAndSettle();
 
-    expect(
-        find.byKey(const ValueKey('command_palette_dialog')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-action-new-record')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-action-smart-paste')),
+        findsOneWidget);
+  });
+
+  testWidgets('mobile FAB closes on outside tap', (tester) async {
+    await pumpMobileEditor(tester);
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mobile-fab-panel')), findsOneWidget);
+
+    final scrim = tester.widget<GestureDetector>(
+      find.byKey(const ValueKey('mobile-fab-scrim')),
+    );
+    scrim.onTap?.call();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mobile-fab-panel')), findsNothing);
+  });
+
+  testWidgets('mobile FAB new record action inserts a row', (tester) async {
+    await pumpMobileEditor(tester);
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final before = state.debugRowCount as int;
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    final action = tester.widget(
+      find.byKey(const ValueKey('mobile-fab-action-new-record')),
+    ) as dynamic;
+    action.onPressed?.call();
+    await tester.pumpAndSettle();
+
+    expect(state.debugRowCount, before + 1);
   });
 }

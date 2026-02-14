@@ -1,5 +1,4 @@
 import 'package:bitacora_web/features/editor/editor_screen.dart';
-import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,22 +24,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('primary + registro action inserts a real row (not no-op)',
+  testWidgets('primary new record action inserts a real row (not no-op)',
       (tester) async {
     await pumpEditor(tester);
 
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
     final initialRowCount = state.debugRowCount as int;
 
-    final finder = find.byWidgetPredicate(
-      (widget) => widget is AppleButton && widget.label == '+ Registro',
-      description: 'AppleButton(+ Registro)',
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
     );
-    expect(finder, findsOneWidget);
-    final button = tester.widget<AppleButton>(finder);
-    expect(button.onPressed, isNotNull);
-
-    button.onPressed!.call();
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    final action = tester.widget(
+      find.byKey(const ValueKey('mobile-fab-action-new-record')),
+    ) as dynamic;
+    action.onPressed?.call();
     await tester.pumpAndSettle();
 
     expect(state.debugRowCount, initialRowCount + 1);
@@ -53,12 +52,15 @@ void main() {
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
     final initialRowCount = state.debugRowCount as int;
 
-    final finder = find.byWidgetPredicate(
-      (widget) => widget is AppleButton && widget.label == '+ Registro',
-      description: 'AppleButton(+ Registro)',
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
     );
-    final button = tester.widget<AppleButton>(finder);
-    button.onPressed!.call();
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    final action = tester.widget(
+      find.byKey(const ValueKey('mobile-fab-action-new-record')),
+    ) as dynamic;
+    action.onPressed?.call();
     await tester.pumpAndSettle();
 
     expect(state.debugRowCount, initialRowCount + 1);

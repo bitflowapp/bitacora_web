@@ -683,6 +683,131 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
   }
 }
 
+class _MobileFabAction {
+  const _MobileFabAction({
+    required this.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final Key key;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+}
+
+class _MobileExpandableFabMenu extends StatelessWidget {
+  const _MobileExpandableFabMenu({
+    required this.palette,
+    required this.isOpen,
+    required this.hidden,
+    required this.bottomOffset,
+    required this.onMainTap,
+    required this.onDismiss,
+    required this.actions,
+  });
+
+  final _SheetPalette palette;
+  final bool isOpen;
+  final bool hidden;
+  final double bottomOffset;
+  final VoidCallback onMainTap;
+  final VoidCallback onDismiss;
+  final List<_MobileFabAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final openDuration = reduceMotion ? Duration.zero : AppMotion.quick;
+    return Stack(
+      children: [
+        if (isOpen)
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey('mobile-fab-scrim'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        Positioned(
+          right: 12,
+          bottom: bottomOffset,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: openDuration,
+                switchInCurve: AppMotion.standardOut,
+                switchOutCurve: AppMotion.standardIn,
+                child: !isOpen
+                    ? const SizedBox.shrink()
+                    : Container(
+                        key: const ValueKey('mobile-fab-panel'),
+                        width: 210,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: palette.menuBg.withValues(
+                            alpha: palette.isLight ? 0.96 : 0.86,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: palette.borderStrong,
+                            width: palette.hairline,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final action in actions)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: AppButton(
+                                  key: action.key,
+                                  label: action.label,
+                                  icon: action.icon,
+                                  size: AppButtonSize.sm,
+                                  variant: AppButtonVariant.secondary,
+                                  onPressed: () {
+                                    AppHaptics.light();
+                                    onDismiss();
+                                    action.onTap();
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              IgnorePointer(
+                ignoring: hidden,
+                child: AnimatedOpacity(
+                  duration: openDuration,
+                  opacity: hidden ? 0 : 1,
+                  child: FloatingActionButton.small(
+                    key: const ValueKey('mobile-fab-main'),
+                    heroTag: 'mobile-fab-main',
+                    tooltip: 'Acciones rapidas',
+                    onPressed: onMainTap,
+                    backgroundColor: palette.appBarBg,
+                    foregroundColor: palette.fg,
+                    child: Icon(
+                      isOpen ? Icons.close_rounded : Icons.bolt_rounded,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MobileQuickActionsBar extends StatelessWidget {
   const _MobileQuickActionsBar({
     required this.palette,
@@ -942,6 +1067,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                   ),
                   child: RepaintBoundary(
                     child: Container(
+                      key: const ValueKey('mobile-inline-editor-panel'),
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                       decoration: BoxDecoration(
                         color: palette.editorBg.withValues(

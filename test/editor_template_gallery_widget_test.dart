@@ -24,12 +24,20 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byKey(const ValueKey('empty-state-cta-template')));
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    final action = tester.widget(
+      find.byKey(const ValueKey('mobile-fab-action-templates')),
+    ) as dynamic;
+    action.onPressed?.call();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('template-item-inventario')));
     await tester.pumpAndSettle();
 
-    final state = tester.state(find.byType(EditorScreen)) as dynamic;
     expect(state.debugRowCount, greaterThan(0));
     expect(state.debugCellText(0, 0), 'MAT-001');
   });
