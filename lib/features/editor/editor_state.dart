@@ -10676,7 +10676,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_vScroll.hasClients) return;
     _debugMobileEnsureVisibleCalls++;
     final panelMargin = _mobileBarH > 0 ? _mobileBarH + 16 : 120.0;
-    const alignCenter = 0.38;
+    const alignCenter = 0.40;
     if (_mobileEditingHeader || row < 0) {
       final ctx = _mobileHeaderKey.currentContext;
       if (ctx != null) {
