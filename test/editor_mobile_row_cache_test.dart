@@ -9,7 +9,7 @@ void main() {
   testWidgets('mobile row controllers are materialized lazily', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
-    tester.view.physicalSize = const Size(430, 960);
+    tester.view.physicalSize = const Size(430, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);

@@ -11,6 +11,7 @@ class KeyboardInsetsController with WidgetsBindingObserver {
   KeyboardInsetsController({this.onLog});
 
   final ValueChanged<String>? onLog;
+  final ValueNotifier<double> keyboardInset = ValueNotifier<double>(0.0);
   final ValueNotifier<double> kbInsetDp = ValueNotifier<double>(0.0);
 
   double _mqInset = 0.0;
@@ -27,6 +28,7 @@ class KeyboardInsetsController with WidgetsBindingObserver {
   void dispose() {
     _debounceT?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    keyboardInset.dispose();
     kbInsetDp.dispose();
   }
 
@@ -73,6 +75,7 @@ class KeyboardInsetsController with WidgetsBindingObserver {
     next = _smooth(next);
     if ((next - kbInsetDp.value).abs() < 1.0) return;
     kbInsetDp.value = next;
+    keyboardInset.value = next;
     onLog?.call('[KeyboardInsets] inset -> ${next.toStringAsFixed(1)}dp');
   }
 

@@ -136,15 +136,14 @@ class _EditorLongOperationCancelled implements Exception {
   const _EditorLongOperationCancelled();
 }
 
-typedef _DebugSaveImageHook =
-    Future<AttachmentSaveResult?> Function({
-      required CellRef cellRef,
-      required String attachmentId,
-      required Uint8List bytes,
-      required String originalName,
-      required String mime,
-      Object? webFile,
-    });
+typedef _DebugSaveImageHook = Future<AttachmentSaveResult?> Function({
+  required CellRef cellRef,
+  required String attachmentId,
+  required Uint8List bytes,
+  required String originalName,
+  required String mime,
+  Object? webFile,
+});
 
 typedef _DebugAttachmentTraceHook = void Function(AttachmentTraceEvent trace);
 
@@ -330,8 +329,6 @@ class _EditorScreenState extends State<EditorScreen>
   bool _perfScenarioRunning = false;
   int _perfScenarioRuns = 0;
   DateTime? _perfScenarioLastAt;
-  double _lastVisualViewportInsetDp = -1;
-  Timer? _vvSetStateThrottleT;
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -422,9 +419,9 @@ class _EditorScreenState extends State<EditorScreen>
   late final EngineApi _engineApi = EngineApi();
   late final EngineHealthChecker _engineHealthChecker =
       widget.engineHealthChecker ??
-      (_kFlutterTestEnv
-          ? const FakeEngineHealthChecker()
-          : EngineApiHealthChecker(_engineApi));
+          (_kFlutterTestEnv
+              ? const FakeEngineHealthChecker()
+              : EngineApiHealthChecker(_engineApi));
 
   bool get _engineHasBase =>
       _engineBaseResolved != null && _engineBaseResolved!.trim().isNotEmpty;
@@ -462,7 +459,6 @@ class _EditorScreenState extends State<EditorScreen>
   String? _lastMobileSnack;
   String? _lastToastMessage;
   DateTime _lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
-  VoidCallback? _vvDetach;
   VoidCallback? _detachWebFlushSignal;
   int _fillDownCount = 5;
   int _incrementCount = 5;
@@ -549,7 +545,6 @@ class _EditorScreenState extends State<EditorScreen>
     _kbController.attach();
     _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
     if (kIsWeb) {
-      _vvDetach = vv.attachViewportListener(_handleVisualViewportChanged);
       _detachWebFlushSignal = WebFlushSignal.attach(
         _flushLocalStateForBackground,
       );
@@ -560,8 +555,7 @@ class _EditorScreenState extends State<EditorScreen>
         : 'Sheet';
     _nameEC.text = _sheetName;
 
-    _isLight =
-        widget.isLight ??
+    _isLight = widget.isLight ??
         (WidgetsBinding.instance.platformDispatcher.platformBrightness ==
             Brightness.light);
 
@@ -702,7 +696,6 @@ class _EditorScreenState extends State<EditorScreen>
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
     _cellDraftSyncT?.cancel();
-    _vvSetStateThrottleT?.cancel();
     _recentValuesSaveT?.cancel();
     _historyPersistT?.cancel();
     _blinkT?.cancel();
@@ -714,7 +707,6 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
-    _vvDetach?.call();
     _detachWebFlushSignal?.call();
     _detachWebFlushSignal = null;
 
@@ -769,23 +761,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (_mobileEditingHeader || _mobileRow >= 0) {
       _debouncedEnsureRowVisible(targetRow);
     }
-  }
-
-  void _handleVisualViewportChanged() {
-    if (!mounted) return;
-    final nextInset = vv.visualViewportKeyboardInset();
-    if (!_mobileEditorOpen &&
-        nextInset <= 0.0 &&
-        _lastVisualViewportInsetDp <= 0.0) {
-      return;
-    }
-    if ((nextInset - _lastVisualViewportInsetDp).abs() < 1.0) return;
-    _lastVisualViewportInsetDp = nextInset;
-    if (_vvSetStateThrottleT?.isActive ?? false) return;
-    _vvSetStateThrottleT = Timer(const Duration(milliseconds: 48), () {
-      if (!mounted) return;
-      setState(() {});
-    });
   }
 
   void _setMobileTopBarCollapsed(bool collapsed) {
@@ -874,8 +849,8 @@ class _EditorScreenState extends State<EditorScreen>
   _SheetModel _buildInitialState() {
     final headers =
         (widget.initialHeaders != null && widget.initialHeaders!.isNotEmpty)
-        ? _normalizeHeaders(widget.initialHeaders!)
-        : _defaultHeaders();
+            ? _normalizeHeaders(widget.initialHeaders!)
+            : _defaultHeaders();
     final colIds = _normalizeColIds(headers, null);
 
     final rowModels = <_RowModel>[];
@@ -1097,9 +1072,8 @@ class _EditorScreenState extends State<EditorScreen>
       if (ref != null) {
         if (!rowIdSet.contains(ref.rowId)) return;
         if (!colIdSet.contains(ref.colId)) return;
-        final normalized = ref.sheetId == widget.sheetId
-            ? ref
-            : ref.withSheet(widget.sheetId);
+        final normalized =
+            ref.sheetId == widget.sheetId ? ref : ref.withSheet(widget.sheetId);
         out[normalized.key] = meta.copy();
         return;
       }
@@ -1529,30 +1503,26 @@ class _EditorScreenState extends State<EditorScreen>
         growable: false,
       ),
       colIds: List<String>.from(_colIds),
-      rows: _rows
-          .asMap()
-          .entries
-          .map((entry) {
-            final r = entry.key;
-            final row = entry.value;
-            return _RowModel(
-              id: row.id,
-              cells: List<String>.generate(
-                _headers.length,
-                (c) => _effectiveCell(r, c),
-                growable: false,
-              ),
-              photos: row.photos
-                  .map((p) => p.copyWithoutThumb())
-                  .toList(growable: false),
-              gpsLat: row.gpsLat,
-              gpsLng: row.gpsLng,
-              gpsAccuracyM: row.gpsAccuracyM,
-              gpsTs: row.gpsTs,
-              gpsIsLastKnown: row.gpsIsLastKnown,
-            );
-          })
-          .toList(growable: false),
+      rows: _rows.asMap().entries.map((entry) {
+        final r = entry.key;
+        final row = entry.value;
+        return _RowModel(
+          id: row.id,
+          cells: List<String>.generate(
+            _headers.length,
+            (c) => _effectiveCell(r, c),
+            growable: false,
+          ),
+          photos: row.photos
+              .map((p) => p.copyWithoutThumb())
+              .toList(growable: false),
+          gpsLat: row.gpsLat,
+          gpsLng: row.gpsLng,
+          gpsAccuracyM: row.gpsAccuracyM,
+          gpsTs: row.gpsTs,
+          gpsIsLastKnown: row.gpsIsLastKnown,
+        );
+      }).toList(growable: false),
       cellMeta: _cloneCellMeta(_cellMeta),
       savedAt: savedAt,
       columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
@@ -1709,9 +1679,8 @@ class _EditorScreenState extends State<EditorScreen>
     final throttleRemaining = sinceLastSave >= _saveThrottle
         ? Duration.zero
         : _saveThrottle - sinceLastSave;
-    final delay = throttleRemaining > _saveDebounce
-        ? throttleRemaining
-        : _saveDebounce;
+    final delay =
+        throttleRemaining > _saveDebounce ? throttleRemaining : _saveDebounce;
     _saveT = Timer(delay, () {
       unawaited(_saveLocalNow());
     });
@@ -1740,18 +1709,19 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   _SheetSnapshot _snapshot() => _SheetSnapshot(
-    name: _sheetName,
-    headers: List<String>.from(_headers),
-    colIds: List<String>.from(_colIds),
-    columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
-    columnOrder: List<String>.from(_columnOrder),
-    frozenColId: _frozenColId,
-    // ??? Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
-    rowModels: _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
-    cellMeta: _cloneCellMeta(_cellMeta),
-    selRow: _selRow,
-    selCol: _selCol,
-  );
+        name: _sheetName,
+        headers: List<String>.from(_headers),
+        colIds: List<String>.from(_colIds),
+        columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
+        columnOrder: List<String>.from(_columnOrder),
+        frozenColId: _frozenColId,
+        // ??? Undo incluye metadata de fotos SIN thumbs (revierte count/filas, sin lag).
+        rowModels:
+            _rows.map((r) => r.copyForSnapshot()).toList(growable: false),
+        cellMeta: _cloneCellMeta(_cellMeta),
+        selRow: _selRow,
+        selCol: _selCol,
+      );
 
   void _pushUndoSnapshot() {
     _undo.add(_snapshot());
@@ -1967,29 +1937,25 @@ class _EditorScreenState extends State<EditorScreen>
           (decoded['autoIncrementIdEnabled'] as bool?) ?? false;
       final nextInlinePreviews =
           (decoded['cellInlinePreviewsEnabled'] as bool?) ?? true;
-      final nextMobileCompact =
-          (decoded['mobileCompactModeEnabled'] as bool?) ??
+      final nextMobileCompact = (decoded['mobileCompactModeEnabled']
+              as bool?) ??
           (prefs.getBool(_kPrefMobileCompactMode) ?? _mobileCompactModeEnabled);
-      final nextZenMode =
-          (decoded['zenModeEnabled'] as bool?) ??
+      final nextZenMode = (decoded['zenModeEnabled'] as bool?) ??
           (prefs.getBool(_kPrefZenMode) ?? _zenModeEnabled);
       final nextMobileFocusCellMode =
           (decoded['mobileFocusCellModeEnabled'] as bool?) ??
-          (prefs.getBool(_kPrefMobileFocusCellMode) ??
-              _mobileFocusCellModeEnabled);
-      final nextReduceMotion =
-          (decoded['reduceMotionEnabled'] as bool?) ??
+              (prefs.getBool(_kPrefMobileFocusCellMode) ??
+                  _mobileFocusCellModeEnabled);
+      final nextReduceMotion = (decoded['reduceMotionEnabled'] as bool?) ??
           (prefs.getBool(_kPrefReduceMotion) ?? _reduceMotionEnabled);
-      final nextFlowBotUseLocalLlm =
-          (decoded['flowBotUseLocalLlm'] as bool?) ??
+      final nextFlowBotUseLocalLlm = (decoded['flowBotUseLocalLlm'] as bool?) ??
           (prefs.getBool(_kPrefFlowBotUseLocalLlm) ?? _flowBotUseLocalLlm);
       final fromJsonModelPath =
           (decoded['flowBotLocalModelPath'] as String?)?.trim() ?? '';
       final fromPrefModelPath =
           (prefs.getString(_kPrefFlowBotLocalModelPath) ?? '').trim();
-      final nextFlowBotLocalModelPath = fromJsonModelPath.isNotEmpty
-          ? fromJsonModelPath
-          : fromPrefModelPath;
+      final nextFlowBotLocalModelPath =
+          fromJsonModelPath.isNotEmpty ? fromJsonModelPath : fromPrefModelPath;
       if (!mounted) {
         _defaultDateTodayEnabled = nextDate;
         _defaultStatusOkEnabled = nextStatus;
@@ -2234,9 +2200,8 @@ class _EditorScreenState extends State<EditorScreen>
           ? 'Modelo local descargado (${_formatBytes(result.bytes)}).'
           : (result.error ?? 'No se pudo descargar el modelo local.'),
       isError: !result.ok,
-      icon: result.ok
-          ? Icons.download_done_rounded
-          : Icons.error_outline_rounded,
+      icon:
+          result.ok ? Icons.download_done_rounded : Icons.error_outline_rounded,
     );
   }
 
@@ -2415,8 +2380,8 @@ class _EditorScreenState extends State<EditorScreen>
       final activeId = activeRaw.isEmpty
           ? null
           : loaded.any((view) => view.id == activeRaw)
-          ? activeRaw
-          : null;
+              ? activeRaw
+              : null;
 
       if (!mounted) {
         _savedViews
@@ -2443,9 +2408,8 @@ class _EditorScreenState extends State<EditorScreen>
       if (_savedViews.isEmpty) {
         await prefs.remove(_prefsSavedViewsKey);
       } else {
-        final payload = _savedViews
-            .map((entry) => entry.toJson())
-            .toList(growable: false);
+        final payload =
+            _savedViews.map((entry) => entry.toJson()).toList(growable: false);
         await prefs.setString(_prefsSavedViewsKey, jsonEncode(payload));
       }
       final active = _activeSavedView;
@@ -2910,14 +2874,11 @@ class _EditorScreenState extends State<EditorScreen>
           ? ''
           : _formatDateTimeShort(editView!.dateTo!.toLocal()).split(' ').first,
     );
-    String? statusColId =
-        editView?.statusColId ??
+    String? statusColId = editView?.statusColId ??
         (statusColumns.isNotEmpty ? statusColumns.first.id : null);
-    String? textColId =
-        editView?.textColId ??
+    String? textColId = editView?.textColId ??
         (textColumns.isNotEmpty ? textColumns.first.id : null);
-    String? dateColId =
-        editView?.dateColId ??
+    String? dateColId = editView?.dateColId ??
         (dateColumns.isNotEmpty ? dateColumns.first.id : null);
     String? sortColId = editView?.sortColId;
     bool sortAscending = editView?.sortAscending ?? true;
@@ -3165,20 +3126,20 @@ class _EditorScreenState extends State<EditorScreen>
       statusColId: statusValue.isEmpty
           ? null
           : _columnIndexFromId(statusColId) == null
-          ? null
-          : statusColId,
+              ? null
+              : statusColId,
       statusValue: statusValue.isEmpty ? null : statusValue,
       textColId: textContains.isEmpty
           ? null
           : _columnIndexFromId(textColId) == null
-          ? null
-          : textColId,
+              ? null
+              : textColId,
       textContains: textContains.isEmpty ? null : textContains,
       dateColId: (dateFrom == null && dateTo == null)
           ? null
           : _columnIndexFromId(dateColId) == null
-          ? null
-          : dateColId,
+              ? null
+              : dateColId,
       dateFrom: dateFrom == null ? null : _dateOnly(dateFrom),
       dateTo: dateTo == null ? null : _dateOnly(dateTo),
       sortColId: _columnIndexFromId(sortColId) == null ? null : sortColId,
@@ -3613,13 +3574,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool get _shouldReduceMotion {
     final osPrefersReducedMotion = WidgetsBinding
-        .instance
-        .platformDispatcher
-        .accessibilityFeatures
-        .disableAnimations;
-    final webPrefersReducedMotion = kIsWeb
-        ? WebCapabilities.prefersReducedMotion
-        : false;
+        .instance.platformDispatcher.accessibilityFeatures.disableAnimations;
+    final webPrefersReducedMotion =
+        kIsWeb ? WebCapabilities.prefersReducedMotion : false;
     return _reduceMotionEnabled ||
         osPrefersReducedMotion ||
         webPrefersReducedMotion;
@@ -4028,8 +3985,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       if (token != _validationRunToken) return;
-      final hasChanges =
-          _pendingRequired != pending ||
+      final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
           !_invalidCells.containsAll(invalid) ||
           !mapEquals(_invalidCellMessages, messages);
@@ -4087,8 +4043,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
       }
 
-      final hasChanges =
-          _pendingRequired != pending ||
+      final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
           !_invalidCells.containsAll(invalid) ||
           !mapEquals(_invalidCellMessages, messages);
@@ -4466,9 +4421,8 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileRowKeys
       ..clear()
       ..addAll(List<GlobalKey?>.filled(_rows.length, null));
-    _mobileSharedHorizontalOffset = _mobileHeaderScroll.hasClients
-        ? _mobileHeaderScroll.offset
-        : 0;
+    _mobileSharedHorizontalOffset =
+        _mobileHeaderScroll.hasClients ? _mobileHeaderScroll.offset : 0;
   }
 
   void _ensureMobileRowCachesLength() {
@@ -4634,10 +4588,10 @@ class _EditorScreenState extends State<EditorScreen>
     final state = _saving
         ? EditorSaveState.saving
         : (_isDirty
-              ? EditorSaveState.dirty
-              : (_lastSavedAt != null
-                    ? EditorSaveState.saved
-                    : EditorSaveState.idle));
+            ? EditorSaveState.dirty
+            : (_lastSavedAt != null
+                ? EditorSaveState.saved
+                : EditorSaveState.idle));
     _saveStatus.value = EditorSaveSnapshot(state: state, savedAt: _lastSavedAt);
     if (_isDirty && mounted) {
       final hasPending = _editQueue.any(
@@ -4706,9 +4660,8 @@ class _EditorScreenState extends State<EditorScreen>
         context,
         message: message,
         isError: isError,
-        icon: isError
-            ? Icons.error_outline_rounded
-            : Icons.info_outline_rounded,
+        icon:
+            isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
       );
     });
   }
@@ -4723,8 +4676,7 @@ class _EditorScreenState extends State<EditorScreen>
     final trimmed = message.trim();
     if (trimmed.isEmpty) return true;
     final now = DateTime.now();
-    final shouldCoalesce =
-        _lastToastMessage == trimmed &&
+    final shouldCoalesce = _lastToastMessage == trimmed &&
         now.difference(_lastToastAt) <= _toastCoalesceWindow;
     _lastToastMessage = trimmed;
     _lastToastAt = now;
@@ -4970,8 +4922,7 @@ class _EditorScreenState extends State<EditorScreen>
           break;
         case FlowBotActionType.setToday:
           final targets = _batchTargetRows();
-          final dateCol =
-              _firstColumnByType(_ColType.date) ??
+          final dateCol = _firstColumnByType(_ColType.date) ??
               _selCol.clamp(0, dataCols - 1);
           final value = _flowBotDateText(action.format);
           for (final row in targets) {
@@ -5296,9 +5247,8 @@ class _EditorScreenState extends State<EditorScreen>
                           icon: Icons.play_arrow_rounded,
                           dense: true,
                           variant: AppleButtonVariant.tonal,
-                          onPressed: parsing
-                              ? null
-                              : () => unawaited(parseNow()),
+                          onPressed:
+                              parsing ? null : () => unawaited(parseNow()),
                         ),
                       ],
                     ),
@@ -5357,8 +5307,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 transcriptEC.text = item;
                                 transcriptEC.selection =
                                     TextSelection.collapsed(
-                                      offset: item.length,
-                                    );
+                                  offset: item.length,
+                                );
                                 unawaited(parseNow());
                               },
                             ),
@@ -5422,8 +5372,8 @@ class _EditorScreenState extends State<EditorScreen>
                           label: _flowBotModelDownloading
                               ? 'Descargando...'
                               : (localModelReady
-                                    ? 'Actualizar modelo'
-                                    : 'Descargar modelo'),
+                                  ? 'Actualizar modelo'
+                                  : 'Descargar modelo'),
                           icon: _flowBotModelDownloading
                               ? Icons.downloading_rounded
                               : Icons.download_rounded,
@@ -5591,11 +5541,10 @@ class _EditorScreenState extends State<EditorScreen>
 
   List<int> _selectedRowsSorted() {
     if (_selectedRows.isEmpty) return const <int>[];
-    final out =
-        _selectedRows
-            .where((r) => r >= 0 && r < _rows.length)
-            .toList(growable: false)
-          ..sort();
+    final out = _selectedRows
+        .where((r) => r >= 0 && r < _rows.length)
+        .toList(growable: false)
+      ..sort();
     return out;
   }
 
@@ -5694,12 +5643,11 @@ class _EditorScreenState extends State<EditorScreen>
     Iterable<int> rows, {
     required bool reviewed,
   }) async {
-    final targets =
-        rows
-            .where((r) => r >= 0 && r < _rows.length)
-            .toSet()
-            .toList(growable: false)
-          ..sort();
+    final targets = rows
+        .where((r) => r >= 0 && r < _rows.length)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
     if (targets.isEmpty) {
       _showActionSnack(
         'Selecciona al menos una fila.',
@@ -6703,7 +6651,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   ({List<_QuickCapturePending> quickCapture, List<_EditPending> editQueue})
-  _decodeOfflineQueuePayload(String raw) {
+      _decodeOfflineQueuePayload(String raw) {
     if (raw.trim().isEmpty) {
       return (
         quickCapture: const <_QuickCapturePending>[],
@@ -6805,9 +6753,8 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
       final payload = jsonEncode(<String, dynamic>{
-        'quickCapture': _quickCaptureQueue
-            .map((e) => e.toJson())
-            .toList(growable: false),
+        'quickCapture':
+            _quickCaptureQueue.map((e) => e.toJson()).toList(growable: false),
         'editQueue': _editQueue.map((e) => e.toJson()).toList(growable: false),
       });
       await _offlineQueueStore.write(sheetId: widget.sheetId, payload: payload);
@@ -7140,12 +7087,10 @@ class _EditorScreenState extends State<EditorScreen>
       'online': _isNetworkOnline(),
       'pendingQuickCapture': quickForSheet.length,
       'pendingEdits': editForSheet.length,
-      'quickCaptureQueue': quickForSheet
-          .map((item) => item.toJson())
-          .toList(growable: false),
-      'editQueue': editForSheet
-          .map((item) => item.toJson())
-          .toList(growable: false),
+      'quickCaptureQueue':
+          quickForSheet.map((item) => item.toJson()).toList(growable: false),
+      'editQueue':
+          editForSheet.map((item) => item.toJson()).toList(growable: false),
       'lastError': _offlineLastError,
       'nextRetryAt': _offlineRetryAt?.toIso8601String(),
     };
@@ -7182,7 +7127,7 @@ class _EditorScreenState extends State<EditorScreen>
     final retryAt = _offlineRetryAt?.toLocal();
     final statusText =
         _resolveOfflineStatusMessage(_resolveOfflineSyncState()) ??
-        'Sincronizado';
+            'Sincronizado';
 
     await showAppModal<void>(
       context: context,
@@ -8024,9 +7969,8 @@ class _EditorScreenState extends State<EditorScreen>
                             ),
                           ),
                           IconButton(
-                            tooltip: _perfOverlayExpanded
-                                ? 'Colapsar'
-                                : 'Expandir',
+                            tooltip:
+                                _perfOverlayExpanded ? 'Colapsar' : 'Expandir',
                             visualDensity: VisualDensity.compact,
                             iconSize: 18,
                             onPressed: () => setState(() {
@@ -8152,6 +8096,7 @@ class _EditorScreenState extends State<EditorScreen>
         // Evitar escalados raros de texto (iOS / Web).
         final mq = MediaQuery.of(ctx);
         final bottomSafe = mq.padding.bottom;
+        final dpr = mq.devicePixelRatio <= 0 ? 1.0 : mq.devicePixelRatio;
         final requestedScale = mq.textScaler.scale(14) / 14;
         final boundedScale = requestedScale.clamp(1.0, 1.2).toDouble();
         final fixedMq = mq.copyWith(
@@ -8159,18 +8104,19 @@ class _EditorScreenState extends State<EditorScreen>
         );
 
         _kbController.reportMediaQueryInset(mqInset);
-        final vvInset = vv.visualViewportKeyboardInset();
-        final keyboardInset = math.max(effectiveInset, vvInset);
+        final visualInsetDp = _kbController.keyboardInset.value / dpr;
+        var keyboardInset = math.max(effectiveInset, visualInsetDp);
+        if (keyboardInset < 2.0) keyboardInset = 0.0;
         final isMobile = !isDesktop;
         final editorActive = isMobile && _mobileEditorOpen;
         final desiredPanelH = _kMobilePanelCompactH;
         final panelH = isDesktop
             ? 0.0
             : (editorActive
-                  ? (_mobileBarH > 0 && (_mobileBarH - desiredPanelH).abs() < 8)
-                        ? _mobileBarH
-                        : desiredPanelH
-                  : 0.0);
+                ? (_mobileBarH > 0 && (_mobileBarH - desiredPanelH).abs() < 8)
+                    ? _mobileBarH
+                    : desiredPanelH
+                : 0.0);
         final quickBarH = isMobile && !_mobileEditorOpen
             ? _kMobileQuickBarH + bottomSafe + 12
             : 0.0;
@@ -8355,7 +8301,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       activeViewId: _activeSavedViewId,
                                       pendingReviewViewActive:
                                           _reviewFilterMode ==
-                                          _ReviewFilterMode.pending,
+                                              _ReviewFilterMode.pending,
                                     ),
                                   ))
                           else
@@ -8364,8 +8310,7 @@ class _EditorScreenState extends State<EditorScreen>
                               firstCurve: _motionCurve(AppMotion.standardOut),
                               secondCurve: _motionCurve(AppMotion.standardIn),
                               sizeCurve: _motionCurve(AppMotion.standardOut),
-                              crossFadeState:
-                                  _zenModeEnabled ||
+                              crossFadeState: _zenModeEnabled ||
                                       (_mobileCompactModeEnabled &&
                                           _mobileTopBarCollapsed)
                                   ? CrossFadeState.showSecond
@@ -8477,13 +8422,12 @@ class _EditorScreenState extends State<EditorScreen>
                               icon: _isNetworkOnline()
                                   ? Icons.cloud_upload_outlined
                                   : Icons.cloud_off_outlined,
-                              actionLabel: _isNetworkOnline()
-                                  ? 'Sincronizar'
-                                  : 'Cola',
+                              actionLabel:
+                                  _isNetworkOnline() ? 'Sincronizar' : 'Cola',
                               onAction: _isNetworkOnline()
                                   ? () => unawaited(
-                                      _syncQuickCaptureQueue(notify: true),
-                                    )
+                                        _syncQuickCaptureQueue(notify: true),
+                                      )
                                   : _openOfflineQueueDialog,
                             ),
                           if (_invalidCells.isNotEmpty)
@@ -8540,8 +8484,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: child,
                               );
                             },
-                            child:
-                                (_errorsPanelOpen && _invalidCells.isNotEmpty)
+                            child: (_errorsPanelOpen &&
+                                    _invalidCells.isNotEmpty)
                                 ? KeyedSubtree(
                                     key: const ValueKey(
                                       'validation-errors-open',
@@ -8754,14 +8698,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellTextAt: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _effectiveCell(
                                                     actualRow,
                                                     actualCol,
@@ -8770,14 +8714,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellHasGps: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellHasGps(
                                                     actualRow,
                                                     actualCol,
@@ -8786,14 +8730,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellHasAudios: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellHasAudios(
                                                     actualRow,
                                                     actualCol,
@@ -8802,14 +8746,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellPhotoThumb: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellPhotoThumb(
                                                     actualRow,
                                                     actualCol,
@@ -8818,14 +8762,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellPhotoCount: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellPhotoCount(
                                                     actualRow,
                                                     actualCol,
@@ -8834,14 +8778,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 cellInlinePreviewAt: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellInlinePreviewAt(
                                                     actualRow,
                                                     actualCol,
@@ -8850,9 +8794,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 columnWrapLines: (c) {
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _colWrapLines(
                                                     actualCol,
                                                   );
@@ -8860,9 +8804,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 columnTextAlign: (c) {
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _colTextAlign(
                                                     actualCol,
                                                   );
@@ -8870,9 +8814,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 columnVerticalAlign: (c) {
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _colVerticalAlign(
                                                     actualCol,
                                                   );
@@ -8880,14 +8824,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 isAttachmentProcessing: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _cellIsAttachmentProcessing(
                                                     actualRow,
                                                     actualCol,
@@ -8897,14 +8841,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 isInvalid: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _invalidCells.contains(
                                                     _CellRef(
                                                       actualRow,
@@ -8915,14 +8859,14 @@ class _EditorScreenState extends State<EditorScreen>
                                                 isSearchHit: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _isSearchHit(
                                                     actualRow,
                                                     actualCol,
@@ -8938,33 +8882,35 @@ class _EditorScreenState extends State<EditorScreen>
                                                 editorLink: _editorLink,
                                                 overlayTargetCell:
                                                     _overlayTargetCell == null
-                                                    ? null
-                                                    : _CellRef(
-                                                        _overlayTargetCell!.r,
-                                                        _displayColumnIndexForActual(
-                                                          _overlayTargetCell!.c,
-                                                          displayColumns,
-                                                        ),
-                                                      ),
+                                                        ? null
+                                                        : _CellRef(
+                                                            _overlayTargetCell!
+                                                                .r,
+                                                            _displayColumnIndexForActual(
+                                                              _overlayTargetCell!
+                                                                  .c,
+                                                              displayColumns,
+                                                            ),
+                                                          ),
                                                 overlayTargetHeaderCol:
                                                     _overlayTargetHeaderCol ==
-                                                        null
-                                                    ? null
-                                                    : _displayColumnIndexForActual(
-                                                        _overlayTargetHeaderCol!,
-                                                        displayColumns,
-                                                      ),
+                                                            null
+                                                        ? null
+                                                        : _displayColumnIndexForActual(
+                                                            _overlayTargetHeaderCol!,
+                                                            displayColumns,
+                                                          ),
                                                 onSelect: (r, c) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   _setSelectionAndRefreshGrid(
                                                     actualRow,
                                                     actualCol,
@@ -8973,22 +8919,22 @@ class _EditorScreenState extends State<EditorScreen>
                                                 },
                                                 onRowIndexTap: (r) =>
                                                     _handleRowIndexTap(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                    ),
+                                                  _actualRowFromDisplay(
+                                                    r,
+                                                    visibleRows,
+                                                  ),
+                                                ),
                                                 onEditRequested: (r, c, w) {
                                                   final actualRow =
                                                       _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
+                                                    r,
+                                                    visibleRows,
+                                                  );
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _beginEditCell(
                                                     context,
                                                     pal,
@@ -9000,9 +8946,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 onHeaderEditRequested: (c, w) {
                                                   final actualCol =
                                                       _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
+                                                    c,
+                                                    displayColumns,
+                                                  );
                                                   return _beginEditHeader(
                                                     context,
                                                     pal,
@@ -9012,28 +8958,28 @@ class _EditorScreenState extends State<EditorScreen>
                                                 },
                                                 onContextMenu:
                                                     (pos, r, c, isHeader) {
-                                                      final actualRow = isHeader
-                                                          ? r
-                                                          : _actualRowFromDisplay(
-                                                              r,
-                                                              visibleRows,
-                                                            );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                            c,
-                                                            displayColumns,
-                                                          );
-                                                      unawaited(
-                                                        _openContextMenu(
-                                                          context,
-                                                          pal,
-                                                          pos,
-                                                          actualRow,
-                                                          actualCol,
-                                                          isHeader,
-                                                        ),
-                                                      );
-                                                    },
+                                                  final actualRow = isHeader
+                                                      ? r
+                                                      : _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                  final actualCol =
+                                                      _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  );
+                                                  unawaited(
+                                                    _openContextMenu(
+                                                      context,
+                                                      pal,
+                                                      pos,
+                                                      actualRow,
+                                                      actualCol,
+                                                      isHeader,
+                                                    ),
+                                                  );
+                                                },
                                                 onDeleteRow: (r) => _deleteRow(
                                                   _actualRowFromDisplay(
                                                     r,
@@ -9042,23 +8988,23 @@ class _EditorScreenState extends State<EditorScreen>
                                                 ),
                                                 onPickPhoto: (r) =>
                                                     _startPhotoFlowForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _headers.length - 1,
-                                                    ),
+                                                  _actualRowFromDisplay(
+                                                    r,
+                                                    visibleRows,
+                                                  ),
+                                                  _headers.length - 1,
+                                                ),
                                                 onOpenAttachments: (r, c) =>
                                                     _openAttachmentPanelForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      ),
-                                                    ),
+                                                  _actualRowFromDisplay(
+                                                    r,
+                                                    visibleRows,
+                                                  ),
+                                                  _actualColumnFromDisplay(
+                                                    c,
+                                                    displayColumns,
+                                                  ),
+                                                ),
                                                 rowVersionListenable:
                                                     _rowVersionListenable,
                                                 onRowBuild: _trackGridRowBuild,
@@ -9088,14 +9034,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellTextAt: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _effectiveCell(
                                               actualRow,
                                               actualCol,
@@ -9104,14 +9050,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellHasGps: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellHasGps(
                                               actualRow,
                                               actualCol,
@@ -9120,14 +9066,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellHasAudios: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellHasAudios(
                                               actualRow,
                                               actualCol,
@@ -9136,14 +9082,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellPhotoThumb: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellPhotoThumb(
                                               actualRow,
                                               actualCol,
@@ -9152,14 +9098,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellPhotoCount: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellPhotoCount(
                                               actualRow,
                                               actualCol,
@@ -9168,14 +9114,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           cellInlinePreviewAt: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellInlinePreviewAt(
                                               actualRow,
                                               actualCol,
@@ -9184,38 +9130,38 @@ class _EditorScreenState extends State<EditorScreen>
                                           columnWrapLines: (c) {
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _colWrapLines(actualCol);
                                           },
                                           columnTextAlign: (c) {
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _colTextAlign(actualCol);
                                           },
                                           columnVerticalAlign: (c) {
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _colVerticalAlign(actualCol);
                                           },
                                           isAttachmentProcessing: (r, c) {
                                             final actualRow =
                                                 _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                );
+                                              r,
+                                              visibleRows,
+                                            );
                                             final actualCol =
                                                 _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                );
+                                              c,
+                                              displayColumns,
+                                            );
                                             return _cellIsAttachmentProcessing(
                                               actualRow,
                                               actualCol,
@@ -9231,8 +9177,7 @@ class _EditorScreenState extends State<EditorScreen>
                                           rowKeyFor: _mobileRowKeyAt,
                                           selectedRow: selectedDisplayRow,
                                           selectedCol: selectedDisplayCol,
-                                          activeRow:
-                                              _mobileEditorOpen &&
+                                          activeRow: _mobileEditorOpen &&
                                                   !_mobileEditingHeader
                                               ? _displayRowForActual(
                                                   _mobileRow,
@@ -9245,54 +9190,53 @@ class _EditorScreenState extends State<EditorScreen>
                                                   displayColumns,
                                                 )
                                               : -1,
-                                          activeIsHeader:
-                                              _mobileEditorOpen &&
+                                          activeIsHeader: _mobileEditorOpen &&
                                               _mobileEditingHeader,
                                           activeController: _mobileEC,
                                           onHorizontalScroll:
                                               _syncMobileHorizontal,
                                           onCellTap: (cellCtx, r, c) =>
                                               _beginEditCell(
-                                                cellCtx,
-                                                pal,
-                                                _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                ),
-                                                _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                ),
-                                                cardW,
-                                              ),
+                                            cellCtx,
+                                            pal,
+                                            _actualRowFromDisplay(
+                                              r,
+                                              visibleRows,
+                                            ),
+                                            _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            ),
+                                            cardW,
+                                          ),
                                           onHeaderTap: (cellCtx, c) =>
                                               _beginEditHeader(
-                                                cellCtx,
-                                                pal,
-                                                _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                ),
-                                                cardW,
-                                              ),
+                                            cellCtx,
+                                            pal,
+                                            _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            ),
+                                            cardW,
+                                          ),
                                           onContextMenu:
                                               (pos, r, c, isHeader) =>
                                                   _openContextMenu(
-                                                    ctx,
-                                                    pal,
-                                                    pos,
-                                                    isHeader
-                                                        ? r
-                                                        : _actualRowFromDisplay(
-                                                            r,
-                                                            visibleRows,
-                                                          ),
-                                                    _actualColumnFromDisplay(
-                                                      c,
-                                                      displayColumns,
-                                                    ),
-                                                    isHeader,
+                                            ctx,
+                                            pal,
+                                            pos,
+                                            isHeader
+                                                ? r
+                                                : _actualRowFromDisplay(
+                                                    r,
+                                                    visibleRows,
                                                   ),
+                                            _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            ),
+                                            isHeader,
+                                          ),
                                           onDeleteRow: (r) => _deleteRow(
                                             _actualRowFromDisplay(
                                               r,
@@ -9301,23 +9245,23 @@ class _EditorScreenState extends State<EditorScreen>
                                           ),
                                           onPickPhoto: (r) =>
                                               _startPhotoFlowForCell(
-                                                _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                ),
-                                                _headers.length - 1,
-                                              ),
+                                            _actualRowFromDisplay(
+                                              r,
+                                              visibleRows,
+                                            ),
+                                            _headers.length - 1,
+                                          ),
                                           onOpenAttachments: (r, c) =>
                                               _openAttachmentPanelForCell(
-                                                _actualRowFromDisplay(
-                                                  r,
-                                                  visibleRows,
-                                                ),
-                                                _actualColumnFromDisplay(
-                                                  c,
-                                                  displayColumns,
-                                                ),
-                                              ),
+                                            _actualRowFromDisplay(
+                                              r,
+                                              visibleRows,
+                                            ),
+                                            _actualColumnFromDisplay(
+                                              c,
+                                              displayColumns,
+                                            ),
+                                          ),
                                           onVerticalUserScroll:
                                               _handleMobileGridScrollDirection,
                                           onRowBuild: _trackGridRowBuild,
@@ -9386,8 +9330,8 @@ class _EditorScreenState extends State<EditorScreen>
                       bottom: isDesktop
                           ? 14
                           : (_mobileEditorOpen
-                                ? panelH + keyboardInset + 10
-                                : (_kMobileQuickBarH + bottomSafe + 18)),
+                              ? panelH + keyboardInset + 10
+                              : (_kMobileQuickBarH + bottomSafe + 18)),
                       child: RepaintBoundary(
                         child: AppleButton(
                           label: 'FlowBot',
@@ -9441,8 +9385,7 @@ class _EditorScreenState extends State<EditorScreen>
                               constraints: const BoxConstraints(maxWidth: 360),
                               child: LoadingState(
                                 message: _longOperation!.message,
-                                onCancel:
-                                    (_longOperation!.cancellable &&
+                                onCancel: (_longOperation!.cancellable &&
                                         !_longOperation!.cancelRequested)
                                     ? _requestLongOperationCancel
                                     : null,
@@ -9475,9 +9418,8 @@ class _EditorScreenState extends State<EditorScreen>
         if (displayIndex < 0) {
           displayIndex = _displayColumnIndexForActual(nc, displayColumns);
         }
-        final nextDisplay = (displayIndex + dCol)
-            .clamp(0, displayColumns.length - 1)
-            .toInt();
+        final nextDisplay =
+            (displayIndex + dCol).clamp(0, displayColumns.length - 1).toInt();
         nc = displayColumns[nextDisplay];
       } else {
         nc = (nc + dCol).clamp(0, _headers.length - 1).toInt();
@@ -9981,14 +9923,11 @@ class _EditorScreenState extends State<EditorScreen>
     final textFilter = (active?.textContains ?? '').trim().toLowerCase();
     final dateFrom = active?.dateFrom;
     final dateTo = active?.dateTo;
-    final statusCol =
-        _columnIndexFromId(active?.statusColId) ??
+    final statusCol = _columnIndexFromId(active?.statusColId) ??
         (statusFilter.isNotEmpty ? _firstColumnByType(_ColType.status) : null);
-    final textCol =
-        _columnIndexFromId(active?.textColId) ??
+    final textCol = _columnIndexFromId(active?.textColId) ??
         (textFilter.isNotEmpty ? _firstTextLikeColumn() : null);
-    final dateCol =
-        _columnIndexFromId(active?.dateColId) ??
+    final dateCol = _columnIndexFromId(active?.dateColId) ??
         ((dateFrom != null || dateTo != null)
             ? _firstColumnByType(_ColType.date)
             : null);
@@ -10014,9 +9953,8 @@ class _EditorScreenState extends State<EditorScreen>
         if (!value.contains(textFilter)) continue;
       }
       if (dateCol != null && (dateFrom != null || dateTo != null)) {
-        final raw = (dateCol < _rows[r].cells.length)
-            ? _rows[r].cells[dateCol]
-            : '';
+        final raw =
+            (dateCol < _rows[r].cells.length) ? _rows[r].cells[dateCol] : '';
         final parsed = _parseDateCellValue(raw);
         if (parsed == null) continue;
         final dateValue = _dateOnly(parsed);
@@ -10282,9 +10220,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _sortRowsByColumn(int col, {required bool ascending}) {
     if (col < 0 || col >= _headers.length - 1) return;
     if (_rows.isEmpty) return;
-    final currentSelId = (_selRow >= 0 && _selRow < _rows.length)
-        ? _rows[_selRow].id
-        : null;
+    final currentSelId =
+        (_selRow >= 0 && _selRow < _rows.length) ? _rows[_selRow].id : null;
 
     _rows.sort((a, b) {
       final av = (col < a.cells.length) ? a.cells[col] : '';
@@ -10753,8 +10690,8 @@ class _EditorScreenState extends State<EditorScreen>
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
       );
     } else {
-      final target = _mobileRowOffsetFor(row);
-      final clamped = target.clamp(
+      final rowOffset = _mobileRowOffsetFor(row);
+      final clamped = rowOffset.clamp(
         _vScroll.position.minScrollExtent,
         _vScroll.position.maxScrollExtent,
       );
@@ -10787,8 +10724,8 @@ class _EditorScreenState extends State<EditorScreen>
     final controller = _mobileEditingHeader || _mobileRow < 0
         ? _mobileHeaderScroll
         : (_mobileRow < _mobileRowScrolls.length
-              ? _mobileRowScrollAt(_mobileRow)
-              : null);
+            ? _mobileRowScrollAt(_mobileRow)
+            : null);
     if (controller == null || !controller.hasClients) return;
 
     final cardW = _mobileCardWidthForScreen(MediaQuery.of(context).size.width);
@@ -11162,9 +11099,8 @@ class _EditorScreenState extends State<EditorScreen>
     final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
     final activeRow = _overlayTargetCell?.r;
     final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
-    final hintText = activeCol == null
-        ? 'Escribir'
-        : 'Editar ${_headerLabel(activeCol)}';
+    final hintText =
+        activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
     final suggestions = activeCol == null
         ? const <String>[]
         : _recentValuesForColumn(
@@ -11382,15 +11318,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           ),
                                         ),
                                         onPressed: () {
-                                          _cellEC.value = _cellEC.value
-                                              .copyWith(
-                                                text: suggestion,
-                                                selection:
-                                                    TextSelection.collapsed(
-                                                      offset: suggestion.length,
-                                                    ),
-                                                composing: TextRange.empty,
-                                              );
+                                          _cellEC.value =
+                                              _cellEC.value.copyWith(
+                                            text: suggestion,
+                                            selection: TextSelection.collapsed(
+                                              offset: suggestion.length,
+                                            ),
+                                            composing: TextRange.empty,
+                                          );
                                           _cellFocus.requestFocus();
                                         },
                                       ),
@@ -11655,15 +11590,13 @@ class _EditorScreenState extends State<EditorScreen>
                                 numberMin: current?.numberMin,
                                 numberMax: current?.numberMax,
                                 regexPattern: current?.regexPattern,
-                                wrapLines:
-                                    current?.wrapLines ??
+                                wrapLines: current?.wrapLines ??
                                     _defaultWrapLinesForType(
                                       current?.type ?? type,
                                     ),
                                 textAlign:
                                     current?.textAlign ?? _GridTextAlignX.left,
-                                verticalAlign:
-                                    current?.verticalAlign ??
+                                verticalAlign: current?.verticalAlign ??
                                     _GridTextAlignY.middle,
                               );
                             }
@@ -11688,9 +11621,9 @@ class _EditorScreenState extends State<EditorScreen>
                 final regexPattern = pref?.regexPattern;
                 final wrapLines =
                     (pref?.wrapLines ?? _defaultWrapLinesForColumn(col)).clamp(
-                      1,
-                      3,
-                    );
+                  1,
+                  3,
+                );
                 final textAlignPref = pref?.textAlign ?? _GridTextAlignX.left;
                 final verticalAlignPref =
                     pref?.verticalAlign ?? _GridTextAlignY.middle;
@@ -11733,8 +11666,7 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                           IconButton(
                             tooltip: 'Mover abajo',
-                            onPressed:
-                                orderIndex >= 0 &&
+                            onPressed: orderIndex >= 0 &&
                                     orderIndex < draftOrder.length - 1
                                 ? () => swapOrder(orderIndex, orderIndex + 1)
                                 : null,
@@ -11752,21 +11684,18 @@ class _EditorScreenState extends State<EditorScreen>
                                 isDense: true,
                                 labelText: 'Tipo',
                               ),
-                              items:
-                                  const <_ColType>[
-                                        _ColType.text,
-                                        _ColType.number,
-                                        _ColType.date,
-                                        _ColType.status,
-                                        _ColType.checkbox,
-                                      ]
-                                      .map((entry) {
-                                        return DropdownMenuItem<_ColType>(
-                                          value: entry,
-                                          child: Text(_columnTypeLabel(entry)),
-                                        );
-                                      })
-                                      .toList(growable: false),
+                              items: const <_ColType>[
+                                _ColType.text,
+                                _ColType.number,
+                                _ColType.date,
+                                _ColType.status,
+                                _ColType.checkbox,
+                              ].map((entry) {
+                                return DropdownMenuItem<_ColType>(
+                                  value: entry,
+                                  child: Text(_columnTypeLabel(entry)),
+                                );
+                              }).toList(growable: false),
                               onChanged: (nextType) {
                                 if (nextType == null) return;
                                 setModalState(() {
@@ -11879,17 +11808,14 @@ class _EditorScreenState extends State<EditorScreen>
                                 isDense: true,
                                 labelText: 'Wrap',
                               ),
-                              items: const <int>[1, 2, 3]
-                                  .map((lines) {
-                                    final label = lines == 1
-                                        ? '1 linea'
-                                        : '$lines lineas';
-                                    return DropdownMenuItem<int>(
-                                      value: lines,
-                                      child: Text(label),
-                                    );
-                                  })
-                                  .toList(growable: false),
+                              items: const <int>[1, 2, 3].map((lines) {
+                                final label =
+                                    lines == 1 ? '1 linea' : '$lines lineas';
+                                return DropdownMenuItem<int>(
+                                  value: lines,
+                                  child: Text(label),
+                                );
+                              }).toList(growable: false),
                               onChanged: (nextLines) {
                                 if (nextLines == null) return;
                                 setModalState(() {
@@ -11918,23 +11844,19 @@ class _EditorScreenState extends State<EditorScreen>
                                 isDense: true,
                                 labelText: 'Alineacion',
                               ),
-                              items:
-                                  const <_GridTextAlignX>[
-                                        _GridTextAlignX.left,
-                                        _GridTextAlignX.center,
-                                        _GridTextAlignX.right,
-                                      ]
-                                      .map((entry) {
-                                        final label = switch (entry) {
-                                          _GridTextAlignX.left => 'Izquierda',
-                                          _GridTextAlignX.center => 'Centro',
-                                          _GridTextAlignX.right => 'Derecha',
-                                        };
-                                        return DropdownMenuItem<
-                                          _GridTextAlignX
-                                        >(value: entry, child: Text(label));
-                                      })
-                                      .toList(growable: false),
+                              items: const <_GridTextAlignX>[
+                                _GridTextAlignX.left,
+                                _GridTextAlignX.center,
+                                _GridTextAlignX.right,
+                              ].map((entry) {
+                                final label = switch (entry) {
+                                  _GridTextAlignX.left => 'Izquierda',
+                                  _GridTextAlignX.center => 'Centro',
+                                  _GridTextAlignX.right => 'Derecha',
+                                };
+                                return DropdownMenuItem<_GridTextAlignX>(
+                                    value: entry, child: Text(label));
+                              }).toList(growable: false),
                               onChanged: (nextAlign) {
                                 if (nextAlign == null) return;
                                 setModalState(() {
@@ -11964,24 +11886,21 @@ class _EditorScreenState extends State<EditorScreen>
                           isDense: true,
                           labelText: 'Alineacion vertical',
                         ),
-                        items:
-                            const <_GridTextAlignY>[
-                                  _GridTextAlignY.top,
-                                  _GridTextAlignY.middle,
-                                  _GridTextAlignY.bottom,
-                                ]
-                                .map((entry) {
-                                  final label = switch (entry) {
-                                    _GridTextAlignY.top => 'Arriba',
-                                    _GridTextAlignY.middle => 'Centro',
-                                    _GridTextAlignY.bottom => 'Abajo',
-                                  };
-                                  return DropdownMenuItem<_GridTextAlignY>(
-                                    value: entry,
-                                    child: Text(label),
-                                  );
-                                })
-                                .toList(growable: false),
+                        items: const <_GridTextAlignY>[
+                          _GridTextAlignY.top,
+                          _GridTextAlignY.middle,
+                          _GridTextAlignY.bottom,
+                        ].map((entry) {
+                          final label = switch (entry) {
+                            _GridTextAlignY.top => 'Arriba',
+                            _GridTextAlignY.middle => 'Centro',
+                            _GridTextAlignY.bottom => 'Abajo',
+                          };
+                          return DropdownMenuItem<_GridTextAlignY>(
+                            value: entry,
+                            child: Text(label),
+                          );
+                        }).toList(growable: false),
                         onChanged: (nextAlign) {
                           if (nextAlign == null) return;
                           setModalState(() {
@@ -12050,9 +11969,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                      signed: true,
-                                    ),
+                                  decimal: true,
+                                  signed: true,
+                                ),
                                 onChanged: (raw) {
                                   final parsed = double.tryParse(
                                     raw.trim().replaceAll(',', '.'),
@@ -12086,9 +12005,9 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                      signed: true,
-                                    ),
+                                  decimal: true,
+                                  signed: true,
+                                ),
                                 onChanged: (raw) {
                                   final parsed = double.tryParse(
                                     raw.trim().replaceAll(',', '.'),
@@ -12124,9 +12043,8 @@ class _EditorScreenState extends State<EditorScreen>
                           hintText: r'Ej: ^[A-Z]{3}-\d{4}$',
                         ),
                         onChanged: (raw) {
-                          final nextRegex = raw.trim().isEmpty
-                              ? null
-                              : raw.trim();
+                          final nextRegex =
+                              raw.trim().isEmpty ? null : raw.trim();
                           setModalState(() {
                             draftPrefs = _cloneColumnPrefs(draftPrefs)
                               ..[colId] = _ColumnPrefs(
@@ -12259,11 +12177,7 @@ class _EditorScreenState extends State<EditorScreen>
         );
         actions.add(
           _CtxAction(
-            'Wrap ${currentWrap == 1
-                ? '2 lineas'
-                : currentWrap == 2
-                ? '3 lineas'
-                : '1 linea'}',
+            'Wrap ${currentWrap == 1 ? '2 lineas' : currentWrap == 2 ? '3 lineas' : '1 linea'}',
             Icons.wrap_text_rounded,
             () => _setColumnPresentationForIndex(
               c,
@@ -12584,8 +12498,7 @@ class _EditorScreenState extends State<EditorScreen>
   void _fillDownColumn(int r, int c, {required int count}) {
     if (c < 0 || c >= _headers.length - 1) return;
     if (r < 0 || r >= _rows.length) return;
-    final value =
-        (_mobileEditorOpen &&
+    final value = (_mobileEditorOpen &&
             _mobileRow == r &&
             _mobileCol == c &&
             !_mobileEditingHeader)
@@ -12675,8 +12588,7 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     if (c < 0 || c >= _headers.length - 1) return;
     if (r < 0 || r >= _rows.length) return;
-    final baseRaw =
-        (_mobileEditorOpen &&
+    final baseRaw = (_mobileEditorOpen &&
             _mobileRow == r &&
             _mobileCol == c &&
             !_mobileEditingHeader)
@@ -12706,8 +12618,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _applyCalcToCell(int r, int c) {
     if (c < 0 || c >= _headers.length - 1) return;
-    final raw =
-        (_mobileEditorOpen &&
+    final raw = (_mobileEditorOpen &&
             _mobileRow == r &&
             _mobileCol == c &&
             !_mobileEditingHeader)
@@ -12959,9 +12870,8 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         IconButton(
                           tooltip: 'Cerrar',
-                          onPressed: saving
-                              ? null
-                              : () => Navigator.of(ctx).pop(),
+                          onPressed:
+                              saving ? null : () => Navigator.of(ctx).pop(),
                           icon: Icon(Icons.close_rounded, color: pal.fgMuted),
                         ),
                       ],
@@ -13017,9 +12927,8 @@ class _EditorScreenState extends State<EditorScreen>
                           child: AppButton(
                             label: AppStrings.cancel,
                             variant: AppButtonVariant.ghost,
-                            onPressed: saving
-                                ? null
-                                : () => Navigator.of(ctx).pop(),
+                            onPressed:
+                                saving ? null : () => Navigator.of(ctx).pop(),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -13389,9 +13298,8 @@ class _EditorScreenState extends State<EditorScreen>
         _headers[cc] = nextHeader;
         headersChanged++;
       }
-      dataGrid = dataGrid.length > 1
-          ? dataGrid.sublist(1)
-          : const <List<String>>[];
+      dataGrid =
+          dataGrid.length > 1 ? dataGrid.sublist(1) : const <List<String>>[];
     }
 
     int baseRow = _selRow;
@@ -13458,9 +13366,8 @@ class _EditorScreenState extends State<EditorScreen>
         0,
         (maxValue, row) => row.length > maxValue ? row.length : maxValue,
       );
-      final lastRow = (baseRow + dataGrid.length - 1)
-          .clamp(0, _rows.length - 1)
-          .toInt();
+      final lastRow =
+          (baseRow + dataGrid.length - 1).clamp(0, _rows.length - 1).toInt();
       final lastCol = (startC + math.max(0, widest - 1))
           .clamp(0, maxColsExclusive - 1)
           .toInt();
@@ -13710,9 +13617,8 @@ class _EditorScreenState extends State<EditorScreen>
     final parsed = SearchEverywhereQuery.parse(query);
     if (parsed.isEmpty) return const <_GlobalSearchResult>[];
     final needle = parsed.needle;
-    final targetCol = parsed.hasColumnFilter
-        ? parsed.resolveColumnIndex(headers)
-        : null;
+    final targetCol =
+        parsed.hasColumnFilter ? parsed.resolveColumnIndex(headers) : null;
 
     final out = <_GlobalSearchResult>[];
     var processed = 0;
@@ -13779,9 +13685,8 @@ class _EditorScreenState extends State<EditorScreen>
     ];
     final current = await _searchSheetRows(
       sheetId: widget.sheetId,
-      sheetTitle: _sheetName.trim().isEmpty
-          ? 'Planilla actual'
-          : _sheetName.trim(),
+      sheetTitle:
+          _sheetName.trim().isEmpty ? 'Planilla actual' : _sheetName.trim(),
       headers: headers,
       rows: currentRows,
       query: query,
@@ -13796,8 +13701,8 @@ class _EditorScreenState extends State<EditorScreen>
       if (table == null) continue;
       final otherHeaders = table.headers.isNotEmpty
           ? table.headers
-                .take(math.max(0, table.headers.length - 1))
-                .toList(growable: false)
+              .take(math.max(0, table.headers.length - 1))
+              .toList(growable: false)
           : const <String>[];
       final rows = <List<String>>[
         for (final row in table.rows)
@@ -13985,9 +13890,9 @@ class _EditorScreenState extends State<EditorScreen>
                                                 sheetId: targetSheetId,
                                                 initialName:
                                                     table?.headers.isNotEmpty ==
-                                                        true
-                                                    ? null
-                                                    : result.sheetTitle,
+                                                            true
+                                                        ? null
+                                                        : result.sheetTitle,
                                                 initialSelectionRow: targetRow,
                                                 initialSelectionCol: targetCol,
                                                 engineBaseUrl:
@@ -14209,9 +14114,8 @@ class _EditorScreenState extends State<EditorScreen>
           .toList(growable: false);
     } else if (window == _HistoryFilterWindow.week) {
       final minAt = now.subtract(const Duration(days: 7));
-      out = out
-          .where((event) => event.at.isAfter(minAt))
-          .toList(growable: false);
+      out =
+          out.where((event) => event.at.isAfter(minAt)).toList(growable: false);
     }
     final normalizedType = type.trim().toLowerCase();
     if (normalizedType.isNotEmpty && normalizedType != 'todos') {
@@ -14264,7 +14168,8 @@ class _EditorScreenState extends State<EditorScreen>
           final types = <String>{
             'todos',
             ..._historyEvents.map((event) => event.type.toLowerCase()),
-          }.toList(growable: false)..sort();
+          }.toList(growable: false)
+            ..sort();
           final filtered = _historyFiltered(window: window, type: selectedType);
           return ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 460),
@@ -14467,9 +14372,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (meta == null || meta.photos.isEmpty) return null;
 
     final primary = meta.photos.last;
-    final safeName = primary.filename.trim().isEmpty
-        ? 'Adjunto'
-        : primary.filename.trim();
+    final safeName =
+        primary.filename.trim().isEmpty ? 'Adjunto' : primary.filename.trim();
     final safeMime = primary.mime.trim().toLowerCase();
     final typeLabel = _inlineAttachmentTypeLabel(safeMime, safeName);
     final subtitle = '$typeLabel · ${_formatBytes(primary.size)}';
@@ -15075,8 +14979,7 @@ class _EditorScreenState extends State<EditorScreen>
           ));
     if (save == null || save.storedRef.trim().isEmpty) return;
 
-    final thumbBytes =
-        prepared.thumbBytes ??
+    final thumbBytes = prepared.thumbBytes ??
         _compressThumb(bytes, maxW: 320, maxH: 320, quality: 74);
     final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
         ? ''
@@ -15435,11 +15338,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<({PhotoAcquireOutcome outcome, bool fromCamera})?>
-  _showPhotoSourcePicker() async {
+      _showPhotoSourcePicker() async {
     if (_rows.isEmpty || _headers.isEmpty) return null;
     return showModalBottomSheet<
-      ({PhotoAcquireOutcome outcome, bool fromCamera})?
-    >(
+        ({PhotoAcquireOutcome outcome, bool fromCamera})?>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: false,
@@ -15525,8 +15427,8 @@ class _EditorScreenState extends State<EditorScreen>
                   subtitle: const Text('Seleccionar archivo'),
                   onTap: () async {
                     try {
-                      final outcome = await PhotoAcquireService.I
-                          .pickFromGallery();
+                      final outcome =
+                          await PhotoAcquireService.I.pickFromGallery();
                       if (!ctx.mounted) return;
                       Navigator.of(
                         ctx,
@@ -16309,17 +16211,14 @@ class _EditorScreenState extends State<EditorScreen>
         '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
 
     final attachmentRows = <List<String>>[];
-    final evidenceItems =
-        <
-          ({
-            String cell,
-            String kind,
-            String caption,
-            String date,
-            String? mapUrl,
-            Uint8List? thumb,
-          })
-        >[];
+    final evidenceItems = <({
+      String cell,
+      String kind,
+      String caption,
+      String date,
+      String? mapUrl,
+      Uint8List? thumb,
+    })>[];
     var photoCount = 0;
     var audioCount = 0;
     var gpsCount = 0;
@@ -16379,8 +16278,7 @@ class _EditorScreenState extends State<EditorScreen>
             preferThumb: true,
           );
           if (bytes != null && bytes.isNotEmpty) {
-            thumb =
-                _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
+            thumb = _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
                 bytes;
           }
           evidenceItems.add((
@@ -17188,31 +17086,29 @@ class _EditorScreenState extends State<EditorScreen>
     final counts = manifest['counts'];
     final rowsCount =
         ((counts is Map ? counts['rows'] : null) as num?)?.toInt() ??
-        ((sheetRaw['rows'] as List?)?.length ?? 0);
+            ((sheetRaw['rows'] as List?)?.length ?? 0);
     final photosCount =
         ((counts is Map ? counts['photos'] : null) as num?)?.toInt() ??
-        assets.where((a) => a['kind'] == 'photo').length;
+            assets.where((a) => a['kind'] == 'photo').length;
     final audiosCount =
         ((counts is Map ? counts['audios'] : null) as num?)?.toInt() ??
-        assets.where((a) => a['kind'] == 'audio').length;
+            assets.where((a) => a['kind'] == 'audio').length;
     final attachmentsCount =
         ((counts is Map ? counts['attachments'] : null) as num?)?.toInt() ??
-        assets.length;
+            assets.length;
     final manifestSheet = manifest['sheet'];
-    final sourceSheetId =
-        ((manifestSheet is Map
-                    ? (manifestSheet['id'] ?? sheetRaw['sheetId'])
-                    : sheetRaw['sheetId']) ??
-                '')
-            .toString()
-            .trim();
-    final sourceSheetName =
-        ((manifestSheet is Map
-                    ? (manifestSheet['name'] ?? sheetRaw['name'])
-                    : sheetRaw['name']) ??
-                '')
-            .toString()
-            .trim();
+    final sourceSheetId = ((manifestSheet is Map
+                ? (manifestSheet['id'] ?? sheetRaw['sheetId'])
+                : sheetRaw['sheetId']) ??
+            '')
+        .toString()
+        .trim();
+    final sourceSheetName = ((manifestSheet is Map
+                ? (manifestSheet['name'] ?? sheetRaw['name'])
+                : sheetRaw['name']) ??
+            '')
+        .toString()
+        .trim();
 
     return _PackageImportBundle(
       format: (manifest['format'] ?? 'bitflow_package').toString(),
@@ -17367,8 +17263,8 @@ class _EditorScreenState extends State<EditorScreen>
         operation: mode == _PackageImportMode.mergeCurrent
             ? 'import_package_merge_current'
             : (mode == _PackageImportMode.replaceCurrent
-                  ? 'import_package_replace_current'
-                  : 'import_package_create_new'),
+                ? 'import_package_replace_current'
+                : 'import_package_create_new'),
         stackTrace: st,
         fallbackMessage: 'No se pudo importar el paquete.',
         icon: Icons.file_open_rounded,
@@ -17427,8 +17323,7 @@ class _EditorScreenState extends State<EditorScreen>
     int autoMerged,
     int appendedRows,
     int addedColumns,
-  })
-  _computePackageMergePlan({
+  }) _computePackageMergePlan({
     required _SheetModel imported,
     required PackageMergeConflictPolicy conflictPolicy,
   }) {
@@ -17441,11 +17336,9 @@ class _EditorScreenState extends State<EditorScreen>
     final existingColSet = mergedColIds.toSet();
     var addedColumns = 0;
 
-    for (
-      int i = 0;
-      i < incomingColIds.length && i < incomingHeaders.length;
-      i++
-    ) {
+    for (int i = 0;
+        i < incomingColIds.length && i < incomingHeaders.length;
+        i++) {
       final colId = incomingColIds[i].trim();
       if (colId.isEmpty || existingColSet.contains(colId)) continue;
       existingColSet.add(colId);
@@ -17556,8 +17449,7 @@ class _EditorScreenState extends State<EditorScreen>
       int autoMerged,
       int appendedRows,
       int addedColumns,
-    })
-    plan,
+    }) plan,
   ) {
     setState(() {
       _headers = plan.headers;
@@ -17585,14 +17477,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<
-    ({
-      Map<String, dynamic> model,
-      int importedPhotos,
-      int importedAudios,
-      int missingAssets,
-    })
-  >
-  _restorePackageAssetsIntoModel({
+      ({
+        Map<String, dynamic> model,
+        int importedPhotos,
+        int importedAudios,
+        int missingAssets,
+      })> _restorePackageAssetsIntoModel({
     required Map<String, dynamic> normalizedModel,
     required List<Map<String, dynamic>> assets,
     required Map<String, ArchiveFile> filesByPath,
@@ -17607,8 +17497,7 @@ class _EditorScreenState extends State<EditorScreen>
         rowIds.add((row['id'] ?? '').toString());
       }
     }
-    final colIds =
-        (normalizedModel['colIds'] as List?)
+    final colIds = (normalizedModel['colIds'] as List?)
             ?.map((e) => (e ?? '').toString())
             .toList() ??
         const <String>[];
@@ -17664,26 +17553,23 @@ class _EditorScreenState extends State<EditorScreen>
               usedPhotoIds.add(id);
             }
 
-            final asset =
-                assetsById['photo:$sourceId'] ??
+            final asset = assetsById['photo:$sourceId'] ??
                 assetsById['video:$sourceId'] ??
                 assetsById['file:$sourceId'];
             final assetPath = (asset?['path'] ?? source['path'] ?? '')
                 .toString()
                 .replaceAll('\\', '/');
             final archiveFile = _findArchiveFileByPath(filesByPath, assetPath);
-            final contentBytes = archiveFile == null
-                ? null
-                : _archiveFileBytes(archiveFile);
+            final contentBytes =
+                archiveFile == null ? null : _archiveFileBytes(archiveFile);
 
-            final fileName =
-                (source['name'] ??
-                        asset?['fileName'] ??
-                        source['filename'] ??
-                        'foto.jpg')
-                    .toString();
-            final mime = (source['mime'] ?? asset?['mime'] ?? 'image/jpeg')
+            final fileName = (source['name'] ??
+                    asset?['fileName'] ??
+                    source['filename'] ??
+                    'foto.jpg')
                 .toString();
+            final mime =
+                (source['mime'] ?? asset?['mime'] ?? 'image/jpeg').toString();
             final thumbRef = (source['thumbRef'] ?? '').toString();
             var storedRef = '';
             var size = (source['size'] as num?)?.toInt() ?? 0;
@@ -17748,20 +17634,17 @@ class _EditorScreenState extends State<EditorScreen>
                 .toString()
                 .replaceAll('\\', '/');
             final archiveFile = _findArchiveFileByPath(filesByPath, assetPath);
-            final contentBytes = archiveFile == null
-                ? null
-                : _archiveFileBytes(archiveFile);
+            final contentBytes =
+                archiveFile == null ? null : _archiveFileBytes(archiveFile);
 
-            final fileName =
-                (source['name'] ??
-                        asset?['fileName'] ??
-                        source['filename'] ??
-                        'audio.m4a')
-                    .toString();
-            final mime = (source['mime'] ?? asset?['mime'] ?? 'audio/m4a')
+            final fileName = (source['name'] ??
+                    asset?['fileName'] ??
+                    source['filename'] ??
+                    'audio.m4a')
                 .toString();
-            final durationMs =
-                (source['durationMs'] as num?)?.toInt() ??
+            final mime =
+                (source['mime'] ?? asset?['mime'] ?? 'audio/m4a').toString();
+            final durationMs = (source['durationMs'] as num?)?.toInt() ??
                 (asset?['durationMs'] as num?)?.toInt() ??
                 0;
             var storedRef = '';
@@ -18176,8 +18059,7 @@ Este paquete incluye:
     _throwIfOperationCancelledBy(shouldCancel);
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
 
-    final isMobile =
-        !kIsWeb &&
+    final isMobile = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
 
@@ -18229,10 +18111,10 @@ Este paquete incluye:
     final extensions = lower.endsWith('.zip')
         ? const ['zip']
         : lower.endsWith('.pdf')
-        ? const ['pdf']
-        : (lower.endsWith('.html') || lower.endsWith('.htm'))
-        ? const ['html', 'htm']
-        : const ['xlsx'];
+            ? const ['pdf']
+            : (lower.endsWith('.html') || lower.endsWith('.htm'))
+                ? const ['html', 'htm']
+                : const ['xlsx'];
     final typeGroup = XTypeGroup(label: 'Export', extensions: extensions);
     _throwIfOperationCancelledBy(shouldCancel);
     final loc = await getSaveLocation(
@@ -18459,11 +18341,10 @@ Este paquete incluye:
   Future<String?> _readEngineApiKeyFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final key =
-          (prefs.getString(_kPrefEngineApiKey) ??
-                  prefs.getString(_kPrefEngineApiKeyAlt) ??
-                  '')
-              .trim();
+      final key = (prefs.getString(_kPrefEngineApiKey) ??
+              prefs.getString(_kPrefEngineApiKeyAlt) ??
+              '')
+          .trim();
       return key.isEmpty ? null : key;
     } catch (_) {
       return null;
@@ -18563,12 +18444,10 @@ Este paquete incluye:
 
     final text = error.toString();
     final lower = text.toLowerCase();
-    final isTimeout =
-        error is TimeoutException ||
+    final isTimeout = error is TimeoutException ||
         lower.contains('timeout') ||
         lower.contains('timed out');
-    final isCors =
-        kIsWeb &&
+    final isCors = kIsWeb &&
         (text.contains('XMLHttpRequest') || text.contains('Failed to fetch'));
 
     return _EngineErrorDetails(
@@ -18803,9 +18682,8 @@ Este paquete incluye:
       for (int c = 0; c < _headers.length - 1; c++) {
         final raw = _effectiveCell(r, c);
         if (!_looksLikeExpression(raw)) continue;
-        final expr = raw.trim().startsWith('=')
-            ? raw.trim().substring(1)
-            : raw.trim();
+        final expr =
+            raw.trim().startsWith('=') ? raw.trim().substring(1) : raw.trim();
         final res = evalExpression(expr);
         if (res == null) continue;
         final out = _formatNumber(res);

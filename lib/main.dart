@@ -19,6 +19,7 @@ import 'services/engine_math_client.dart'; // si lo seguís usando en otras part
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'widgets/animated_video_background.dart';
+import 'widgets/keyboard_aware_root.dart';
 import 'ui/ui_theme.dart';
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
@@ -40,8 +41,9 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
     final normalized = engine_cfg.EngineConfig.normalize(url);
     if (engine_cfg.EngineConfig.isValidBaseUrl(normalized)) {
       await engine_cfg.EngineConfig.instance.setManualBaseUrl(normalized);
-      await engine_cfg.EngineConfig.instance
-          .setMode(engine_cfg.EngineConfig.modeManual);
+      await engine_cfg.EngineConfig.instance.setMode(
+        engine_cfg.EngineConfig.modeManual,
+      );
       await engine_cfg.EngineConfig.instance.setLastResolved(normalized);
     }
 
@@ -58,95 +60,98 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
 }
 
 Future<void> main() async {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print(details.exception);
-        // ignore: avoid_print
-        print(details.stack);
-      }
-    };
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FlutterError.presentError(details);
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print(details.exception);
+          // ignore: avoid_print
+          print(details.stack);
+        }
+      };
 
-    PlatformDispatcher.instance.onError = (error, stack) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('Uncaught error: $error');
-        // ignore: avoid_print
-        print(stack);
-      }
-      return true;
-    };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('Uncaught error: $error');
+          // ignore: avoid_print
+          print(stack);
+        }
+        return true;
+      };
 
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      // UI controlada (en vez de pantalla roja en producción web)
-      return Material(
-        color: const Color(0xFF0B0D1A),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: const Color(0xCC0B0D1A),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0x22FFFFFF)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: DefaultTextStyle(
-                    style: const TextStyle(
-                      color: Colors.white,
-                      height: 1.25,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Gridnote - Error',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: null,
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        // UI controlada (en vez de pantalla roja en producción web)
+        return Material(
+          color: const Color(0xFF0B0D1A),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC0B0D1A),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0x22FFFFFF)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: DefaultTextStyle(
+                      style: const TextStyle(
+                        color: Colors.white,
+                        height: 1.25,
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Gridnote - Error',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: null,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(details.exceptionAsString()),
-                        if (kDebugMode && details.stack != null) ...[
                           const SizedBox(height: 10),
-                          Text(details.stack.toString()),
+                          Text(details.exceptionAsString()),
+                          if (kDebugMode && details.stack != null) ...[
+                            const SizedBox(height: 10),
+                            Text(details.stack.toString()),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    };
+        );
+      };
 
-    // IMPORTANTE: si abrís la web con ?engine=https://xxxxx.trycloudflare.com
-    // acá lo persistimos para que toda la app apunte al engine remoto.
-    await _applyEngineBaseUrlOverrideFromUrl();
+      // IMPORTANTE: si abrís la web con ?engine=https://xxxxx.trycloudflare.com
+      // acá lo persistimos para que toda la app apunte al engine remoto.
+      await _applyEngineBaseUrlOverrideFromUrl();
 
-    runApp(const App());
-  }, (error, stack) {
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print('Zoned error: $error');
-      // ignore: avoid_print
-      print(stack);
-    }
-  });
+      runApp(const App());
+    },
+    (error, stack) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Zoned error: $error');
+        // ignore: avoid_print
+        print(stack);
+      }
+    },
+  );
 }
 
 class _BootStatus {
@@ -220,8 +225,9 @@ class _AppState extends State<App> {
     try {
       await EngineConfig.instance
           .init(
-              timeout: const Duration(seconds: 6),
-              versionJsonPath: 'version.json')
+            timeout: const Duration(seconds: 6),
+            versionJsonPath: 'version.json',
+          )
           .timeout(const Duration(seconds: 7));
       if (kDebugMode) {
         // ignore: avoid_print
@@ -255,11 +261,10 @@ class _AppState extends State<App> {
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
         scrollBehavior: const _AppScrollBehavior(),
+        builder: (context, child) =>
+            KeyboardAwareRoot(child: child ?? const SizedBox.shrink()),
         home: AnimatedVideoBackground(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: child,
-          ),
+          child: Scaffold(backgroundColor: Colors.transparent, body: child),
         ),
       );
     }
@@ -267,7 +272,8 @@ class _AppState extends State<App> {
     return FutureBuilder<_BootStatus>(
       future: _bootFuture,
       builder: (context, snap) {
-        final isWaiting = snap.connectionState == ConnectionState.waiting ||
+        final isWaiting =
+            snap.connectionState == ConnectionState.waiting ||
             snap.connectionState == ConnectionState.active;
 
         if (isWaiting) {
@@ -310,6 +316,8 @@ class _AppState extends State<App> {
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
           scrollBehavior: const _AppScrollBehavior(),
+          builder: (context, child) =>
+              KeyboardAwareRoot(child: child ?? const SizedBox.shrink()),
           routerConfig: _router!,
         );
       },
@@ -322,10 +330,8 @@ class _AppState extends State<App> {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => LandingScreen(
-            isLight: _isLight,
-            onToggleTheme: _toggleTheme,
-          ),
+          builder: (context, state) =>
+              LandingScreen(isLight: _isLight, onToggleTheme: _toggleTheme),
         ),
         GoRoute(
           path: '/app',
@@ -384,17 +390,11 @@ class _AppHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final home = AuthGate(
-      child: StartPage(
-        isLight: isLight,
-        onToggleTheme: onToggleTheme,
-      ),
+      child: StartPage(isLight: isLight, onToggleTheme: onToggleTheme),
     );
 
     final body = AnimatedVideoBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: home,
-      ),
+      child: Scaffold(backgroundColor: Colors.transparent, body: home),
     );
 
     if (firebaseOk) return body;
@@ -542,11 +542,7 @@ class _BootSplash extends StatelessWidget {
                     ),
                     if (actions != null) ...[
                       const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: actions!,
-                      ),
+                      Wrap(spacing: 10, runSpacing: 10, children: actions!),
                     ],
                   ],
                 ),
@@ -595,8 +591,9 @@ class _PillButton extends StatelessWidget {
       backgroundColor: outlined
           ? WidgetStateProperty.all(Colors.transparent)
           : WidgetStateProperty.all(cs.primary.withOpacity(0.14)),
-      foregroundColor:
-          WidgetStateProperty.all(outlined ? cs.onSurface : cs.primary),
+      foregroundColor: WidgetStateProperty.all(
+        outlined ? cs.onSurface : cs.primary,
+      ),
       overlayColor: WidgetStateProperty.all(cs.primary.withOpacity(0.10)),
     );
 
@@ -605,8 +602,9 @@ class _PillButton extends StatelessWidget {
       style: style,
       child: Text(
         label,
-        style:
-            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -669,19 +667,20 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => <PointerDeviceKind>{
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.unknown,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.unknown,
+  };
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
     final platform = getPlatform(context);
     if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
       return const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics());
+        parent: AlwaysScrollableScrollPhysics(),
+      );
     }
     return const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
   }

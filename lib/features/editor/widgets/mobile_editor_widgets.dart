@@ -416,8 +416,9 @@ class _SelectionQuickActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowsLabel =
-        selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
+    final rowsLabel = selectedRowsCount <= 1
+        ? '1 fila'
+        : '$selectedRowsCount filas';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -853,6 +854,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 onDone: onDone,
                                 fontSize: editorFont,
                                 contentPadding: editorPadding,
+                                keyboardInset: keyboardInset,
                               ),
                             ),
                           ),
@@ -920,7 +922,7 @@ class _MobilePanelIconButton extends StatelessWidget {
   }
 }
 
-class _MobileEditorField extends StatelessWidget {
+class _MobileEditorField extends StatefulWidget {
   const _MobileEditorField({
     required this.controller,
     required this.focusNode,
@@ -929,6 +931,7 @@ class _MobileEditorField extends StatelessWidget {
     required this.onDone,
     required this.fontSize,
     required this.contentPadding,
+    required this.keyboardInset,
   });
 
   final TextEditingController controller;
@@ -938,43 +941,101 @@ class _MobileEditorField extends StatelessWidget {
   final VoidCallback onDone;
   final double fontSize;
   final EdgeInsets contentPadding;
+  final double keyboardInset;
+
+  @override
+  State<_MobileEditorField> createState() => _MobileEditorFieldState();
+}
+
+class _MobileEditorFieldState extends State<_MobileEditorField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(_onFocusChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisibleNow());
+  }
+
+  @override
+  void didUpdateWidget(covariant _MobileEditorField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_onFocusChanged);
+      widget.focusNode.addListener(_onFocusChanged);
+    }
+    if ((oldWidget.keyboardInset - widget.keyboardInset).abs() >= 1.0 &&
+        widget.focusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisibleNow());
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_onFocusChanged);
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (!widget.focusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisibleNow());
+  }
+
+  void _ensureVisibleNow() {
+    if (!mounted) return;
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.25,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: controller,
-      focusNode: focusNode,
+      controller: widget.controller,
+      focusNode: widget.focusNode,
       autofocus: false,
       minLines: 1,
       maxLines: 2,
       enabled: true,
       textAlignVertical: TextAlignVertical.center,
-      textInputAction:
-          onNext == null ? TextInputAction.done : TextInputAction.next,
-      keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
-      scrollPadding: EdgeInsets.zero,
+      textInputAction: widget.onNext == null
+          ? TextInputAction.done
+          : TextInputAction.next,
+      keyboardAppearance: widget.palette.isLight
+          ? Brightness.light
+          : Brightness.dark,
+      scrollPadding: EdgeInsets.only(bottom: widget.keyboardInset + 24),
       autocorrect: false,
       enableSuggestions: false,
       textCapitalization: TextCapitalization.none,
       style: TextStyle(
-        color: palette.fg,
-        fontSize: fontSize,
+        color: widget.palette.fg,
+        fontSize: widget.fontSize,
         height: 1.08,
         fontWeight: FontWeight.w800,
         letterSpacing: -0.15,
       ),
-      cursorColor: palette.accent,
+      cursorColor: widget.palette.accent,
       decoration: InputDecoration(
         isDense: true,
         filled: true,
         // Dark: mantener vidrio visible.
-        fillColor: palette.mobileInputBg,
-        contentPadding: contentPadding,
+        fillColor: widget.palette.mobileInputBg,
+        contentPadding: widget.contentPadding,
         hintText: 'Escribir',
-        hintStyle: TextStyle(color: palette.fgMuted),
+        hintStyle: TextStyle(color: widget.palette.fgMuted),
         border: InputBorder.none,
       ),
-      onSubmitted: (_) => onNext == null ? onDone() : onNext!(),
+      onSubmitted: (_) {
+        if (widget.onNext == null) {
+          widget.onDone();
+          FocusScope.of(context).unfocus();
+          return;
+        }
+        widget.onNext!.call();
+      },
     );
   }
 }

@@ -6,8 +6,8 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-  <!-- iOS: viewport correcto -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- iOS + Android: viewport correcto y resize en teclado -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 
   <title>Bitacora Web — Operaciones con evidencias</title>
   <meta name="description" content="Bitacora operativa offline con evidencias, adjuntos y exportacion lista para auditorias." />
@@ -70,6 +70,25 @@
       user-select: none;
       pointer-events: none;
     }
+
+    #app-loading-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #FFFFFF;
+      color: #0F172A;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      letter-spacing: 0.2px;
+      transition: opacity 160ms ease;
+    }
+
+    #app-loading-shell.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
   </style>
 
   <script>
@@ -97,6 +116,8 @@
       }
 
       function mountBadge(build) {
+        var qp = new URLSearchParams(window.location.search);
+        if (qp.get('debug') !== '1') return;
         try {
           var el = document.getElementById('build-badge');
           if (!el) {
@@ -105,6 +126,17 @@
             document.body.appendChild(el);
           }
           el.textContent = 'build ' + build;
+        } catch (_) {}
+      }
+
+      function hideLoadingShell() {
+        try {
+          var shell = document.getElementById('app-loading-shell');
+          if (!shell) return;
+          shell.classList.add('hidden');
+          setTimeout(function () {
+            try { shell.remove(); } catch (_) {}
+          }, 180);
         } catch (_) {}
       }
 
@@ -138,10 +170,27 @@
 
       function loadFlutterBootstrap(build) {
         try {
+          var qp = new URLSearchParams(window.location.search);
+          var swDisabled = qp.get('sw') === '0';
+          if (swDisabled) window.__BITFLOW_SW_DISABLED__ = true;
           var script = document.createElement('script');
-          script.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(build);
+          script.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(build) + (swDisabled ? '&sw=0' : '');
           script.async = true;
           document.body.appendChild(script);
+        } catch (_) {}
+      }
+
+      async function disableServiceWorkerForDebug() {
+        try {
+          var qp = new URLSearchParams(window.location.search);
+          if (qp.get('sw') !== '0') return;
+
+          if ('serviceWorker' in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < regs.length; i++) {
+              try { await regs[i].unregister(); } catch (_) {}
+            }
+          }
         } catch (_) {}
       }
 
@@ -178,6 +227,10 @@
           n.style.transform = 'translateY(' + top + 'px)';
           n.style.transformOrigin = '0 0';
           n.style.willChange = 'transform,height';
+        }
+
+        if (document.querySelector('flt-glass-pane')) {
+          hideLoadingShell();
         }
 
         // “patadita” a Flutter: fuerza recálculo cuando iOS se hace el distraído
@@ -217,6 +270,7 @@
         try {
           var build = await resolveBuildId();
           window.__BITFLOW_BUILD__ = build;
+          await disableServiceWorkerForDebug();
           await nukeCachesIfBuildChanged(build);
           mountBadge(build);
           boot();
@@ -224,6 +278,7 @@
         } catch (_) {
           var fallback = 'dev-' + Date.now();
           window.__BITFLOW_BUILD__ = fallback;
+          await disableServiceWorkerForDebug();
           mountBadge(fallback);
           boot();
           loadFlutterBootstrap(fallback);
@@ -240,6 +295,9 @@
 </head>
 
 <body>
+  <div id="app-loading-shell">
+    <div>Cargando Bit Flow...</div>
+  </div>
   <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
 </body>
 </html>

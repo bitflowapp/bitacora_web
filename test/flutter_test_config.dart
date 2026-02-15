@@ -7,23 +7,19 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     defaultValue: false,
   );
   if (!allowHttp) {
-    HttpOverrides.global = const _NoNetworkHttpOverrides();
+    HttpOverrides.global = _NoNetworkHttpOverrides();
   }
   await testMain();
 }
 
 class _NoNetworkHttpOverrides extends HttpOverrides {
-  const _NoNetworkHttpOverrides();
-
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return const _NoNetworkHttpClient();
+    return _NoNetworkHttpClient();
   }
 }
 
 class _NoNetworkHttpClient implements HttpClient {
-  const _NoNetworkHttpClient();
-
   Never _fail(Invocation invocation) {
     Uri? uri;
     for (final arg in invocation.positionalArguments) {
