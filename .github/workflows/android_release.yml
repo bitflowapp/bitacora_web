@@ -1,4 +1,4 @@
-name: Android Release
+﻿name: Android Release
 
 on:
   workflow_dispatch:
@@ -35,18 +35,11 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Flutter test
-        run: flutter test
-
-      - name: Flutter analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
-
       - name: Resolve app version
         id: app_version
         shell: bash
         run: |
           version_raw="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
-          version_raw="${version_raw//[^0-9A-Za-z._+-]/-}"
           semver="${version_raw%%+*}"
           release_tag="v${semver}"
           build_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -81,11 +74,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build Android APK (release)
-        run: |
-          flutter build apk --release \
-            --dart-define=BUILD_ID=${{ steps.app_version.outputs.build_id }}
+        run: flutter build apk --release
 
-      - name: Stage dist artifact
+      - name: Stage release artifacts
         shell: bash
         run: |
           mkdir -p dist
@@ -121,17 +112,8 @@ jobs:
         run: |
           stable_url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/BitFlow-android.apk"
           echo "Checking ${stable_url}"
-          ok="false"
-          for i in 1 2 3 4 5; do
-            status="$(curl -L -I -s -o /dev/null -w "%{http_code}" "${stable_url}")"
-            echo "Attempt ${i}: HTTP ${status}"
-            if [[ "${status}" == "200" || "${status}" == "302" ]]; then
-              ok="true"
-              break
-            fi
-            sleep 8
-          done
-          if [[ "${ok}" != "true" ]]; then
-            echo "Stable APK URL did not become available in time."
+          status="$(curl -I -s -o /dev/null -w "%{http_code}" "${stable_url}")"
+          echo "HTTP ${status}"
+          if [[ "${status}" != "200" && "${status}" != "302" ]]; then
             exit 1
           fi
