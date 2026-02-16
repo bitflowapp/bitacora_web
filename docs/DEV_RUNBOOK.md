@@ -89,9 +89,14 @@ Ejecuta en orden:
 5. `flutter test` (si hay tests)
 6. `flutter build web --release`
 
-Uso:
+Uso (completo):
 ```powershell
 .\verify.ps1
+```
+
+Uso rápido para OpenClaw (timeouts cortos + saltea doctor):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\verify.ps1 -Fast -SkipDoctor
 ```
 
 Si `verify.ps1` no encuentra Flutter:

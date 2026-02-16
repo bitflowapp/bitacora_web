@@ -1,23 +1,27 @@
 param(
   [string]$Flutter = "flutter",
-  [switch]$SkipPubGet,
-  [switch]$SkipDoctor
+  [switch]$Fast,
+  [switch]$SkipDoctor,
+  [switch]$SkipAnalyze,
+  [switch]$SkipTest,
+  [switch]$SkipBuild,
+  [int]$TimeoutSecAnalyze = 0,
+  [int]$TimeoutSecTest = 0,
+  [int]$TimeoutSecBuild = 0,
+  [int]$TimeoutSecPubGet = 90
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Invoke-Step {
-  param(
-    [Parameter(Mandatory = $true)][string]$Name,
-    [Parameter(Mandatory = $true)][scriptblock]$Action
-  )
-
-  Write-Host "`n==> $Name" -ForegroundColor Cyan
-  & $Action
-  if ($LASTEXITCODE -ne 0) {
-    throw "Step failed: $Name (exit code $LASTEXITCODE)"
-  }
+if ($TimeoutSecAnalyze -le 0) {
+  $TimeoutSecAnalyze = if ($Fast) { 45 } else { 300 }
+}
+if ($TimeoutSecTest -le 0) {
+  $TimeoutSecTest = if ($Fast) { 60 } else { 600 }
+}
+if ($TimeoutSecBuild -le 0) {
+  $TimeoutSecBuild = if ($Fast) { 90 } else { 900 }
 }
 
 function Resolve-FlutterExecutable {
@@ -76,6 +80,89 @@ function Resolve-FlutterExecutable {
   return $null
 }
 
+function Stop-ProcessTree {
+  param([int]$ProcessId)
+
+  try {
+    cmd /c "taskkill /PID $ProcessId /T /F >nul 2>nul" | Out-Null
+  } catch {
+    try {
+      Stop-Process -Id $Pid -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+}
+
+function Invoke-StepWithTimeout {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name,
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string[]]$Arguments,
+    [Parameter(Mandatory = $true)][int]$TimeoutSec,
+    [switch]$NonBlockingFailure
+  )
+
+  Write-Host "`n==> $Name (timeout ${TimeoutSec}s)" -ForegroundColor Cyan
+
+  $logId = [guid]::NewGuid().ToString("N")
+  $stdoutPath = Join-Path $env:TEMP "verify_${logId}.stdout.log"
+  $stderrPath = Join-Path $env:TEMP "verify_${logId}.stderr.log"
+
+  $proc = Start-Process -FilePath $FilePath -ArgumentList $Arguments -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+
+  $timedOut = $false
+  try {
+    Wait-Process -Id $proc.Id -Timeout $TimeoutSec -ErrorAction Stop
+  } catch {
+    $timedOut = $true
+  }
+
+  if ($timedOut) {
+    Stop-ProcessTree -ProcessId $proc.Id
+  }
+
+  $stdout = @()
+  if (Test-Path $stdoutPath) {
+    $stdout = @(Get-Content -Path $stdoutPath -ErrorAction SilentlyContinue)
+  }
+  $stderr = @()
+  if (Test-Path $stderrPath) {
+    $stderr = @(Get-Content -Path $stderrPath -ErrorAction SilentlyContinue)
+  }
+
+  if ($stdout.Count -gt 0) {
+    $stdout | ForEach-Object { Write-Host $_ }
+  }
+  if ($stderr.Count -gt 0) {
+    $stderr | ForEach-Object { Write-Host $_ -ForegroundColor DarkYellow }
+  }
+
+  Remove-Item -Path $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+
+  if ($timedOut) {
+    Write-Host "TIMEOUT en $Name (>${TimeoutSec}s)." -ForegroundColor Red
+    if ($NonBlockingFailure) {
+      return $false
+    }
+    exit 124
+  }
+
+  $proc.Refresh()
+  $exitCode = $proc.ExitCode
+  if ($null -eq $exitCode) {
+    $exitCode = 0
+  }
+
+  if ($exitCode -ne 0) {
+    Write-Host "FALLO en $Name (exit code $exitCode)." -ForegroundColor Red
+    if ($NonBlockingFailure) {
+      return $false
+    }
+    exit $exitCode
+  }
+
+  return $true
+}
+
 $flutterExe = Resolve-FlutterExecutable -Requested $Flutter
 if (-not $flutterExe) {
   Write-Host "Flutter command not found." -ForegroundColor Red
@@ -85,37 +172,73 @@ if (-not $flutterExe) {
 
 Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
 
-Invoke-Step "flutter --version" { & $flutterExe --version }
+$effectiveSkipTest = [bool]$SkipTest
+$effectiveSkipBuild = [bool]$SkipBuild
+
+if ($Fast) {
+  if (-not $SkipTest) {
+    $effectiveSkipTest = $true
+  }
+  if (-not $SkipBuild) {
+    $effectiveSkipBuild = $true
+  }
+}
+
+Invoke-StepWithTimeout -Name "flutter --version" -FilePath $flutterExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
 
 if ($SkipDoctor) {
   Write-Host "`n==> flutter doctor -v (optional)" -ForegroundColor Cyan
   Write-Host "Skipped by flag -SkipDoctor" -ForegroundColor Yellow
 } else {
-  try {
-    Invoke-Step "flutter doctor -v (optional)" { & $flutterExe doctor -v }
-  } catch {
+  $doctorOk = Invoke-StepWithTimeout -Name "flutter doctor -v (optional)" -FilePath $flutterExe -Arguments @("doctor", "-v") -TimeoutSec 180 -NonBlockingFailure
+  if (-not $doctorOk) {
     Write-Warning "flutter doctor -v failed or timed out. Continuing with verify steps."
   }
 }
 
-if (-not $SkipPubGet) {
-  Invoke-Step "flutter pub get" { & $flutterExe pub get }
-}
+Invoke-StepWithTimeout -Name "flutter pub get" -FilePath $flutterExe -Arguments @("pub", "get") -TimeoutSec $TimeoutSecPubGet | Out-Null
 
-Invoke-Step "flutter analyze --no-pub lib test" { & $flutterExe analyze --no-pub lib test }
-
-$testFiles = @()
-if (Test-Path "test") {
-  $testFiles = Get-ChildItem -Path "test" -Recurse -File -Filter "*_test.dart" -ErrorAction SilentlyContinue
-}
-
-if ($testFiles.Count -eq 0) {
-  Write-Host "`n==> flutter test" -ForegroundColor Cyan
-  Write-Host "No tests detected (no *_test.dart under ./test)." -ForegroundColor Yellow
+if ($SkipAnalyze) {
+  Write-Host "`n==> flutter analyze" -ForegroundColor Cyan
+  Write-Host "Skipped by flag -SkipAnalyze" -ForegroundColor Yellow
 } else {
-  Invoke-Step "flutter test" { & $flutterExe test }
+  if ($Fast) {
+    Invoke-StepWithTimeout -Name "flutter analyze --no-pub lib" -FilePath $flutterExe -Arguments @("analyze", "--no-pub", "lib") -TimeoutSec $TimeoutSecAnalyze | Out-Null
+  } else {
+    Invoke-StepWithTimeout -Name "flutter analyze --no-pub lib test" -FilePath $flutterExe -Arguments @("analyze", "--no-pub", "lib", "test") -TimeoutSec $TimeoutSecAnalyze | Out-Null
+  }
 }
 
-Invoke-Step "flutter build web --release" { & $flutterExe build web --release }
+if ($effectiveSkipTest) {
+  Write-Host "`n==> flutter test" -ForegroundColor Cyan
+  if ($Fast -and -not $SkipTest) {
+    Write-Host "Skipped in -Fast mode (default)." -ForegroundColor Yellow
+  } else {
+    Write-Host "Skipped by flag -SkipTest" -ForegroundColor Yellow
+  }
+} else {
+  $testFiles = @()
+  if (Test-Path "test") {
+    $testFiles = Get-ChildItem -Path "test" -Recurse -File -Filter "*_test.dart" -ErrorAction SilentlyContinue
+  }
+
+  if ($testFiles.Count -eq 0) {
+    Write-Host "`n==> flutter test" -ForegroundColor Cyan
+    Write-Host "No tests detected (no *_test.dart under ./test)." -ForegroundColor Yellow
+  } else {
+    Invoke-StepWithTimeout -Name "flutter test" -FilePath $flutterExe -Arguments @("test") -TimeoutSec $TimeoutSecTest | Out-Null
+  }
+}
+
+if ($effectiveSkipBuild) {
+  Write-Host "`n==> flutter build web --release" -ForegroundColor Cyan
+  if ($Fast -and -not $SkipBuild) {
+    Write-Host "Skipped in -Fast mode (default)." -ForegroundColor Yellow
+  } else {
+    Write-Host "Skipped by flag -SkipBuild" -ForegroundColor Yellow
+  }
+} else {
+  Invoke-StepWithTimeout -Name "flutter build web --release" -FilePath $flutterExe -Arguments @("build", "web", "--release") -TimeoutSec $TimeoutSecBuild | Out-Null
+}
 
 Write-Host "`nverify: OK" -ForegroundColor Green
