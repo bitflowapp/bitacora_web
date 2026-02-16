@@ -82,16 +82,21 @@ flutter test
 Script nuevo en raíz: `verify.ps1`.
 
 Ejecuta en orden:
-1. `flutter pub get`
-2. `dart format --set-exit-if-changed .`
-3. `flutter analyze`
-4. `flutter test`
-5. `flutter build web --release`
+1. `flutter --version`
+2. `flutter doctor -v` (opcional)
+3. `flutter pub get`
+4. `flutter analyze`
+5. `flutter test` (si hay tests)
+6. `flutter build web --release`
 
 Uso:
 ```powershell
 .\verify.ps1
 ```
+
+Si `verify.ps1` no encuentra Flutter:
+- seteá `FLUTTER_HOME` o `FLUTTER_ROOT` apuntando al SDK
+- o pasá ruta explícita: `./verify.ps1 -Flutter "C:\ruta\a\flutter.bat"`
 
 > No se detectan scripts npm de lint/test/build porque el proyecto no está basado en Node.
 
