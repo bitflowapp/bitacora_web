@@ -87,8 +87,64 @@ function Stop-ProcessTree {
     cmd /c "taskkill /PID $ProcessId /T /F >nul 2>nul" | Out-Null
   } catch {
     try {
-      Stop-Process -Id $Pid -Force -ErrorAction SilentlyContinue
+      Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
     } catch {}
+  }
+}
+
+function Test-MojibakeArtifact {
+  $targetRoots = @("lib", "web", "assets", "test")
+  $textExtensions = @(
+    ".dart", ".js", ".ts", ".tsx", ".jsx", ".json", ".yaml", ".yml",
+    ".md", ".html", ".htm", ".css", ".txt", ".xml", ".arb"
+  )
+
+  # Archivos con mojibake legado preexistente fuera del scope de este fix.
+  $allowList = @("lib/main.dart", "lib/start_page.dart")
+  $allowList = $allowList | ForEach-Object { $_.ToLowerInvariant() }
+
+  $artifact = [string][char]0x00C2
+  $repoRoot = (Get-Location).Path
+  $matches = @()
+
+  foreach ($root in $targetRoots) {
+    if (-not (Test-Path $root)) {
+      continue
+    }
+
+    $files = Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.FullName -notmatch "\\build\\|\\.dart_tool\\|\\.git\\" -and
+        $textExtensions -contains $_.Extension.ToLowerInvariant()
+      }
+
+    foreach ($file in $files) {
+      $hits = @(Select-String -Path $file.FullName -Pattern $artifact -SimpleMatch -Encoding UTF8 -ErrorAction SilentlyContinue)
+      foreach ($hit in $hits) {
+        $relPath = $hit.Path
+        if ($relPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+          $relPath = $relPath.Substring($repoRoot.Length).TrimStart('\\')
+        }
+        $relPath = $relPath -replace "\\", "/"
+        if ($allowList -contains $relPath.ToLowerInvariant()) {
+          continue
+        }
+        $matches += [pscustomobject]@{
+          Path = $relPath
+          LineNumber = $hit.LineNumber
+          Line = $hit.Line
+        }
+      }
+    }
+  }
+
+  if ($matches.Count -gt 0) {
+    Write-Host "`n==> Guardrail anti-mojibake" -ForegroundColor Cyan
+    Write-Host "Se detectó el artefacto 'Â' en archivos de texto:" -ForegroundColor Red
+    foreach ($m in $matches) {
+      Write-Host "$($m.Path):$($m.LineNumber):$($m.Line.Trim())"
+    }
+    exit 2
   }
 }
 
@@ -171,6 +227,8 @@ if (-not $flutterExe) {
 }
 
 Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
+
+Test-MojibakeArtifact
 
 $effectiveSkipTest = [bool]$SkipTest
 $effectiveSkipBuild = [bool]$SkipBuild

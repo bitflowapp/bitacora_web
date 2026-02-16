@@ -519,7 +519,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Acciones rapidas Â· $rowsLabel Â· $selectionLabel',
+              'Acciones rápidas · $rowsLabel · $selectionLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

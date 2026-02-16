@@ -82,12 +82,13 @@ flutter test
 Script nuevo en raíz: `verify.ps1`.
 
 Ejecuta en orden:
-1. `flutter --version`
-2. `flutter doctor -v` (opcional)
-3. `flutter pub get`
-4. `flutter analyze`
-5. `flutter test` (si hay tests)
-6. `flutter build web --release`
+1. guardrail anti-`Â` (escaneo en `lib/`, `web/`, `assets/`, `test/`; ignora dos archivos legacy con mojibake histórico)
+2. `flutter --version`
+3. `flutter doctor -v` (opcional)
+4. `flutter pub get`
+5. `flutter analyze`
+6. `flutter test` (si hay tests)
+7. `flutter build web --release`
 
 Uso (completo):
 ```powershell
