@@ -475,7 +475,21 @@ class _InlineSearchBar extends StatelessWidget {
   }
 }
 
-class _SelectionQuickActionsBar extends StatelessWidget {
+class _QuickActionItem {
+  const _QuickActionItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.variant = AppButtonVariant.secondary,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final AppButtonVariant variant;
+}
+
+class _SelectionQuickActionsBar extends StatefulWidget {
   const _SelectionQuickActionsBar({
     required this.palette,
     required this.selectionLabel,
@@ -503,81 +517,199 @@ class _SelectionQuickActionsBar extends StatelessWidget {
   final ValueChanged<String> onMarkStatus;
 
   @override
+  State<_SelectionQuickActionsBar> createState() =>
+      _SelectionQuickActionsBarState();
+}
+
+class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
+  bool _expanded = false;
+
+  List<_QuickActionItem> _buildActions() {
+    return <_QuickActionItem>[
+      _QuickActionItem(
+        label: AppStrings.quickActionApplyValue,
+        icon: Icons.format_color_text_rounded,
+        onTap: widget.onApplyValue,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionFillDown,
+        icon: Icons.vertical_align_bottom_rounded,
+        onTap: widget.onFillDown,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionDuplicateRow,
+        icon: Icons.copy_all_outlined,
+        onTap: widget.onDuplicateRows,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionAttachPhoto,
+        icon: Icons.photo_camera_outlined,
+        onTap: widget.onAttachPhoto,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionAttachGps,
+        icon: Icons.my_location_rounded,
+        onTap: widget.onAttachGps,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionGoTo,
+        icon: Icons.pin_drop_outlined,
+        variant: AppButtonVariant.ghost,
+        onTap: widget.onJumpTo,
+      ),
+    ];
+  }
+
+  Future<void> _openMoreActionsSheet(List<_QuickActionItem> actions) async {
+    if (actions.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      isScrollControlled: false,
+      builder: (sheetContext) {
+        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(
+                  title: Text(
+                    AppStrings.moreActions,
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: actions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final action = actions[index];
+                      return SizedBox(
+                        height: 52,
+                        child: ListTile(
+                          leading: Icon(action.icon),
+                          title: Text(
+                            action.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            action.onTap();
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickButton(_QuickActionItem action) {
+    return AppButton(
+      label: action.label,
+      icon: action.icon,
+      size: AppButtonSize.sm,
+      variant: action.variant,
+      onPressed: action.onTap,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final rowsLabel =
-        selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
+        widget.selectedRowsCount <= 1 ? '1 fila' : '${widget.selectedRowsCount} filas';
+    final actions = _buildActions();
+    final pinnedActions = actions.take(3).toList(growable: false);
+    final moreActions = actions.skip(3).toList(growable: false);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.fromLTRB(12, 0, 12, 8 + (bottomInset > 0 ? 6 : 0)),
       child: AppleCard(
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         radius: 16,
-        color: palette.menuBg.withValues(alpha: palette.isLight ? 0.94 : 0.82),
-        borderColor: palette.borderStrong,
+        color: widget.palette.menuBg
+            .withValues(alpha: widget.palette.isLight ? 0.94 : 0.82),
+        borderColor: widget.palette.borderStrong,
         shadows: const <BoxShadow>[],
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Acciones rápidas · $rowsLabel · $selectionLabel',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.fgMuted,
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        AppStrings.quickActions,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: widget.palette.fgMuted,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.8,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      size: 18,
+                      color: widget.palette.fgMuted,
+                    ),
+                  ],
+                ),
               ),
             ),
+            if (_expanded) ...[
+              const SizedBox(height: 4),
+              Text(
+                '$rowsLabel · ${widget.selectionLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: widget.palette.fgMuted,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11.8,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                for (final action in pinnedActions) _buildQuickButton(action),
                 AppButton(
-                  label: 'Pegar valor',
-                  icon: Icons.format_color_text_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onApplyValue,
-                ),
-                AppButton(
-                  label: 'Rellenar',
-                  icon: Icons.vertical_align_bottom_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onFillDown,
-                ),
-                AppButton(
-                  label: 'Duplicar fila',
-                  icon: Icons.copy_all_outlined,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onDuplicateRows,
-                ),
-                AppButton(
-                  label: 'Adjuntar foto',
-                  icon: Icons.photo_camera_outlined,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onAttachPhoto,
-                ),
-                AppButton(
-                  label: 'Adjuntar GPS',
-                  icon: Icons.my_location_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onAttachGps,
-                ),
-                AppButton(
-                  label: 'Ir a…',
-                  icon: Icons.pin_drop_outlined,
+                  label: AppStrings.more,
+                  icon: Icons.more_horiz_rounded,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.ghost,
-                  onPressed: onJumpTo,
+                  onPressed: () => unawaited(_openMoreActionsSheet(moreActions)),
                 ),
               ],
             ),
-            if (canMarkStatus) ...[
+            if (_expanded && widget.canMarkStatus) ...[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -589,7 +721,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                       icon: Icons.flag_outlined,
                       size: AppButtonSize.sm,
                       variant: AppButtonVariant.ghost,
-                      onPressed: () => onMarkStatus(status),
+                      onPressed: () => widget.onMarkStatus(status),
                     ),
                 ],
               ),
