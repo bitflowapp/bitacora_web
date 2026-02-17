@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
+import 'core/sync/sync_bootstrap.dart';
 import 'screens/auth_gate.dart';
 import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
@@ -240,6 +241,14 @@ class _AppState extends State<App> {
     } catch (e) {
       storeOk = false;
       storeError = e;
+    }
+
+    try {
+      await initSyncLayer().timeout(const Duration(seconds: 4));
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[boot] Sync layer init failed: $e');
+      }
     }
 
     try {
