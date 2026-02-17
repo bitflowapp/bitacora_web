@@ -128,3 +128,19 @@ Si `verify.ps1` no encuentra Flutter:
 - `scripts/` → scripts auxiliares de release/ops
 - `build/` → artifacts generados (no fuente)
 - `dist_release/` → paquete release listo para distribuir (cuando se ejecuta `release.ps1`)
+
+---
+
+## 6) Prueba brutal offline (Outbox v1)
+
+Checklist manual:
+
+1. Abrir la app y entrar al editor en modo normal (online).
+2. Activar modo avión o cortar la conexión.
+3. Hacer una acción que marque dirty en adjuntos/meta (por ejemplo: agregar, renombrar o borrar un adjunto).
+4. Verificar badge de sync con `Pendientes: 1` (o mayor si acumulaste cambios).
+5. Cerrar y volver a abrir la app.
+6. Confirmar que los pendientes siguen visibles (persistencia durable).
+7. Volver a online.
+8. Esperar el ciclo de sync.
+9. Confirmar que `Pendientes` baja a `0` (puede pasar por estado de sincronización intermedio).

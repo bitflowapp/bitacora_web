@@ -473,6 +473,10 @@ class _EditorScreenState extends State<EditorScreen>
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
+  final OutboxStore _outboxStore = OutboxStore.instance;
+  int _outboxQueuedCount = 0;
+  int _outboxErrorCount = 0;
+  Timer? _outboxBadgeTimer;
   final OfflineQueueStore _offlineQueueStore = OfflineQueueStore();
   final NetworkStatusService _networkStatusService =
       const NetworkStatusService();
@@ -590,6 +594,11 @@ class _EditorScreenState extends State<EditorScreen>
       const Duration(seconds: 8),
       (_) => unawaited(_tickQuickCaptureSync(fromTimer: true)),
     );
+    _outboxBadgeTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_refreshOutboxBadgeCounts()),
+    );
+    unawaited(_refreshOutboxBadgeCounts());
     unawaited(_loadQuickCaptureQueue());
 
     _pushUndoSnapshot(); // estado inicial
@@ -682,6 +691,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
     _photoFlowClearT?.cancel();
     _quickCaptureSyncTimer?.cancel();
+    _outboxBadgeTimer?.cancel();
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
@@ -7312,6 +7322,29 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Future<void> _refreshOutboxBadgeCounts() async {
+    try {
+      final counts = await _outboxStore.countsByStatus();
+      final queued = counts[OutboxOp.statusQueued] ?? 0;
+      final error = counts[OutboxOp.statusError] ?? 0;
+
+      if (!mounted) {
+        _outboxQueuedCount = queued;
+        _outboxErrorCount = error;
+        return;
+      }
+
+      if (_outboxQueuedCount == queued && _outboxErrorCount == error) {
+        return;
+      }
+
+      setState(() {
+        _outboxQueuedCount = queued;
+        _outboxErrorCount = error;
+      });
+    } catch (_) {}
+  }
+
   Future<bool> _refreshOnlineState() async {
     final prev = _lastOnlineState;
     bool online = prev;
@@ -8983,6 +9016,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       selectedCol: _selCol,
                                       selectedRowsCount: _selectedRows.length,
                                       pendingOfflineCount: _pendingOfflineCount,
+                                      outboxPendingCount: _outboxQueuedCount,
+                                      outboxErrorCount: _outboxErrorCount,
                                       errorsCount: _invalidCells.length,
                                       savedViews: _savedViews,
                                       activeViewId: _activeSavedViewId,
@@ -9009,6 +9044,8 @@ class _EditorScreenState extends State<EditorScreen>
                                   controller: _controller,
                                   pendingRequired: _invalidCells.length,
                                   pendingOfflineCount: _pendingOfflineCount,
+                                  outboxPendingCount: _outboxQueuedCount,
+                                  outboxErrorCount: _outboxErrorCount,
                                   selectedRow: _selRow,
                                   selectedCol: _selCol,
                                   onSave: () =>

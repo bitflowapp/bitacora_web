@@ -1,4 +1,4 @@
-﻿part of '../editor_screen.dart';
+part of '../editor_screen.dart';
 
 class _PremiumAppleHeader extends StatelessWidget {
   const _PremiumAppleHeader({
@@ -46,6 +46,8 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.selectedCol,
     required this.selectedRowsCount,
     required this.pendingOfflineCount,
+    required this.outboxPendingCount,
+    required this.outboxErrorCount,
     required this.errorsCount,
     required this.savedViews,
     required this.activeViewId,
@@ -101,6 +103,8 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int selectedCol;
   final int selectedRowsCount;
   final int pendingOfflineCount;
+  final int outboxPendingCount;
+  final int outboxErrorCount;
   final int errorsCount;
   final List<_SavedView> savedViews;
   final String? activeViewId;
@@ -303,6 +307,18 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.cloud_upload_outlined,
                                 label: '$pendingOfflineCount en cola',
                                 onTap: onOpenOfflineQueue,
+                              ),
+                            if (outboxPendingCount > 0)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.schedule_rounded,
+                                label: 'Pendientes: $outboxPendingCount',
+                              ),
+                            if (outboxErrorCount > 0)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.error_outline_rounded,
+                                label: 'Error: $outboxErrorCount',
                               ),
                             if (errorsCount > 0)
                               _InlineMetaChip(
@@ -722,6 +738,8 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.controller,
     required this.pendingRequired,
     required this.pendingOfflineCount,
+    required this.outboxPendingCount,
+    required this.outboxErrorCount,
     required this.selectedRow,
     required this.selectedCol,
     required this.onSave,
@@ -736,6 +754,8 @@ class _MobileCompactHeader extends StatelessWidget {
   final EditorController controller;
   final int pendingRequired;
   final int pendingOfflineCount;
+  final int outboxPendingCount;
+  final int outboxErrorCount;
   final int selectedRow;
   final int selectedCol;
   final VoidCallback onSave;
@@ -793,6 +813,11 @@ class _MobileCompactHeader extends StatelessWidget {
                 pendingRequired > 0 ? ' | Errores: $pendingRequired' : '';
             final queueLabel =
                 pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
+            final outboxPendingLabel = outboxPendingCount > 0
+                ? ' | Pendientes: $outboxPendingCount'
+                : '';
+            final outboxErrorLabel =
+                outboxErrorCount > 0 ? ' | Error: $outboxErrorCount' : '';
             final offlineLabel = offline.message?.trim().isNotEmpty == true
                 ? offline.message!.trim()
                 : 'Sincronizado';
@@ -809,7 +834,7 @@ class _MobileCompactHeader extends StatelessWidget {
               child: AppTopBar(
                 title: label,
                 subtitle:
-                    '$saveLabel$pendingLabel$queueLabel | Celda: $activeCell | $localLabel | Sync: $offlineLabel | $modeLabel',
+                    '$saveLabel$pendingLabel$queueLabel$outboxPendingLabel$outboxErrorLabel | Celda: $activeCell | $localLabel | Sync: $offlineLabel | $modeLabel',
                 actions: [
                   AppButton(
                     label: AppStrings.editorSave,

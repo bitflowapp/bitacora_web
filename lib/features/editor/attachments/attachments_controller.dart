@@ -10,6 +10,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (enqueued) {
       SyncCoordinator.instance.kick();
     }
+    await _refreshOutboxBadgeCounts();
   }
 
   Future<void> _startPhotoFlowForCell(int r, int c) async {
