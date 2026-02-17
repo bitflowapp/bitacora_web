@@ -110,7 +110,7 @@ class EngineApi {
       }).timeout(const Duration(seconds: 6));
 
       if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
-      final decoded = jsonDecode(resp.body);
+      final decoded = jsonDecode(utf8.decode(resp.bodyBytes));
       if (decoded is! Map) return null;
 
       final raw = decoded['engine_url'] ??

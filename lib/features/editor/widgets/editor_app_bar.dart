@@ -535,7 +535,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: AppStrings.editorBatchActions,
                                 semanticsLabel: 'Abrir acciones por lote',
                                 tooltip:
-                                    'Acciones rapidas para filas seleccionadas',
+                                    'Acciones rápidas para filas seleccionadas',
                                 onTap: onBatch,
                               ),
                             ),

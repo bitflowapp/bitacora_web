@@ -181,7 +181,7 @@ class CloudMailer {
       final resp =
           await http.Response.fromStream(streamed).timeout(_sendTimeout);
       final status = resp.statusCode;
-      final body = resp.body;
+      final body = _decodeUtf8Body(resp);
 
       if (status < 200 || status >= 300) {
         throw CloudMailerException(
@@ -221,6 +221,14 @@ class CloudMailer {
       );
     } finally {
       client.close();
+    }
+  }
+
+  static String _decodeUtf8Body(http.Response response) {
+    try {
+      return utf8.decode(response.bodyBytes);
+    } catch (_) {
+      return response.body;
     }
   }
 

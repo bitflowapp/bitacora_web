@@ -175,11 +175,14 @@ function Test-MojibakeArtifact {
     ".md", ".html", ".htm", ".css", ".txt", ".xml", ".arb"
   )
 
-  # Archivos con mojibake legado preexistente fuera del scope de este fix.
-  $allowList = @("lib/main.dart", "lib/start_page.dart")
-  $allowList = $allowList | ForEach-Object { $_.ToLowerInvariant() }
+  $artifacts = @(
+    "Â·",
+    "Ã",
+    "â€¦",
+    "â€“",
+    "â€”"
+  )
 
-  $artifact = [string][char]0x00C2
   $repoRoot = (Get-Location).Path
   $matches = @()
 
@@ -195,20 +198,21 @@ function Test-MojibakeArtifact {
       }
 
     foreach ($file in $files) {
-      $hits = @(Select-String -Path $file.FullName -Pattern $artifact -SimpleMatch -Encoding UTF8 -ErrorAction SilentlyContinue)
-      foreach ($hit in $hits) {
-        $relPath = $hit.Path
-        if ($relPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-          $relPath = $relPath.Substring($repoRoot.Length).TrimStart('\\')
-        }
-        $relPath = $relPath -replace "\\", "/"
-        if ($allowList -contains $relPath.ToLowerInvariant()) {
-          continue
-        }
-        $matches += [pscustomobject]@{
-          Path = $relPath
-          LineNumber = $hit.LineNumber
-          Line = $hit.Line
+      foreach ($artifact in $artifacts) {
+        $hits = @(Select-String -Path $file.FullName -Pattern $artifact -SimpleMatch -Encoding UTF8 -ErrorAction SilentlyContinue)
+        foreach ($hit in $hits) {
+          $relPath = $hit.Path
+          if ($relPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $relPath = $relPath.Substring($repoRoot.Length).TrimStart('\\')
+          }
+          $relPath = $relPath -replace "\\", "/"
+
+          $matches += [pscustomobject]@{
+            Pattern = $artifact
+            Path = $relPath
+            LineNumber = $hit.LineNumber
+            Line = $hit.Line
+          }
         }
       }
     }
@@ -216,9 +220,9 @@ function Test-MojibakeArtifact {
 
   if ($matches.Count -gt 0) {
     Write-Host "`n==> Guardrail anti-mojibake" -ForegroundColor Cyan
-    Write-Host "Se detectó el artefacto 'Â' en archivos de texto:" -ForegroundColor Red
+    Write-Host "Se detectaron artefactos de codificación (ej: Â·, Ã, â€¦) en archivos de texto:" -ForegroundColor Red
     foreach ($m in $matches) {
-      Write-Host "$($m.Path):$($m.LineNumber):$($m.Line.Trim())"
+      Write-Host "[$($m.Pattern)] $($m.Path):$($m.LineNumber):$($m.Line.Trim())"
     }
     exit 2
   }

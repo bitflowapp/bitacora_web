@@ -17,7 +17,7 @@ import 'screens/legal_screen.dart';
 import 'start_page.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
-import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
+import 'services/engine_math_client.dart'; // si lo seguis usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
@@ -37,11 +37,11 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   if (url.isEmpty) return;
 
   try {
-    // 1) Si tu app todavÃ­a usa EngineMathClient en otros lugares, mantenemos este override.
+    // 1) Si tu app todavia usa EngineMathClient en otros lugares, mantenemos este override.
     await EngineMathClient().setBaseUrl(url);
 
-    // 2) Y tambiÃ©n persistimos para el EngineConfig (engine_client.dart),
-    //    asÃ­ el EditorScreen grande usa el mismo baseUrl.
+    // 2) Y tambien persistimos para el EngineConfig (engine_client.dart),
+    //    asi el EditorScreen grande usa el mismo baseUrl.
     await EngineConfig.instance.setOverride(url);
 
     final normalized = engine_cfg.EngineConfig.normalize(url);
@@ -89,7 +89,7 @@ Future<void> main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      // UI controlada (en vez de pantalla roja en producciÃ³n web)
+      // UI controlada (en vez de pantalla roja en produccion web)
       return Material(
         color: const Color(0xFF0B0D1A),
         child: Center(
@@ -349,7 +349,7 @@ class _AppState extends State<App> {
             _BootSplash(
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
-              subtitle: 'Inicializandoâ€¦',
+              subtitle: 'Inicializando...',
             ),
           );
         }
@@ -600,7 +600,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         _PillButton(
-                          label: isLight ? 'Noche' : 'DÃ­a',
+                          label: isLight ? 'Noche' : 'D\u00EDa',
                           outlined: true,
                           onPressed: onToggleTheme,
                         ),

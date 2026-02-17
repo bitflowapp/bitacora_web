@@ -101,7 +101,7 @@ class AppUpdateService {
             continue;
           }
 
-          final decoded = jsonDecode(response.body);
+          final decoded = jsonDecode(utf8.decode(response.bodyBytes));
           if (decoded is! Map) {
             lastError = const FormatException('Invalid version payload');
             continue;

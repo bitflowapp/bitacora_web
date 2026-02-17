@@ -1,5 +1,5 @@
 // lib/start_page.dart
-// StartPage (BitFlow) â€â€ Home “100% Apple (Cupertino-first), robusto y vendible.
+// StartPage (BitFlow) - Home "100% Apple" (Cupertino-first), robusto y vendible.
 //
 // ✅ UPDATE (menú estilo Reminders iOS):
 // - Agrega “dashboard superior: tarjetas Hoy/Programados/Todos/Con indicador/Terminados.
