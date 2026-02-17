@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,7 +20,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: sheetId,
-          initialHeaders: ['Col 1', 'Photos'],
+          initialHeaders: ['Col 1', 'Fotos'],
           initialRows: [
             ['valor inicial', ''],
           ],
@@ -47,3 +47,4 @@ void main() {
     expect(reloaded.debugCellText(0, 0), 'draft sin commit');
   });
 }
+

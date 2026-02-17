@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:bitacora_web/core/i18n/app_strings.dart';
 import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:bitacora_web/widgets/animated_video_background.dart';
 
@@ -20,7 +21,7 @@ class EditorPerfHarnessScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final headers = List<String>.generate(
       _cols,
-      (index) => index == _cols - 1 ? 'Photos' : 'Col ${index + 1}',
+      (index) => index == _cols - 1 ? AppStrings.photos : 'Col ${index + 1}',
       growable: false,
     );
     final rows = List<List<String>>.generate(

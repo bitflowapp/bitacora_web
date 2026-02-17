@@ -1,4 +1,4 @@
-part of '../editor_screen.dart';
+﻿part of '../editor_screen.dart';
 
 class _PremiumAppleHeader extends StatelessWidget {
   const _PremiumAppleHeader({
@@ -440,7 +440,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 filled: false,
                                 icon: Icons.pin_drop_outlined,
-                                label: 'Jump to...',
+                                label: 'Ir a…',
                                 semanticsLabel: 'Ir rapido por fila o ID',
                                 tooltip: 'Ir a fila o ID rapidamente',
                                 onTap: onJumpTo,
@@ -584,7 +584,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,
-                              label: 'Jump to...',
+                              label: 'Ir a…',
                               shortcut: 'Ctrl/Cmd+J',
                               onTap: onJumpTo,
                             ),

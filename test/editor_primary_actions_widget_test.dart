@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'primary-actions-test',
-          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Photos'],
+          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Fotos'],
         ),
       ),
     );
@@ -72,3 +72,4 @@ void main() {
     expect(state.debugRowCount, initialRowCount);
   });
 }
+

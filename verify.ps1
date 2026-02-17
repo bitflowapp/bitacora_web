@@ -148,6 +148,66 @@ function Test-MojibakeArtifact {
   }
 }
 
+function Test-EnglishUiLabels {
+  $targetRoots = @("lib", "web", "assets", "test")
+  $textExtensions = @(
+    ".dart", ".js", ".ts", ".tsx", ".jsx", ".json", ".yaml", ".yml",
+    ".md", ".html", ".htm", ".css", ".txt", ".xml", ".arb"
+  )
+
+  $patterns = @("Jump", "Maps", "Photos", "Sheet", "Quick actions", "Delete", "Save")
+  $labelRegex = '["''][^"'']*\b(Jump|Maps|Photos|Sheet|Quick actions|Delete|Save)\b[^"'']*["'']'
+
+  $repoRoot = (Get-Location).Path
+  $englishHits = @()
+
+  foreach ($root in $targetRoots) {
+    if (-not (Test-Path $root)) {
+      continue
+    }
+
+    $files = Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.FullName -notmatch "\\build\\|\\.dart_tool\\|\\.git\\" -and
+        $textExtensions -contains $_.Extension.ToLowerInvariant()
+      }
+
+    foreach ($file in $files) {
+      $hits = @(Select-String -Path $file.FullName -Pattern $patterns -SimpleMatch -CaseSensitive -Encoding UTF8 -ErrorAction SilentlyContinue)
+      foreach ($hit in $hits) {
+        $line = $hit.Line
+        if ($line.TrimStart().StartsWith("//")) {
+          continue
+        }
+        if ($line -cnotmatch $labelRegex) {
+          continue
+        }
+
+        $relPath = $hit.Path
+        if ($relPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+          $relPath = $relPath.Substring($repoRoot.Length).TrimStart('\\')
+        }
+        $relPath = $relPath -replace "\\", "/"
+
+        $englishHits += [pscustomobject]@{
+          Path = $relPath
+          LineNumber = $hit.LineNumber
+          Line = $line
+        }
+      }
+    }
+  }
+
+  if ($englishHits.Count -gt 0) {
+    Write-Host "`n==> Guardrail anti-inglés en UI" -ForegroundColor Cyan
+    Write-Host "Se detectaron etiquetas en inglés (Jump/Maps/Photos/Sheet/Quick actions/Delete/Save):" -ForegroundColor Red
+    foreach ($m in $englishHits) {
+      Write-Host "$($m.Path):$($m.LineNumber):$($m.Line.Trim())"
+    }
+    exit 3
+  }
+}
+
 function Invoke-StepWithTimeout {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -229,6 +289,7 @@ if (-not $flutterExe) {
 Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
 
 Test-MojibakeArtifact
+Test-EnglishUiLabels
 
 $effectiveSkipTest = [bool]$SkipTest
 $effectiveSkipBuild = [bool]$SkipBuild

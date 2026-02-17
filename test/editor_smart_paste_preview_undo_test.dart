@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'smart-paste-preview-test',
-          initialHeaders: <String>['Col A', 'Col B', 'Photos'],
+          initialHeaders: <String>['Col A', 'Col B', 'Fotos'],
           initialRows: <List<String>>[
             <String>['legacy-a', 'legacy-b', ''],
             <String>['legacy-c', 'legacy-d', ''],
@@ -72,3 +72,4 @@ void main() {
     expect(state.debugCellText(0, 0), 'legacy-a');
   });
 }
+

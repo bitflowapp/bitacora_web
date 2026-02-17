@@ -1,4 +1,4 @@
-part of '../editor_screen.dart';
+﻿part of '../editor_screen.dart';
 
 class _StatusBar extends StatelessWidget {
   const _StatusBar({
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Palette (Ctrl/Cmd+K / rayo) · Smart paste + Undo · Exportar',
+                  'Paleta (Ctrl/Cmd+K / rayo) · Pegado inteligente + Deshacer · Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -569,7 +569,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                   onPressed: onAttachGps,
                 ),
                 AppButton(
-                  label: 'Jump to...',
+                  label: 'Ir a…',
                   icon: Icons.pin_drop_outlined,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.ghost,

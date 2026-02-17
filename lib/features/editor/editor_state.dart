@@ -2,8 +2,8 @@ part of 'editor_screen.dart';
 
 // ============================== Constantes globales ========================
 
-const int kDefaultCols = 15; // 14 + Photos
-const String kPhotosHeader = 'Photos';
+const int kDefaultCols = 15; // 14 + Fotos
+const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
 const int _kMaxPhotosPerCell = 6;
@@ -526,7 +526,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
-        : 'Sheet';
+        : 'Hoja';
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -6561,7 +6561,7 @@ class _EditorScreenState extends State<EditorScreen>
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             return AlertDialog(
-              title: const Text('Jump to...'),
+              title: const Text('Ir a…'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -8147,7 +8147,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (inserted == null) return;
     _addHistoryEvent(
       type: 'quick_capture',
-      message: 'Quick capture en fila ${inserted.rowIndex + 1}',
+      message: 'Captura rápida en fila ${inserted.rowIndex + 1}',
       origin: 'quick_capture',
       row: inserted.rowIndex,
     );
@@ -11191,7 +11191,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.map_outlined,
-        label: 'Maps',
+        label: 'Mapa',
         onTap: () => unawaited(_openMapsForCell(r, c)),
       ),
     ];
@@ -16916,7 +16916,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda valida para abrir en Maps.',
+          message: 'Selecciona una celda válida para abrir en mapa.',
         ),
         failureIcon: Icons.map_outlined,
       );
@@ -16950,7 +16950,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'No hay coordenadas para abrir en Maps.',
+          message: 'No hay coordenadas para abrir en mapa.',
         ),
         failureIcon: Icons.map_outlined,
       );
@@ -19944,7 +19944,7 @@ Este paquete incluye:
   }
 
   String _safeFile(String s) {
-    final t = s.trim().isEmpty ? 'Sheet' : s.trim();
+    final t = s.trim().isEmpty ? 'Hoja' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 

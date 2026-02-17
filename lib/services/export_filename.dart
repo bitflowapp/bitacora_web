@@ -1,13 +1,15 @@
+import 'package:bitacora_web/core/i18n/app_strings.dart';
+
 String sanitizeBitFlowSheetName(String sheetName) {
   final trimmed = sheetName.trim();
-  final fallback = trimmed.isEmpty ? 'Sheet' : trimmed;
+  final fallback = trimmed.isEmpty ? AppStrings.sheetDefaultName : trimmed;
   final noForbidden = fallback
       .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
       .replaceAll(RegExp(r'[^A-Za-z0-9._\\-\\s]'), '_')
       .replaceAll(RegExp(r'\s+'), '_')
       .replaceAll(RegExp(r'_+'), '_')
       .trim();
-  if (noForbidden.isEmpty) return 'Sheet';
+  if (noForbidden.isEmpty) return AppStrings.sheetDefaultName;
   return noForbidden;
 }
 

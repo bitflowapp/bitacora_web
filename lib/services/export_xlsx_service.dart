@@ -388,7 +388,7 @@ class ExportXlsxService {
       sheet.getRangeByIndex(4, 1).setText(latStr);
       sheet.getRangeByIndex(4, 2).setText(lngStr);
 
-      sheet.getRangeByIndex(6, 1).setText('Ver en Google Maps');
+      sheet.getRangeByIndex(6, 1).setText('Ver en mapa de Google');
 
       final mapsUrl = 'https://www.google.com/maps?q=$latStr,$lngStr';
 
@@ -399,8 +399,8 @@ class ExportXlsxService {
         xlsio.HyperlinkType.url,
         mapsUrl,
       );
-      link.textToDisplay = 'Abrir en Google Maps';
-      link.screenTip = 'Abrir ubicación en Google Maps';
+      link.textToDisplay = 'Abrir en mapa de Google';
+      link.screenTip = 'Abrir ubicación en mapa de Google';
 
       linkRange.cellStyle.fontColor = '#FF0000FF';
       linkRange.cellStyle.bold = true;

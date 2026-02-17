@@ -210,7 +210,7 @@ class _LocationSheetState extends State<_LocationSheet> {
                       'Precisión: ${_geo!.accuracyM?.toStringAsFixed(1) ?? '-'} m • ${_geo!.ts}',
                     ),
                     trailing: IconButton(
-                      tooltip: 'Abrir en Maps',
+                      tooltip: 'Abrir en mapa',
                       icon: const Icon(Icons.map_outlined),
                       onPressed: () async {
                         await LocationWebService.I.openInMaps(

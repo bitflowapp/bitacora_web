@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,7 +21,7 @@ void main() {
       MaterialApp(
         home: EditorScreen(
           sheetId: sheetId,
-          initialHeaders: const <String>['Fecha', 'Estado', 'Photos'],
+          initialHeaders: const <String>['Fecha', 'Estado', 'Fotos'],
           initialRows: const <List<String>>[
             <String>['', '', ''],
             <String>['', '', ''],
@@ -68,3 +68,4 @@ void main() {
     );
   });
 }
+

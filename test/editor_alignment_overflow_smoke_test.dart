@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,7 +24,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'align-overflow-smoke',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>[longText, ''],
           ],
@@ -57,3 +57,4 @@ void main() {
     expect(find.byType(TextField), findsWidgets);
   });
 }
+

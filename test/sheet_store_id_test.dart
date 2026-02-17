@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:bitacora_web/services/sheet_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,7 +27,7 @@ void main() {
     final model = <String, dynamic>{
       'name': '',
       'savedAt': DateTime(2026, 2, 7).toIso8601String(),
-      'headers': const ['A', 'B', 'Photos'],
+      'headers': const ['A', 'B', 'Fotos'],
       'colIds': const ['c_a', 'c_b', 'col_photos'],
       'rows': const <Map<String, dynamic>>[],
     };
@@ -49,7 +49,7 @@ void main() {
     final normalized = SheetStore.normalizeModel(<String, dynamic>{
       'name': 'Demo',
       'savedAt': DateTime(2026, 2, 11).toIso8601String(),
-      'headers': const ['Actividad', 'Estado', 'Photos'],
+      'headers': const ['Actividad', 'Estado', 'Fotos'],
       'colIds': const ['c_activity', 'c_status', 'col_photos'],
       'rows': const <Map<String, dynamic>>[],
       'columnPrefs': const <String, dynamic>{
@@ -74,7 +74,7 @@ void main() {
     final model = jsonEncode(<String, dynamic>{
       'name': 'Demo',
       'savedAt': now,
-      'headers': const ['A', 'Photos'],
+      'headers': const ['A', 'Fotos'],
       'colIds': const ['c_a', 'col_photos'],
       'rows': const <Map<String, dynamic>>[],
     });
@@ -94,3 +94,4 @@ void main() {
     expect(listedIds, ['demo_1']);
   });
 }
+

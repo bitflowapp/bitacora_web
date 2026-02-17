@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,7 +24,7 @@ void main() {
       MaterialApp(
         home: EditorScreen(
           sheetId: 'mobile-lazy-controllers',
-          initialHeaders: const <String>['Notas', 'Photos'],
+          initialHeaders: const <String>['Notas', 'Fotos'],
           initialRows: rows,
         ),
       ),
@@ -46,3 +46,4 @@ void main() {
     expect(after, before + 1);
   });
 }
+

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +13,7 @@ void main() {
     final backup = <String, Object>{
       'name': 'Recovered',
       'savedAt': '2026-02-07T10:00:00.000Z',
-      'headers': <String>['A', 'Photos'],
+      'headers': <String>['A', 'Fotos'],
       'colIds': <String>['col_a', 'col_photos'],
       'rows': <Map<String, Object>>[
         <String, Object>{
@@ -47,3 +47,4 @@ void main() {
     expect(state.debugCellText(0, 0), 'restored');
   });
 }
+

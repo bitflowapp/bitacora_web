@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:bitacora_web/services/flowbot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +20,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'flowbot-empty-apply-test',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', ''],
           ],
@@ -51,7 +51,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'flowbot-widget-test',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', ''],
           ],
@@ -92,7 +92,7 @@ void main() {
             'Estado',
             'Progresiva',
             'Observaciones',
-            'Photos',
+            'Fotos',
           ],
           initialRows: <List<String>>[
             <String>['', '', '', '', ''],
@@ -136,3 +136,4 @@ void main() {
     expect(state.debugCellText(beforeRows, 1), '');
   });
 }
+

@@ -6,6 +6,7 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bitacora_web/core/i18n/app_strings.dart';
 
 import '../models/table_state.dart';
 
@@ -102,7 +103,7 @@ class SheetStore {
   static const String _legacyTitleSuffix = ':title';
   static const String _legacyIndexKey = 'sheets:index';
 
-  static const String _photosHeader = 'Photos';
+  static const String _photosHeader = AppStrings.photos;
   static const String _photosColId = 'col_photos';
   static int _sheetIdSeed = 0;
 

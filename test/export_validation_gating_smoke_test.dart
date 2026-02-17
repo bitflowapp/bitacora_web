@@ -1,4 +1,4 @@
-import 'package:bitacora_web/features/editor/editor_screen.dart';
+﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +22,7 @@ void main() {
         home: Scaffold(
           body: EditorScreen(
             sheetId: 'export_gating_sheet',
-            initialHeaders: <String>['Actividad', 'Estado', 'Photos'],
+            initialHeaders: <String>['Actividad', 'Estado', 'Fotos'],
             initialRows: <List<String>>[
               <String>['', '', ''],
             ],
@@ -42,3 +42,4 @@ void main() {
     expect(find.text('Ir a errores'), findsOneWidget);
   });
 }
+
