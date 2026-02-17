@@ -23,6 +23,10 @@ import 'services/demo_templates.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
+const bool kShowBuildBadge =
+    bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
+const String kBuildBadgeId = String.fromEnvironment('BUILD_ID', defaultValue: '');
+
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
   final raw = Uri.base.queryParameters['engine'];
@@ -274,6 +278,18 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
+    final shouldShowBadge = kDebugMode || kShowBuildBadge;
+
+    Widget wrapWithBuildBadge(Widget child) {
+      if (!shouldShowBadge) return child;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          const _BuildBadge(),
+        ],
+      );
+    }
 
     Widget buildBoot(Widget child) {
       return MaterialApp(
@@ -283,6 +299,9 @@ class _AppState extends State<App> {
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
         scrollBehavior: const _AppScrollBehavior(),
+        builder: (context, child) {
+          return wrapWithBuildBadge(child ?? const SizedBox.shrink());
+        },
         home: AnimatedVideoBackground(
           child: Scaffold(
             backgroundColor: Colors.transparent,
@@ -356,6 +375,9 @@ class _AppState extends State<App> {
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
           scrollBehavior: const _AppScrollBehavior(),
+          builder: (context, child) {
+            return wrapWithBuildBadge(child ?? const SizedBox.shrink());
+          },
           routerConfig: _router!,
         );
       },
@@ -755,6 +777,46 @@ class _TopNotice extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuildBadge extends StatelessWidget {
+  const _BuildBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = kBuildBadgeId.trim().isEmpty
+        ? (kDebugMode ? 'build dev' : 'build')
+        : 'build ${kBuildBadgeId.trim()}';
+
+    return IgnorePointer(
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 10, bottom: 10),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface.withOpacity(0.78),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                ),
               ),
             ),
           ),

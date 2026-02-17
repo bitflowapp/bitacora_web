@@ -43,6 +43,11 @@ flutter pub get
 flutter run -d chrome
 ```
 
+### Activar build badge en dev/QA
+```powershell
+flutter run -d chrome --dart-define=SHOW_BUILD_BADGE=true
+```
+
 ### Opción script del repo
 ```powershell
 .\run.ps1 -Dev
@@ -56,6 +61,11 @@ flutter run -d chrome
 ```powershell
 flutter pub get
 flutter build web --release
+```
+
+### Build web release con build badge visible
+```powershell
+flutter build web --release --dart-define=SHOW_BUILD_BADGE=true
 ```
 
 ### Empaquetado release del repo (ZIP para entrega)

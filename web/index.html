@@ -53,23 +53,7 @@
     /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
-    #build-badge {
-      position: fixed;
-      right: 10px;
-      bottom: 10px;
-      z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      font-size: 12px;
-      line-height: 1;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.72);
-      color: #fff;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      user-select: none;
-      pointer-events: none;
-    }
+    /* Build badge moved to Flutter widget (_BuildBadge). */
 
     #boot-fallback {
       position: fixed;
@@ -261,17 +245,7 @@
         }
       }
 
-      function mountBadge(build) {
-        try {
-          var el = document.getElementById('build-badge');
-          if (!el) {
-            el = document.createElement('div');
-            el.id = 'build-badge';
-            document.body.appendChild(el);
-          }
-          el.textContent = 'build ' + build;
-        } catch (_) {}
-      }
+      // Build badge moved to Flutter widget (_BuildBadge).
 
       // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
       async function nukeCachesIfBuildChanged(build) {
@@ -410,7 +384,6 @@
         try {
           var build = await resolveBuildIdFast(1200);
           window.__BITFLOW_BUILD__ = build;
-          mountBadge(build);
           boot();
           Promise.resolve().then(function () {
             return nukeCachesIfBuildChanged(build);
@@ -419,7 +392,6 @@
         } catch (_) {
           var fallback = 'dev-' + Date.now();
           window.__BITFLOW_BUILD__ = fallback;
-          mountBadge(fallback);
           boot();
           loadFlutterBootstrapDeferred(fallback);
         }
