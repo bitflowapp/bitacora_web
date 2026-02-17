@@ -44,7 +44,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
     slug: 'inventario',
     name: 'Inventario',
     sheetName: 'Demo Inventario',
-    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicacion'],
+    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicación'],
     rows: <List<String>>[
       <String>['MAT-001', 'Cemento', '35', 'bolsas', 'Deposito A'],
       <String>['MAT-014', 'Hierro 8mm', '120', 'u', 'Deposito B'],

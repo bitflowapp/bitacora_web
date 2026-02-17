@@ -23,7 +23,7 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'BitFlow prioriza el uso local y pide permisos solo cuando son necesarios para las funciones de camara, audio o ubicacion.',
+            'BitFlow prioriza el uso local y pide permisos solo cuando son necesarios para las funciones de cámara, audio o ubicación.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 18),
@@ -35,7 +35,7 @@ class PrivacyScreen extends StatelessWidget {
           const _SectionBlock(
             title: 'Permisos',
             body:
-                'Camera, microfono y ubicacion se solicitan al usar acciones que los requieren.',
+                'Cámara, micrófono y ubicación se solicitan al usar acciones que los requieren.',
           ),
           const _SectionBlock(
             title: 'Control del usuario',

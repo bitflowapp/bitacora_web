@@ -556,7 +556,7 @@ class SheetStore {
             _TemplateColumn(
                 label: 'Cantidad', type: 'number', defaultValue: '1'),
             _TemplateColumn(label: 'Unidad', type: 'text', defaultValue: 'u'),
-            _TemplateColumn(label: 'Ubicacion', type: 'text'),
+            _TemplateColumn(label: 'Ubicación', type: 'text'),
             _TemplateColumn(label: 'Nota', type: 'text'),
           ],
         );

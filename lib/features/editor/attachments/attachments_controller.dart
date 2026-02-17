@@ -373,7 +373,7 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.doc:
         return 'No se pudo adjuntar el archivo. Causa: $reason.';
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicacion. Causa: $reason.';
+        return 'No se pudo guardar la ubicación. Causa: $reason.';
     }
   }
 
@@ -616,9 +616,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la camara'),
+          title: const Text('No se pudo abrir la cámara'),
           content: const Text(
-            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
+            'No se pudo capturar desde cámara. ¿Querés elegir desde galería?',
           ),
           actions: [
             TextButton(
@@ -659,10 +659,10 @@ extension _EditorAttachments on _EditorScreenState {
     if (fromCamera) {
       final preflightOk = await _runPermissionPreflight(
         storageKey: _kPrefCameraRationaleSeen,
-        permissionLabel: 'camara',
-        rationaleTitle: 'Permiso de camara',
+        permissionLabel: 'cámara',
+        rationaleTitle: 'Permiso de cámara',
         rationaleMessage:
-            'Usamos la camara para adjuntar evidencia a la celda seleccionada. '
+            'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
             'Las fotos quedan en tu almacenamiento local.',
         permission: ph.Permission.camera,
       );
@@ -778,7 +778,7 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a camara o galeria desde este navegador.',
+              'No se pudo acceder a cámara o galería desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
@@ -2938,10 +2938,10 @@ extension _EditorAttachments on _EditorScreenState {
 
     final preflightOk = await _runPermissionPreflight(
       storageKey: _kPrefMicrophoneRationaleSeen,
-      permissionLabel: 'microfono',
-      rationaleTitle: 'Permiso de microfono',
+      permissionLabel: 'micrófono',
+      rationaleTitle: 'Permiso de micrófono',
       rationaleMessage:
-          'Usamos el microfono para grabar notas de voz en la celda activa. '
+          'Usamos el micrófono para grabar notas de voz en la celda activa. '
           'Los audios quedan en tu almacenamiento local.',
       permission: ph.Permission.microphone,
     );

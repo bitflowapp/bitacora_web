@@ -363,12 +363,12 @@ class _StartPageState extends State<StartPage> {
       id: 'gps_relevamiento_foto',
       pack: 'Relevamiento/GPS',
       name: 'Relevamiento foto',
-      description: 'Registro de ubicacion, estado y observacion.',
+      description: 'Registro de ubicación, estado y observación.',
       icon: CupertinoIcons.photo_on_rectangle,
-      tags: <String>['Relevamiento', 'Foto', 'Ubicacion'],
+      tags: <String>['Relevamiento', 'Foto', 'Ubicación'],
       columns: <_PackColumnSpec>[
         _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Ubicacion', type: 'text', required: true),
+        _PackColumnSpec(label: 'Ubicación', type: 'text', required: true),
         _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
           'Pendiente',
           'Revisar',
@@ -714,7 +714,7 @@ class _StartPageState extends State<StartPage> {
                         _OnboardingPage(
                           title: '2. Crea tu primera hoja',
                           body:
-                              'Empieza en segundos con una hoja vacia o una plantilla base.',
+                              'Empieza en segundos con una hoja vacía o una plantilla base.',
                         ),
                         _OnboardingPage(
                           title: '3. Importa un paquete',
@@ -1104,7 +1104,7 @@ class _StartPageState extends State<StartPage> {
                       card(
                         value: _CreateSheetChoice.blank,
                         icon: CupertinoIcons.doc_text,
-                        title: 'Planilla vacia',
+                        title: 'Planilla vacía',
                         subtitle: 'Empieza desde cero con columnas editables.',
                         emphasized: true,
                       ),
@@ -1125,7 +1125,7 @@ class _StartPageState extends State<StartPage> {
                       value: _CreateSheetChoice.inventario,
                       icon: CupertinoIcons.cube_box,
                       title: 'Inventario',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota.',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota.',
                     ),
                     card(
                       value: _CreateSheetChoice.checklist,
@@ -2809,7 +2809,7 @@ class _StartPageState extends State<StartPage> {
                             : const Color(0xFF1B1F2B),
                         borderRadius: BorderRadius.circular(10),
                         child:
-                            Text(testing ? 'Probando...' : 'Probar conexion'),
+                            Text(testing ? 'Probando...' : 'Probar conexión'),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -2927,7 +2927,7 @@ class _StartPageState extends State<StartPage> {
         if (raw.isEmpty) {
           return const _EngineProbeResult(
             ok: false,
-            message: 'URL manual vacia.',
+            message: 'URL manual vacía.',
             resolvedBase: null,
           );
         }

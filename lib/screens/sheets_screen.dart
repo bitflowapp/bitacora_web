@@ -393,7 +393,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                 tile(
                   icon: Icons.inventory_2_outlined,
                   title: 'Inventario simple',
-                  subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                  subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota',
                   value: TemplateKind.inventario,
                 ),
                 tile(

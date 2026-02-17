@@ -107,7 +107,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'save',
           label: 'Guardar',
-          subtitle: 'Persistir cambios locales y sincronizacion',
+          subtitle: 'Persistir cambios locales y sincronización',
           shortcut: 'Ctrl/Cmd+S',
           icon: Icons.check_circle_outline_rounded,
           onSelected: () => unawaited(_saveLocalNow()),
@@ -354,7 +354,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'open_queue',
           label: 'Abrir cola offline',
-          subtitle: 'Ver pendientes y reintentar sync',
+          subtitle: 'Ver pendientes y reintentar sincronización',
           shortcut: 'Ctrl/Cmd+Shift+L',
           icon: Icons.sync_alt_rounded,
           onSelected: () => unawaited(_openOfflineQueueDialog()),

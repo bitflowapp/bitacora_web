@@ -132,3 +132,14 @@ _legacy/tmp_20260206/
 docs/bitflow/downloads/BitFlow.apk
 dist/
 
+# Local agent/session workspace files
+.openclaw/
+logs/
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+

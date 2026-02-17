@@ -111,11 +111,11 @@ class _PremiumAppleHeader extends StatelessWidget {
   final bool pendingReviewViewActive;
 
   String _formatLocalSaved(DateTime? value) {
-    if (value == null) return 'Ultimo guardado local: --:--';
+    if (value == null) return 'Último guardado local: --:--';
     final local = value.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
-    return 'Ultimo guardado local: $hh:$mm';
+    return 'Último guardado local: $hh:$mm';
   }
 
   static String _columnLabel(int col) {
@@ -456,7 +456,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 filled: false,
                                 icon: Icons.pin_drop_outlined,
-                                label: 'Ir a…',
+                                label: 'Ir a\u2026',
                                 semanticsLabel: 'Ir rapido por fila o ID',
                                 tooltip: 'Ir a fila o ID rapidamente',
                                 onTap: onJumpTo,
@@ -535,7 +535,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: AppStrings.editorBatchActions,
                                 semanticsLabel: 'Abrir acciones por lote',
                                 tooltip:
-                                    'Acciones rápidas para filas seleccionadas',
+                                    'Acciones r\u00e1pidas para filas seleccionadas',
                                 onTap: onBatch,
                               ),
                             ),
@@ -600,7 +600,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,
-                              label: 'Ir a…',
+                              label: 'Ir a\u2026',
                               shortcut: 'Ctrl/Cmd+J',
                               onTap: onJumpTo,
                             ),
@@ -765,11 +765,11 @@ class _MobileCompactHeader extends StatelessWidget {
   final DateTime? lastLocalSavedAt;
 
   String _formatLocalSaved(DateTime? value) {
-    if (value == null) return 'Ultimo guardado local: --:--';
+    if (value == null) return 'Último guardado local: --:--';
     final local = value.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
-    return 'Ultimo guardado local: $hh:$mm';
+    return 'Último guardado local: $hh:$mm';
   }
 
   static String _columnLabel(int col) {
@@ -824,7 +824,7 @@ class _MobileCompactHeader extends StatelessWidget {
             final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
             final localLabel =
                 _formatLocalSaved(lastLocalSavedAt ?? snap.savedAt)
-                    .replaceFirst('Ultimo guardado local: ', 'Local: ');
+                    .replaceFirst('\u00daltimo guardado local: ', 'Local: ');
             final activeCell = (selectedRow >= 0 && selectedCol >= 0)
                 ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
                 : '--';
@@ -834,7 +834,7 @@ class _MobileCompactHeader extends StatelessWidget {
               child: AppTopBar(
                 title: label,
                 subtitle:
-                    '$saveLabel$pendingLabel$queueLabel$outboxPendingLabel$outboxErrorLabel | Celda: $activeCell | $localLabel | Sync: $offlineLabel | $modeLabel',
+                    '$saveLabel$pendingLabel$queueLabel$outboxPendingLabel$outboxErrorLabel | Celda: $activeCell | $localLabel | Sincronizaci\u00f3n: $offlineLabel | $modeLabel',
                 actions: [
                   AppButton(
                     label: AppStrings.editorSave,

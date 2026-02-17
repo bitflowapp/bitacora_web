@@ -124,7 +124,7 @@ class AppStrings {
   static const semEditorExport = 'Exportar planilla';
   static const semEditorSave = 'Guardar planilla';
   static const semEditorSearch = 'Buscar en planilla';
-  static const semEditorGps = 'Capturar ubicacion GPS';
+  static const semEditorGps = 'Capturar ubicación GPS';
   static const semEditorPhoto = 'Agregar foto';
   static const semEditorAudio = 'Grabar audio';
 }

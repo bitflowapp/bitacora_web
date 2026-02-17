@@ -176,7 +176,7 @@ class ExportXlsxService {
     try {
       final sheetPlanilla = workbook.worksheets[0]..name = safeSheetName;
       final sheetFotos = workbook.worksheets[1]..name = 'FOTOS';
-      final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACION';
+      final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACIÓN';
       final sheetInstrucciones = workbook.worksheets[3]..name = 'INSTRUCCIONES';
 
       _buildPlanillaSheet(

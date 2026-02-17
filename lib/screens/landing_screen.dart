@@ -114,7 +114,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'FAQ',
                               subtitle:
-                                  'Respuestas rapidas para decidir sin dudas.',
+                                  'Respuestas rápidas para decidir sin dudas.',
                             ),
                             const SizedBox(height: 18),
                             const _FaqList(),
@@ -174,7 +174,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitacora operativa offline',
+      subtitle: 'Bitácora operativa sin conexión',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -225,7 +225,7 @@ class _HeroSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Bitacora operativa con evidencias en un solo lugar',
+                    'Bitácora operativa con evidencias en un solo lugar',
                     style: t.text.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -235,7 +235,7 @@ class _HeroSection extends StatelessWidget {
                   Text(
                     config.brandTagline.isNotEmpty
                         ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportacion inmediata. Todo offline, listo para auditorias.',
+                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
                     style: t.text.bodyLarge?.copyWith(
                       color: t.colors.textSecondary,
                       height: 1.5,
@@ -268,7 +268,7 @@ class _HeroSection extends StatelessWidget {
                     spacing: 10,
                     runSpacing: 10,
                     children: const [
-                      _Tag('Offline real'),
+                      _Tag('Sin conexión real'),
                       _Tag('Backup ZIP'),
                       _Tag('Reporte imprimible'),
                       _Tag('Sin servidores'),
@@ -328,7 +328,7 @@ class _PreviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma informacion, con trazabilidad y exportacion inmediata.',
+            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -352,7 +352,7 @@ class _BenefitsGrid extends StatelessWidget {
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Offline real',
+            title: 'Sin conexión real',
             desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
             icon: Icons.offline_bolt_outlined,
           ),
