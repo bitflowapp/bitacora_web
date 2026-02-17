@@ -13,6 +13,40 @@ extension _EditorAttachments on _EditorScreenState {
     await _refreshOutboxBadgeCounts();
   }
 
+  Future<void> _enqueueAttachmentUpload({
+    required String attachmentId,
+    required CellRef targetRef,
+    required String storedRef,
+  }) async {
+    await _attachmentStore.registerLocalAttachment(
+      attachmentId: attachmentId,
+      sheetId: widget.sheetId,
+      cellKey: targetRef.compactKey,
+      storedRef: storedRef,
+    );
+
+    final enqueued = await OutboxStore.instance.ensureQueuedAttachmentUpload(
+      attachmentId,
+      <String, dynamic>{
+        'attachmentId': attachmentId,
+        'sheetId': widget.sheetId,
+        'cellKey': targetRef.compactKey,
+      },
+    );
+
+    if (enqueued) {
+      await _attachmentStore.markUploadQueued(
+        attachmentId,
+        sheetId: widget.sheetId,
+        cellKey: targetRef.compactKey,
+        storedRef: storedRef,
+      );
+      SyncCoordinator.instance.kick();
+    }
+
+    await _refreshOutboxBadgeCounts();
+  }
+
   Future<void> _startPhotoFlowForCell(int r, int c) async {
     if (_rows.isEmpty || _headers.isEmpty) return;
     final target = await _ensurePhotoTargetCell(r, c);
@@ -865,6 +899,13 @@ extension _EditorAttachments on _EditorScreenState {
                 replaceIndex: replaceIndex)) {
               throw Exception('bind_failed: cell_missing');
             }
+            unawaited(
+              _enqueueAttachmentUpload(
+                attachmentId: attachment.id,
+                targetRef: targetRef,
+                storedRef: storedRef,
+              ),
+            );
 
             DiagnosticsLog.I.updatePhotoAttempt(
               stage: 'meta_attached',
@@ -2157,6 +2198,13 @@ extension _EditorAttachments on _EditorScreenState {
             if (!_applyPhotoToRef(target, att)) {
               throw Exception('bind_failed: cell_missing');
             }
+            unawaited(
+              _enqueueAttachmentUpload(
+                attachmentId: att.id,
+                targetRef: target,
+                storedRef: storedRef,
+              ),
+            );
           },
         ),
       );
@@ -2650,6 +2698,13 @@ extension _EditorAttachments on _EditorScreenState {
             throw Exception('bind_failed: cell_missing');
           }
           _addAudioToCell(idx.r, idx.c, attachment);
+          unawaited(
+            _enqueueAttachmentUpload(
+              attachmentId: attachment.id,
+              targetRef: target,
+              storedRef: storedRef,
+            ),
+          );
         },
       ),
     );

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import 'package:bitacora_web/services/attachment_store.dart';
 import 'package:bitacora_web/services/cloud_store.dart';
 
 import 'outbox_op.dart';
@@ -14,6 +15,7 @@ abstract class OutboxExecutor {
 
 class DefaultOutboxExecutor implements OutboxExecutor {
   static const String kindSyncDirtyAttachments = 'sync_dirty_attachments';
+  static const String kindUploadAttachment = 'upload_attachment';
 
   @override
   Future<void> execute(OutboxOp op) async {
@@ -21,8 +23,38 @@ class DefaultOutboxExecutor implements OutboxExecutor {
       case kindSyncDirtyAttachments:
         await CloudStore.syncPendingNow();
         return;
+      case kindUploadAttachment:
+        await _executeUploadAttachment(op);
+        return;
       default:
         throw UnsupportedError('No handler for kind: ${op.kind}');
+    }
+  }
+
+  Future<void> _executeUploadAttachment(OutboxOp op) async {
+    final attachmentId = (op.payload['attachmentId'] ?? '').toString().trim();
+    if (attachmentId.isEmpty) {
+      throw const FormatException('upload_attachment_missing_id');
+    }
+
+    final info = await AttachmentStore.I.getUploadInfo(attachmentId);
+    if (info == null) {
+      // El adjunto ya no existe localmente o fue limpiado.
+      return;
+    }
+
+    if (info.isUploaded) {
+      return;
+    }
+
+    await AttachmentStore.I.markUploadUploading(attachmentId);
+
+    try {
+      await CloudStore.syncPendingNow();
+      await AttachmentStore.I.markUploadUploaded(attachmentId);
+    } catch (error) {
+      await AttachmentStore.I.markUploadError(attachmentId, error.toString());
+      rethrow;
     }
   }
 }

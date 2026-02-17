@@ -59,6 +59,39 @@ class OutboxStore {
     return true;
   }
 
+  Future<bool> ensureQueuedAttachmentUpload(
+    String attachmentId,
+    Map<String, dynamic> payload,
+  ) async {
+    final id = attachmentId.trim();
+    if (id.isEmpty) return false;
+
+    final box = await _ensureBox();
+    for (final value in box.values) {
+      final op = _parse(value);
+      if (op == null) continue;
+      if (op.kind != 'upload_attachment') continue;
+      final opId = (op.payload['attachmentId'] ?? '').toString().trim();
+      if (opId != id) continue;
+      if (op.status == OutboxOp.statusQueued ||
+          op.status == OutboxOp.statusInFlight) {
+        return false;
+      }
+    }
+
+    final sanitizedPayload = <String, dynamic>{
+      ...payload,
+      'attachmentId': id,
+    };
+
+    final op = OutboxOp.create(
+      kind: 'upload_attachment',
+      payload: sanitizedPayload,
+    );
+    await enqueue(op);
+    return true;
+  }
+
   Future<List<OutboxOp>> listReady({
     DateTime? now,
     int limit = 25,
