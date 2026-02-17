@@ -1301,29 +1301,29 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final resolvedKeyboardInset = keyboardInset < 0 ? 0.0 : keyboardInset;
     final keyboardVisible = resolvedKeyboardInset > 0.0;
     final homeIndicatorInset = keyboardVisible ? 0.0 : media.viewPadding.bottom;
-    final ultraCompact = keyboardVisible;
+    final compactBar = keyboardVisible || !isExpanded;
 
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
     final metrics = _gridMetricsFor(density);
-    final editorFont = math.max(16.0, metrics.cellFontSize + 2).toDouble();
-    final compactExpanded = ultraCompact && isExpanded;
-    final editorPadding = ultraCompact
-        ? EdgeInsets.symmetric(horizontal: 8, vertical: compactExpanded ? 8 : 6)
+    final editorFont = math.max(16.0, metrics.cellFontSize + 3).toDouble();
+    final editorPadding = compactBar
+        ? EdgeInsets.symmetric(
+            horizontal: 12, vertical: keyboardVisible ? 10 : 9)
         : EdgeInsets.symmetric(
-            horizontal: math.max(10.0, metrics.cellPadding.horizontal / 2),
-            vertical: math.max(10.0, metrics.cellPadding.vertical / 2),
+            horizontal: math.max(12.0, metrics.cellPadding.horizontal / 2),
+            vertical: math.max(11.0, metrics.cellPadding.vertical / 2),
           );
-    final barHeight = ultraCompact
-        ? (compactExpanded ? 64.0 : _kMobileInlineCompactBarH)
+    final barHeight = compactBar
+        ? (keyboardVisible ? _kMobileInlineCompactBarH : 56.0)
         : panelHeight;
-    final compactFieldHeight = compactExpanded ? 44.0 : 36.0;
+    final compactFieldHeight = keyboardVisible ? 46.0 : 44.0;
 
-    final iconSize = ultraCompact ? 20.0 : 18.0;
+    final iconSize = compactBar ? 22.0 : 18.0;
     final iconPadding =
-        ultraCompact ? const EdgeInsets.all(2) : const EdgeInsets.all(4);
-    final iconSplash = ultraCompact ? 14.0 : 16.0;
-    final iconConstraints = ultraCompact
-        ? const BoxConstraints(minWidth: 30, minHeight: 30)
+        compactBar ? const EdgeInsets.all(8) : const EdgeInsets.all(4);
+    final iconSplash = compactBar ? 22.0 : 16.0;
+    final iconConstraints = compactBar
+        ? const BoxConstraints(minWidth: 44, minHeight: 44)
         : const BoxConstraints(minWidth: 34, minHeight: 34);
 
     return AnimatedPositioned(
@@ -1351,17 +1351,17 @@ class _MobileInlineEditorBar extends StatelessWidget {
                   height: barHeight,
                   child: RepaintBoundary(
                     child: Padding(
-                      padding: ultraCompact
+                      padding: compactBar
                           ? const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
+                              horizontal: 10,
+                              vertical: 4,
                             )
                           : const EdgeInsets.fromLTRB(10, 8, 10, 10),
                       child: GlassSurface(
-                        radius: ultraCompact ? 14 : 20,
+                        radius: compactBar ? 16 : 20,
                         blurSigma: palette.isLight
-                            ? (ultraCompact ? 10 : 13)
-                            : (ultraCompact ? 8 : 10),
+                            ? (compactBar ? 10 : 13)
+                            : (compactBar ? 8 : 10),
                         backgroundColor: palette.editorBg.withValues(
                           alpha: palette.isLight ? 0.80 : 0.62,
                         ),
@@ -1371,17 +1371,17 @@ class _MobileInlineEditorBar extends StatelessWidget {
                         shadowColor: Colors.black.withValues(
                           alpha: palette.isLight ? 0.08 : 0.26,
                         ),
-                        shadowBlur: ultraCompact ? 10 : 16,
-                        shadowOffset: ultraCompact
+                        shadowBlur: compactBar ? 10 : 16,
+                        shadowOffset: compactBar
                             ? const Offset(0, 4)
                             : const Offset(0, 8),
-                        padding: ultraCompact
+                        padding: compactBar
                             ? const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
+                                horizontal: 10,
+                                vertical: 6,
                               )
                             : const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                        child: ultraCompact
+                        child: compactBar
                             ? Row(
                                 children: [
                                   _MobilePanelIconButton(
@@ -1404,7 +1404,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     padding: iconPadding,
                                     constraints: iconConstraints,
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: SizedBox(
                                       height: compactFieldHeight,
@@ -1424,7 +1424,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 6),
                                   _MobilePanelIconButton(
                                     icon: Icons.check_rounded,
                                     tooltip: 'Guardar',
@@ -1436,12 +1436,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     constraints: iconConstraints,
                                   ),
                                   _MobilePanelIconButton(
-                                    icon: compactExpanded
+                                    icon: isExpanded
                                         ? Icons.unfold_less_rounded
                                         : Icons.unfold_more_rounded,
-                                    tooltip: compactExpanded
-                                        ? 'Compactar'
-                                        : 'Expandir',
+                                    tooltip:
+                                        isExpanded ? 'Compactar' : 'Expandir',
                                     onTap: onToggleExpanded,
                                     palette: palette,
                                     iconSize: iconSize,

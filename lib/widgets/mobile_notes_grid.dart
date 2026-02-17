@@ -427,7 +427,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 ? text
                 : (inlinePreview == null
                     ? text
-                    : '${inlinePreview.title} · ${inlinePreview.subtitle}');
+                    : '${inlinePreview.title} | ${inlinePreview.subtitle}');
             return _buildCard(
               context: ctx,
               width: cardW,

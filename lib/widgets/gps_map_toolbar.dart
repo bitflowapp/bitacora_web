@@ -437,7 +437,7 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     if (acc <= 0) return base;
 
     final accStr = acc.toStringAsFixed(0);
-    return '$base · ±$accStr m';
+    return '$base | ±$accStr m';
   }
 
   void _openFullScreenMap() {

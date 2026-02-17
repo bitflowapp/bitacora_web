@@ -150,7 +150,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} | esperando seleccion',
       target: ref,
     );
 
@@ -159,7 +159,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (picked == null) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · cancelado',
+        'Destino ${_cellLabelForRef(ref)} | cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -188,7 +188,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · seleccion multiple',
+      'Destino ${_cellLabelForRef(ref)} | seleccion multiple',
       target: ref,
     );
 
@@ -198,7 +198,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (batch.cancelled) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · cancelado',
+        'Destino ${_cellLabelForRef(ref)} | cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -207,7 +207,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (!batch.ok) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · error',
+        'Destino ${_cellLabelForRef(ref)} | error',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -225,7 +225,7 @@ extension _EditorAttachments on _EditorScreenState {
     final results = batch.results;
     for (int i = 0; i < results.length; i++) {
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · procesando ${i + 1}/${results.length}',
+        'Destino ${_cellLabelForRef(ref)} | procesando ${i + 1}/${results.length}',
         target: ref,
       );
       await _processPhotoOutcome(
@@ -238,7 +238,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = false;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · ${results.length} foto(s) agregada(s)',
+      'Destino ${_cellLabelForRef(ref)} | ${results.length} foto(s) agregada(s)',
       target: ref,
     );
     _clearPhotoFlowStatusSoon();
@@ -1489,7 +1489,7 @@ extension _EditorAttachments on _EditorScreenState {
                 final previewable = _canPreviewPhoto(p);
                 final label = _photoCaptionFor(p);
                 final dateLabel =
-                    '${p.addedAt.toLocal()} · ${_formatBytes(p.size)}';
+                    '${p.addedAt.toLocal()} | ${_formatBytes(p.size)}';
 
                 Widget thumbWidget() {
                   if (!previewable) {

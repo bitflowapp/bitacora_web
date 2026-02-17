@@ -921,7 +921,7 @@ class _DataCell extends StatelessWidget {
     final displayText = text.trim().isNotEmpty
         ? text
         : (!isPhotos && inline != null
-            ? '${inline.title} · ${inline.subtitle}'
+            ? '${inline.title} | ${inline.subtitle}'
             : ' ');
     final content = isPhotos
         ? _PhotosCell(

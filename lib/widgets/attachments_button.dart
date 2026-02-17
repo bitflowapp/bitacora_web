@@ -213,7 +213,7 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final title = 'Adjuntos · Fila ${widget.row + 1}';
+    final title = 'Adjuntos | Fila ${widget.row + 1}';
 
     return Scaffold(
       appBar: AppBar(
@@ -254,7 +254,7 @@ class _AttachmentsSheetState extends State<_AttachmentsSheet> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text('${m.mime} • ${_fmtSize(m.size)}'),
+                      subtitle: Text('${m.mime} | ${_fmtSize(m.size)}'),
                       onTap: () => _open(m),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,

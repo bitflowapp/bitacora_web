@@ -719,7 +719,7 @@ class _PriceCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '• $f',
+                '- $f',
                 style: t.text.bodyMedium?.copyWith(
                   color: t.colors.textSecondary,
                 ),

@@ -6,7 +6,7 @@ const int kDefaultCols = 15; // 14 + Fotos
 const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
-const double _kMobileInlineCompactBarH = 52.0;
+const double _kMobileInlineCompactBarH = 64.0;
 const int _kMaxPhotosPerCell = 6;
 const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
 const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
@@ -419,8 +419,6 @@ class _EditorScreenState extends State<EditorScreen>
   final GlobalKey _mobileBarKey = GlobalKey();
   final Key _mobileFieldKey = const ValueKey('mobileInlineEditorField');
   double _mobileBarH = 0.0;
-  double _mobileBarLastAnimatedInset = 0.0;
-  bool _mobileBarInstantJumpArmed = false;
   bool _mobileBarMeasureScheduled = false;
   String? _lastMobileSnack;
   String? _lastToastMessage;
@@ -2821,7 +2819,7 @@ class _EditorScreenState extends State<EditorScreen>
           itemBuilder: (ctx, index) {
             final template = _columnTemplates[index];
             final subtitle =
-                '${template.prefsByLabel.length} columnas · ${_formatDateTimeShort(template.savedAt.toLocal())}';
+                '${template.prefsByLabel.length} columnas | ${_formatDateTimeShort(template.savedAt.toLocal())}';
             return ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -2881,7 +2879,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
     if (parts.isEmpty) return 'Sin filtros';
-    return parts.join(' · ');
+    return parts.join(' | ');
   }
 
   void _applySavedViewColumns(
@@ -11330,22 +11328,6 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Duration _mobileBarBottomDuration(double keyboardInset) {
-    final nextInset = keyboardInset < 0 ? 0.0 : keyboardInset;
-    final jumpedIntoKeyboard = _mobileEditorOpen &&
-        nextInset > 1.0 &&
-        _mobileBarLastAnimatedInset <= 1.0 &&
-        !_mobileBarInstantJumpArmed;
-
-    if (jumpedIntoKeyboard) {
-      _mobileBarInstantJumpArmed = true;
-      _mobileBarLastAnimatedInset = nextInset;
-      return Duration.zero;
-    }
-
-    if (nextInset <= 1.0) {
-      _mobileBarInstantJumpArmed = false;
-    }
-    _mobileBarLastAnimatedInset = nextInset;
     return const Duration(milliseconds: 180);
   }
 
@@ -11547,7 +11529,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobilePanelCompactH = 112.0;
+  static const double _kMobilePanelCompactH = 56.0;
   static const double _kMobilePanelExpandedH = 172.0;
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
@@ -13783,7 +13765,7 @@ class _EditorScreenState extends State<EditorScreen>
               leading: const Icon(Icons.grid_view_rounded),
               title: Text(spec.name),
               subtitle: Text(
-                '${spec.headers.length} columnas · ${spec.rows.length} filas demo',
+                '${spec.headers.length} columnas | ${spec.rows.length} filas demo',
               ),
               onTap: () => Navigator.of(context).pop(spec),
             ),
@@ -14785,7 +14767,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 child: Text(
                                   previewRows[i]
-                                      .map((cell) => cell.isEmpty ? '·' : cell)
+                                      .map((cell) => cell.isEmpty ? '-' : cell)
                                       .join(' | '),
                                   style: TextStyle(
                                     color: pal.fg,
@@ -15982,7 +15964,7 @@ class _EditorScreenState extends State<EditorScreen>
                               event.origin,
                               if (event.row != null && event.col != null)
                                 _cellLabelRc(event.row!, event.col!),
-                            ].join(' · ');
+                            ].join(' | ');
                             return ListTile(
                               tileColor: _palette(ctx).hintBg,
                               shape: RoundedRectangleBorder(
@@ -16118,7 +16100,7 @@ class _EditorScreenState extends State<EditorScreen>
         primary.filename.trim().isEmpty ? 'Adjunto' : primary.filename.trim();
     final safeMime = primary.mime.trim().toLowerCase();
     final typeLabel = _inlineAttachmentTypeLabel(safeMime, safeName);
-    final subtitle = '$typeLabel · ${_formatBytes(primary.size)}';
+    final subtitle = '$typeLabel | ${_formatBytes(primary.size)}';
 
     return _CellInlinePreviewData(
       title: safeName,
@@ -18099,7 +18081,7 @@ class _EditorScreenState extends State<EditorScreen>
             cell: cellLabel,
             kind: 'GPS',
             caption:
-                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
+                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' | ${gps.source}' : ''}',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
             mapUrl: mapUrl,
             thumb: null,
@@ -18212,7 +18194,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             pw.SizedBox(height: 2),
             pw.Text(
-              'Version: $appVersion · Build: $buildId',
+              'Version: $appVersion | Build: $buildId',
               style: const pw.TextStyle(fontSize: 9),
             ),
             pw.SizedBox(height: 8),
@@ -18327,7 +18309,7 @@ class _EditorScreenState extends State<EditorScreen>
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                '${item.kind} · ${item.cell}',
+                                '${item.kind} | ${item.cell}',
                                 style: pw.TextStyle(
                                   fontSize: 8.5,
                                   fontWeight: pw.FontWeight.bold,

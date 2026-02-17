@@ -632,9 +632,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas · $pins fijadas · Última: $lastLabel';
+      return '${_items.length} planillas | $pins fijadas | Última: $lastLabel';
     }
-    return '${_items.length} planillas · Última: $lastLabel';
+    return '${_items.length} planillas | Última: $lastLabel';
   }
 
   @override
@@ -710,7 +710,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
       final t = Theme.of(context);
-      final text = count == null ? label : '$label · $count';
+      final text = count == null ? label : '$label | $count';
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
@@ -1194,7 +1194,7 @@ class _SheetCardState extends State<_SheetCard> {
         ? widget.meta.title
         : 'Planilla ${widget.meta.id}';
     final details =
-        'Actualizada: ${widget.updatedLabel} · Filas: ${widget.meta.rows}';
+        'Actualizada: ${widget.updatedLabel} | Filas: ${widget.meta.rows}';
 
     return AnimatedScale(
       scale: _pressed ? 0.988 : 1.0,

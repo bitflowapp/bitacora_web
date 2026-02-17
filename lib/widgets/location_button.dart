@@ -207,7 +207,7 @@ class _LocationSheetState extends State<_LocationSheet> {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      'Precisión: ${_geo!.accuracyM?.toStringAsFixed(1) ?? '-'} m • ${_geo!.ts}',
+                      'Precisión: ${_geo!.accuracyM?.toStringAsFixed(1) ?? '-'} m | ${_geo!.ts}',
                     ),
                     trailing: IconButton(
                       tooltip: 'Abrir en mapa',

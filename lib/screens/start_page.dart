@@ -3269,8 +3269,8 @@ class _AppleSheetRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = meta.title.isEmpty ? 'Planilla sin título' : meta.title;
     final subtitle = tab == _HomeTab.trash
-        ? '${meta.rows} filas · ${fmt(meta.updatedAt)} · vence en ${daysLeftInTrash ?? 0} día(s)'
-        : '${meta.rows} filas · ${fmt(meta.updatedAt)} · $folderName';
+        ? '${meta.rows} filas | ${fmt(meta.updatedAt)} | vence en ${daysLeftInTrash ?? 0} día(s)'
+        : '${meta.rows} filas | ${fmt(meta.updatedAt)} | $folderName';
 
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3467,8 +3467,8 @@ class _AppleSheetGridCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             tab == _HomeTab.trash
-                ? '${meta.rows} filas · vence en ${daysLeftInTrash ?? 0} día(s)'
-                : '${meta.rows} filas · $folderName',
+                ? '${meta.rows} filas | vence en ${daysLeftInTrash ?? 0} día(s)'
+                : '${meta.rows} filas | $folderName',
             style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: 12,
@@ -3784,7 +3784,7 @@ class _FolderRow extends StatelessWidget {
           builder: (ctx) => CupertinoActionSheet(
             title: Text(folder.name),
             message: Text(
-                '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}'),
+                '$count planilla(s) | creada ${_fmtFolderCreated(folder.createdAtMs)}'),
             actions: [
               CupertinoActionSheetAction(
                 onPressed: () {
@@ -3822,7 +3822,7 @@ class _FolderRow extends StatelessWidget {
                         color: pal.textPrimary, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 2),
                 Text(
-                  '$count planilla(s) · creada ${_fmtFolderCreated(folder.createdAtMs)}',
+                  '$count planilla(s) | creada ${_fmtFolderCreated(folder.createdAtMs)}',
                   style: TextStyle(
                       color: pal.textSecondary,
                       fontSize: 12,
