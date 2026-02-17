@@ -1311,22 +1311,24 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final editorFont = math.max(16.0, metrics.cellFontSize + 3).toDouble();
     final editorPadding = compactBar
         ? EdgeInsets.symmetric(
-            horizontal: 12, vertical: keyboardVisible ? 10 : 9)
+            horizontal: keyboardVisible ? 14 : 12,
+            vertical: keyboardVisible ? 10 : 9,
+          )
         : EdgeInsets.symmetric(
-            horizontal: math.max(12.0, metrics.cellPadding.horizontal / 2),
+            horizontal: math.max(14.0, metrics.cellPadding.horizontal / 2),
             vertical: math.max(11.0, metrics.cellPadding.vertical / 2),
           );
     final barHeight = compactBar
-        ? (keyboardVisible ? _kMobileInlineCompactBarH : 56.0)
+        ? (keyboardVisible ? _kMobileInlineCompactBarH : 60.0)
         : panelHeight;
-    final compactFieldHeight = keyboardVisible ? 46.0 : 44.0;
+    final compactFieldHeight = keyboardVisible ? 48.0 : 46.0;
 
     final iconSize = compactBar ? 22.0 : 18.0;
     final iconPadding =
         compactBar ? const EdgeInsets.all(8) : const EdgeInsets.all(4);
     final iconSplash = compactBar ? 22.0 : 16.0;
     final iconConstraints = compactBar
-        ? const BoxConstraints(minWidth: 44, minHeight: 44)
+        ? const BoxConstraints(minWidth: 46, minHeight: 46)
         : const BoxConstraints(minWidth: 34, minHeight: 34);
 
     return AnimatedPositioned(
