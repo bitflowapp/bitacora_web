@@ -8851,13 +8851,8 @@ class _EditorScreenState extends State<EditorScreen>
             ? _kMobileQuickBarH + bottomSafe + 12
             : 0.0;
         final keyboardVisible = keyboardInset > 0;
-        final effectiveMobilePanelH =
-            isDesktop ? 0.0 : (editorActive && keyboardVisible ? 52.0 : panelH);
-        final bodyBottomPad = isDesktop
-            ? 0.0
-            : (editorActive
-                ? effectiveMobilePanelH + (keyboardVisible ? 0 : 4)
-                : quickBarH);
+        final bodyBottomPad =
+            isDesktop ? 0.0 : (editorActive ? panelH + 4 : quickBarH);
         final autoCollapsedTopChrome =
             isMobile && (editorActive || keyboardVisible);
         final showSelectionQuickActions =
@@ -10080,8 +10075,7 @@ class _EditorScreenState extends State<EditorScreen>
                         controller: _mobileEC,
                         focusNode: _mobileFocus,
                         actions: _mobileActions,
-                        keyboardInset: keyboardInset,
-                        panelHeight: effectiveMobilePanelH,
+                        panelHeight: panelH,
                         isExpanded: _mobileEditorExpanded,
                         canCopyPaste:
                             _mobileEditorOpen && !_mobileEditingHeader,
@@ -10104,7 +10098,7 @@ class _EditorScreenState extends State<EditorScreen>
                         hidden: _mobileEditorOpen,
                         forceReducedMotion: _fieldModeEnabled,
                         bottomOffset: _mobileEditorOpen
-                            ? (effectiveMobilePanelH + keyboardInset + 10)
+                            ? (panelH + keyboardInset + 10)
                             : (bottomSafe + 12),
                         onMainTap: () {
                           AppHaptics.light();

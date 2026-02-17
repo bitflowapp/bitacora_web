@@ -1231,7 +1231,6 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.actions,
-    required this.keyboardInset,
     required this.panelHeight,
     required this.isExpanded,
     required this.canCopyPaste,
@@ -1257,8 +1256,6 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final FocusNode focusNode;
   final List<_MobileAction> actions;
 
-  // inset real de teclado (dp)
-  final double keyboardInset;
   final double panelHeight;
   final bool isExpanded;
   final bool canCopyPaste;
@@ -1290,7 +1287,8 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final opacity = isOpen ? 1.0 : 0.01;
 
     final media = MediaQuery.of(context);
-    final keyboardVisible = media.viewInsets.bottom > 0 || keyboardInset > 0.5;
+    final keyboardInset = media.viewInsets.bottom;
+    final keyboardVisible = keyboardInset > 0;
     final ultraCompact = keyboardVisible;
 
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
@@ -1312,13 +1310,15 @@ class _MobileInlineEditorBar extends StatelessWidget {
         ? const BoxConstraints(minWidth: 30, minHeight: 30)
         : const BoxConstraints(minWidth: 34, minHeight: 34);
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
       left: 0,
       right: 0,
       bottom: keyboardInset,
       child: SafeArea(
         top: false,
-        bottom: !keyboardVisible,
+        bottom: false,
         minimum: EdgeInsets.zero,
         child: AbsorbPointer(
           absorbing: !isOpen,
