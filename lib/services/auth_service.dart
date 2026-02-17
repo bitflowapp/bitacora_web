@@ -1,15 +1,10 @@
-// lib/services/auth_service.dart
-//
-// AuthService (BETA guest-only) — SIN firebase_auth.
-// - Mantiene sesión invitado persistida en SharedPreferences.
-// - Expone ValueNotifier<AuthUser?> user + Stream userChanges.
-// - init() es idempotente (no se rompe si se llama varias veces).
-
 import 'dart:async';
-import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'premium_config.dart';
 
 class AuthUser {
   final String id;
@@ -17,25 +12,22 @@ class AuthUser {
   final String? email;
   final String? photoUrl;
 
+  final bool isAnonymous;
+
   const AuthUser({
     required this.id,
     this.name,
     this.email,
     this.photoUrl,
+    this.isAnonymous = false,
   });
 
-  Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'name': name,
-        'email': email,
-        'photoUrl': photoUrl,
-      };
-
-  factory AuthUser.fromJson(Map<String, dynamic> j) => AuthUser(
-        id: (j['id'] as String?) ?? 'guest',
-        name: j['name'] as String?,
-        email: j['email'] as String?,
-        photoUrl: j['photoUrl'] as String?,
+  factory AuthUser.fromFirebase(User user) => AuthUser(
+        id: user.uid,
+        name: user.displayName,
+        email: user.email,
+        photoUrl: user.photoURL,
+        isAnonymous: user.isAnonymous,
       );
 }
 
@@ -49,18 +41,19 @@ class AuthService {
     });
   }
 
-  static const String _kKey = 'bitacora.auth_user.guest.v1';
-
   final ValueNotifier<AuthUser?> user = ValueNotifier<AuthUser?>(null);
   final ValueNotifier<String> lastError = ValueNotifier<String>('');
 
   final StreamController<AuthUser?> _userCtrl =
       StreamController<AuthUser?>.broadcast();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription<User?>? _authSub;
+  Future<void>? _initFuture;
 
   Stream<AuthUser?> get userChanges => _userCtrl.stream;
   AuthUser? get currentUser => user.value;
-
-  Future<void>? _initFuture;
+  bool get isSignedIn => _auth.currentUser != null;
 
   /// Inicializa estado desde SharedPreferences. Idempotente.
   Future<void> init() {
@@ -71,51 +64,76 @@ class AuthService {
   Future<void> _initImpl() async {
     lastError.value = '';
     try {
-      await _restore();
-      // BETA: si no hay nada persistido, queda null (AuthGate lo convierte a guest).
+      final current = _auth.currentUser;
+      user.value = current == null ? null : AuthUser.fromFirebase(current);
+      if (!_userCtrl.isClosed) {
+        _userCtrl.add(user.value);
+      }
+      _authSub = _auth.authStateChanges().listen((firebaseUser) {
+        final mapped =
+            firebaseUser == null ? null : AuthUser.fromFirebase(firebaseUser);
+        user.value = mapped;
+      }, onError: (Object e) {
+        lastError.value = 'Auth stream error: $e';
+      });
     } catch (e) {
       lastError.value = 'Auth init error: $e';
     }
   }
 
-  Future<void> _restore() async {
-    final SharedPreferences sp = await SharedPreferences.getInstance();
-    final String? raw = sp.getString(_kKey);
-    if (raw == null || raw.trim().isEmpty) return;
-
-    try {
-      final Map<String, dynamic> map = jsonDecode(raw) as Map<String, dynamic>;
-      user.value = AuthUser.fromJson(map);
-    } catch (_) {
-      // Si está corrupto, limpiamos.
-      await sp.remove(_kKey);
-    }
+  Future<UserCredential> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    lastError.value = '';
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  Future<void> _persist() async {
-    final SharedPreferences sp = await SharedPreferences.getInstance();
-    final AuthUser? u = user.value;
-    if (u == null) {
-      await sp.remove(_kKey);
-      return;
+  Future<UserCredential> createAccountWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    lastError.value = '';
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final firebaseUser = credential.user;
+    if (firebaseUser != null) {
+      await _createTrialProfile(uid: firebaseUser.uid);
     }
-    await sp.setString(_kKey, jsonEncode(u.toJson()));
+    return credential;
+  }
+
+  Future<void> _createTrialProfile({required String uid}) async {
+    final now = DateTime.now().toUtc();
+    final trialDays = PremiumConfig.trialDays;
+    final endsAt = now.add(Duration(days: trialDays));
+    await _firestore.collection('users').doc(uid).set({
+      'isPremium': false,
+      'trialStartedAt': FieldValue.serverTimestamp(),
+      'trialEndsAt': Timestamp.fromDate(endsAt),
+      'premiumSource': 'trial',
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   /// BETA: entra como invitado (sin Firebase).
   Future<void> signInAsGuest() async {
-    lastError.value = '';
-    user.value = const AuthUser(id: 'guest', name: 'Invitado');
-    await _persist();
+    throw StateError('Guest login is disabled. Use email/password login.');
+  }
+
+  Future<void> signIn() async {
+    throw StateError('Use signInWithEmail(email, password).');
   }
 
   Future<void> signOut() async {
     lastError.value = '';
-    user.value = null;
-    await _persist();
+    await _auth.signOut();
   }
 
   Future<void> dispose() async {
+    await _authSub?.cancel();
     if (!_userCtrl.isClosed) {
       await _userCtrl.close();
     }
