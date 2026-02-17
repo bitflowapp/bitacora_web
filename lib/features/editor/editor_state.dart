@@ -288,8 +288,6 @@ class _EditorScreenState extends State<EditorScreen>
   bool _perfScenarioRunning = false;
   int _perfScenarioRuns = 0;
   DateTime? _perfScenarioLastAt;
-  double _lastVisualViewportInsetDp = -1;
-  Timer? _vvSetStateThrottleT;
   bool _isInAppBrowser = false;
   bool _isSecureContext = true;
   bool? _storageOk;
@@ -425,7 +423,6 @@ class _EditorScreenState extends State<EditorScreen>
   String? _lastMobileSnack;
   String? _lastToastMessage;
   DateTime _lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
-  VoidCallback? _vvDetach;
   VoidCallback? _detachWebFlushSignal;
   int _fillDownCount = 5;
   int _incrementCount = 5;
@@ -524,7 +521,6 @@ class _EditorScreenState extends State<EditorScreen>
     _kbController.attach();
     _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
     if (kIsWeb) {
-      _vvDetach = vv.attachViewportListener(_handleVisualViewportChanged);
       _detachWebFlushSignal = WebFlushSignal.attach(
         _flushLocalStateForBackground,
       );
@@ -684,7 +680,6 @@ class _EditorScreenState extends State<EditorScreen>
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
     _cellDraftSyncT?.cancel();
-    _vvSetStateThrottleT?.cancel();
     _recentValuesSaveT?.cancel();
     _historyPersistT?.cancel();
     _blinkT?.cancel();
@@ -697,7 +692,6 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
-    _vvDetach?.call();
     _detachWebFlushSignal?.call();
     _detachWebFlushSignal = null;
 
@@ -752,23 +746,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (_mobileEditingHeader || _mobileRow >= 0) {
       _debouncedEnsureRowVisible(targetRow);
     }
-  }
-
-  void _handleVisualViewportChanged() {
-    if (!mounted) return;
-    final nextInset = vv.visualViewportKeyboardInset();
-    if (!_mobileEditorOpen &&
-        nextInset <= 0.0 &&
-        _lastVisualViewportInsetDp <= 0.0) {
-      return;
-    }
-    if ((nextInset - _lastVisualViewportInsetDp).abs() < 1.0) return;
-    _lastVisualViewportInsetDp = nextInset;
-    if (_vvSetStateThrottleT?.isActive ?? false) return;
-    _vvSetStateThrottleT = Timer(const Duration(milliseconds: 48), () {
-      if (!mounted) return;
-      setState(() {});
-    });
   }
 
   void _setMobileTopBarCollapsed(bool collapsed) {
@@ -8865,18 +8842,15 @@ class _EditorScreenState extends State<EditorScreen>
                     ? _mobileBarH
                     : desiredPanelH
                 : 0.0);
-        final quickBarH = isMobile && !_mobileEditorOpen
-            ? _kMobileQuickBarH + bottomSafe + 12
-            : 0.0;
         final keyboardVisible = keyboardInset > 0.0;
         final mobileEditorBarH =
             keyboardVisible ? _kMobileInlineCompactBarH : panelH;
         final mobileEditorSafeBottom = keyboardVisible ? 0.0 : bottomSafe;
-        final mobileEditorOverlayInset = isDesktop || !editorActive
+        final mobileGridBottomInset = isDesktop
             ? 0.0
-            : keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8;
-        final bodyBottomPad =
-            isDesktop ? 0.0 : (editorActive ? 0.0 : quickBarH);
+            : (editorActive
+                ? keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8
+                : bottomSafe + 12);
         final autoCollapsedTopChrome =
             isMobile && (editorActive || keyboardVisible);
         final showSelectionQuickActions =
@@ -8951,10 +8925,8 @@ class _EditorScreenState extends State<EditorScreen>
                   children: [
                     if (pal.isLight)
                       Positioned.fill(child: _WarmBackdrop(palette: pal)),
-                    AnimatedPadding(
-                      duration: const Duration(milliseconds: 140),
-                      curve: Curves.easeOut,
-                      padding: EdgeInsets.only(bottom: bodyBottomPad),
+                    Padding(
+                      padding: EdgeInsets.zero,
                       child: Column(
                         children: [
                           if (isDesktop)
@@ -10003,7 +9975,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                         _mobileEditingHeader,
                                                 activeController: _mobileEC,
                                                 overlayBottomInset:
-                                                    mobileEditorOverlayInset,
+                                                    mobileGridBottomInset,
                                                 onHorizontalScroll:
                                                     _syncMobileHorizontal,
                                                 onCellTap: (cellCtx, r, c) =>
