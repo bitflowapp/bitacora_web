@@ -12,15 +12,15 @@ class AppStrings {
   static const rename = 'Renombrar';
   static const open = 'Abrir';
   static const actions = 'Acciones';
-  static const quickActions = 'Acciones rápidas';
-  static const more = 'Más…';
-  static const moreActions = 'Más acciones';
+  static const quickActions = 'Acciones r\u00e1pidas';
+  static const more = 'M\u00e1s...';
+  static const moreActions = 'M\u00e1s acciones';
   static const quickActionApplyValue = 'Pegar valor';
   static const quickActionFillDown = 'Rellenar';
   static const quickActionDuplicateRow = 'Duplicar fila';
   static const quickActionAttachPhoto = 'Adjuntar foto';
   static const quickActionAttachGps = 'Adjuntar GPS';
-  static const quickActionGoTo = 'Ir a…';
+  static const quickActionGoTo = 'Ir a...';
 
   // Sheets
   static const sheetsTitle = 'BitFlow';

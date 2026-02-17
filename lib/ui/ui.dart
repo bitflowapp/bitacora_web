@@ -10,6 +10,7 @@ export 'app_shell.dart';
 export 'app_modal.dart';
 export 'app_toast.dart';
 export 'app_text_field.dart';
+export 'glass_surface.dart';
 export 'empty_state.dart';
 export 'loading_state.dart';
 export 'section_header.dart';

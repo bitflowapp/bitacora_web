@@ -405,6 +405,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _mobileEditorOpen = false;
   _MobileEditPhase _mobilePhase = _MobileEditPhase.closed;
   bool _mobileTopBarCollapsed = false;
+  bool _mobileEditorExpanded = false;
   bool _mobileEditingHeader = false;
   int _mobileRow = -1;
   int _mobileCol = 0;
@@ -8836,7 +8837,9 @@ class _EditorScreenState extends State<EditorScreen>
         final keyboardInset = math.max(effectiveInset, vvInset);
         final isMobile = !isDesktop;
         final editorActive = isMobile && _mobileEditorOpen;
-        final desiredPanelH = _kMobilePanelCompactH;
+        final desiredPanelH = _mobileEditorExpanded
+            ? _kMobilePanelExpandedH
+            : _kMobilePanelCompactH;
         final panelH = isDesktop
             ? 0.0
             : (editorActive
@@ -8847,9 +8850,12 @@ class _EditorScreenState extends State<EditorScreen>
         final quickBarH = isMobile && !_mobileEditorOpen
             ? _kMobileQuickBarH + bottomSafe + 12
             : 0.0;
+        final keyboardVisible = keyboardInset > 0;
         final bodyBottomPad = isDesktop
             ? 0.0
-            : (editorActive ? panelH + keyboardInset : quickBarH);
+            : (editorActive ? panelH + (keyboardVisible ? 4 : 0) : quickBarH);
+        final autoCollapsedTopChrome =
+            isMobile && (editorActive || keyboardVisible);
         final showSelectionQuickActions =
             !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
@@ -9033,6 +9039,7 @@ class _EditorScreenState extends State<EditorScreen>
                               secondCurve: AppMotion.standardIn,
                               sizeCurve: AppMotion.standardOut,
                               crossFadeState: _zenModeEnabled ||
+                                      autoCollapsedTopChrome ||
                                       (_mobileCompactModeEnabled &&
                                           _mobileTopBarCollapsed)
                                   ? CrossFadeState.showSecond
@@ -9057,7 +9064,16 @@ class _EditorScreenState extends State<EditorScreen>
                                   lastLocalSavedAt: _lastSavedAt,
                                 ),
                               ),
-                              secondChild: const SizedBox.shrink(),
+                              secondChild: RepaintBoundary(
+                                child: _MobileHeaderCollapsedPill(
+                                  palette: pal,
+                                  title: _sheetName,
+                                  selectedRow: _selRow,
+                                  selectedCol: _selCol,
+                                  onMenu: () =>
+                                      _openMobileHeaderMenu(context, pal),
+                                ),
+                              ),
                             ),
                           if (_zenModeEnabled)
                             Padding(
@@ -10062,6 +10078,7 @@ class _EditorScreenState extends State<EditorScreen>
                         actions: _mobileActions,
                         keyboardInset: keyboardInset,
                         panelHeight: panelH,
+                        isExpanded: _mobileEditorExpanded,
                         canCopyPaste:
                             _mobileEditorOpen && !_mobileEditingHeader,
                         onGpsRow: _canMobileGps
@@ -10072,6 +10089,7 @@ class _EditorScreenState extends State<EditorScreen>
                         onCopy: _copyActiveMobileCell,
                         onPaste: _pasteIntoActiveMobileCell,
                         onOverflow: _openMobileOverflowSheet,
+                        onToggleExpanded: _toggleMobileEditorExpanded,
                         onCancel: _cancelMobileEdit,
                         onDone: _commitMobileEdit,
                       ),
@@ -11138,6 +11156,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileRow = row;
     _mobileCol = col;
     _mobileTitle = title;
+    _mobileEditorExpanded = false;
     _mobileActions = actions;
 
     _detachMobileDraftListener();
@@ -11322,6 +11341,18 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _toggleMobileEditorExpanded() {
+    if (!_mobileEditorOpen) return;
+    setState(() => _mobileEditorExpanded = !_mobileEditorExpanded);
+
+    if (!_mobileFocusCellModeEnabled) return;
+    final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobileEditorOpen) return;
+      _ensureRowVisibleForKeyboard(targetRow);
+    });
+  }
+
   Future<void> _openMobileOverflowSheet() async {
     if (!_mobileEditorOpen) return;
     final pal = _palette(context);
@@ -11348,6 +11379,22 @@ class _EditorScreenState extends State<EditorScreen>
                 onTap: () {
                   Navigator.pop(ctx);
                   _commitMobileEdit();
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  _mobileEditorExpanded
+                      ? Icons.unfold_less_rounded
+                      : Icons.unfold_more_rounded,
+                ),
+                title: Text(
+                  _mobileEditorExpanded
+                      ? 'Compactar editor'
+                      : 'Expandir editor',
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _toggleMobileEditorExpanded();
                 },
               ),
               if (canCopy)
@@ -11468,7 +11515,8 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobilePanelCompactH = 140.0;
+  static const double _kMobilePanelCompactH = 112.0;
+  static const double _kMobilePanelExpandedH = 172.0;
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
     if (!_vScroll.hasClients) return;
@@ -11640,6 +11688,7 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileRow = r;
       _mobileCol = c;
       _mobileTitle = _headerLabel(c);
+      _mobileEditorExpanded = false;
       _mobileActions = _mobileActionsForCell(r, c);
       _mobileEditorOpen = true;
       _mobilePhase = _MobileEditPhase.switching;
@@ -11691,6 +11740,7 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileRow = r;
       _mobileCol = c;
       _mobileTitle = _headerLabel(c);
+      _mobileEditorExpanded = false;
       _mobileActions = _mobileActionsForCell(r, c);
       _mobileEditorOpen = true;
       _mobilePhase = _MobileEditPhase.switching;
@@ -11731,6 +11781,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     setState(() {
       _mobileEditorOpen = false;
+      _mobileEditorExpanded = false;
       _mobilePhase = _MobileEditPhase.closing;
     });
     _mobileEditingHeader = false;
@@ -11761,6 +11812,7 @@ class _EditorScreenState extends State<EditorScreen>
     _detachMobileDraftListener();
     setState(() {
       _mobileEditorOpen = false;
+      _mobileEditorExpanded = false;
       _mobilePhase = _MobileEditPhase.closing;
     });
     _mobileEditingHeader = false;

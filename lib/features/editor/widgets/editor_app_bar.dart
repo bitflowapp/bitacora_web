@@ -810,66 +810,235 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             final pendingLabel =
-                pendingRequired > 0 ? ' | Errores: $pendingRequired' : '';
+                pendingRequired > 0 ? 'Errores: $pendingRequired' : null;
             final queueLabel =
-                pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
+                pendingOfflineCount > 0 ? 'Cola: $pendingOfflineCount' : null;
             final outboxPendingLabel = outboxPendingCount > 0
-                ? ' | Pendientes: $outboxPendingCount'
-                : '';
+                ? 'Pendientes: $outboxPendingCount'
+                : null;
             final outboxErrorLabel =
-                outboxErrorCount > 0 ? ' | Error: $outboxErrorCount' : '';
+                outboxErrorCount > 0 ? 'Error: $outboxErrorCount' : null;
             final offlineLabel = offline.message?.trim().isNotEmpty == true
                 ? offline.message!.trim()
                 : 'Sincronizado';
-            final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
             final localLabel =
                 _formatLocalSaved(lastLocalSavedAt ?? snap.savedAt)
-                    .replaceFirst('\u00daltimo guardado local: ', 'Local: ');
+                    .replaceFirst('Último guardado local: ', 'Local: ');
             final activeCell = (selectedRow >= 0 && selectedCol >= 0)
                 ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
                 : '--';
+            final summaryParts = <String>[
+              saveLabel,
+              if (pendingLabel != null) pendingLabel,
+              if (queueLabel != null) queueLabel,
+              if (outboxPendingLabel != null) outboxPendingLabel,
+              if (outboxErrorLabel != null) outboxErrorLabel,
+            ];
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-              child: AppTopBar(
-                title: label,
-                subtitle:
-                    '$saveLabel$pendingLabel$queueLabel$outboxPendingLabel$outboxErrorLabel | Celda: $activeCell | $localLabel | Sincronizaci\u00f3n: $offlineLabel | $modeLabel',
-                actions: [
-                  AppButton(
-                    label: AppStrings.editorSave,
-                    icon: Icons.check_circle_outline_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onSave,
-                  ),
-                  AppButton(
-                    label: 'Cola',
-                    icon: Icons.sync_alt_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onOpenOfflineQueue,
-                  ),
-                  AppButton(
-                    label: AppStrings.editorExport,
-                    icon: Icons.ios_share_rounded,
-                    variant: AppButtonVariant.ghost,
-                    size: AppButtonSize.sm,
-                    onPressed: onExport,
-                  ),
-                  AppButton(
-                    label: AppStrings.editorOptions,
-                    icon: Icons.more_horiz_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onMenu,
-                  ),
-                ],
+              child: GlassSurface(
+                radius: 22,
+                blurSigma: palette.isLight ? 13 : 10,
+                backgroundColor: palette.headerCardBg
+                    .withValues(alpha: palette.isLight ? 0.78 : 0.6),
+                borderColor: palette.headerCardBorder
+                    .withValues(alpha: palette.isLight ? 0.55 : 0.84),
+                shadowColor: Colors.black
+                    .withValues(alpha: palette.isLight ? 0.08 : 0.26),
+                shadowBlur: 18,
+                shadowOffset: const Offset(0, 8),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.fg,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SaveStatusChip(
+                          palette: palette,
+                          status: controller.saveStatus,
+                        ),
+                        const SizedBox(width: 4),
+                        _MobilePanelIconButton(
+                          icon: Icons.more_horiz_rounded,
+                          tooltip: AppStrings.editorOptions,
+                          onTap: onMenu,
+                          palette: palette,
+                          iconSize: 18,
+                          splashRadius: 16,
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      summaryParts.join(' \u2022 '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.8,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Celda: $activeCell \u2022 $localLabel \u2022 $offlineLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppButton(
+                            label: AppStrings.editorSave,
+                            icon: Icons.check_circle_outline_rounded,
+                            variant: AppButtonVariant.secondary,
+                            size: AppButtonSize.sm,
+                            onPressed: onSave,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppButton(
+                            label: 'Cola',
+                            icon: Icons.sync_alt_rounded,
+                            variant: AppButtonVariant.secondary,
+                            size: AppButtonSize.sm,
+                            onPressed: onOpenOfflineQueue,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppButton(
+                            label: AppStrings.editorExport,
+                            icon: Icons.ios_share_rounded,
+                            variant: AppButtonVariant.ghost,
+                            size: AppButtonSize.sm,
+                            onPressed: onExport,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+class _MobileHeaderCollapsedPill extends StatelessWidget {
+  const _MobileHeaderCollapsedPill({
+    required this.palette,
+    required this.title,
+    required this.selectedRow,
+    required this.selectedCol,
+    required this.onMenu,
+  });
+
+  final _SheetPalette palette;
+  final String title;
+  final int selectedRow;
+  final int selectedCol;
+  final VoidCallback onMenu;
+
+  static String _columnLabel(int col) {
+    var value = col + 1;
+    final out = StringBuffer();
+    while (value > 0) {
+      final rem = (value - 1) % 26;
+      out.writeCharCode(65 + rem);
+      value = (value - 1) ~/ 26;
+    }
+    return out.toString().split('').reversed.join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTitle = title.trim().isEmpty ? 'Planilla' : title.trim();
+    final activeCell = (selectedRow >= 0 && selectedCol >= 0)
+        ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
+        : '--';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: GlassSurface(
+          radius: 999,
+          blurSigma: palette.isLight ? 10 : 8,
+          backgroundColor: palette.headerCardBg
+              .withValues(alpha: palette.isLight ? 0.72 : 0.56),
+          borderColor: palette.headerCardBorder
+              .withValues(alpha: palette.isLight ? 0.5 : 0.84),
+          shadowColor:
+              Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
+          shadowBlur: 12,
+          shadowOffset: const Offset(0, 6),
+          padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 16,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: palette.fgMuted.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  '$safeTitle \u2022 $activeCell',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.fgMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              _MobilePanelIconButton(
+                icon: Icons.more_horiz_rounded,
+                tooltip: AppStrings.editorOptions,
+                onTap: onMenu,
+                palette: palette,
+                iconSize: 18,
+                splashRadius: 16,
+                padding: const EdgeInsets.all(4),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

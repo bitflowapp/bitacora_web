@@ -699,13 +699,18 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
           curve: Curves.easeOut,
           padding:
               EdgeInsets.fromLTRB(12, 0, 12, 8 + (bottomInset > 0 ? 6 : 0)),
-          child: AppleCard(
+          child: GlassSurface(
+            radius: 18,
+            blurSigma: widget.palette.isLight ? 12 : 9,
+            backgroundColor: widget.palette.menuBg
+                .withValues(alpha: widget.palette.isLight ? 0.78 : 0.58),
+            borderColor: widget.palette.borderStrong
+                .withValues(alpha: widget.palette.isLight ? 0.55 : 0.82),
+            shadowColor: Colors.black
+                .withValues(alpha: widget.palette.isLight ? 0.08 : 0.24),
+            shadowBlur: 16,
+            shadowOffset: const Offset(0, 8),
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            radius: 16,
-            color: widget.palette.menuBg
-                .withValues(alpha: widget.palette.isLight ? 0.94 : 0.82),
-            borderColor: widget.palette.borderStrong,
-            shadows: const <BoxShadow>[],
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -753,7 +758,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                 if (isCompact || _expanded) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$rowsLabel \u00B7 ${widget.selectionLabel}',
+                    '$rowsLabel \u2022 ${widget.selectionLabel}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1228,6 +1233,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.actions,
     required this.keyboardInset,
     required this.panelHeight,
+    required this.isExpanded,
     required this.canCopyPaste,
     required this.onGpsRow,
     required this.onPrev,
@@ -1235,6 +1241,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.onCopy,
     required this.onPaste,
     required this.onOverflow,
+    required this.onToggleExpanded,
     required this.onCancel,
     required this.onDone,
   });
@@ -1253,6 +1260,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   // inset real de teclado (dp)
   final double keyboardInset;
   final double panelHeight;
+  final bool isExpanded;
   final bool canCopyPaste;
   final VoidCallback? onGpsRow;
 
@@ -1261,6 +1269,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback onPaste;
   final VoidCallback onOverflow;
+  final VoidCallback onToggleExpanded;
 
   final VoidCallback onCancel;
   final VoidCallback onDone;
@@ -1282,7 +1291,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
 
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
     final metrics = _gridMetricsFor(density);
-    final editorFont = (metrics.cellFontSize + 2).clamp(13.0, 17.0);
+    final editorFont = math.max(16.0, metrics.cellFontSize + 2).toDouble();
     final hPad = math.max(10.0, metrics.cellPadding.horizontal / 2);
     final vPad = math.max(10.0, metrics.cellPadding.vertical / 2);
     final editorPadding = EdgeInsets.symmetric(
@@ -1309,122 +1318,129 @@ class _MobileInlineEditorBar extends StatelessWidget {
               opacity: opacity,
               child: CallbackShortcuts(
                 bindings: bindings,
-                child: Container(
+                child: SizedBox(
                   key: barKey,
                   height: panelHeight,
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                  decoration: BoxDecoration(
-                    color: palette.appBarBg,
-                    border: Border(
-                      top: BorderSide(
-                        color: palette.borderStrong,
-                        width: palette.hairline,
-                      ),
-                    ),
-                  ),
                   child: RepaintBoundary(
-                    child: Container(
-                      key: const ValueKey('mobile-inline-editor-panel'),
+                    child: Padding(
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                      decoration: BoxDecoration(
-                        color: palette.editorBg.withValues(
-                          alpha: palette.isLight ? 0.97 : 0.88,
+                      child: GlassSurface(
+                        radius: 20,
+                        blurSigma: palette.isLight ? 13 : 10,
+                        backgroundColor: palette.editorBg.withValues(
+                          alpha: palette.isLight ? 0.80 : 0.62,
                         ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: palette.borderStrong,
-                          width: palette.hairline,
+                        borderColor: palette.borderStrong.withValues(
+                          alpha: palette.isLight ? 0.55 : 0.84,
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: palette.fgMuted,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: metrics.headerFontSize,
-                                    height: 1.05,
-                                    letterSpacing: 0.1,
+                        shadowColor: Colors.black.withValues(
+                          alpha: palette.isLight ? 0.08 : 0.26,
+                        ),
+                        shadowBlur: 16,
+                        shadowOffset: const Offset(0, 8),
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.fgMuted,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: metrics.headerFontSize,
+                                      height: 1.05,
+                                      letterSpacing: 0.1,
+                                    ),
                                   ),
                                 ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.chevron_left_rounded,
+                                  tooltip: 'Anterior',
+                                  onTap: onPrev,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.chevron_right_rounded,
+                                  tooltip: 'Siguiente',
+                                  onTap: onNext,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: isExpanded
+                                      ? Icons.unfold_less_rounded
+                                      : Icons.unfold_more_rounded,
+                                  tooltip:
+                                      isExpanded ? 'Compactar' : 'Expandir',
+                                  onTap: onToggleExpanded,
+                                  palette: palette,
+                                  iconSize: 17,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.check_rounded,
+                                  tooltip: 'Guardar',
+                                  onTap: onDone,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                                _MobilePanelIconButton(
+                                  icon: Icons.more_horiz_rounded,
+                                  tooltip: 'Acciones',
+                                  onTap: onOverflow,
+                                  palette: palette,
+                                  iconSize: 18,
+                                  splashRadius: 16,
+                                  padding: const EdgeInsets.all(4),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: isExpanded ? 78 : 44,
+                              child: KeyedSubtree(
+                                key: fieldKey,
+                                child: _MobileEditorField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  palette: palette,
+                                  onNext: onNext,
+                                  onDone: onDone,
+                                  fontSize: editorFont,
+                                  contentPadding: editorPadding,
+                                  expanded: isExpanded,
+                                ),
                               ),
-                              _MobilePanelIconButton(
-                                icon: Icons.chevron_left_rounded,
-                                tooltip: 'Anterior',
-                                onTap: onPrev,
-                                palette: palette,
-                                iconSize: 18,
-                                splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
-                              ),
-                              _MobilePanelIconButton(
-                                icon: Icons.chevron_right_rounded,
-                                tooltip: 'Siguiente',
-                                onTap: onNext,
-                                palette: palette,
-                                iconSize: 18,
-                                splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
-                              ),
-                              _MobilePanelIconButton(
-                                icon: Icons.check_rounded,
-                                tooltip: 'Done',
-                                onTap: onDone,
-                                palette: palette,
-                                iconSize: 18,
-                                splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
-                              ),
-                              _MobilePanelIconButton(
-                                icon: Icons.more_horiz_rounded,
-                                tooltip: 'Acciones',
-                                onTap: onOverflow,
-                                palette: palette,
-                                iconSize: 18,
-                                splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                            ),
+                            if (validationHint != null &&
+                                validationHint!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                validationHint!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.fgMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            height: 46,
-                            child: KeyedSubtree(
-                              key: fieldKey,
-                              child: _MobileEditorField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                palette: palette,
-                                onNext: onNext,
-                                onDone: onDone,
-                                fontSize: editorFont,
-                                contentPadding: editorPadding,
-                              ),
-                            ),
-                          ),
-                          if (validationHint != null &&
-                              validationHint!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              validationHint!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: palette.fgMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
                           ],
-                          // Acciones solo via overflow sheet
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -1482,6 +1498,7 @@ class _MobileEditorField extends StatelessWidget {
     required this.onDone,
     required this.fontSize,
     required this.contentPadding,
+    required this.expanded,
   });
 
   final TextEditingController controller;
@@ -1491,6 +1508,7 @@ class _MobileEditorField extends StatelessWidget {
   final VoidCallback onDone;
   final double fontSize;
   final EdgeInsets contentPadding;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -1498,10 +1516,11 @@ class _MobileEditorField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       autofocus: false,
-      minLines: 1,
-      maxLines: 2,
+      minLines: expanded ? 3 : 1,
+      maxLines: expanded ? 5 : 1,
       enabled: true,
-      textAlignVertical: TextAlignVertical.center,
+      textAlignVertical:
+          expanded ? TextAlignVertical.top : TextAlignVertical.center,
       textInputAction:
           onNext == null ? TextInputAction.done : TextInputAction.next,
       keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
