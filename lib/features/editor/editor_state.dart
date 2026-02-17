@@ -8852,7 +8852,7 @@ class _EditorScreenState extends State<EditorScreen>
             : 0.0;
         final keyboardVisible = keyboardInset > 0;
         final effectiveMobilePanelH =
-            isDesktop ? 0.0 : (editorActive && keyboardVisible ? 50.0 : panelH);
+            isDesktop ? 0.0 : (editorActive && keyboardVisible ? 52.0 : panelH);
         final bodyBottomPad = isDesktop
             ? 0.0
             : (editorActive
