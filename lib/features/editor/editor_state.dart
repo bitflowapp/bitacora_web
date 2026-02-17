@@ -6,6 +6,7 @@ const int kDefaultCols = 15; // 14 + Fotos
 const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
+const double _kMobileInlineCompactBarH = 52.0;
 const int _kMaxPhotosPerCell = 6;
 const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
 const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
@@ -3731,6 +3732,21 @@ class _EditorScreenState extends State<EditorScreen>
 
   bool get _isAndroidDevice =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  double _effectiveKeyboardInset(
+    BuildContext context, {
+    double? mediaQueryInset,
+    double? controllerInset,
+  }) {
+    final mqInset = mediaQueryInset ?? MediaQuery.viewInsetsOf(context).bottom;
+    if (!kIsWeb) return mqInset;
+
+    final vvInset = vv.visualViewportKeyboardInset();
+    if (vvInset > 0.0) return vvInset;
+
+    final fallbackInset = math.max(mqInset, controllerInset ?? 0.0);
+    return fallbackInset > 0.0 ? fallbackInset : 0.0;
+  }
 
   bool _isDesktopUi(BuildContext context, double kbInset) {
     final size = MediaQuery.sizeOf(context);
@@ -8813,8 +8829,12 @@ class _EditorScreenState extends State<EditorScreen>
       valueListenable: _kbController.kbInsetDp,
       builder: (ctx, kbInset, _) {
         final mqInset = MediaQuery.viewInsetsOf(ctx).bottom;
-        final effectiveInset = mqInset > 0 ? mqInset : kbInset;
-        final isDesktop = _isDesktopUi(ctx, effectiveInset);
+        final keyboardInset = _effectiveKeyboardInset(
+          ctx,
+          mediaQueryInset: mqInset,
+          controllerInset: kbInset,
+        );
+        final isDesktop = _isDesktopUi(ctx, keyboardInset);
         final sensorsEnabled = !_isInAppBrowser;
         _ensureDefaultDensity(isDesktop);
         final metrics = _gridMetricsFor(_gridDensity);
@@ -8825,7 +8845,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         // Evitar escalados raros de texto (iOS / Web).
         final mq = MediaQuery.of(ctx);
-        final bottomSafe = mq.padding.bottom;
+        final bottomSafe = mq.viewPadding.bottom;
         final requestedScale = mq.textScaler.scale(14) / 14;
         final boundedScale = requestedScale.clamp(1.0, 1.2).toDouble();
         final fixedMq = mq.copyWith(
@@ -8833,8 +8853,6 @@ class _EditorScreenState extends State<EditorScreen>
         );
 
         _kbController.reportMediaQueryInset(mqInset);
-        final vvInset = vv.visualViewportKeyboardInset();
-        final keyboardInset = math.max(effectiveInset, vvInset);
         final isMobile = !isDesktop;
         final editorActive = isMobile && _mobileEditorOpen;
         final desiredPanelH = _mobileEditorExpanded
@@ -8850,10 +8868,13 @@ class _EditorScreenState extends State<EditorScreen>
         final quickBarH = isMobile && !_mobileEditorOpen
             ? _kMobileQuickBarH + bottomSafe + 12
             : 0.0;
-        final keyboardVisible = mqInset > 0;
+        final keyboardVisible = keyboardInset > 0.0;
+        final mobileEditorBarH =
+            keyboardVisible ? _kMobileInlineCompactBarH : panelH;
+        final mobileEditorSafeBottom = keyboardVisible ? 0.0 : bottomSafe;
         final mobileEditorOverlayInset = isDesktop || !editorActive
             ? 0.0
-            : (keyboardVisible ? 52.0 : panelH) + 8;
+            : keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8;
         final bodyBottomPad =
             isDesktop ? 0.0 : (editorActive ? 0.0 : quickBarH);
         final autoCollapsedTopChrome =
@@ -8925,7 +8946,7 @@ class _EditorScreenState extends State<EditorScreen>
               backgroundColor: pal.bg,
               appBar: null,
               body: SafeArea(
-                bottom: true,
+                bottom: false,
                 child: Stack(
                   children: [
                     if (pal.isLight)
@@ -10074,6 +10095,7 @@ class _EditorScreenState extends State<EditorScreen>
                         density: _gridDensity,
                         barKey: _mobileBarKey,
                         fieldKey: _mobileFieldKey,
+                        keyboardInset: keyboardInset,
                         isOpen: _mobileEditorOpen,
                         title: _mobileTitle,
                         validationHint: _mobileValidationHint,
@@ -10329,7 +10351,13 @@ class _EditorScreenState extends State<EditorScreen>
     _removeCellEditor();
     _blink(-1, c);
 
-    final isDesktop = _isDesktopUi(context, _kbController.kbInsetDp.value);
+    final isDesktop = _isDesktopUi(
+      context,
+      _effectiveKeyboardInset(
+        context,
+        controllerInset: _kbController.kbInsetDp.value,
+      ),
+    );
     if (!isDesktop) {
       _openMobileInlineEditor(
         isHeader: true,
@@ -10425,7 +10453,13 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final isDesktop = _isDesktopUi(context, _kbController.kbInsetDp.value);
+    final isDesktop = _isDesktopUi(
+      context,
+      _effectiveKeyboardInset(
+        context,
+        controllerInset: _kbController.kbInsetDp.value,
+      ),
+    );
     if (!isDesktop) {
       _openMobileInlineEditor(
         isHeader: false,
