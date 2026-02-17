@@ -89,7 +89,10 @@ import 'screens/about_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/privacy_screen.dart';
+import 'screens/premium_screen.dart';
+import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
+import 'services/auth_service.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -3111,6 +3114,24 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const PremiumScreen(),
+                  ),
+                );
+              },
+              child: const Text('Premium / Suscripción…'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _openStaticPage(const SpreadsheetAgentScreen());
+              },
+              child: const Text('Agente de planillas (MVP)…'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
                 await _checkForUpdates(silent: false);
               },
               child: Text(
@@ -3204,6 +3225,14 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                   _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await AuthService.I.signOut();
+              },
+              isDestructiveAction: true,
+              child: const Text('Cerrar sesión'),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(

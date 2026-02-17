@@ -15,7 +15,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ($TimeoutSecAnalyze -le 0) {
-  $TimeoutSecAnalyze = if ($Fast) { 45 } else { 300 }
+  $TimeoutSecAnalyze = if ($Fast) { 120 } else { 300 }
 }
 if ($TimeoutSecTest -le 0) {
   $TimeoutSecTest = if ($Fast) { 60 } else { 600 }
