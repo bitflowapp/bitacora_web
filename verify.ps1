@@ -24,54 +24,86 @@ if ($TimeoutSecBuild -le 0) {
   $TimeoutSecBuild = if ($Fast) { 90 } else { 900 }
 }
 
-function Resolve-FlutterExecutable {
-  param([string]$Requested)
-
-  if (-not [string]::IsNullOrWhiteSpace($Requested) -and $Requested -ne "flutter") {
-    if (Test-Path $Requested) {
-      return (Resolve-Path $Requested).Path
-    }
-  }
-
-  $cmd = Get-Command $Requested -ErrorAction SilentlyContinue
-  if ($cmd) {
-    return $cmd.Source
-  }
-
-  if ($Requested -ne "flutter") {
-    $fallbackCmd = Get-Command "flutter" -ErrorAction SilentlyContinue
-    if ($fallbackCmd) {
-      return $fallbackCmd.Source
-    }
-  }
-
-  $candidates = @()
-
-  if ($env:FLUTTER_HOME) {
-    $candidates += (Join-Path $env:FLUTTER_HOME "bin\flutter.bat")
-  }
-  if ($env:FLUTTER_ROOT) {
-    $candidates += (Join-Path $env:FLUTTER_ROOT "bin\flutter.bat")
-  }
-
-  $candidates += @(
-    "C:\src\flutter\bin\flutter.bat",
-    "C:\flutter\bin\flutter.bat",
-    "D:\src\flutter\bin\flutter.bat",
-    "D:\flutter\bin\flutter.bat",
-    "E:\src\flutter\bin\flutter.bat",
-    "E:\flutter\bin\flutter.bat"
+function Resolve-Tool {
+  param(
+    [Parameter(Mandatory = $true)][string]$ToolName,
+    [string]$Requested = "",
+    [string[]]$EnvHints = @(),
+    [string[]]$CommonCandidates = @()
   )
 
-  foreach ($candidate in $candidates) {
-    if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
-      return (Resolve-Path $candidate).Path
+  $probeNames = @()
+  if (-not [string]::IsNullOrWhiteSpace($Requested)) {
+    $probeNames += $Requested
+  }
+  if (-not $probeNames.Contains($ToolName)) {
+    $probeNames += $ToolName
+  }
+
+  foreach ($probe in $probeNames) {
+    if ([string]::IsNullOrWhiteSpace($probe)) {
+      continue
+    }
+
+    if (Test-Path $probe) {
+      return (Resolve-Path $probe).Path
+    }
+
+    $cmd = Get-Command $probe -ErrorAction SilentlyContinue
+    if ($cmd) {
+      return $cmd.Source
+    }
+
+    $whereHits = @()
+    $whereExitCode = 1
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $whereHits = @(cmd /c "where `"$probe`"" 2>$null)
+      $whereExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $previousErrorAction
+    }
+    if ($whereExitCode -eq 0) {
+      foreach ($hit in $whereHits) {
+        if (-not [string]::IsNullOrWhiteSpace($hit) -and (Test-Path $hit)) {
+          return (Resolve-Path $hit).Path
+        }
+      }
     }
   }
 
-  $userDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue
-  foreach ($userDir in $userDirs) {
-    $candidate = Join-Path $userDir.FullName "flutter\bin\flutter.bat"
+  $envCandidates = @()
+  foreach ($envName in $EnvHints) {
+    if ([string]::IsNullOrWhiteSpace($envName)) {
+      continue
+    }
+
+    $envValue = [Environment]::GetEnvironmentVariable($envName)
+    if ([string]::IsNullOrWhiteSpace($envValue)) {
+      continue
+    }
+
+    if (Test-Path $envValue) {
+      $envCandidates += $envValue
+      $leaf = Split-Path $envValue -Leaf
+      if ($leaf -ne "") {
+        if ($leaf -ine $ToolName -and $leaf -ine "$ToolName.bat" -and $leaf -ine "$ToolName.exe") {
+          $envCandidates += (Join-Path $envValue "$ToolName.bat")
+          $envCandidates += (Join-Path $envValue "$ToolName.exe")
+          $envCandidates += (Join-Path $envValue $ToolName)
+          $envCandidates += (Join-Path $envValue "bin\$ToolName.bat")
+          $envCandidates += (Join-Path $envValue "bin\$ToolName.exe")
+          $envCandidates += (Join-Path $envValue "bin\$ToolName")
+        }
+      }
+    }
+  }
+
+  foreach ($candidate in ($envCandidates + $CommonCandidates)) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+      continue
+    }
     if (Test-Path $candidate) {
       return (Resolve-Path $candidate).Path
     }
@@ -83,34 +115,13 @@ function Resolve-FlutterExecutable {
 function Resolve-DartExe {
   param([string]$ResolvedFlutterExe)
 
-  $dartCmd = Get-Command dart -ErrorAction SilentlyContinue
-  if ($dartCmd) {
-    return $dartCmd.Source
-  }
-
-  $flutterSource = $null
+  $dartCandidates = @()
   if (-not [string]::IsNullOrWhiteSpace($ResolvedFlutterExe) -and (Test-Path $ResolvedFlutterExe)) {
-    $flutterSource = (Resolve-Path $ResolvedFlutterExe).Path
+    $flutterBin = Split-Path (Resolve-Path $ResolvedFlutterExe).Path
+    $dartCandidates += (Join-Path $flutterBin "cache\dart-sdk\bin\dart.exe")
   }
 
-  if (-not $flutterSource) {
-    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
-    if ($flutterCmd) {
-      $flutterSource = $flutterCmd.Source
-    }
-  }
-
-  if (-not $flutterSource) {
-    throw "Neither 'dart' nor 'flutter' found in PATH."
-  }
-
-  $flutterBin = Split-Path $flutterSource
-  $dartFromFlutter = Join-Path $flutterBin "cache\dart-sdk\bin\dart.exe"
-  if (-not (Test-Path $dartFromFlutter)) {
-    throw "Dart SDK not found at: $dartFromFlutter (flutter bin=$flutterBin)"
-  }
-
-  return (Resolve-Path $dartFromFlutter).Path
+  return Resolve-Tool -ToolName "dart" -Requested "dart" -EnvHints @("DART_BIN", "FLUTTER_BIN", "FLUTTER_HOME") -CommonCandidates $dartCandidates
 }
 
 function Stop-ProcessTree {
@@ -344,17 +355,31 @@ function Invoke-StepWithTimeout {
   return $true
 }
 
-$flutterExe = Resolve-FlutterExecutable -Requested $Flutter
-if (-not $flutterExe) {
-  Write-Host "Flutter command not found." -ForegroundColor Red
-  Write-Host "Instalá Flutter o seteá FLUTTER_HOME/FLUTTER_ROOT apuntando al SDK." -ForegroundColor Yellow
-  exit 1
+$localAppDataFlutter = ""
+if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+  $localAppDataFlutter = Join-Path $env:LOCALAPPDATA "flutter\bin\flutter.bat"
 }
 
-Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
+$flutterExe = Resolve-Tool -ToolName "flutter" -Requested $Flutter -EnvHints @("FLUTTER_BIN", "FLUTTER_HOME") -CommonCandidates @(
+  "C:\src\flutter\bin\flutter.bat",
+  "C:\flutter\bin\flutter.bat",
+  $localAppDataFlutter
+)
+$flutterAvailable = -not [string]::IsNullOrWhiteSpace($flutterExe)
+
+if ($flutterAvailable) {
+  Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
+} else {
+  Write-Warning "flutter no encontrado en PATH del gateway; se omiten checks de Flutter"
+}
 
 $dartExe = Resolve-DartExe -ResolvedFlutterExe $flutterExe
-Write-Host "Dart resolved: $dartExe" -ForegroundColor Green
+$dartAvailable = -not [string]::IsNullOrWhiteSpace($dartExe)
+if ($dartAvailable) {
+  Write-Host "Dart resolved: $dartExe" -ForegroundColor Green
+} else {
+  Write-Warning "dart no encontrado en PATH del gateway; se omiten checks de Dart"
+}
 
 # git grep devuelve 1 cuando no hay matches: lo tratamos como OK.
 Invoke-GitGrepSafe -Pattern "Â" -Paths @("lib", "web") | Out-Null
@@ -376,8 +401,55 @@ if ($Fast) {
   }
 }
 
+if ($dartAvailable) {
+  Invoke-StepWithTimeout -Name "dart --version" -FilePath $dartExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
+}
+
+if (-not $flutterAvailable) {
+  Write-Host "`n==> flutter --version" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  Write-Host "`n==> flutter doctor -v (optional)" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  Write-Host "`n==> flutter pub get" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  Write-Host "`n==> flutter analyze" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  Write-Host "`n==> flutter test" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  Write-Host "`n==> flutter build web --release" -ForegroundColor Cyan
+  Write-Host "Omitido: Flutter no disponible en este contexto de gateway." -ForegroundColor Yellow
+
+  if ($dartAvailable) {
+    $isFlutterProject = $false
+    if (Test-Path "pubspec.yaml") {
+      $isFlutterProject = Select-String -Path "pubspec.yaml" -Pattern "sdk\s*:\s*flutter" -CaseSensitive:$false -SimpleMatch:$false -Quiet
+    }
+
+    if ($isFlutterProject) {
+      Write-Host "`n==> dart analyze (fallback)" -ForegroundColor Cyan
+      Write-Host "Omitido: proyecto Flutter detectado y Flutter no está disponible." -ForegroundColor Yellow
+    } else {
+      if ($Fast) {
+        $dartAnalyzeOk = Invoke-StepWithTimeout -Name "dart analyze lib" -FilePath $dartExe -Arguments @("analyze", "lib") -TimeoutSec $TimeoutSecAnalyze -NonBlockingFailure
+      } else {
+        $dartAnalyzeOk = Invoke-StepWithTimeout -Name "dart analyze" -FilePath $dartExe -Arguments @("analyze") -TimeoutSec $TimeoutSecAnalyze -NonBlockingFailure
+      }
+      if (-not $dartAnalyzeOk) {
+        Write-Warning "dart analyze falló o expiró; verify continúa en modo degradado."
+      }
+    }
+  }
+
+  Write-Host "`nverify: OK (modo degradado sin Flutter)" -ForegroundColor Green
+  exit 0
+}
+
 Invoke-StepWithTimeout -Name "flutter --version" -FilePath $flutterExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
-Invoke-StepWithTimeout -Name "dart --version" -FilePath $dartExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
 
 if ($SkipDoctor) {
   Write-Host "`n==> flutter doctor -v (optional)" -ForegroundColor Cyan

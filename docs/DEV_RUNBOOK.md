@@ -111,8 +111,13 @@ powershell -ExecutionPolicy Bypass -File .\verify.ps1 -Fast -SkipDoctor
 ```
 
 Si `verify.ps1` no encuentra Flutter:
-- seteá `FLUTTER_HOME` o `FLUTTER_ROOT` apuntando al SDK
+- seteá `FLUTTER_BIN` con ruta directa al ejecutable (ej: `C:\src\flutter\bin\flutter.bat`)
+- o seteá `FLUTTER_HOME` apuntando a la carpeta raíz del SDK (ej: `C:\src\flutter`)
 - o pasá ruta explícita: `./verify.ps1 -Flutter "C:\ruta\a\flutter.bat"`
+
+Nota importante (gateway/OpenClaw):
+- el gateway puede correr como servicio/tarea programada con un `PATH` distinto al de tu sesión interactiva.
+- si en chat aparece "flutter no encontrado" pero en tu terminal sí existe, configurá `FLUTTER_BIN` o `FLUTTER_HOME` en el entorno del proceso gateway.
 
 > No se detectan scripts npm de lint/test/build porque el proyecto no está basado en Node.
 
