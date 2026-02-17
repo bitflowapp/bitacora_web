@@ -1,6 +1,17 @@
 part of '../editor_screen.dart';
 
 extension _EditorAttachments on _EditorScreenState {
+  static const String _kDirtyAttachmentsOutboxKind =
+      DefaultOutboxExecutor.kindSyncDirtyAttachments;
+
+  Future<void> _enqueueDirtyAttachmentsSync() async {
+    final enqueued = await OutboxStore.instance
+        .ensureQueuedKind(_kDirtyAttachmentsOutboxKind);
+    if (enqueued) {
+      SyncCoordinator.instance.kick();
+    }
+  }
+
   Future<void> _startPhotoFlowForCell(int r, int c) async {
     if (_rows.isEmpty || _headers.isEmpty) return;
     final target = await _ensurePhotoTargetCell(r, c);
@@ -989,6 +1000,7 @@ extension _EditorAttachments on _EditorScreenState {
         audios: current.audios,
       );
       _setCellMetaEntryRef(ref, next, markDirty: true);
+      unawaited(_enqueueDirtyAttachmentsSync());
       _refreshCellAfterSaveRef(ref);
       if (previous.storedRef.trim().isNotEmpty) {
         unawaited(_attachmentStore.delete(previous.storedRef));
@@ -1006,6 +1018,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current?.audios ?? const <AudioAttachment>[],
     );
     _setCellMetaEntryRef(ref, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSaveRef(ref);
     return true;
   }
@@ -1024,6 +1037,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current?.audios ?? const <AudioAttachment>[],
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1042,6 +1056,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
 
     if (photo.storedRef.trim().isNotEmpty) {
@@ -1104,6 +1119,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1124,6 +1140,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1631,6 +1648,7 @@ extension _EditorAttachments on _EditorScreenState {
       ),
       markDirty: true,
     );
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -2844,6 +2862,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -2862,6 +2881,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: nextAudios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
 
     if (_playingAudioId == audio.id) {
@@ -2927,6 +2947,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: nextAudios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 

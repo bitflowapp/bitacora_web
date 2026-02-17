@@ -24,6 +24,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bitacora_web/core/app_error.dart';
 import 'package:bitacora_web/core/editor_atomic_snapshot_store.dart';
+import 'package:bitacora_web/core/sync/outbox_store.dart';
+import 'package:bitacora_web/core/sync/sync_coordinator.dart';
 import 'package:bitacora_web/models/cell_meta.dart';
 import 'package:bitacora_web/models/cell_ref.dart';
 import 'package:bitacora_web/services/attachment_store.dart';

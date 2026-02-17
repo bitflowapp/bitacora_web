@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import 'package:bitacora_web/services/cloud_store.dart';
+
 import 'outbox_op.dart';
 import 'outbox_store.dart';
 
@@ -11,9 +13,14 @@ abstract class OutboxExecutor {
 }
 
 class DefaultOutboxExecutor implements OutboxExecutor {
+  static const String kindSyncDirtyAttachments = 'sync_dirty_attachments';
+
   @override
   Future<void> execute(OutboxOp op) async {
     switch (op.kind) {
+      case kindSyncDirtyAttachments:
+        await CloudStore.syncPendingNow();
+        return;
       default:
         throw UnsupportedError('No handler for kind: ${op.kind}');
     }

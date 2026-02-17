@@ -36,6 +36,29 @@ class OutboxStore {
     await box.put(op.id, value);
   }
 
+  Future<bool> ensureQueuedKind(String kind) async {
+    final normalizedKind = kind.trim();
+    if (normalizedKind.isEmpty) return false;
+
+    final box = await _ensureBox();
+    for (final value in box.values) {
+      final op = _parse(value);
+      if (op == null) continue;
+      if (op.kind != normalizedKind) continue;
+      if (op.status == OutboxOp.statusQueued ||
+          op.status == OutboxOp.statusInFlight) {
+        return false;
+      }
+    }
+
+    final op = OutboxOp.create(
+      kind: normalizedKind,
+      payload: <String, dynamic>{'hint': 'cell_meta_dirty'},
+    );
+    await enqueue(op);
+    return true;
+  }
+
   Future<List<OutboxOp>> listReady({
     DateTime? now,
     int limit = 25,
