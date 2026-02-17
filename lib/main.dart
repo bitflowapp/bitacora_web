@@ -24,9 +24,8 @@ import 'services/demo_templates.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
-const bool kShowBuildBadge =
-    bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
-const String kBuildBadgeId = String.fromEnvironment('BUILD_ID', defaultValue: '');
+const String kBuildBadgeId =
+    String.fromEnvironment('BUILD_ID', defaultValue: '');
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
@@ -287,7 +286,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode || kShowBuildBadge;
+    final shouldShowBadge = kDebugMode;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -818,7 +817,8 @@ class _BuildBadge extends StatelessWidget {
                 border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Text(
                   label,
                   style: theme.textTheme.labelSmall?.copyWith(
