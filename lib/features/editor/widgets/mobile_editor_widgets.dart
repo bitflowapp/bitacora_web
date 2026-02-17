@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Paleta (Ctrl/Cmd+K / rayo) \u00B7 Pegado inteligente + Deshacer \u00B7 Exportar',
+                  'Paleta (Ctrl/Cmd+K / rayo) | Pegado inteligente + Deshacer | Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -692,6 +692,9 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
         final keyboardVisible = bottomInset > 0.0;
         final compactLayout = isCompact || keyboardVisible;
+        const safeSeparator = ' | ';
+        final quickActionsHeader =
+            '${AppStrings.quickActions}$safeSeparator$rowsLabel';
         final pinnedCount = 4;
         final pinnedActions = actions.take(pinnedCount).toList(growable: false);
         final moreActions = actions.skip(pinnedCount).toList(growable: false);
@@ -734,7 +737,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                       children: [
                         Expanded(
                           child: Text(
-                            AppStrings.quickActions,
+                            quickActionsHeader,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -760,7 +763,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                 if (!keyboardVisible && (compactLayout || _expanded)) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$rowsLabel | ${widget.selectionLabel}',
+                    widget.selectionLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

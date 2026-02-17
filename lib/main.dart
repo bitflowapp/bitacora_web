@@ -26,6 +26,10 @@ import 'ui/ui_theme.dart';
 
 const String kBuildBadgeId =
     String.fromEnvironment('BUILD_ID', defaultValue: '');
+const bool kShowBuildBadge = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: false,
+);
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
@@ -286,7 +290,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode;
+    final shouldShowBadge = kDebugMode && kShowBuildBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -799,6 +803,13 @@ class _BuildBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.maybeOf(context);
+    final shortestSide = mq?.size.shortestSide ?? 1024;
+    final hideOnCompactUi = shortestSide < 700;
+    if (hideOnCompactUi) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final label = kBuildBadgeId.trim().isEmpty
         ? (kDebugMode ? 'build dev' : 'build')
@@ -807,14 +818,14 @@ class _BuildBadge extends StatelessWidget {
     return IgnorePointer(
       child: SafeArea(
         child: Align(
-          alignment: Alignment.bottomRight,
+          alignment: Alignment.topRight,
           child: Padding(
-            padding: const EdgeInsets.only(right: 10, bottom: 10),
+            padding: const EdgeInsets.only(right: 10, top: 10),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withOpacity(0.78),
+                color: theme.colorScheme.surface.withOpacity(0.74),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+                border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
               ),
               child: Padding(
                 padding:

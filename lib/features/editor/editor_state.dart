@@ -7,6 +7,7 @@ const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
 const double _kMobileInlineCompactBarH = 64.0;
+const double _kMinMobileGridVisiblePx = 200.0;
 const int _kMaxPhotosPerCell = 6;
 const int _kMaxPhotosBytesPerCell = 25 * 1024 * 1024;
 const int _kStableIdRandomMaxExclusive = 0x100000000; // 2^32
@@ -8844,14 +8845,21 @@ class _EditorScreenState extends State<EditorScreen>
             keyboardVisible ? _kMobileInlineCompactBarH : panelH;
         final mobileEditorSafeBottom = keyboardVisible ? 0.0 : bottomSafe;
         final mobileBarBottomAnim = _mobileBarBottomDuration(keyboardInset);
+        final requestedMobileGridInset = editorActive
+            ? keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8
+            : bottomSafe + 12;
+        final maxMobileGridInset = math.max(
+          0.0,
+          mq.size.height - _kMinMobileGridVisiblePx,
+        );
         final mobileGridBottomInset = isDesktop
             ? 0.0
-            : (editorActive
-                ? keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8
-                : bottomSafe + 12);
+            : math.min(requestedMobileGridInset, maxMobileGridInset);
         final autoCollapsedTopChrome = isMobile && keyboardVisible;
-        final showSelectionQuickActions =
-            !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
+        final collapseNonCriticalTopChrome = autoCollapsedTopChrome;
+        final showSelectionQuickActions = !_mobileEditorOpen &&
+            !keyboardVisible &&
+            (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
         final visibleRows = _visibleRowIndexes();
@@ -8868,7 +8876,8 @@ class _EditorScreenState extends State<EditorScreen>
         final selectedDisplayRow = _displayRowForActual(_selRow, visibleRows);
         final selectedDisplayRows = _selectedDisplayRows(visibleRows);
         final showPremiumEmptyState = _shouldShowPremiumEmptyState();
-        final canShowEditorTour = _editorTourVisible &&
+        final canShowEditorTour = !collapseNonCriticalTopChrome &&
+            _editorTourVisible &&
             _rows.length <= 40 &&
             !showPremiumEmptyState &&
             (isDesktop || mq.size.height > 860);
@@ -9067,7 +9076,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                             ),
-                          if (_zenModeEnabled)
+                          if (!collapseNonCriticalTopChrome && _zenModeEnabled)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                               child: Align(
@@ -9080,21 +9089,23 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                             ),
-                          if (_isInAppBrowser)
+                          if (!collapseNonCriticalTopChrome && _isInAppBrowser)
                             _warningBanner(
                               pal,
                               text:
                                   'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
                               icon: Icons.open_in_new_rounded,
                             ),
-                          if (!_isSecureContext)
+                          if (!collapseNonCriticalTopChrome &&
+                              !_isSecureContext)
                             _warningBanner(
                               pal,
                               text:
                                   'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
                               icon: Icons.lock_outline_rounded,
                             ),
-                          if (_storageOk == false)
+                          if (!collapseNonCriticalTopChrome &&
+                              _storageOk == false)
                             _warningBanner(
                               pal,
                               text:
@@ -9104,7 +9115,8 @@ class _EditorScreenState extends State<EditorScreen>
                               onAction: () =>
                                   unawaited(_exportZipBundle(share: false)),
                             ),
-                          if (_recoveryBannerVisible &&
+                          if (!collapseNonCriticalTopChrome &&
+                              _recoveryBannerVisible &&
                               _recoveryStagingRaw != null)
                             _warningBanner(
                               pal,
@@ -9118,7 +9130,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 _dismissRecoveryBanner(dropCandidate: false),
                               ),
                             ),
-                          if (_shouldShowAndroidInstallHelper)
+                          if (!collapseNonCriticalTopChrome &&
+                              _shouldShowAndroidInstallHelper)
                             _warningBanner(
                               pal,
                               text:
@@ -9130,7 +9143,8 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                               onDismiss: _ackAndroidInstallHelper,
                             ),
-                          if (_pendingOfflineCount > 0)
+                          if (!collapseNonCriticalTopChrome &&
+                              _pendingOfflineCount > 0)
                             _warningBanner(
                               pal,
                               text: _isNetworkOnline()
@@ -9147,7 +9161,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       )
                                   : _openOfflineQueueDialog,
                             ),
-                          if (_invalidCells.isNotEmpty)
+                          if (!collapseNonCriticalTopChrome &&
+                              _invalidCells.isNotEmpty)
                             _warningBanner(
                               pal,
                               text:
@@ -9201,7 +9216,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: child,
                               );
                             },
-                            child: (_errorsPanelOpen &&
+                            child: (!collapseNonCriticalTopChrome &&
+                                    _errorsPanelOpen &&
                                     _invalidCells.isNotEmpty)
                                 ? KeyedSubtree(
                                     key: const ValueKey(
@@ -9222,7 +9238,8 @@ class _EditorScreenState extends State<EditorScreen>
                                     key: ValueKey('validation-errors-closed'),
                                   ),
                           ),
-                          if (_photoFlowStatus != null)
+                          if (!collapseNonCriticalTopChrome &&
+                              _photoFlowStatus != null)
                             Container(
                               margin: const EdgeInsets.only(bottom: 6),
                               padding: const EdgeInsets.symmetric(
