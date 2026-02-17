@@ -19882,7 +19882,7 @@ Este paquete incluye:
             : (lower.endsWith('.html') || lower.endsWith('.htm'))
                 ? const ['html', 'htm']
                 : const ['xlsx'];
-    final typeGroup = XTypeGroup(label: 'Export', extensions: extensions);
+    final typeGroup = XTypeGroup(label: 'Exportar', extensions: extensions);
     _throwIfOperationCancelledBy(shouldCancel);
     final loc = await getSaveLocation(
       suggestedName: name,
@@ -19895,7 +19895,7 @@ Este paquete incluye:
 
   Future<bool> _tryShareWebFile(XFile file) async {
     try {
-      await Share.shareXFiles([file], subject: 'BitFlow Export');
+      await Share.shareXFiles([file], subject: 'Exportación de Bit Flow');
       return true;
     } catch (_) {
       return false;
@@ -19916,7 +19916,7 @@ Este paquete incluye:
         _throwIfOperationCancelledBy(shouldCancel);
         await Share.shareXFiles(
           <XFile>[XFile(path, mimeType: mime, name: name)],
-          subject: 'BitFlow Export',
+          subject: 'Exportación de Bit Flow',
           text: shareText,
         );
         return true;
@@ -19926,7 +19926,7 @@ Este paquete incluye:
         _throwIfOperationCancelledBy(shouldCancel);
         await Share.shareXFiles(
           <XFile>[XFile(path, name: name)],
-          subject: 'BitFlow Export',
+          subject: 'Exportación de Bit Flow',
           text: shareText,
         );
         return true;
@@ -19935,7 +19935,7 @@ Este paquete incluye:
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
-          subject: 'BitFlow Export',
+          subject: 'Exportación de Bit Flow',
           body: shareText,
           attachmentPaths: <String>[path],
           isHTML: false,
@@ -19949,7 +19949,7 @@ Este paquete incluye:
         final mailto = Uri(
           scheme: 'mailto',
           queryParameters: <String, String>{
-            'subject': 'BitFlow Export',
+            'subject': 'Exportación de Bit Flow',
             'body': '$shareText\n\nRuta local del archivo:\n$path',
           },
         );
@@ -19964,7 +19964,7 @@ Este paquete incluye:
       _throwIfOperationCancelledBy(shouldCancel);
       await Share.shareXFiles(
         <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
-        subject: 'BitFlow Export',
+        subject: 'Exportación de Bit Flow',
         text: shareText,
       );
       return true;
@@ -20287,7 +20287,7 @@ Este paquete incluye:
   Future<void> _runSmokeTest() async {
     if (!mounted) return;
     setState(() {
-      _smokeStatus = 'Engine CHECK...';
+      _smokeStatus = 'Chequeo del motor...';
       _smokeOk = null;
     });
 

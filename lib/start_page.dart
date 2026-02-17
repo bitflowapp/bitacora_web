@@ -2725,16 +2725,16 @@ class _StartPageState extends State<StartPage> {
                       icon: CupertinoIcons.cloud,
                       title: 'Motor (FastAPI)',
                       message: kIsWeb
-                          ? 'Modo AUTO usa el tunel HTTPS. Si cambia el tunel, pasa a MANUAL y pega la nueva URL.'
-                          : 'Modo AUTO intenta LAN y cae al tunel. En movil fisico usa IP LAN o tunel en MANUAL.',
+                          ? 'Modo Automático usa el tunel HTTPS. Si cambia el tunel, pasa a Manual y pega la nueva URL.'
+                          : 'Modo Automático intenta LAN y cae al tunel. En movil fisico usa IP LAN o tunel en Manual.',
                       isLight: widget.isLight,
                     ),
                     const SizedBox(height: 10),
                     CupertinoSlidingSegmentedControl<String>(
                       groupValue: engineMode,
                       children: const <String, Widget>{
-                        EngineConfig.modeAuto: Text('AUTO'),
-                        EngineConfig.modeManual: Text('MANUAL'),
+                        EngineConfig.modeAuto: Text('Automático'),
+                        EngineConfig.modeManual: Text('Manual'),
                       },
                       onValueChanged: (v) {
                         if (v == null) return;
@@ -2968,7 +2968,7 @@ class _StartPageState extends State<StartPage> {
 
   String _engineErrorMessage(Object error) {
     if (error is EngineApiException) {
-      return 'Engine error HTTP ${error.statusCode}: ${error.bodySnippet}';
+      return 'Error HTTP del motor ${error.statusCode}: ${error.bodySnippet}';
     }
     final text = error.toString();
     if (kIsWeb &&
