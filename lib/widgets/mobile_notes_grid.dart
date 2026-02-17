@@ -162,6 +162,7 @@ class _MobileNotesGrid extends StatelessWidget {
     required this.activeCol,
     required this.activeIsHeader,
     required this.activeController,
+    this.overlayBottomInset = 0,
     required this.onCellTap,
     required this.onHeaderTap,
     required this.onHorizontalScroll,
@@ -202,6 +203,7 @@ class _MobileNotesGrid extends StatelessWidget {
   final int activeCol;
   final bool activeIsHeader;
   final TextEditingController activeController;
+  final double overlayBottomInset;
 
   final void Function(BuildContext context, int r, int c) onCellTap;
   final void Function(BuildContext context, int c) onHeaderTap;
@@ -255,7 +257,7 @@ class _MobileNotesGrid extends StatelessWidget {
                 0,
                 _mobileListPadTop(density),
                 0,
-                _mobileListPadBottom(density),
+                _mobileListPadBottom(density) + overlayBottomInset,
               ),
               itemCount: rowModels.length + 1,
               separatorBuilder: (_, __) =>

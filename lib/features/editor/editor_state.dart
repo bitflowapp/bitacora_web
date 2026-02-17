@@ -8850,9 +8850,12 @@ class _EditorScreenState extends State<EditorScreen>
         final quickBarH = isMobile && !_mobileEditorOpen
             ? _kMobileQuickBarH + bottomSafe + 12
             : 0.0;
-        final keyboardVisible = keyboardInset > 0;
+        final keyboardVisible = mqInset > 0;
+        final mobileEditorOverlayInset = isDesktop || !editorActive
+            ? 0.0
+            : (keyboardVisible ? 52.0 : panelH) + 8;
         final bodyBottomPad =
-            isDesktop ? 0.0 : (editorActive ? panelH + 4 : quickBarH);
+            isDesktop ? 0.0 : (editorActive ? 0.0 : quickBarH);
         final autoCollapsedTopChrome =
             isMobile && (editorActive || keyboardVisible);
         final showSelectionQuickActions =
@@ -9978,6 +9981,8 @@ class _EditorScreenState extends State<EditorScreen>
                                                     _mobileEditorOpen &&
                                                         _mobileEditingHeader,
                                                 activeController: _mobileEC,
+                                                overlayBottomInset:
+                                                    mobileEditorOverlayInset,
                                                 onHorizontalScroll:
                                                     _syncMobileHorizontal,
                                                 onCellTap: (cellCtx, r, c) =>
