@@ -1,4 +1,4 @@
-﻿part of '../editor_screen.dart';
+part of '../editor_screen.dart';
 
 class _StatusBar extends StatelessWidget {
   const _StatusBar({
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Paleta (Ctrl/Cmd+K / rayo) · Pegado inteligente + Deshacer · Exportar',
+                  'Paleta (Ctrl/Cmd+K / rayo) \u00B7 Pegado inteligente + Deshacer \u00B7 Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -630,8 +630,9 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
 
   @override
   Widget build(BuildContext context) {
-    final rowsLabel =
-        widget.selectedRowsCount <= 1 ? '1 fila' : '${widget.selectedRowsCount} filas';
+    final rowsLabel = widget.selectedRowsCount <= 1
+        ? '1 fila'
+        : '${widget.selectedRowsCount} filas';
     final actions = _buildActions();
     final pinnedActions = actions.take(3).toList(growable: false);
     final moreActions = actions.skip(3).toList(growable: false);
@@ -684,7 +685,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
             if (_expanded) ...[
               const SizedBox(height: 4),
               Text(
-                '$rowsLabel · ${widget.selectionLabel}',
+                '$rowsLabel \u00B7 ${widget.selectionLabel}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -705,7 +706,8 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                   icon: Icons.more_horiz_rounded,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.ghost,
-                  onPressed: () => unawaited(_openMoreActionsSheet(moreActions)),
+                  onPressed: () =>
+                      unawaited(_openMoreActionsSheet(moreActions)),
                 ),
               ],
             ),
