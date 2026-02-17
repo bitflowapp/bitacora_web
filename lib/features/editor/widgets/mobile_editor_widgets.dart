@@ -628,110 +628,230 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rowsLabel = widget.selectedRowsCount <= 1
-        ? '1 fila'
-        : '${widget.selectedRowsCount} filas';
-    final actions = _buildActions();
-    final pinnedActions = actions.take(3).toList(growable: false);
-    final moreActions = actions.skip(3).toList(growable: false);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.fromLTRB(12, 0, 12, 8 + (bottomInset > 0 ? 6 : 0)),
-      child: AppleCard(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        radius: 16,
-        color: widget.palette.menuBg
-            .withValues(alpha: widget.palette.isLight ? 0.94 : 0.82),
-        borderColor: widget.palette.borderStrong,
-        shadows: const <BoxShadow>[],
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        AppStrings.quickActions,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: widget.palette.fgMuted,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12.8,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      _expanded
-                          ? Icons.expand_less_rounded
-                          : Icons.expand_more_rounded,
-                      size: 18,
-                      color: widget.palette.fgMuted,
-                    ),
-                  ],
-                ),
-              ),
+  Widget _buildCompactQuickButton(_QuickActionItem action) {
+    return Tooltip(
+      message: action.label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: action.onTap,
+        child: Container(
+          width: 58,
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.palette.hintBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: widget.palette.border,
+              width: widget.palette.hairline,
             ),
-            if (_expanded) ...[
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(action.icon, size: 18, color: widget.palette.fg),
               const SizedBox(height: 4),
               Text(
-                '$rowsLabel \u00B7 ${widget.selectionLabel}',
+                _compactLabelFor(action.label),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: widget.palette.fgMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11.8,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10.5,
+                  height: 1,
                 ),
               ),
             ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final action in pinnedActions) _buildQuickButton(action),
-                AppButton(
-                  label: AppStrings.more,
-                  icon: Icons.more_horiz_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.ghost,
-                  onPressed: () =>
-                      unawaited(_openMoreActionsSheet(moreActions)),
-                ),
-              ],
-            ),
-            if (_expanded && widget.canMarkStatus) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final status in const <String>['OK', 'Obs', 'Urgente'])
-                    AppButton(
-                      label: status,
-                      icon: Icons.flag_outlined,
-                      size: AppButtonSize.sm,
-                      variant: AppButtonVariant.ghost,
-                      onPressed: () => widget.onMarkStatus(status),
-                    ),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  String _compactLabelFor(String label) {
+    if (label == AppStrings.quickActionApplyValue) return 'Pegar';
+    if (label == AppStrings.quickActionFillDown) return 'Rellenar';
+    if (label == AppStrings.quickActionDuplicateRow) return 'Duplicar';
+    if (label == AppStrings.quickActionAttachPhoto) return 'Foto';
+    if (label == AppStrings.quickActionAttachGps) return 'GPS';
+    if (label == AppStrings.quickActionGoTo) return 'Ir a';
+    if (label == AppStrings.more) return 'Mas';
+    return label;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rowsLabel = widget.selectedRowsCount <= 1
+            ? '1 fila'
+            : '${widget.selectedRowsCount} filas';
+        final isCompact = constraints.maxWidth <= 420;
+        final actions = _buildActions();
+        final pinnedCount = isCompact ? 4 : 3;
+        final pinnedActions = actions.take(pinnedCount).toList(growable: false);
+        final moreActions = actions.skip(pinnedCount).toList(growable: false);
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding:
+              EdgeInsets.fromLTRB(12, 0, 12, 8 + (bottomInset > 0 ? 6 : 0)),
+          child: AppleCard(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            radius: 16,
+            color: widget.palette.menuBg
+                .withValues(alpha: widget.palette.isLight ? 0.94 : 0.82),
+            borderColor: widget.palette.borderStrong,
+            shadows: const <BoxShadow>[],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: isCompact
+                      ? () => unawaited(
+                            _openMoreActionsSheet(
+                              _buildCompactMoreActions(actions),
+                            ),
+                          )
+                      : () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            AppStrings.quickActions,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: widget.palette.fgMuted,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12.8,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          isCompact
+                              ? Icons.more_horiz_rounded
+                              : (_expanded
+                                  ? Icons.expand_less_rounded
+                                  : Icons.expand_more_rounded),
+                          size: 18,
+                          color: widget.palette.fgMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (isCompact || _expanded) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '$rowsLabel \u00B7 ${widget.selectionLabel}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: widget.palette.fgMuted,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.8,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                if (isCompact)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final action in pinnedActions)
+                        _buildCompactQuickButton(action),
+                      _buildCompactQuickButton(
+                        _QuickActionItem(
+                          label: AppStrings.more,
+                          icon: Icons.more_horiz_rounded,
+                          onTap: () => unawaited(
+                            _openMoreActionsSheet(
+                                _buildCompactMoreActions(actions)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final action in pinnedActions)
+                        _buildQuickButton(action),
+                      AppButton(
+                        label: AppStrings.more,
+                        icon: Icons.more_horiz_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () =>
+                            unawaited(_openMoreActionsSheet(moreActions)),
+                      ),
+                    ],
+                  ),
+                if (!isCompact && _expanded && widget.canMarkStatus) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final status in const <String>[
+                        'OK',
+                        'Obs',
+                        'Urgente'
+                      ])
+                        AppButton(
+                          label: status,
+                          icon: Icons.flag_outlined,
+                          size: AppButtonSize.sm,
+                          variant: AppButtonVariant.ghost,
+                          onPressed: () => widget.onMarkStatus(status),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<_QuickActionItem> _buildCompactMoreActions(
+      List<_QuickActionItem> actions) {
+    final out = <_QuickActionItem>[...actions];
+    if (widget.canMarkStatus) {
+      out.addAll(<_QuickActionItem>[
+        _QuickActionItem(
+          label: 'Marcar OK',
+          icon: Icons.flag_outlined,
+          onTap: () => widget.onMarkStatus('OK'),
+        ),
+        _QuickActionItem(
+          label: 'Marcar Obs',
+          icon: Icons.flag_outlined,
+          onTap: () => widget.onMarkStatus('Obs'),
+        ),
+        _QuickActionItem(
+          label: 'Marcar Urgente',
+          icon: Icons.flag_outlined,
+          onTap: () => widget.onMarkStatus('Urgente'),
+        ),
+      ]);
+    }
+    return out;
   }
 }
 
