@@ -49,7 +49,10 @@ class DefaultOutboxExecutor implements OutboxExecutor {
 
       final afterSync = await AttachmentStore.I.getUploadInfo(attachmentId);
       if (afterSync == null || !afterSync.isUploaded) {
-        throw StateError(
+        const baseMessage = 'upload_attachment_target_not_uploaded';
+        final detail = '$baseMessage:$attachmentId';
+        await AttachmentStore.I.markUploadError(attachmentId, detail);
+        throw Exception(
           'upload_attachment did not upload target attachmentId=$attachmentId',
         );
       }
@@ -62,9 +65,19 @@ class DefaultOutboxExecutor implements OutboxExecutor {
         );
       }
     } catch (error) {
-      await AttachmentStore.I.markUploadError(attachmentId, error.toString());
+      await AttachmentStore.I.markUploadError(
+        attachmentId,
+        _shortUploadError(error),
+      );
       rethrow;
     }
+  }
+
+  String _shortUploadError(Object error) {
+    final text = error.toString().trim();
+    if (text.isEmpty) return 'upload_attachment_failed';
+    if (text.length <= 160) return text;
+    return '${text.substring(0, 160)}...';
   }
 }
 
