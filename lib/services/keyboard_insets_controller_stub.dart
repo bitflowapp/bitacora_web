@@ -36,6 +36,8 @@ class KeyboardInsetsController with WidgetsBindingObserver {
     _scheduleEmit();
   }
 
+  void beginFocusProbe() {}
+
   @override
   void didChangeMetrics() {
     _updateFromPlatform();

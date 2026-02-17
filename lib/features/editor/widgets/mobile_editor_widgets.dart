@@ -689,19 +689,21 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
             : '${widget.selectedRowsCount} filas';
         final isCompact = constraints.maxWidth <= 420;
         final actions = _buildActions();
-        final pinnedCount = isCompact ? 4 : 3;
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        final keyboardVisible = bottomInset > 0.0;
+        final compactLayout = isCompact || keyboardVisible;
+        final pinnedCount = 4;
         final pinnedActions = actions.take(pinnedCount).toList(growable: false);
         final moreActions = actions.skip(pinnedCount).toList(growable: false);
-        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        final compactMoreActions = _buildCompactMoreActions(moreActions);
 
         return AnimatedPadding(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
-          padding:
-              EdgeInsets.fromLTRB(12, 0, 12, 8 + (bottomInset > 0 ? 6 : 0)),
+          padding: EdgeInsets.fromLTRB(12, 0, 12, keyboardVisible ? 6 : 8),
           child: GlassSurface(
-            radius: 18,
-            blurSigma: widget.palette.isLight ? 12 : 9,
+            radius: keyboardVisible ? 14 : 18,
+            blurSigma: widget.palette.isLight ? (keyboardVisible ? 10 : 12) : 9,
             backgroundColor: widget.palette.menuBg
                 .withValues(alpha: widget.palette.isLight ? 0.78 : 0.58),
             borderColor: widget.palette.borderStrong
@@ -710,17 +712,17 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                 .withValues(alpha: widget.palette.isLight ? 0.08 : 0.24),
             shadowBlur: 16,
             shadowOffset: const Offset(0, 8),
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            padding: keyboardVisible
+                ? const EdgeInsets.fromLTRB(8, 6, 8, 6)
+                : const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: isCompact
+                  onTap: compactLayout
                       ? () => unawaited(
-                            _openMoreActionsSheet(
-                              _buildCompactMoreActions(actions),
-                            ),
+                            _openMoreActionsSheet(compactMoreActions),
                           )
                       : () => setState(() => _expanded = !_expanded),
                   child: Padding(
@@ -743,7 +745,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                           ),
                         ),
                         Icon(
-                          isCompact
+                          compactLayout
                               ? Icons.more_horiz_rounded
                               : (_expanded
                                   ? Icons.expand_less_rounded
@@ -755,10 +757,10 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                     ),
                   ),
                 ),
-                if (isCompact || _expanded) ...[
+                if (!keyboardVisible && (compactLayout || _expanded)) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$rowsLabel \u2022 ${widget.selectionLabel}',
+                    '$rowsLabel | ${widget.selectionLabel}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -768,25 +770,28 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 8),
-                if (isCompact)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final action in pinnedActions)
-                        _buildCompactQuickButton(action),
-                      _buildCompactQuickButton(
-                        _QuickActionItem(
-                          label: AppStrings.more,
-                          icon: Icons.more_horiz_rounded,
-                          onTap: () => unawaited(
-                            _openMoreActionsSheet(
-                                _buildCompactMoreActions(actions)),
+                SizedBox(height: keyboardVisible ? 4 : 8),
+                if (compactLayout)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final action in pinnedActions) ...[
+                          _buildCompactQuickButton(action),
+                          const SizedBox(width: 8),
+                        ],
+                        if (compactMoreActions.isNotEmpty)
+                          _buildCompactQuickButton(
+                            _QuickActionItem(
+                              label: AppStrings.more,
+                              icon: Icons.more_horiz_rounded,
+                              onTap: () => unawaited(
+                                _openMoreActionsSheet(compactMoreActions),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   )
                 else
                   Wrap(
@@ -800,12 +805,14 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                         icon: Icons.more_horiz_rounded,
                         size: AppButtonSize.sm,
                         variant: AppButtonVariant.ghost,
-                        onPressed: () =>
-                            unawaited(_openMoreActionsSheet(moreActions)),
+                        onPressed: moreActions.isEmpty
+                            ? null
+                            : () =>
+                                unawaited(_openMoreActionsSheet(moreActions)),
                       ),
                     ],
                   ),
-                if (!isCompact && _expanded && widget.canMarkStatus) ...[
+                if (!compactLayout && _expanded && widget.canMarkStatus) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -1226,6 +1233,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.barKey,
     required this.fieldKey,
     required this.keyboardInset,
+    required this.bottomAnimationDuration,
     required this.isOpen,
     required this.title,
     required this.validationHint,
@@ -1251,6 +1259,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final Key barKey;
   final Key fieldKey;
   final double keyboardInset;
+  final Duration bottomAnimationDuration;
   final bool isOpen;
   final String title;
   final String? validationHint;
@@ -1297,13 +1306,17 @@ class _MobileInlineEditorBar extends StatelessWidget {
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
     final metrics = _gridMetricsFor(density);
     final editorFont = math.max(16.0, metrics.cellFontSize + 2).toDouble();
+    final compactExpanded = ultraCompact && isExpanded;
     final editorPadding = ultraCompact
-        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+        ? EdgeInsets.symmetric(horizontal: 8, vertical: compactExpanded ? 8 : 6)
         : EdgeInsets.symmetric(
             horizontal: math.max(10.0, metrics.cellPadding.horizontal / 2),
             vertical: math.max(10.0, metrics.cellPadding.vertical / 2),
           );
-    final barHeight = ultraCompact ? _kMobileInlineCompactBarH : panelHeight;
+    final barHeight = ultraCompact
+        ? (compactExpanded ? 64.0 : _kMobileInlineCompactBarH)
+        : panelHeight;
+    final compactFieldHeight = compactExpanded ? 44.0 : 36.0;
 
     final iconSize = ultraCompact ? 20.0 : 18.0;
     final iconPadding =
@@ -1314,7 +1327,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
         : const BoxConstraints(minWidth: 34, minHeight: 34);
 
     return AnimatedPositioned(
-      duration: const Duration(milliseconds: 180),
+      duration: bottomAnimationDuration,
       curve: Curves.easeOut,
       left: 0,
       right: 0,
@@ -1394,7 +1407,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: SizedBox(
-                                      height: 34,
+                                      height: compactFieldHeight,
                                       child: KeyedSubtree(
                                         key: fieldKey,
                                         child: _MobileEditorField(
@@ -1416,6 +1429,20 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     icon: Icons.check_rounded,
                                     tooltip: 'Guardar',
                                     onTap: onDone,
+                                    palette: palette,
+                                    iconSize: iconSize,
+                                    splashRadius: iconSplash,
+                                    padding: iconPadding,
+                                    constraints: iconConstraints,
+                                  ),
+                                  _MobilePanelIconButton(
+                                    icon: compactExpanded
+                                        ? Icons.unfold_less_rounded
+                                        : Icons.unfold_more_rounded,
+                                    tooltip: compactExpanded
+                                        ? 'Compactar'
+                                        : 'Expandir',
+                                    onTap: onToggleExpanded,
                                     palette: palette,
                                     iconSize: iconSize,
                                     splashRadius: iconSplash,

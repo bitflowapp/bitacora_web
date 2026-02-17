@@ -419,6 +419,8 @@ class _EditorScreenState extends State<EditorScreen>
   final GlobalKey _mobileBarKey = GlobalKey();
   final Key _mobileFieldKey = const ValueKey('mobileInlineEditorField');
   double _mobileBarH = 0.0;
+  double _mobileBarLastAnimatedInset = 0.0;
+  bool _mobileBarInstantJumpArmed = false;
   bool _mobileBarMeasureScheduled = false;
   String? _lastMobileSnack;
   String? _lastToastMessage;
@@ -3717,9 +3719,6 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     final mqInset = mediaQueryInset ?? MediaQuery.viewInsetsOf(context).bottom;
     if (!kIsWeb) return mqInset;
-
-    final vvInset = vv.visualViewportKeyboardInset();
-    if (vvInset > 0.0) return vvInset;
 
     final fallbackInset = math.max(mqInset, controllerInset ?? 0.0);
     return fallbackInset > 0.0 ? fallbackInset : 0.0;
@@ -8846,13 +8845,13 @@ class _EditorScreenState extends State<EditorScreen>
         final mobileEditorBarH =
             keyboardVisible ? _kMobileInlineCompactBarH : panelH;
         final mobileEditorSafeBottom = keyboardVisible ? 0.0 : bottomSafe;
+        final mobileBarBottomAnim = _mobileBarBottomDuration(keyboardInset);
         final mobileGridBottomInset = isDesktop
             ? 0.0
             : (editorActive
                 ? keyboardInset + mobileEditorBarH + mobileEditorSafeBottom + 8
                 : bottomSafe + 12);
-        final autoCollapsedTopChrome =
-            isMobile && (editorActive || keyboardVisible);
+        final autoCollapsedTopChrome = isMobile && keyboardVisible;
         final showSelectionQuickActions =
             !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
@@ -9078,7 +9077,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: _InlineMetaChip(
                                   palette: pal,
                                   icon: Icons.visibility_rounded,
-                                  label: 'Modo Zen activo · Mostrar barra',
+                                  label: 'Modo Zen activo | Mostrar barra',
                                   onTap: () => unawaited(_setZenMode(false)),
                                 ),
                               ),
@@ -10068,6 +10067,7 @@ class _EditorScreenState extends State<EditorScreen>
                         barKey: _mobileBarKey,
                         fieldKey: _mobileFieldKey,
                         keyboardInset: keyboardInset,
+                        bottomAnimationDuration: mobileBarBottomAnim,
                         isOpen: _mobileEditorOpen,
                         title: _mobileTitle,
                         validationHint: _mobileValidationHint,
@@ -11185,6 +11185,7 @@ class _EditorScreenState extends State<EditorScreen>
       setState(() => _mobilePhase = _MobileEditPhase.switching);
     }
 
+    _kbController.beginFocusProbe();
     _requestMobileFocusWithRetry();
 
     if (_mobileFocusCellModeEnabled && (row >= 0 || isHeader)) {
@@ -11266,6 +11267,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_mobileFocus.hasFocus) return;
     if (!_mobileEditorOpen) return;
     if (!_mobileEditingHeader && _mobileRow < 0) return;
+    _kbController.beginFocusProbe();
     final targetRow = _mobileEditingHeader ? -1 : _mobileRow;
     _scheduleEnsureRowVisiblePostFrame(targetRow);
     _scheduleEnsureRowVisibleLate(targetRow);
@@ -11273,6 +11275,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _requestMobileFocusWithRetry() {
     if (!_mobileEditorOpen) return;
+    _kbController.beginFocusProbe();
     _mobileFocus.requestFocus();
     try {
       SystemChannels.textInput.invokeMethod('TextInput.show');
@@ -11324,6 +11327,26 @@ class _EditorScreenState extends State<EditorScreen>
         }
       }
     });
+  }
+
+  Duration _mobileBarBottomDuration(double keyboardInset) {
+    final nextInset = keyboardInset < 0 ? 0.0 : keyboardInset;
+    final jumpedIntoKeyboard = _mobileEditorOpen &&
+        nextInset > 1.0 &&
+        _mobileBarLastAnimatedInset <= 1.0 &&
+        !_mobileBarInstantJumpArmed;
+
+    if (jumpedIntoKeyboard) {
+      _mobileBarInstantJumpArmed = true;
+      _mobileBarLastAnimatedInset = nextInset;
+      return Duration.zero;
+    }
+
+    if (nextInset <= 1.0) {
+      _mobileBarInstantJumpArmed = false;
+    }
+    _mobileBarLastAnimatedInset = nextInset;
+    return const Duration(milliseconds: 180);
   }
 
   void _scheduleEnsureRowVisiblePostFrame(int row) {

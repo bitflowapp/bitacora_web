@@ -886,7 +886,7 @@ class _MobileCompactHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      summaryParts.join(' \u2022 '),
+                      summaryParts.join(' | '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -897,7 +897,7 @@ class _MobileCompactHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Celda: $activeCell \u2022 $localLabel \u2022 $offlineLabel',
+                      'Celda: $activeCell | $localLabel | $offlineLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1015,7 +1015,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 220),
                 child: Text(
-                  '$safeTitle \u2022 $activeCell',
+                  '$safeTitle | $activeCell',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
