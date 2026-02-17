@@ -125,6 +125,38 @@ function Stop-ProcessTree {
   }
 }
 
+function Invoke-GitGrepSafe {
+  param(
+    [Parameter(Mandatory = $true)][string]$Pattern,
+    [Parameter(Mandatory = $true)][string[]]$Paths,
+    [switch]$EchoMatches
+  )
+
+  $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $gitCmd) {
+    Write-Host "git no encontrado; se omite git grep para patrón '$Pattern'." -ForegroundColor Yellow
+    return 0
+  }
+
+  $args = @("grep", "-n", $Pattern, "--") + $Paths
+  $output = & $gitCmd.Source @args 2>&1
+  $code = $LASTEXITCODE
+
+  if ($code -gt 1) {
+    Write-Host "git grep falló para patrón '$Pattern' (exit code $code)." -ForegroundColor Red
+    if ($output) {
+      $output | ForEach-Object { Write-Host $_ -ForegroundColor DarkYellow }
+    }
+    exit $code
+  }
+
+  if ($EchoMatches -and $code -eq 0 -and $output) {
+    $output | ForEach-Object { Write-Host $_ }
+  }
+
+  return 0
+}
+
 function Test-MojibakeArtifact {
   $targetRoots = @("lib", "web", "assets", "test")
   $textExtensions = @(
@@ -323,6 +355,11 @@ Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
 
 $dartExe = Resolve-DartExe -ResolvedFlutterExe $flutterExe
 Write-Host "Dart resolved: $dartExe" -ForegroundColor Green
+
+# git grep devuelve 1 cuando no hay matches: lo tratamos como OK.
+Invoke-GitGrepSafe -Pattern "Â" -Paths @("lib", "web") | Out-Null
+Invoke-GitGrepSafe -Pattern "Acciones rápidas" -Paths @("lib", "web") | Out-Null
+Invoke-GitGrepSafe -Pattern "·" -Paths @("lib", "web") | Out-Null
 
 Test-MojibakeArtifact
 Test-EnglishUiLabels
