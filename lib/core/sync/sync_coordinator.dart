@@ -37,13 +37,8 @@ class DefaultOutboxExecutor implements OutboxExecutor {
       throw const FormatException('upload_attachment_missing_id');
     }
 
-    final info = await AttachmentStore.I.getUploadInfo(attachmentId);
-    if (info == null) {
-      // El adjunto ya no existe localmente o fue limpiado.
-      return;
-    }
-
-    if (info.isUploaded) {
+    final before = await AttachmentStore.I.getUploadInfo(attachmentId);
+    if (before?.isUploaded == true) {
       return;
     }
 
@@ -51,7 +46,21 @@ class DefaultOutboxExecutor implements OutboxExecutor {
 
     try {
       await CloudStore.syncPendingNow();
-      await AttachmentStore.I.markUploadUploaded(attachmentId);
+
+      final afterSync = await AttachmentStore.I.getUploadInfo(attachmentId);
+      if (afterSync == null || !afterSync.isUploaded) {
+        throw StateError(
+          'upload_attachment did not upload target attachmentId=$attachmentId',
+        );
+      }
+
+      if (afterSync.uploadStatus != AttachmentStore.uploadStatusUploaded) {
+        await AttachmentStore.I.markUploadUploaded(
+          attachmentId,
+          remotePath: afterSync.remotePath,
+          remoteUrl: afterSync.remoteUrl,
+        );
+      }
     } catch (error) {
       await AttachmentStore.I.markUploadError(attachmentId, error.toString());
       rethrow;
