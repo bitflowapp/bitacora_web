@@ -80,6 +80,39 @@ function Resolve-FlutterExecutable {
   return $null
 }
 
+function Resolve-DartExe {
+  param([string]$ResolvedFlutterExe)
+
+  $dartCmd = Get-Command dart -ErrorAction SilentlyContinue
+  if ($dartCmd) {
+    return $dartCmd.Source
+  }
+
+  $flutterSource = $null
+  if (-not [string]::IsNullOrWhiteSpace($ResolvedFlutterExe) -and (Test-Path $ResolvedFlutterExe)) {
+    $flutterSource = (Resolve-Path $ResolvedFlutterExe).Path
+  }
+
+  if (-not $flutterSource) {
+    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
+    if ($flutterCmd) {
+      $flutterSource = $flutterCmd.Source
+    }
+  }
+
+  if (-not $flutterSource) {
+    throw "Neither 'dart' nor 'flutter' found in PATH."
+  }
+
+  $flutterBin = Split-Path $flutterSource
+  $dartFromFlutter = Join-Path $flutterBin "cache\dart-sdk\bin\dart.exe"
+  if (-not (Test-Path $dartFromFlutter)) {
+    throw "Dart SDK not found at: $dartFromFlutter (flutter bin=$flutterBin)"
+  }
+
+  return (Resolve-Path $dartFromFlutter).Path
+}
+
 function Stop-ProcessTree {
   param([int]$ProcessId)
 
@@ -288,6 +321,9 @@ if (-not $flutterExe) {
 
 Write-Host "Flutter resolved: $flutterExe" -ForegroundColor Green
 
+$dartExe = Resolve-DartExe -ResolvedFlutterExe $flutterExe
+Write-Host "Dart resolved: $dartExe" -ForegroundColor Green
+
 Test-MojibakeArtifact
 Test-EnglishUiLabels
 
@@ -304,6 +340,7 @@ if ($Fast) {
 }
 
 Invoke-StepWithTimeout -Name "flutter --version" -FilePath $flutterExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
+Invoke-StepWithTimeout -Name "dart --version" -FilePath $dartExe -Arguments @("--version") -TimeoutSec 30 | Out-Null
 
 if ($SkipDoctor) {
   Write-Host "`n==> flutter doctor -v (optional)" -ForegroundColor Cyan
