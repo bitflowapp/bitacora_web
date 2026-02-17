@@ -11344,7 +11344,7 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               ListTile(
                 leading: const Icon(Icons.check_rounded),
-                title: const Text('Done'),
+                title: const Text('Listo'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _commitMobileEdit();
@@ -19840,7 +19840,7 @@ Este paquete incluye:
         _showActionSnack(
           _isIosWeb
               ? 'Safari iOS limita compartir archivos. Se descargo el archivo.'
-              : 'Web Share no soportado. Archivo descargado.',
+              : 'Compartir web no compatible. Archivo descargado.',
           isError: false,
           icon: Icons.download_rounded,
         );
@@ -19869,7 +19869,7 @@ Este paquete incluye:
     if (isMobile) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles([xf], subject: 'BitFlow Export');
+        await Share.shareXFiles([xf], subject: 'Exportación de Bit Flow');
         return;
       } catch (_) {}
     }

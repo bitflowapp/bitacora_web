@@ -1663,7 +1663,7 @@ class _StartPageState extends State<StartPage> {
     );
 
     SheetStore.saveState(id, state);
-    SheetStore.rename(id, 'Smoke Test');
+    SheetStore.rename(id, 'Prueba rápida');
 
     _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
     if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
@@ -3175,7 +3175,7 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _createSmokeTestSheet();
               },
-              child: const Text('Smoke Test (GPS/Fotos/Audio)…'),
+              child: const Text('Prueba rápida (GPS/Fotos/Audio)…'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {

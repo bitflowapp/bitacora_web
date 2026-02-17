@@ -3464,7 +3464,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Smoke Test (GPS/Foto/Audio)',
+            label: 'Prueba rápida (GPS/Foto/Audio)',
             icon: Icons.science_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {

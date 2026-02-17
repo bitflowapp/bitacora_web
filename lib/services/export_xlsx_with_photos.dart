@@ -558,10 +558,16 @@ void _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
-  final sheet = workbook.worksheets.addWithName('Attachments');
+  final sheet = workbook.worksheets.addWithName('Adjuntos');
   sheet.showGridlines = false;
 
-  const headers = ['CellRef', 'Type', 'FileName', 'Notes', 'Path'];
+  const headers = [
+    'Referencia de celda',
+    'Tipo',
+    'Nombre de archivo',
+    'Notas',
+    'Ruta',
+  ];
 
   for (int c = 0; c < headers.length; c++) {
     sheet.getRangeByIndex(1, c + 1).setText(headers[c]);
