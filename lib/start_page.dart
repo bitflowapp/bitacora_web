@@ -89,6 +89,7 @@ import 'screens/about_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/privacy_screen.dart';
+import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 
 class StartPage extends StatefulWidget {
@@ -3107,6 +3108,13 @@ class _StartPageState extends State<StartPage> {
                 await _openMailSettings();
               },
               child: const Text('Ajustes (Correo/Motor)…'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _openStaticPage(const SpreadsheetAgentScreen());
+              },
+              child: const Text('Agente de planillas (MVP)…'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
