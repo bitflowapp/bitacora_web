@@ -47,6 +47,98 @@ extension _EditorAttachments on _EditorScreenState {
     await _refreshOutboxBadgeCounts();
   }
 
+  ({
+    String label,
+    IconData icon,
+    Color color,
+    bool canRetry,
+    String? error,
+  }) _uploadUiForInfo(AttachmentUploadInfo? info, _SheetPalette pal) {
+    if (info?.isUploaded == true) {
+      return (
+        label: 'Listo',
+        icon: Icons.check_circle_rounded,
+        color: pal.accent,
+        canRetry: false,
+        error: null,
+      );
+    }
+
+    final status = AttachmentStore.normalizeUploadStatus(
+      info?.uploadStatus ?? AttachmentStore.uploadStatusQueued,
+    );
+
+    switch (status) {
+      case AttachmentStore.uploadStatusUploading:
+        return (
+          label: 'Subiendo…',
+          icon: Icons.cloud_upload_rounded,
+          color: pal.accent,
+          canRetry: false,
+          error: null,
+        );
+      case AttachmentStore.uploadStatusUploaded:
+        return (
+          label: 'Listo',
+          icon: Icons.check_circle_rounded,
+          color: pal.accent,
+          canRetry: false,
+          error: null,
+        );
+      case AttachmentStore.uploadStatusError:
+        return (
+          label: 'Error',
+          icon: Icons.error_outline_rounded,
+          color: Colors.redAccent,
+          canRetry: true,
+          error: info?.lastError,
+        );
+      case AttachmentStore.uploadStatusLocal:
+      case AttachmentStore.uploadStatusQueued:
+      default:
+        return (
+          label: 'En cola',
+          icon: Icons.schedule_rounded,
+          color: pal.fgMuted,
+          canRetry: false,
+          error: null,
+        );
+    }
+  }
+
+  Future<void> _retryAttachmentUpload({
+    required String attachmentId,
+    required CellRef targetRef,
+    required String storedRef,
+  }) async {
+    final normalizedId = attachmentId.trim();
+    if (normalizedId.isEmpty) return;
+
+    final current = await _attachmentStore.getUploadInfo(normalizedId);
+    final resolvedStoredRef = storedRef.trim().isNotEmpty
+        ? storedRef.trim()
+        : (current?.storedRef ?? '').trim();
+
+    await _attachmentStore.markUploadQueued(
+      normalizedId,
+      sheetId: widget.sheetId,
+      cellKey: targetRef.compactKey,
+      storedRef: resolvedStoredRef,
+    );
+
+    await OutboxStore.instance.ensureQueuedAttachmentUpload(
+      normalizedId,
+      <String, dynamic>{
+        'attachmentId': normalizedId,
+        'sheetId': widget.sheetId,
+        'cellKey': targetRef.compactKey,
+      },
+    );
+
+    SyncCoordinator.instance.kick();
+    await _refreshOutboxBadgeCounts();
+  }
+
   Future<void> _startPhotoFlowForCell(int r, int c) async {
     if (_rows.isEmpty || _headers.isEmpty) return;
     final target = await _ensurePhotoTargetCell(r, c);
@@ -1474,43 +1566,69 @@ extension _EditorAttachments on _EditorScreenState {
                   );
                 }
 
-                final tile = AttachmentTile(
-                  palette: pal,
-                  thumb: thumbWidget(),
-                  typeIcon: previewable
-                      ? Icons.photo_rounded
-                      : Icons.insert_drive_file_outlined,
-                  label: label,
-                  dateLabel: dateLabel,
-                  onPreview: () => unawaited(_openPhotoPreview(ctx2, p)),
-                  onRename: () =>
-                      unawaited(_renamePhotoOnCell(ctx2, r, c, idx)),
-                  onDelete: () => confirmDelete(p, idx),
-                );
+                return FutureBuilder<AttachmentUploadInfo?>(
+                  future: _attachmentStore.getUploadInfo(p.id),
+                  builder: (ctxStatus, statusSnap) {
+                    final uploadUi = _uploadUiForInfo(statusSnap.data, pal);
 
-                return DragTarget<int>(
-                  onWillAccept: (from) => from != null && from != idx,
-                  onAccept: (from) {
-                    _reorderPhotoOnCell(r, c, from, idx);
-                    setSheetState(() {});
-                  },
-                  builder: (ctx3, candidate, rejected) {
-                    final isTarget = candidate.isNotEmpty;
-                    return AnimatedScale(
-                      scale: isTarget ? 1.02 : 1.0,
-                      duration: const Duration(milliseconds: 120),
-                      child: LongPressDraggable<int>(
-                        data: idx,
-                        feedback: SizedBox(
-                          width: 160,
-                          child: Opacity(opacity: 0.85, child: tile),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.35,
-                          child: tile,
-                        ),
-                        child: tile,
-                      ),
+                    Future<void> handleRetry() async {
+                      final ref = _cellRefAt(r, c);
+                      if (ref == null) return;
+                      await _retryAttachmentUpload(
+                        attachmentId: p.id,
+                        targetRef: ref,
+                        storedRef: p.storedRef,
+                      );
+                      if (!mounted) return;
+                      setSheetState(() {});
+                    }
+
+                    final tile = AttachmentTile(
+                      palette: pal,
+                      thumb: thumbWidget(),
+                      typeIcon: previewable
+                          ? Icons.photo_rounded
+                          : Icons.insert_drive_file_outlined,
+                      label: label,
+                      dateLabel: dateLabel,
+                      uploadStatusLabel: uploadUi.label,
+                      uploadStatusIcon: uploadUi.icon,
+                      uploadStatusColor: uploadUi.color,
+                      uploadError: uploadUi.error,
+                      onRetryUpload: uploadUi.canRetry
+                          ? () => unawaited(handleRetry())
+                          : null,
+                      onPreview: () => unawaited(_openPhotoPreview(ctx2, p)),
+                      onRename: () =>
+                          unawaited(_renamePhotoOnCell(ctx2, r, c, idx)),
+                      onDelete: () => confirmDelete(p, idx),
+                    );
+
+                    return DragTarget<int>(
+                      onWillAccept: (from) => from != null && from != idx,
+                      onAccept: (from) {
+                        _reorderPhotoOnCell(r, c, from, idx);
+                        setSheetState(() {});
+                      },
+                      builder: (ctx3, candidate, rejected) {
+                        final isTarget = candidate.isNotEmpty;
+                        return AnimatedScale(
+                          scale: isTarget ? 1.02 : 1.0,
+                          duration: const Duration(milliseconds: 120),
+                          child: LongPressDraggable<int>(
+                            data: idx,
+                            feedback: SizedBox(
+                              width: 160,
+                              child: Opacity(opacity: 0.85, child: tile),
+                            ),
+                            childWhenDragging: Opacity(
+                              opacity: 0.35,
+                              child: tile,
+                            ),
+                            child: tile,
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -3046,91 +3164,187 @@ extension _EditorAttachments on _EditorScreenState {
     showAppModal<void>(
       context: context,
       title: 'Audios - ${CellKey(r, c).a1}',
-      child: SizedBox(
-        height: math.min(MediaQuery.sizeOf(context).height * 0.6, 420),
-        child: ListView.separated(
-          itemCount: audios.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (ctx2, idx) {
-            final a = audios[idx];
-            final playing = _playingAudioId == a.id;
-            return Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: pal.headerBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: pal.border, width: pal.hairline),
-              ),
-              child: Row(
-                children: [
-                  Tooltip(
-                    message: playing ? 'Detener' : 'Reproducir',
-                    child: IconButton(
-                      onPressed: () => unawaited(_playAudioAttachment(a)),
-                      icon: Icon(
-                        playing
-                            ? Icons.stop_circle_rounded
-                            : Icons.play_circle_fill_rounded,
-                        color: pal.accent,
+      child: StatefulBuilder(
+        builder: (ctxModal, setModalState) {
+          return SizedBox(
+            height: math.min(MediaQuery.sizeOf(context).height * 0.6, 420),
+            child: ListView.separated(
+              itemCount: audios.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (ctx2, idx) {
+                final a = audios[idx];
+                final playing = _playingAudioId == a.id;
+                return FutureBuilder<AttachmentUploadInfo?>(
+                  future: _attachmentStore.getUploadInfo(a.id),
+                  builder: (ctxStatus, statusSnap) {
+                    final uploadUi = _uploadUiForInfo(statusSnap.data, pal);
+
+                    Future<void> handleRetry() async {
+                      final ref = _cellRefAt(r, c);
+                      if (ref == null) return;
+                      await _retryAttachmentUpload(
+                        attachmentId: a.id,
+                        targetRef: ref,
+                        storedRef: a.storedRef,
+                      );
+                      if (!mounted) return;
+                      setModalState(() {});
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: pal.headerBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: pal.border, width: pal.hairline),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(Icons.audiotrack_rounded, color: pal.fgMuted),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Tooltip(
-                          message: a.filename,
-                          child: Text(
-                            a.filename,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: pal.fg,
-                              fontWeight: FontWeight.w800,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Tooltip(
+                                message: playing ? 'Detener' : 'Reproducir',
+                                child: IconButton(
+                                  onPressed: () =>
+                                      unawaited(_playAudioAttachment(a)),
+                                  icon: Icon(
+                                    playing
+                                        ? Icons.stop_circle_rounded
+                                        : Icons.play_circle_fill_rounded,
+                                    color: pal.accent,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(Icons.audiotrack_rounded,
+                                  color: pal.fgMuted),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Tooltip(
+                                      message: a.filename,
+                                      child: Text(
+                                        a.filename,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: pal.fg,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatDuration(
+                                        Duration(milliseconds: a.durationMs),
+                                      ),
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Tooltip(
+                                message: 'Renombrar',
+                                child: IconButton(
+                                  onPressed: () => unawaited(
+                                      _renameAudioOnCell(ctx2, r, c, idx)),
+                                  icon: Icon(Icons.edit_rounded,
+                                      color: pal.fgMuted),
+                                ),
+                              ),
+                              Tooltip(
+                                message: 'Eliminar',
+                                child: IconButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx2).pop();
+                                    unawaited(_deleteAudioFromCell(r, c, idx));
+                                  },
+                                  icon: Icon(Icons.delete_outline_rounded,
+                                      color: pal.fgMuted),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: pal.hintBg,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: pal.border,
+                                    width: pal.hairline,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      uploadUi.icon,
+                                      size: 13,
+                                      color: uploadUi.color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      uploadUi.label,
+                                      style: TextStyle(
+                                        color: uploadUi.color,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (uploadUi.canRetry)
+                                TextButton.icon(
+                                  onPressed: () => unawaited(handleRetry()),
+                                  icon: const Icon(Icons.refresh_rounded,
+                                      size: 16),
+                                  label: const Text('Reintentar'),
+                                  style: TextButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if ((uploadUi.error ?? '').trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                uploadUi.error!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDuration(
-                            Duration(milliseconds: a.durationMs),
-                          ),
-                          style: TextStyle(
-                            color: pal.fgMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Renombrar',
-                    child: IconButton(
-                      onPressed: () =>
-                          unawaited(_renameAudioOnCell(ctx2, r, c, idx)),
-                      icon: Icon(Icons.edit_rounded, color: pal.fgMuted),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Eliminar',
-                    child: IconButton(
-                      onPressed: () {
-                        Navigator.of(ctx2).pop();
-                        unawaited(_deleteAudioFromCell(r, c, idx));
-                      },
-                      icon: Icon(Icons.delete_outline_rounded,
-                          color: pal.fgMuted),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          );
+        },
       ),
       actions: [
         AppButton(

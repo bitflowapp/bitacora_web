@@ -144,3 +144,10 @@ Checklist manual:
 7. Volver a online.
 8. Esperar el ciclo de sync.
 9. Confirmar que `Pendientes` baja a `0` (puede pasar por estado de sincronización intermedio).
+
+Checklist de estado por adjunto (UI):
+
+1. Adjuntar archivo/foto/audio en modo avión → cada adjunto debería mostrar `En cola`.
+2. Volver online y esperar sync → el estado debería pasar por `Subiendo…` y terminar en `Listo`.
+3. Forzar una falla (cortar red a mitad del sync) → estado `Error`.
+4. Tocar `Reintentar` en ese adjunto → vuelve a `En cola` y luego completa en `Listo` cuando hay conectividad.
