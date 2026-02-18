@@ -250,31 +250,36 @@ class _MobileNotesGrid extends StatelessWidget {
               }
               return false;
             },
-            child: ListView.separated(
-              controller: verticalController,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                0,
-                _mobileListPadTop(density),
-                0,
-                _mobileListPadBottom(density) + overlayBottomInset,
-              ),
-              itemCount: rowModels.length + 1,
-              separatorBuilder: (_, __) =>
-                  SizedBox(height: _mobileRowSpacing(density)),
-              itemBuilder: (ctx, index) {
-                if (index == 0) {
-                  return KeyedSubtree(
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(top: _mobileListPadTop(density)),
+                  child: KeyedSubtree(
                     key: headerKey,
-                    child: _buildHeaderRow(ctx),
-                  );
-                }
-                final row = index - 1;
-                return KeyedSubtree(
-                  key: rowKeyFor(row),
-                  child: _buildDataRow(ctx, row),
-                );
-              },
+                    child: _buildHeaderRow(context),
+                  ),
+                ),
+                SizedBox(height: _mobileRowSpacing(density)),
+                Expanded(
+                  child: ListView.separated(
+                    controller: verticalController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      bottom:
+                          _mobileListPadBottom(density) + overlayBottomInset,
+                    ),
+                    itemCount: rowModels.length,
+                    separatorBuilder: (_, __) =>
+                        SizedBox(height: _mobileRowSpacing(density)),
+                    itemBuilder: (ctx, row) {
+                      return KeyedSubtree(
+                        key: rowKeyFor(row),
+                        child: _buildDataRow(ctx, row),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -291,44 +296,53 @@ class _MobileNotesGrid extends StatelessWidget {
           onHorizontalScroll(headerScrollController.offset, true, -1);
           return false;
         },
-        child: ListView.separated(
+        child: Scrollbar(
           controller: headerScrollController,
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: _mobileRowPadH(density),
-            vertical: _mobileRowPadV(density),
+          thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          notificationPredicate: (notification) =>
+              notification.metrics.axis == Axis.horizontal,
+          child: ListView.separated(
+            controller: headerScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: _mobileRowPadH(density),
+              vertical: _mobileRowPadV(density),
+            ),
+            itemCount: headers.length,
+            separatorBuilder: (_, __) =>
+                SizedBox(width: _mobileCardGap(density)),
+            itemBuilder: (ctx, col) {
+              final label = _labelHeader(headers, col);
+              final isActive = activeIsHeader && activeCol == col;
+              return _buildCard(
+                context: ctx,
+                width: cardW,
+                isHeader: true,
+                isActive: isActive,
+                isSelected: false,
+                hasGps: false,
+                hasAudio: false,
+                hasPhoto: false,
+                zebra: false,
+                photoThumbB64: '',
+                inlinePreview: null,
+                onTap: () => onHeaderTap(ctx, col),
+                onLongPress: (pos) => onContextMenu(pos, -1, col, true),
+                onAttachmentsTap: null,
+                child: isActive
+                    ? ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: activeController,
+                        builder: (ctx, value, __) {
+                          return _buildCardText(value.text, isHeader: true);
+                        },
+                      )
+                    : _buildCardText(label, isHeader: true),
+              );
+            },
           ),
-          itemCount: headers.length,
-          separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
-          itemBuilder: (ctx, col) {
-            final label = _labelHeader(headers, col);
-            final isActive = activeIsHeader && activeCol == col;
-            return _buildCard(
-              context: ctx,
-              width: cardW,
-              isHeader: true,
-              isActive: isActive,
-              isSelected: false,
-              hasGps: false,
-              hasAudio: false,
-              hasPhoto: false,
-              zebra: false,
-              photoThumbB64: '',
-              inlinePreview: null,
-              onTap: () => onHeaderTap(ctx, col),
-              onLongPress: (pos) => onContextMenu(pos, -1, col, true),
-              onAttachmentsTap: null,
-              child: isActive
-                  ? ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: activeController,
-                      builder: (ctx, value, __) {
-                        return _buildCardText(value.text, isHeader: true);
-                      },
-                    )
-                  : _buildCardText(label, isHeader: true),
-            );
-          },
         ),
       ),
     );
