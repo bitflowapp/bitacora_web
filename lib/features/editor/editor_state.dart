@@ -8000,6 +8000,67 @@ class _EditorScreenState extends State<EditorScreen>
     return null;
   }
 
+  String _normalizeHeaderToken(String raw) {
+    var out = raw.trim().toLowerCase();
+    const accentMap = <String, String>{
+      'á': 'a',
+      'à': 'a',
+      'ä': 'a',
+      'â': 'a',
+      'ã': 'a',
+      'é': 'e',
+      'è': 'e',
+      'ë': 'e',
+      'ê': 'e',
+      'í': 'i',
+      'ì': 'i',
+      'ï': 'i',
+      'î': 'i',
+      'ó': 'o',
+      'ò': 'o',
+      'ö': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ú': 'u',
+      'ù': 'u',
+      'ü': 'u',
+      'û': 'u',
+      'ñ': 'n',
+    };
+    accentMap.forEach((key, value) {
+      out = out.replaceAll(key, value);
+    });
+    out = out.replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+    out = out.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return out;
+  }
+
+  bool _isGpsLikeHeader(String raw) {
+    final normalized = _normalizeHeaderToken(raw);
+    if (normalized.isEmpty) return false;
+    return normalized.contains('gps') ||
+        normalized.contains('ubicacion') ||
+        normalized.contains('location');
+  }
+
+  int? _findPreferredGpsColumn() {
+    final dataCols = _headers.length - 1;
+    if (dataCols <= 0) return null;
+
+    const exactPriority = <String>['gps', 'ubicacion', 'location'];
+    for (final expected in exactPriority) {
+      for (int c = 0; c < dataCols; c++) {
+        final normalized = _normalizeHeaderToken(_headerLabel(c));
+        if (normalized == expected) return c;
+      }
+    }
+
+    for (int c = 0; c < dataCols; c++) {
+      if (_isGpsLikeHeader(_headerLabel(c))) return c;
+    }
+    return null;
+  }
+
   int _resolveQuickCaptureDateColumn() {
     final found = _findDataColumnByKeywords(const <String>[
       'fecha',
@@ -16339,9 +16400,86 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
+    final gpsCol = _findPreferredGpsColumn();
+    var targetCol = c;
     final shouldWrite =
         forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
-    _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+    var writeText = shouldWrite;
+
+    if (gpsCol == null) {
+      // Sin columna GPS dedicada: persistimos solo metadata para no ensuciar celdas.
+      writeText = false;
+    } else if (gpsCol != c) {
+      final activeLabel = _headerLabel(c).trim().isEmpty
+          ? 'Columna ${c + 1}'
+          : _headerLabel(c).trim();
+      final gpsLabel = _headerLabel(gpsCol).trim().isEmpty
+          ? 'Columna ${gpsCol + 1}'
+          : _headerLabel(gpsCol).trim();
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Guardar GPS'),
+            content: Text(
+              'Vas a pegar GPS en $activeLabel. ¿Guardar en $gpsLabel en su lugar?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop('cancel'),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop('here'),
+                child: const Text('Pegar aqui'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop('gps'),
+                autofocus: true,
+                child: Text('Guardar en $gpsLabel'),
+              ),
+            ],
+          );
+        },
+      );
+      if (!mounted) return;
+      if (choice == null || choice == 'cancel') return;
+      targetCol = choice == 'gps' ? gpsCol : c;
+    }
+
+    if (targetCol < 0 || targetCol >= _headers.length - 1) return;
+
+    final previousText = _rows[r].cells[targetCol];
+    final previousMeta = _cellMetaAt(r, targetCol)?.copy();
+
+    _applyGpsFixToCell(r, targetCol, fix,
+        writeText: writeText, announce: false);
+    _announceGpsSaved(
+      fix,
+      cell: CellKey(r, targetCol),
+      wroteText: writeText,
+      onUndo: () {
+        if (!mounted) return;
+        _rows[r].cells[targetCol] = previousText;
+        _bumpRowVersionById(_rows[r].id);
+        _rememberValueForColumn(targetCol, previousText);
+        final ref = _cellRefAt(r, targetCol);
+        if (ref != null) {
+          if (previousMeta == null || previousMeta.isEmpty) {
+            _cellMeta.remove(ref.key);
+          } else {
+            _cellMeta[ref.key] = previousMeta;
+          }
+        }
+        _markDirty(snapshot: true);
+        _refreshCellAfterSave(r, targetCol);
+        _showActionSnack(
+          'GPS deshecho en fila ${r + 1}, columna ${targetCol + 1}.',
+          isError: false,
+          icon: Icons.undo_rounded,
+        );
+      },
+    );
   }
 
   bool _tryConsumePendingGps(int r, int c) {
@@ -16982,23 +17120,33 @@ class _EditorScreenState extends State<EditorScreen>
     _GpsFix fix, {
     required CellKey cell,
     required bool wroteText,
+    VoidCallback? onUndo,
   }) {
-    final cellLabel = _cellLabelRc(cell.row, cell.col);
+    final columnLabel = _headerLabel(cell.col).trim().isEmpty
+        ? 'Columna ${cell.col + 1}'
+        : _headerLabel(cell.col).trim();
     final detail =
         '${formatLatLng(fix.lat, fix.lng)} +/-${fix.accuracyM.toStringAsFixed(0)}m';
-    final msg =
-        'Guardado en celda $cellLabel (GPS $detail${wroteText ? '' : ', solo metadata'})';
+    final msg = wroteText
+        ? 'GPS guardado en fila ${cell.row + 1}, $columnLabel.'
+        : 'GPS guardado en fila ${cell.row + 1}, $columnLabel (solo metadata).';
     _engineStatus = msg;
     _engineStatusIsError = false;
     DiagnosticsLog.I.record(
       type: DiagnosticActionType.gps,
       ok: true,
       message:
-          'gps cell=$cellLabel lat=${fix.lat} lng=${fix.lng} acc=${fix.accuracyM} source=${fix.source} provider=${fix.provider} wroteText=$wroteText',
+          'gps row=${cell.row + 1} col=${cell.col + 1} lat=${fix.lat} lng=${fix.lng} acc=${fix.accuracyM} source=${fix.source} provider=${fix.provider} wroteText=$wroteText',
     );
     if (mounted) {
       setState(() {});
-      _showActionSnack(msg, isError: false, icon: Icons.gps_fixed_rounded);
+      _showActionSnack(
+        '$msg GPS $detail',
+        isError: false,
+        icon: Icons.gps_fixed_rounded,
+        actionLabel: 'Deshacer',
+        onAction: onUndo,
+      );
     }
     Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
