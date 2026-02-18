@@ -31,6 +31,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kReleaseMode,
         defaultTargetPlatform,
         TargetPlatform,
         debugPrint,
@@ -3801,6 +3802,9 @@ class _StartPageState extends State<StartPage> {
     final mq = MediaQuery.of(context);
     final bottomPad = mq.padding.bottom;
     final buildStamp = _buildStamp;
+    final sheetIndexById = <String, int>{
+      for (int i = 0; i < data.length; i++) data[i].id: i,
+    };
 
     return CupertinoPageScaffold(
       backgroundColor: colors.bg,
@@ -4208,6 +4212,7 @@ class _StartPageState extends State<StartPage> {
                               (ctx, i) {
                                 final m = data[i];
                                 return _AppleSheetGridCard(
+                                  key: ValueKey('sheet_${m.id}'),
                                   colors: colors,
                                   meta: m,
                                   note: (_sheetNotes[m.id] ?? '').trim(),
@@ -4232,6 +4237,14 @@ class _StartPageState extends State<StartPage> {
                                     .fadeIn(duration: 200.ms, delay: 30.ms);
                               },
                               childCount: data.length,
+                              findChildIndexCallback: (key) {
+                                if (key is! ValueKey<String>) return null;
+                                final value = key.value;
+                                final id = value.startsWith('sheet_')
+                                    ? value.substring(6)
+                                    : value;
+                                return sheetIndexById[id];
+                              },
                             ),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
@@ -4245,30 +4258,32 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (!kReleaseMode)
+              Positioned(
+                left: 16,
+                bottom: 14 + bottomPad,
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)
@@ -5625,6 +5640,7 @@ class _AppleSheetRow extends StatelessWidget {
 
 class _AppleSheetGridCard extends StatelessWidget {
   const _AppleSheetGridCard({
+    super.key,
     required this.colors,
     required this.meta,
     required this.note,
