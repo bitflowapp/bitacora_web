@@ -290,7 +290,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode && kShowBuildBadge;
+    final shouldShowBadge = !kReleaseMode && kShowBuildBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -306,7 +306,7 @@ class _AppState extends State<App> {
     Widget buildBoot(Widget child) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Bitacora Web',
+        title: 'Bitácora Web',
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
@@ -382,7 +382,7 @@ class _AppState extends State<App> {
 
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          title: 'Bitacora Web',
+          title: 'Bitácora Web',
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,

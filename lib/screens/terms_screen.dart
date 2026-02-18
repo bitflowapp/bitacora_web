@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
 
-  static const routeTitle = 'Terminos';
+  static const routeTitle = 'Términos';
 
   @override
   Widget build(BuildContext context) {

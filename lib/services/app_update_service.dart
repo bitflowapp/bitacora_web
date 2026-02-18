@@ -141,7 +141,7 @@ class AppUpdateService {
             remoteBuildId: remoteBuildId,
             updateAvailable: updateAvailable,
             message: updateAvailable
-                ? 'Actualizacion disponible.'
+                ? 'Actualización disponible.'
                 : 'Sin actualizaciones.',
           );
         } on TimeoutException catch (error) {
