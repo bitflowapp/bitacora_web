@@ -1,4 +1,4 @@
-name: Deploy Pages
+name: Deploy to GitHub Pages (project)
 
 on:
   push:
@@ -7,17 +7,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: true
 
 env:
   FLUTTER_CHANNEL: stable
-  # Override from repo/org variable BASE_HREF when needed (for user pages use "/").
-  BASE_HREF: ${{ vars.BASE_HREF || '/bitacora_web/' }}
+  BASE_HREF: /bitacora_web/
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,8 +30,14 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
 
       - name: Flutter version
         run: flutter --version
@@ -68,9 +75,7 @@ jobs:
 
       - name: Build web
         run: |
-          echo "Using BASE_HREF=${{ env.BASE_HREF }}"
-          flutter build web --release \
-            --base-href "${{ env.BASE_HREF }}" \
+          flutter build web --release --base-href "/bitacora_web/" \
             --dart-define=BUILD_ID=${{ github.run_id }}-${{ github.run_attempt }} \
             --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }} \
             --dart-define=GIT_SHA=${{ github.sha }} \
@@ -83,18 +88,10 @@ jobs:
           test -f build/web/index.html
           test -f build/web/bitflow/index.html
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: build/web
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: build/web
+          force_orphan: true
