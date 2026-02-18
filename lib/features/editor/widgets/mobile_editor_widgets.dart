@@ -131,32 +131,35 @@ class _ValidationErrorsPanel extends StatelessWidget {
                         ),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            issue.label,
-                            style: TextStyle(
-                              color: palette.fg,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              issue.message,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              issue.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.fade,
                               style: TextStyle(
-                                color: palette.fgMuted,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11.5,
+                                color: palette.fg,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
                               ),
                             ),
                           ),
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 12,
-                            color: palette.fgMuted,
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () => onJump(issue),
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(44, 34),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              foregroundColor: palette.fg,
+                            ),
+                            child: const Text(
+                              'Ir',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
                           ),
                         ],
                       ),
