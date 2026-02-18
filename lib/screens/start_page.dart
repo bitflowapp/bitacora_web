@@ -1241,7 +1241,7 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _openAppPage(const TermsScreen());
               },
-              child: const Text('Terminos'),
+              child: const Text('Términos'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {

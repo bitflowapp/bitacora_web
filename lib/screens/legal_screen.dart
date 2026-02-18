@@ -25,7 +25,7 @@ class LegalScreen extends StatelessWidget {
         ];
 
   const LegalScreen.terms({super.key})
-      : title = 'Terminos de uso',
+      : title = 'Términos de uso',
         sections = const [
           _LegalSection(
             title: 'Uso permitido',

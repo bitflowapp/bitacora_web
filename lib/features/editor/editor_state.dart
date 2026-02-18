@@ -9174,7 +9174,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
+                                  'Validación: ${_invalidCells.length} celda(s) con error.',
                               icon: Icons.rule_rounded,
                               actionLabel: _errorsPanelOpen
                                   ? 'Ocultar errores'

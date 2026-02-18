@@ -182,7 +182,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Bitacoras tecnicas con foco en rapidez, claridad y confiabilidad.',
+            'Bitácoras técnicas con foco en rapidez, claridad y confiabilidad.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
             ),
@@ -285,7 +285,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   const SizedBox(height: 10),
                   Text(
                     updateAvailable
-                        ? 'Actualizacion disponible.'
+                        ? 'Actualización disponible.'
                         : 'Sin actualizaciones pendientes.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(
@@ -317,7 +317,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Terminos'),
+                  title: const Text('Términos'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
