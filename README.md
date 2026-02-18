@@ -26,3 +26,32 @@ Problemas comunes
 - Puerto en uso: el script intenta otro puerto automaticamente.
 - No abre el navegador: copiar el link que aparece en la consola y abrirlo.
 - Export/Import: si el ZIP no tiene `backup.json`, el archivo no es valido.
+
+## Deploy automático a GitHub Pages (project site)
+
+Este repo publica automáticamente la web en cada push a `main` usando el workflow:
+
+- `.github/workflows/deploy_pages.yml`
+
+El build se ejecuta con base href de proyecto:
+
+- `flutter build web --release --base-href "/bitacora_web/"`
+
+### Activar GitHub Pages
+
+1. Ir a **Settings → Pages** del repositorio.
+2. En **Build and deployment**, elegir **Source: Deploy from a branch**.
+3. Seleccionar **Branch: `gh-pages`** y **Folder: `/ (root)`**.
+4. Guardar cambios.
+
+URL esperada de publicación:
+
+- `https://<user>.github.io/bitacora_web/`
+
+### Forzar redeploy
+
+Opciones para disparar una nueva publicación:
+
+- Hacer un nuevo push a `main`.
+- Ir a **Actions → Deploy to GitHub Pages (project)** y usar **Run workflow** (`workflow_dispatch`).
+- Re-ejecutar un job previo con **Re-run jobs** desde Actions.
