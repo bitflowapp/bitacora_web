@@ -1,4 +1,4 @@
-part of '../editor_screen.dart';
+﻿part of '../editor_screen.dart';
 
 extension _EditorAttachments on _EditorScreenState {
   static const String _kDirtyAttachmentsOutboxKind =
@@ -71,7 +71,7 @@ extension _EditorAttachments on _EditorScreenState {
     switch (status) {
       case AttachmentStore.uploadStatusUploading:
         return (
-          label: 'Subiendo…',
+          label: 'Subiendoâ€¦',
           icon: Icons.cloud_upload_rounded,
           color: pal.accent,
           canRetry: false,
@@ -373,7 +373,7 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.doc:
         return 'No se pudo adjuntar el archivo. Causa: $reason.';
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicación. Causa: $reason.';
+        return 'No se pudo guardar la ubicaciÃ³n. Causa: $reason.';
     }
   }
 
@@ -556,7 +556,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} \u00b7 esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} | esperando seleccion',
       target: ref,
     );
 
@@ -616,9 +616,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la cámara'),
+          title: const Text('No se pudo abrir la camara'),
           content: const Text(
-            'No se pudo capturar desde cámara. ¿Querés elegir desde galería?',
+            'No se pudo capturar desde camara. Queres elegir desde galeria?',
           ),
           actions: [
             TextButton(
@@ -659,10 +659,10 @@ extension _EditorAttachments on _EditorScreenState {
     if (fromCamera) {
       final preflightOk = await _runPermissionPreflight(
         storageKey: _kPrefCameraRationaleSeen,
-        permissionLabel: 'cámara',
-        rationaleTitle: 'Permiso de cámara',
+        permissionLabel: 'cÃ¡mara',
+        rationaleTitle: 'Permiso de cÃ¡mara',
         rationaleMessage:
-            'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
+            'Usamos la cÃ¡mara para adjuntar evidencia a la celda seleccionada. '
             'Las fotos quedan en tu almacenamiento local.',
         permission: ph.Permission.camera,
       );
@@ -737,7 +737,7 @@ extension _EditorAttachments on _EditorScreenState {
 
       if (currentOutcome.cancelled) {
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 cancelado',
+          'Destino $label | cancelado',
           target: targetRef,
         );
         _clearPhotoFlowStatusSoon();
@@ -760,7 +760,7 @@ extension _EditorAttachments on _EditorScreenState {
       if (currentOutcome.blocked) {
         final msg = currentOutcome.error ?? 'Bloqueado por el navegador.';
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 bloqueado',
+          'Destino $label | bloqueado',
           target: targetRef,
         );
         _clearPhotoFlowStatusSoon();
@@ -778,7 +778,7 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a cámara o galería desde este navegador.',
+              'No se pudo acceder a cÃ¡mara o galerÃ­a desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
@@ -797,7 +797,7 @@ extension _EditorAttachments on _EditorScreenState {
             : (readFail ? _EditorScreenState._kPhotoReadErrorMsg : rawMsg);
 
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 ${readFail ? 'error lectura' : 'error foto'}',
+          'Destino $label | ${readFail ? 'error lectura' : 'error foto'}',
           target: targetRef,
         );
         _clearPhotoFlowStatusSoon();
@@ -833,7 +833,7 @@ extension _EditorAttachments on _EditorScreenState {
       final fileType = result.reportedMime ?? result.mime;
       if (originalBytes.isEmpty && originalSize <= 0) {
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 bytes vacios',
+          'Destino $label | bytes vacios',
           target: targetRef,
         );
         _clearPhotoFlowStatusSoon();
@@ -872,7 +872,7 @@ extension _EditorAttachments on _EditorScreenState {
 
       if (!_checkPhotoLimits(targetRef, fileSize, replaceIndex: replaceIndex)) {
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 limite por celda',
+          'Destino $label | limite por celda',
           target: targetRef,
         );
         _clearPhotoFlowStatusSoon();
@@ -895,7 +895,7 @@ extension _EditorAttachments on _EditorScreenState {
         fileType: fileType,
       );
       _updatePhotoFlowStatus(
-        'Destino $label \u00b7 bytes listos (${_formatBytes(fileSize)})',
+        'Destino $label | bytes listos (${_formatBytes(fileSize)})',
         target: targetRef,
       );
 
@@ -1027,7 +1027,7 @@ extension _EditorAttachments on _EditorScreenState {
           stack: failure.stackTrace?.toString(),
         );
         _updatePhotoFlowStatus(
-          'Destino $label \u00b7 fallo (${failure.code})',
+          'Destino $label | fallo (${failure.code})',
           target: targetRef,
         );
         _reportFlowErrorMessage(
@@ -1068,7 +1068,7 @@ extension _EditorAttachments on _EditorScreenState {
         icon: Icons.photo_outlined,
       );
       _updatePhotoFlowStatus(
-        'Destino $label \u00b7 guardada',
+        'Destino $label | guardada',
         target: targetRef,
       );
       _clearPhotoFlowStatusSoon();
@@ -2619,7 +2619,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                 },
-                child: const Text('Abrir configuración'),
+                child: const Text('Abrir configuraciÃ³n'),
               ),
           ],
         );
@@ -2938,10 +2938,10 @@ extension _EditorAttachments on _EditorScreenState {
 
     final preflightOk = await _runPermissionPreflight(
       storageKey: _kPrefMicrophoneRationaleSeen,
-      permissionLabel: 'micrófono',
-      rationaleTitle: 'Permiso de micrófono',
+      permissionLabel: 'micrÃ³fono',
+      rationaleTitle: 'Permiso de micrÃ³fono',
       rationaleMessage:
-          'Usamos el micrófono para grabar notas de voz en la celda activa. '
+          'Usamos el micrÃ³fono para grabar notas de voz en la celda activa. '
           'Los audios quedan en tu almacenamiento local.',
       permission: ph.Permission.microphone,
     );
@@ -3127,7 +3127,7 @@ extension _EditorAttachments on _EditorScreenState {
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('Detén la grabación para reproducir.', isError: false);
+      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
       return;
     }
 
@@ -3464,7 +3464,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Prueba rápida (GPS/Foto/Audio)',
+            label: 'Prueba rÃ¡pida (GPS/Foto/Audio)',
             icon: Icons.science_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {
@@ -3872,3 +3872,4 @@ extension _EditorAttachments on _EditorScreenState {
     }
   }
 }
+
