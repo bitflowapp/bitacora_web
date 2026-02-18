@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
 
-  static const routeTitle = 'Terminos';
+  static const routeTitle = 'Términos';
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,7 @@ class TermsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Este resumen es informativo y se ofrece como base para una version legal final.',
+            'Este resumen es informativo y se ofrece como base para una versión legal final.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 18),

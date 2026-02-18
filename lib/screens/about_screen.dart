@@ -137,7 +137,7 @@ class _AboutScreenState extends State<AboutScreen> {
       await Clipboard.setData(ClipboardData(text: text));
       _showSnack('Diagnostico copiado al portapapeles.');
     } catch (_) {
-      _showSnack('No se pudo copiar el diagnostico.');
+      _showSnack('No se pudo copiar el diagnóstico.');
     }
   }
 
@@ -278,14 +278,14 @@ class _AboutScreenState extends State<AboutScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.content_copy_rounded),
-                        label: const Text('Copiar diagnostico'),
+                        label: const Text('Copiar diagnóstico'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Text(
                     updateAvailable
-                        ? 'Actualizacion disponible.'
+                        ? 'Actualización disponible.'
                         : 'Sin actualizaciones pendientes.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(
@@ -317,7 +317,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Terminos'),
+                  title: const Text('Términos'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(

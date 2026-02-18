@@ -141,7 +141,7 @@ class AppUpdateService {
             remoteBuildId: remoteBuildId,
             updateAvailable: updateAvailable,
             message: updateAvailable
-                ? 'Actualizacion disponible.'
+                ? 'Actualización disponible.'
                 : 'Sin actualizaciones.',
           );
         } on TimeoutException catch (error) {
@@ -156,7 +156,7 @@ class AppUpdateService {
           ? 'Sin conexion. No se pudo verificar actualizaciones.'
           : (lastStatusCode != null
               ? 'No se pudo verificar actualizaciones (HTTP $lastStatusCode).'
-              : 'No se pudo consultar version remota.');
+              : 'No se pudo consultar versión remota.');
 
       return AppUpdateSnapshot(
         requestOk: false,
@@ -196,7 +196,7 @@ class AppUpdateService {
         updateAvailable: false,
         message: _isOfflineError(error)
             ? 'Sin conexion. No se pudo verificar actualizaciones.'
-            : 'No se pudo consultar version remota.',
+            : 'No se pudo consultar versión remota.',
       );
     } finally {
       if (_client == null) {

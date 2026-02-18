@@ -240,7 +240,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_rounded),
-                title: const Text('Terminos'),
+                title: const Text('Términos'),
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
               ListTile(
