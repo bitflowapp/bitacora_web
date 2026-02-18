@@ -332,7 +332,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                     if (ingest != null) ...<Widget>[
                       const SizedBox(height: 8),
                       Text(
-                        'Fuente: ${ingest.sourceLabel}  •  Encabezados: ${ingest.headers.length}  •  Filas: ${ingest.rows.length}',
+                        'Fuente: ${ingest.sourceLabel} | Encabezados: ${ingest.headers.length} | Filas: ${ingest.rows.length}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -462,7 +462,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                         const Text('Sin observaciones. Listo para exportar.'),
                       ...report.issues.take(12).map(
                             (issue) => Text(
-                              'Fila ${issue.row} • ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
+                              'Fila ${issue.row} | ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
                               style: TextStyle(
                                 color: issue.isWarning
                                     ? Colors.orange.shade700
@@ -543,7 +543,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       const SizedBox(height: 8),
                       ..._auditEntries.map(
                         (entry) => Text(
-                          '${entry.at.toLocal()} • ${entry.action} • ${entry.templateId}/${entry.clientId} • ${entry.detail}',
+                          '${entry.at.toLocal()} | ${entry.action} | ${entry.templateId}/${entry.clientId} | ${entry.detail}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
