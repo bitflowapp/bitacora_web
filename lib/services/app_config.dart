@@ -69,7 +69,7 @@ class AppConfig {
     return const AppConfig(
       brandName: 'Bitácora Pro',
       brandTagline: 'Bitácora operativa con evidencias en 1 lugar.',
-      contactEmail: 'ventas@tuempresa.com',
+      contactEmail: '',
       contactWhatsApp: '+5491122334455',
       whatsappMessage: 'Hola! Quiero una demo de Bitácora Pro.',
       pricingBasic: 'USD 19 / mes',
