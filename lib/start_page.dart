@@ -31,6 +31,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kReleaseMode,
         defaultTargetPlatform,
         TargetPlatform,
         debugPrint,
@@ -4245,30 +4246,32 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (!kReleaseMode)
+              Positioned(
+                left: 16,
+                top: 12,
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)

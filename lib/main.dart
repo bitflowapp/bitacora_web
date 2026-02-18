@@ -290,7 +290,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode && kShowBuildBadge;
+    final shouldShowBadge = !kReleaseMode && kShowBuildBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
