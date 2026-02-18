@@ -4075,7 +4075,7 @@ class _EditorScreenState extends State<EditorScreen>
       list.add(
         _ValidationIssue(
           ref: ref,
-          label: _cellLabelRc(ref.r, ref.c),
+          label: _validationIssueLabel(ref.r, ref.c, message),
           message: message,
         ),
       );
@@ -4086,6 +4086,14 @@ class _EditorScreenState extends State<EditorScreen>
       return a.ref.c.compareTo(b.ref.c);
     });
     return list;
+  }
+
+  String _validationIssueLabel(int row, int col, String message) {
+    final colName = _headerLabel(col).trim().isEmpty
+        ? 'Columna ${col + 1}'
+        : _headerLabel(col).trim();
+    final normalized = message.trim();
+    return 'Fila ${row + 1} — $colName: $normalized';
   }
 
   void _recomputeValidation() {
