@@ -154,7 +154,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bitácora',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -626,7 +626,7 @@ class _Pricing extends StatelessWidget {
             title: 'Enterprise',
             price: _pick(config.pricingEnterprise, 'A medida'),
             features: const [
-              'Capacitacion in-company',
+              'Capacitación in-company',
               'Branding y templates',
               'Soporte dedicado',
               'SLA y actualizaciones',
@@ -638,8 +638,8 @@ class _Pricing extends StatelessWidget {
             features: [
               'Mesa de ayuda dedicada',
               'Actualizaciones planificadas',
-              'Buenas practicas operativas',
-              'Acompanamiento continuo',
+              'Buenas prácticas operativas',
+              'Acompañamiento continuo',
             ],
           ),
         ];
@@ -672,7 +672,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bitácora',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -815,7 +815,7 @@ class _FaqList extends StatelessWidget {
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
+          q: 'Qué pasa si se llena el almacenamiento?',
           a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
         ),
       ],
@@ -871,13 +871,14 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bitácora' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
-            Text(
-              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (config.contactEmail.trim().isNotEmpty)
+              Text(
+                'Soporte: ${config.contactEmail.trim()}',
+                style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             Text(
               BuildInfo.stamp,
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
@@ -888,7 +889,7 @@ class _Footer extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => context.go('/terms'),
-              child: const Text('Terminos'),
+              child: const Text('Términos'),
             ),
           ],
         ),

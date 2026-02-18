@@ -143,7 +143,7 @@ class _ValidationErrorsPanel extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              issue.message,
+                              issue.userMessage,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

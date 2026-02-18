@@ -950,11 +950,13 @@ class _ValidationIssue {
     required this.ref,
     required this.label,
     required this.message,
+    required this.userMessage,
   });
 
   final _CellRef ref;
   final String label;
   final String message;
+  final String userMessage;
 }
 
 class HistoryEventRecord {

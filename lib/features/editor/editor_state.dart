@@ -1224,7 +1224,7 @@ class _EditorScreenState extends State<EditorScreen>
       '[EditorScreen] flow=load kind=recovery op=load_recovery source=$source',
     );
     _showActionSnack(
-      'Se recupero la version guardada anterior.',
+      'Se recuperó la versión guardada anterior.',
       isError: false,
       icon: Icons.history_rounded,
     );
@@ -4077,6 +4077,7 @@ class _EditorScreenState extends State<EditorScreen>
           ref: ref,
           label: _cellLabelRc(ref.r, ref.c),
           message: message,
+          userMessage: _validationUserMessage(ref.r, ref.c, message),
         ),
       );
     }
@@ -6069,6 +6070,14 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _cellLabelRc(int r, int c) => 'R${r + 1}C${c + 1}';
 
+  String _validationUserMessage(int r, int c, String message) {
+    final rowLabel = 'Fila ${r + 1}';
+    final header = _headerLabel(c).trim();
+    final columnLabel = header.isEmpty ? 'Columna ${c + 1}' : header;
+    return '$rowLabel — $columnLabel: ${message.toLowerCase()}';
+  }
+
+
   CellRef? _cellRefAt(int r, int c) {
     if (r < 0 || c < 0) return null;
     if (r >= _rows.length) return null;
@@ -6379,7 +6388,7 @@ class _EditorScreenState extends State<EditorScreen>
     final issues = _validationIssues();
     if (issues.isEmpty) {
       _showActionSnack(
-        'No hay errores de validacion.',
+        'No hay errores de validación.',
         isError: false,
         icon: Icons.task_alt_rounded,
       );
@@ -8389,7 +8398,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {
       if (!mounted) return;
       _showActionSnack(
-        'No se pudo copiar el diagnostico.',
+        'No se pudo copiar el diagnóstico.',
         isError: true,
         icon: Icons.copy_all_outlined,
       );
@@ -9166,7 +9175,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
+                                  'Validación: ${_invalidCells.length} celda(s) con error.',
                               icon: Icons.rule_rounded,
                               actionLabel: _errorsPanelOpen
                                   ? 'Ocultar errores'
@@ -15836,7 +15845,7 @@ class _EditorScreenState extends State<EditorScreen>
       _errorsPanelOpen = true;
     }
     _showActionSnack(
-      '${issue.label}: ${issue.message}',
+      issue.userMessage,
       isError: false,
       icon: Icons.rule_folder_outlined,
     );
@@ -16027,7 +16036,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return false;
     final decision = await showAppModal<bool>(
       context: context,
-      title: 'Hay errores de validacion',
+      title: 'Hay errores de validación',
       child: Text(
         'Se detectaron ${_invalidCells.length} celdas con error. Puedes exportar igual o revisar antes.',
       ),

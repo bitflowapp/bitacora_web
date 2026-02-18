@@ -243,39 +243,43 @@ class _MobileNotesGrid extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: shellRadius,
-          child: NotificationListener<UserScrollNotification>(
-            onNotification: (n) {
-              if (n.metrics.axis == Axis.vertical) {
-                onVerticalUserScroll?.call(n.direction);
-              }
-              return false;
-            },
-            child: ListView.separated(
-              controller: verticalController,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                0,
-                _mobileListPadTop(density),
-                0,
-                _mobileListPadBottom(density) + overlayBottomInset,
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(top: _mobileListPadTop(density)),
+                child: KeyedSubtree(key: headerKey, child: _buildHeaderRow(context)),
               ),
-              itemCount: rowModels.length + 1,
-              separatorBuilder: (_, __) =>
-                  SizedBox(height: _mobileRowSpacing(density)),
-              itemBuilder: (ctx, index) {
-                if (index == 0) {
-                  return KeyedSubtree(
-                    key: headerKey,
-                    child: _buildHeaderRow(ctx),
-                  );
-                }
-                final row = index - 1;
-                return KeyedSubtree(
-                  key: rowKeyFor(row),
-                  child: _buildDataRow(ctx, row),
-                );
-              },
-            ),
+              SizedBox(height: _mobileRowSpacing(density)),
+              Expanded(
+                child: NotificationListener<UserScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.axis == Axis.vertical) {
+                      onVerticalUserScroll?.call(n.direction);
+                    }
+                    return false;
+                  },
+                  child: ListView.separated(
+                    controller: verticalController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      0,
+                      0,
+                      0,
+                      _mobileListPadBottom(density) + overlayBottomInset,
+                    ),
+                    itemCount: rowModels.length,
+                    separatorBuilder: (_, __) =>
+                        SizedBox(height: _mobileRowSpacing(density)),
+                    itemBuilder: (ctx, index) {
+                      return KeyedSubtree(
+                        key: rowKeyFor(index),
+                        child: _buildDataRow(ctx, index),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -291,17 +295,21 @@ class _MobileNotesGrid extends StatelessWidget {
           onHorizontalScroll(headerScrollController.offset, true, -1);
           return false;
         },
-        child: ListView.separated(
+        child: Scrollbar(
           controller: headerScrollController,
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: _mobileRowPadH(density),
-            vertical: _mobileRowPadV(density),
-          ),
-          itemCount: headers.length,
-          separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
-          itemBuilder: (ctx, col) {
+          thumbVisibility: true,
+          interactive: true,
+          child: ListView.separated(
+            controller: headerScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: _mobileRowPadH(density),
+              vertical: _mobileRowPadV(density),
+            ),
+            itemCount: headers.length,
+            separatorBuilder: (_, __) => SizedBox(width: _mobileCardGap(density)),
+            itemBuilder: (ctx, col) {
             final label = _labelHeader(headers, col);
             final isActive = activeIsHeader && activeCol == col;
             return _buildCard(
@@ -328,7 +336,8 @@ class _MobileNotesGrid extends StatelessWidget {
                     )
                   : _buildCardText(label, isHeader: true),
             );
-          },
+            },
+          ),
         ),
       ),
     );
