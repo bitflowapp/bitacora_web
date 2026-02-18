@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -878,10 +879,12 @@ class _Footer extends StatelessWidget {
               'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            Text(
-              BuildInfo.stamp,
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (!kReleaseMode)
+              Text(
+                BuildInfo.stamp,
+                style:
+                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),
