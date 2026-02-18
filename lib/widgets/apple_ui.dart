@@ -270,10 +270,14 @@ class AppleToast {
             : Icons.check_circle_outline_rounded);
 
     final messenger = ScaffoldMessenger.of(context);
+    final mq = MediaQuery.maybeOf(context);
+    final bottomInset =
+        (mq?.viewPadding.bottom ?? 0) + (mq?.viewInsets.bottom ?? 0) + 80;
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(12, 0, 12, bottomInset.clamp(24, 180)),
         backgroundColor: bg,
         duration: duration,
         shape: RoundedRectangleBorder(
