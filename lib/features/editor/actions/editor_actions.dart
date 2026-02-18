@@ -61,7 +61,9 @@ extension _EditorActions on _EditorScreenState {
     )) {
       return;
     }
-    await _requestGpsForCell(_selRow, _selCol, forceWriteText: true);
+    final targetCol = _resolveQuickCaptureGpsColumn(_selCol)
+        .clamp(0, (_headers.length - 2).clamp(0, _headers.length - 1));
+    await _requestGpsForCell(_selRow, targetCol, forceWriteText: true);
   }
 
   Future<void> _runAudioForSelection() async {

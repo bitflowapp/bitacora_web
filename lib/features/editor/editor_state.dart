@@ -226,7 +226,7 @@ class _EditorScreenState extends State<EditorScreen>
   int? _rowSelectionAnchor;
 
   final Map<String, CellMeta> _cellMeta = <String, CellMeta>{};
-  _GpsWriteMode _gpsWriteMode = _GpsWriteMode.pasteActive;
+  _GpsWriteMode _gpsWriteMode = _GpsWriteMode.metadataOnly;
   _GpsFix? _pendingGpsFix;
   bool _gpsPickingTarget = false;
   bool _autoGpsBatchEnabled = false;
@@ -16230,7 +16230,7 @@ class _EditorScreenState extends State<EditorScreen>
       case 'metadataOnly':
         return _GpsWriteMode.metadataOnly;
       default:
-        return _GpsWriteMode.pasteActive;
+        return _GpsWriteMode.metadataOnly;
     }
   }
 

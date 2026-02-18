@@ -290,7 +290,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode && kShowBuildBadge;
+    final shouldShowBadge = !kReleaseMode && kShowBuildBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -815,26 +815,28 @@ class _BuildBadge extends StatelessWidget {
         ? (kDebugMode ? 'build dev' : 'build')
         : 'build ${kBuildBadgeId.trim()}';
 
-    return IgnorePointer(
-      child: SafeArea(
-        child: Align(
-          alignment: Alignment.topRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 10, top: 10),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withOpacity(0.74),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
-              ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.1,
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        child: SafeArea(
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 10, bottom: 10),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withOpacity(0.74),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+                ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
                   ),
                 ),
               ),
