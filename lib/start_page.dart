@@ -3136,7 +3136,7 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                 (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible…'
+                    ? 'Actualización disponible…'
                     : (_updateChecking
                         ? 'Buscando actualizaciones...'
                         : 'Buscar actualizaciones…'),
@@ -3935,7 +3935,7 @@ class _StartPageState extends State<StartPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Actualizacion disponible',
+                              'Actualización disponible',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontWeight: FontWeight.w800,

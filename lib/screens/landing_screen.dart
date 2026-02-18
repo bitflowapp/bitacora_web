@@ -59,7 +59,7 @@ class LandingScreen extends StatelessWidget {
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'Bitácora'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
@@ -154,7 +154,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bitácora',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -672,7 +672,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bitácora',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -815,7 +815,7 @@ class _FaqList extends StatelessWidget {
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
+          q: 'Qué pasa si se llena el almacenamiento?',
           a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
         ),
       ],
@@ -871,7 +871,7 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bitácora' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
@@ -888,7 +888,7 @@ class _Footer extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => context.go('/terms'),
-              child: const Text('Terminos'),
+              child: const Text('Términos'),
             ),
           ],
         ),
