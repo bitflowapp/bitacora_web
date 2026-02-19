@@ -996,6 +996,7 @@ class _StartPageState extends State<StartPage> {
           bool emphasized = false,
         }) {
           return InkWell(
+            key: ValueKey('create-sheet-choice-${value.name}'),
             onTap: () => Navigator.of(ctx).pop(value),
             borderRadius: BorderRadius.circular(16),
             child: Ink(
