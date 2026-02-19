@@ -7,7 +7,8 @@ class SpreadsheetTemplateCatalog {
     SpreadsheetTemplate(
       id: 'rendicion_gastos',
       name: 'Rendición de gastos / viáticos',
-      description: 'Caja chica, facturas y rendición mensual por centro de costo.',
+      description:
+          'Caja chica, facturas y rendición mensual por centro de costo.',
       duplicateKeyFields: <String>['comprobante'],
       vatRate: 0.21,
       netField: 'neto',

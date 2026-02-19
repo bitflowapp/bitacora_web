@@ -103,7 +103,8 @@ class SpreadsheetXlsxIngest {
     return out;
   }
 
-  List<List<String>> _parseSheetRows(String sheetXml, List<String> sharedStrings) {
+  List<List<String>> _parseSheetRows(
+      String sheetXml, List<String> sharedStrings) {
     final rows = <int, Map<int, String>>{};
     var maxCol = 0;
     var maxRow = 0;
@@ -129,10 +130,12 @@ class SpreadsheetXlsxIngest {
       final type = RegExp(r'\st="([^"]+)"').firstMatch(attrs)?.group(1) ?? '';
       var value = '';
       if (type == 'inlineStr') {
-        final inline = RegExp(r'<t[^>]*>([\s\S]*?)</t>').firstMatch(body)?.group(1) ?? '';
+        final inline =
+            RegExp(r'<t[^>]*>([\s\S]*?)</t>').firstMatch(body)?.group(1) ?? '';
         value = _decodeXmlText(inline);
       } else {
-        final raw = RegExp(r'<v>([\s\S]*?)</v>').firstMatch(body)?.group(1) ?? '';
+        final raw =
+            RegExp(r'<v>([\s\S]*?)</v>').firstMatch(body)?.group(1) ?? '';
         if (type == 's') {
           final idx = int.tryParse(raw.trim());
           if (idx != null && idx >= 0 && idx < sharedStrings.length) {

@@ -1,4 +1,4 @@
-﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
+import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,12 +47,17 @@ void main() {
         find.byKey(const ValueKey('mobileInlineEditorField')), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-grid-root')), findsOneWidget);
 
-    final panelSize = tester
-        .getSize(find.byKey(const ValueKey('mobile-inline-editor-panel')));
+    final panelFinder = find.ancestor(
+      of: find.byKey(const ValueKey('mobileInlineEditorField')),
+      matching: find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == 'GlassSurface',
+      ),
+    );
+    expect(panelFinder, findsOneWidget);
+    final panelSize = tester.getSize(panelFinder);
     final screenH =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
     expect(panelSize.height, lessThan(screenH * 0.6));
     expect(state.debugMobileEnsureVisibleCalls, greaterThan(beforeEnsureCalls));
   });
 }
-

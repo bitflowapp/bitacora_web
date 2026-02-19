@@ -90,7 +90,8 @@ class OutboxOp {
   static OutboxOp fromJson(Map<String, dynamic> json) {
     final id = (json['id'] ?? '').toString().trim();
     final createdAtRaw = (json['createdAt'] ?? '').toString();
-    final createdAt = DateTime.tryParse(createdAtRaw)?.toUtc() ?? DateTime.now().toUtc();
+    final createdAt =
+        DateTime.tryParse(createdAtRaw)?.toUtc() ?? DateTime.now().toUtc();
     final kind = (json['kind'] ?? '').toString().trim();
 
     final payloadRaw = json['payload'];
@@ -101,7 +102,8 @@ class OutboxOp {
         : <String, dynamic>{};
 
     final attempts = (json['attempts'] as num?)?.toInt() ?? 0;
-    final nextAttemptAt = DateTime.tryParse((json['nextAttemptAt'] ?? '').toString())?.toUtc();
+    final nextAttemptAt =
+        DateTime.tryParse((json['nextAttemptAt'] ?? '').toString())?.toUtc();
     final status = (json['status'] ?? '').toString().trim();
     final lastError = (json['lastError'] ?? '').toString().trim();
     final clientMutationId = (json['clientMutationId'] ?? '').toString().trim();
