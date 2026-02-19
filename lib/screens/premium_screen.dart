@@ -27,7 +27,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
       );
       return;
     }
-    final opened = await launchUrl(parsed, mode: LaunchMode.externalApplication);
+    final opened =
+        await launchUrl(parsed, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
       messenger.showSnackBar(
         const SnackBar(
@@ -114,8 +115,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
           final trialEndsAt = state.trialEndsAt?.toLocal();
           final statusText = state.premiumActive
               ? (state.isPremium
-                    ? 'Premium activo'
-                    : 'Te quedan ${state.remainingTrialDays} día(s) de prueba')
+                  ? 'Premium activo'
+                  : 'Te quedan ${state.remainingTrialDays} día(s) de prueba')
               : 'Prueba finalizada';
           final user = AuthService.I.currentUser;
 
@@ -253,8 +254,10 @@ class _SectionTitle extends StatelessWidget {
       text,
       style: Theme.of(
         context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 19),
+      )
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700, fontSize: 19),
     );
   }
 }
-

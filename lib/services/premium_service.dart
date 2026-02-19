@@ -52,8 +52,8 @@ class PremiumState {
     final DateTime? trialStartedAt =
         (data?['trialStartedAt'] as Timestamp?)?.toDate().toUtc();
     final String premiumSource = (data?['premiumSource'] as String?) ?? '';
-    final bool trialActive = trialEndsAt != null &&
-        DateTime.now().toUtc().isBefore(trialEndsAt);
+    final bool trialActive =
+        trialEndsAt != null && DateTime.now().toUtc().isBefore(trialEndsAt);
 
     return PremiumState(
       signedIn: signedIn,

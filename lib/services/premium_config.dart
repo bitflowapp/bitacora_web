@@ -32,4 +32,3 @@ class PremiumConfig {
   static String get transferCbu => mpTransferCbu.trim();
   static bool get hasTransferCbu => transferCbu.isNotEmpty;
 }
-

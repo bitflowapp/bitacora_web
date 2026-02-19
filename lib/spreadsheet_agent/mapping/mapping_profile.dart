@@ -31,10 +31,12 @@ class SpreadsheetMappingProfile {
     return SpreadsheetMappingProfile(
       templateId: (json['templateId'] ?? '').toString(),
       clientId: (json['clientId'] ?? '').toString(),
-      headerToField: ((json['headerToField'] as Map?) ?? const <String, String>{})
-          .map((k, v) => MapEntry(k.toString(), v.toString())),
-      defaultValues: ((json['defaultValues'] as Map?) ?? const <String, String>{})
-          .map((k, v) => MapEntry(k.toString(), v.toString())),
+      headerToField:
+          ((json['headerToField'] as Map?) ?? const <String, String>{})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
+      defaultValues:
+          ((json['defaultValues'] as Map?) ?? const <String, String>{})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
       updatedAt: DateTime.tryParse((json['updatedAt'] ?? '').toString()) ??
           DateTime.now(),
     );
@@ -71,7 +73,8 @@ class SpreadsheetMappingProfileStore {
   Future<void> save(SpreadsheetMappingProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      SpreadsheetMappingProfile.storageKey(profile.templateId, profile.clientId),
+      SpreadsheetMappingProfile.storageKey(
+          profile.templateId, profile.clientId),
       jsonEncode(profile.toJson()),
     );
   }

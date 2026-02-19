@@ -1,4 +1,4 @@
-﻿import 'package:bitacora_web/features/editor/editor_screen.dart';
+import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,4 +126,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-

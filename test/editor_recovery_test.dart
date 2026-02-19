@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:flutter/material.dart';
@@ -47,4 +47,3 @@ void main() {
     expect(state.debugCellText(0, 0), 'restored');
   });
 }
-

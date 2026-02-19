@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:bitacora_web/services/sheet_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,4 +94,3 @@ void main() {
     expect(listedIds, ['demo_1']);
   });
 }
-

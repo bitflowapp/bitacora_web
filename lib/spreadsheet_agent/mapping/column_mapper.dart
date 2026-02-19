@@ -37,7 +37,8 @@ class SpreadsheetColumnMapper {
 
     for (final header in sourceHeaders) {
       final profileCandidate = profileMap[header];
-      if (profileCandidate != null && availableFields.contains(profileCandidate)) {
+      if (profileCandidate != null &&
+          availableFields.contains(profileCandidate)) {
         out[header] = profileCandidate;
         continue;
       }

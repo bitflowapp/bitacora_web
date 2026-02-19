@@ -62,7 +62,8 @@ Future<({bool ok, String? id, String? error})> sendXlsxViaMailer({
       // el server devuelve {"error": "..."} en body
       String? msg;
       try {
-        msg = (jsonDecode(bodyText) as Map<String, dynamic>)['error']?.toString();
+        msg =
+            (jsonDecode(bodyText) as Map<String, dynamic>)['error']?.toString();
       } catch (_) {}
       return (ok: false, id: null, error: msg ?? 'HTTP ${r.statusCode}');
     }

@@ -159,7 +159,8 @@ class SpreadsheetValidator {
             SpreadsheetValidationIssue(
               row: rowNumber,
               field: vatField,
-              message: 'IVA fuera de tolerancia para alícuota ${(vatRate * 100).toStringAsFixed(0)}%',
+              message:
+                  'IVA fuera de tolerancia para alícuota ${(vatRate * 100).toStringAsFixed(0)}%',
               value: row[vatField],
               isWarning: true,
             ),
