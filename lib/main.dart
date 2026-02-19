@@ -488,11 +488,16 @@ class _AppHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget withOptionalAuth(Widget child) {
+      if (!firebaseOk) return child;
+      return AuthGate(child: child);
+    }
+
     final home = () {
       if (initialTemplate != null) {
         final template = initialTemplate!;
-        return AuthGate(
-          child: EditorScreen(
+        return withOptionalAuth(
+          EditorScreen(
             isLight: isLight,
             onToggleTheme: onToggleTheme,
             sheetId:
@@ -503,8 +508,8 @@ class _AppHome extends StatelessWidget {
           ),
         );
       }
-      return AuthGate(
-        child: StartPage(
+      return withOptionalAuth(
+        StartPage(
           isLight: isLight,
           onToggleTheme: onToggleTheme,
         ),
