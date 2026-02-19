@@ -955,6 +955,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
   const _MobileHeaderCollapsedPill({
     required this.palette,
     required this.title,
+    required this.controller,
     required this.selectedRow,
     required this.selectedCol,
     required this.onMenu,
@@ -962,6 +963,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
 
   final _SheetPalette palette;
   final String title;
+  final EditorController controller;
   final int selectedRow;
   final int selectedCol;
   final VoidCallback onMenu;
@@ -977,6 +979,32 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
     return out.toString().split('').reversed.join();
   }
 
+  String _statusLabel(EditorSaveState state) {
+    switch (state) {
+      case EditorSaveState.saving:
+        return 'Guardando';
+      case EditorSaveState.dirty:
+        return 'Sin guardar';
+      case EditorSaveState.saved:
+        return 'Guardado';
+      case EditorSaveState.idle:
+        return 'Listo';
+    }
+  }
+
+  IconData _statusIcon(EditorSaveState state) {
+    switch (state) {
+      case EditorSaveState.saving:
+        return Icons.sync_rounded;
+      case EditorSaveState.dirty:
+        return Icons.edit_rounded;
+      case EditorSaveState.saved:
+        return Icons.check_circle_outline_rounded;
+      case EditorSaveState.idle:
+        return Icons.check_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final safeTitle = title.trim().isEmpty ? 'Planilla' : title.trim();
@@ -984,61 +1012,100 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
         ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
         : '--';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: GlassSurface(
-          radius: 999,
-          blurSigma: palette.isLight ? 10 : 8,
-          backgroundColor: palette.headerCardBg
-              .withValues(alpha: palette.isLight ? 0.72 : 0.56),
-          borderColor: palette.headerCardBorder
-              .withValues(alpha: palette.isLight ? 0.5 : 0.84),
-          shadowColor:
-              Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
-          shadowBlur: 12,
-          shadowOffset: const Offset(0, 6),
-          padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 16,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: palette.fgMuted.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
-                child: Text(
-                  '$safeTitle | $activeCell',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fgMuted,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11.8,
+    return ValueListenableBuilder<EditorSaveSnapshot>(
+      valueListenable: controller.saveStatus,
+      builder: (context, snap, _) {
+        final statusLabel = _statusLabel(snap.state);
+        final statusIcon = _statusIcon(snap.state);
+        final statusFg = snap.state == EditorSaveState.dirty
+            ? palette.accent
+            : (snap.state == EditorSaveState.saving
+                ? palette.statusFg
+                : palette.fgMuted);
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: GlassSurface(
+              radius: 999,
+              blurSigma: palette.isLight ? 10 : 8,
+              backgroundColor: palette.headerCardBg
+                  .withValues(alpha: palette.isLight ? 0.72 : 0.56),
+              borderColor: palette.headerCardBorder
+                  .withValues(alpha: palette.isLight ? 0.5 : 0.84),
+              shadowColor:
+                  Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
+              shadowBlur: 12,
+              shadowOffset: const Offset(0, 6),
+              padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 16,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: palette.fgMuted.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
+                    child: Text(
+                      '$safeTitle | $activeCell',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: palette.hintBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                          color: palette.border, width: palette.hairline),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, size: 12.5, color: statusFg),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusFg,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  _MobilePanelIconButton(
+                    icon: Icons.more_horiz_rounded,
+                    tooltip: AppStrings.editorOptions,
+                    onTap: onMenu,
+                    palette: palette,
+                    iconSize: 18,
+                    splashRadius: 16,
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              _MobilePanelIconButton(
-                icon: Icons.more_horiz_rounded,
-                tooltip: AppStrings.editorOptions,
-                onTap: onMenu,
-                palette: palette,
-                iconSize: 18,
-                splashRadius: 16,
-                padding: const EdgeInsets.all(4),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

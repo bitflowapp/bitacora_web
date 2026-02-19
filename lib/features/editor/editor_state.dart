@@ -9069,6 +9069,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: _MobileHeaderCollapsedPill(
                                   palette: pal,
                                   title: _sheetName,
+                                  controller: _controller,
                                   selectedRow: _selRow,
                                   selectedCol: _selCol,
                                   onMenu: () =>

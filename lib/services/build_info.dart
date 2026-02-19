@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
+
 class BuildInfo {
   static const String gitSha =
       String.fromEnvironment('GIT_SHA', defaultValue: 'dev');
@@ -17,6 +19,7 @@ class BuildInfo {
   }
 
   static String get stamp {
+    if (kReleaseMode) return '';
     final ts = buildTime.trim();
     if (ts.isEmpty) return 'Build: $shortSha';
     return 'Build: $shortSha * $ts';

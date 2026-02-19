@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -67,8 +68,6 @@ class LandingScreen extends StatelessWidget {
                             _HeroSection(
                               config: config,
                               onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
-                              onEmail: () => _launchEmail(config),
                             ),
                             const SizedBox(height: 56),
                             SectionHeader(
@@ -108,7 +107,6 @@ class LandingScreen extends StatelessWidget {
                             const SizedBox(height: 52),
                             _CtaBand(
                               onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
                             ),
                             const SizedBox(height: 52),
                             SectionHeader(
@@ -182,7 +180,7 @@ class _TopNav extends StatelessWidget {
       ),
       actions: [
         AppButton(
-          label: 'Probar ahora',
+          label: 'Entrar',
           variant: AppButtonVariant.primary,
           onPressed: () => context.go('/app'),
         ),
@@ -200,14 +198,10 @@ class _HeroSection extends StatelessWidget {
   const _HeroSection({
     required this.config,
     required this.onPrimary,
-    required this.onWhatsApp,
-    required this.onEmail,
   });
 
   final AppConfig config;
   final VoidCallback onPrimary;
-  final VoidCallback onWhatsApp;
-  final VoidCallback onEmail;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +219,7 @@ class _HeroSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
+                    'Controla tu operación en una sola hoja',
                     style: t.text.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -235,7 +229,7 @@ class _HeroSection extends StatelessWidget {
                   Text(
                     config.brandTagline.isNotEmpty
                         ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
+                        : 'Registra tareas, evidencia y exporta resultados sin perder tiempo.',
                     style: t.text.bodyLarge?.copyWith(
                       color: t.colors.textSecondary,
                       height: 1.5,
@@ -247,32 +241,24 @@ class _HeroSection extends StatelessWidget {
                     runSpacing: 12,
                     children: [
                       AppButton(
-                        label: 'Probar ahora',
+                        label: 'Entrar',
                         variant: AppButtonVariant.primary,
                         onPressed: onPrimary,
                       ),
                       AppButton(
-                        label: 'WhatsApp',
+                        label: 'Crear cuenta',
                         variant: AppButtonVariant.secondary,
-                        onPressed: onWhatsApp,
-                      ),
-                      AppButton(
-                        label: 'Email',
-                        variant: AppButtonVariant.ghost,
-                        onPressed: onEmail,
+                        onPressed: onPrimary,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
-                      _Tag('Reporte imprimible'),
-                      _Tag('Sin servidores'),
-                    ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'Sin conexión | Evidencias por celda | Exportación inmediata',
+                    style: t.text.bodyMedium?.copyWith(
+                      color: t.colors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -734,11 +720,9 @@ class _PriceCard extends StatelessWidget {
 class _CtaBand extends StatelessWidget {
   const _CtaBand({
     required this.onPrimary,
-    required this.onWhatsApp,
   });
 
   final VoidCallback onPrimary;
-  final VoidCallback onWhatsApp;
 
   @override
   Widget build(BuildContext context) {
@@ -778,14 +762,9 @@ class _CtaBand extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   AppButton(
-                    label: 'Probar ahora',
+                    label: 'Entrar',
                     variant: AppButtonVariant.primary,
                     onPressed: onPrimary,
-                  ),
-                  AppButton(
-                    label: 'WhatsApp',
-                    variant: AppButtonVariant.secondary,
-                    onPressed: onWhatsApp,
                   ),
                 ],
               ),
@@ -878,10 +857,12 @@ class _Footer extends StatelessWidget {
               'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            Text(
-              BuildInfo.stamp,
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (!kReleaseMode)
+              Text(
+                BuildInfo.stamp,
+                style:
+                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),

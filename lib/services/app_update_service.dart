@@ -76,7 +76,7 @@ class AppUpdateService {
         remoteVersion: '',
         remoteBuildId: '',
         updateAvailable: false,
-        message: 'Sin conexion. No se pudo verificar actualizaciones.',
+        message: 'Sin conexión. No se pudo verificar actualizaciones.',
       );
     }
 
@@ -141,7 +141,7 @@ class AppUpdateService {
             remoteBuildId: remoteBuildId,
             updateAvailable: updateAvailable,
             message: updateAvailable
-                ? 'Actualizacion disponible.'
+                ? 'Actualización disponible.'
                 : 'Sin actualizaciones.',
           );
         } on TimeoutException catch (error) {
@@ -153,10 +153,10 @@ class AppUpdateService {
 
       final offlineDetected = _isOfflineError(lastError);
       final failureMessage = offlineDetected
-          ? 'Sin conexion. No se pudo verificar actualizaciones.'
+          ? 'Sin conexión. No se pudo verificar actualizaciones.'
           : (lastStatusCode != null
               ? 'No se pudo verificar actualizaciones (HTTP $lastStatusCode).'
-              : 'No se pudo consultar version remota.');
+              : 'No se pudo consultar versión remota.');
 
       return AppUpdateSnapshot(
         requestOk: false,
@@ -181,7 +181,7 @@ class AppUpdateService {
         remoteVersion: '',
         remoteBuildId: '',
         updateAvailable: false,
-        message: 'Sin conexion. No se pudo verificar actualizaciones.',
+        message: 'Sin conexión. No se pudo verificar actualizaciones.',
       );
     } catch (error) {
       return AppUpdateSnapshot(
@@ -195,8 +195,8 @@ class AppUpdateService {
         remoteBuildId: '',
         updateAvailable: false,
         message: _isOfflineError(error)
-            ? 'Sin conexion. No se pudo verificar actualizaciones.'
-            : 'No se pudo consultar version remota.',
+            ? 'Sin conexión. No se pudo verificar actualizaciones.'
+            : 'No se pudo consultar versión remota.',
       );
     } finally {
       if (_client == null) {

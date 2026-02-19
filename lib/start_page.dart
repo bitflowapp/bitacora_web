@@ -31,6 +31,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kReleaseMode,
         defaultTargetPlatform,
         TargetPlatform,
         debugPrint,
@@ -93,6 +94,11 @@ import 'screens/premium_screen.dart';
 import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
+
+const bool kShowBuildBadge = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: true,
+);
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -3058,7 +3064,7 @@ class _StartPageState extends State<StartPage> {
       final result = await ForceUpdateService.I.forceUpdate();
       if (!mounted) return;
       _toast(result.message.trim().isEmpty
-          ? 'Recargando version nueva...'
+          ? 'Recargando versión nueva...'
           : result.message);
       return;
     }
@@ -3136,7 +3142,7 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                 (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible…'
+                    ? 'Actualización disponible…'
                     : (_updateChecking
                         ? 'Buscando actualizaciones...'
                         : 'Buscar actualizaciones…'),
@@ -3567,10 +3573,12 @@ class _StartPageState extends State<StartPage> {
 
     _toastEntry = OverlayEntry(
       builder: (_) {
+        final mq = MediaQuery.of(context);
+        final bottomInset = mq.viewPadding.bottom + mq.viewInsets.bottom + 16;
         return Positioned(
           left: 16,
           right: 16,
-          bottom: 24,
+          bottom: bottomInset,
           child: _AppleToast(
             message: msg,
             isLight: isLight,
@@ -3801,6 +3809,9 @@ class _StartPageState extends State<StartPage> {
     final mq = MediaQuery.of(context);
     final bottomPad = mq.padding.bottom;
     final buildStamp = _buildStamp;
+    final sheetIndexById = <String, int>{
+      for (int i = 0; i < data.length; i++) data[i].id: i,
+    };
 
     return CupertinoPageScaffold(
       backgroundColor: colors.bg,
@@ -3935,7 +3946,7 @@ class _StartPageState extends State<StartPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Actualizacion disponible',
+                              'Actualización disponible',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontWeight: FontWeight.w800,
@@ -3945,8 +3956,8 @@ class _StartPageState extends State<StartPage> {
                             const SizedBox(height: 6),
                             Text(
                               _updateSnapshot!.remoteVersion.trim().isEmpty
-                                  ? 'Hay una nueva version lista para instalar.'
-                                  : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
+                                  ? 'Hay una nueva versión lista para instalar.'
+                                  : 'Nueva versión: ${_updateSnapshot!.remoteVersion.trim()}',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
@@ -4208,6 +4219,7 @@ class _StartPageState extends State<StartPage> {
                               (ctx, i) {
                                 final m = data[i];
                                 return _AppleSheetGridCard(
+                                  key: ValueKey('sheet_${m.id}'),
                                   colors: colors,
                                   meta: m,
                                   note: (_sheetNotes[m.id] ?? '').trim(),
@@ -4232,6 +4244,14 @@ class _StartPageState extends State<StartPage> {
                                     .fadeIn(duration: 200.ms, delay: 30.ms);
                               },
                               childCount: data.length,
+                              findChildIndexCallback: (key) {
+                                if (key is! ValueKey<String>) return null;
+                                final value = key.value;
+                                final id = value.startsWith('sheet_')
+                                    ? value.substring(6)
+                                    : value;
+                                return sheetIndexById[id];
+                              },
                             ),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
@@ -4245,30 +4265,32 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (!kReleaseMode && kShowBuildBadge)
+              Positioned(
+                left: 16,
+                top: 14,
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)
@@ -5625,6 +5647,7 @@ class _AppleSheetRow extends StatelessWidget {
 
 class _AppleSheetGridCard extends StatelessWidget {
   const _AppleSheetGridCard({
+    super.key,
     required this.colors,
     required this.meta,
     required this.note,

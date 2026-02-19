@@ -155,7 +155,15 @@ class _AboutScreenState extends State<AboutScreen> {
     if (!mounted) return;
     final text = message.trim();
     if (text.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    final mq = MediaQuery.of(context);
+    final bottom = mq.viewPadding.bottom + mq.viewInsets.bottom + 16;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(12, 0, 12, bottom),
+      ),
+    );
   }
 
   @override
@@ -199,8 +207,10 @@ class _AboutScreenState extends State<AboutScreen> {
                   _InfoRow(label: 'Build', value: localBuild),
                   const SizedBox(height: 10),
                   _InfoRow(label: 'BuildId', value: localBuildId),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
+                  if (!kReleaseMode) ...[
+                    const SizedBox(height: 10),
+                    _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
+                  ],
                   const SizedBox(height: 10),
                   _InfoRow(
                     label: 'Hoja',
@@ -285,7 +295,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   const SizedBox(height: 10),
                   Text(
                     updateAvailable
-                        ? 'Actualizacion disponible.'
+                        ? 'Actualización disponible.'
                         : 'Sin actualizaciones pendientes.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(

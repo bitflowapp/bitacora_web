@@ -290,7 +290,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode && kShowBuildBadge;
+    final shouldShowBadge = !kReleaseMode && kShowBuildBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -803,6 +803,9 @@ class _BuildBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (kReleaseMode) {
+      return const SizedBox.shrink();
+    }
     final mq = MediaQuery.maybeOf(context);
     final shortestSide = mq?.size.shortestSide ?? 1024;
     final hideOnCompactUi = shortestSide < 700;
@@ -816,6 +819,7 @@ class _BuildBadge extends StatelessWidget {
         : 'build ${kBuildBadgeId.trim()}';
 
     return IgnorePointer(
+      ignoring: true,
       child: SafeArea(
         child: Align(
           alignment: Alignment.topRight,
