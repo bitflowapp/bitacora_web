@@ -235,324 +235,337 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Agente de Planillas (MVP)'),
+        title: const Text('Agente de planillas'),
       ),
-      body: AbsorbPointer(
-        absorbing: _busy,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '1) Plantilla + cliente',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _templateId,
-                      decoration: const InputDecoration(labelText: 'Plantilla'),
-                      items: _agent.templates
-                          .map(
-                            (template) => DropdownMenuItem<String>(
-                              value: template.id,
-                              child: Text(template.name),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null || value == _templateId) return;
-                        setState(() {
-                          _templateId = value;
-                          _headerToField = <String, String>{};
-                        });
-                        _loadProfileAndAudit();
-                        _runValidation();
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _clientController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cliente / preset',
-                        hintText: 'ej: cliente_acme',
-                      ),
-                      onSubmitted: (_) => _loadProfileAndAudit(),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _template.description,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '2) Importar o pegar',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        ElevatedButton.icon(
-                          onPressed: _pickFile,
-                          icon: const Icon(Icons.upload_file_outlined),
-                          label: const Text('Importar CSV/XLSX'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _ingestPaste,
-                          icon: const Icon(Icons.content_paste_go_outlined),
-                          label: const Text('Procesar pegado'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _pasteController,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText:
-                            'Pegá acá tabla copiada de mail/WhatsApp/Excel',
-                      ),
-                    ),
-                    if (ingest != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Fuente: ${ingest.sourceLabel}  •  Encabezados: ${ingest.headers.length}  •  Filas: ${ingest.rows.length}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (ingest != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        '3) Mapear columnas + defaults',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      ...ingest.headers.map((header) {
-                        final current = _headerToField[header];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  header,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: current,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Campo destino',
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 980),
+            child: AbsorbPointer(
+              absorbing: _busy,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            '1) Plantilla + cliente',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _templateId,
+                            decoration:
+                                const InputDecoration(labelText: 'Plantilla'),
+                            items: _agent.templates
+                                .map(
+                                  (template) => DropdownMenuItem<String>(
+                                    value: template.id,
+                                    child: Text(template.name),
                                   ),
-                                  items: <DropdownMenuItem<String>>[
-                                    const DropdownMenuItem<String>(
-                                      value: '',
-                                      child: Text('Ignorar'),
-                                    ),
-                                    ..._template.fields.map(
-                                      (field) => DropdownMenuItem<String>(
-                                        value: field.key,
-                                        child: Text(field.label),
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      final clean = (value ?? '').trim();
-                                      if (clean.isEmpty) {
-                                        _headerToField.remove(header);
-                                      } else {
-                                        _headerToField[header] = clean;
-                                      }
-                                    });
-                                    _runValidation();
-                                  },
-                                ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (value) {
+                              if (value == null || value == _templateId) return;
+                              setState(() {
+                                _templateId = value;
+                                _headerToField = <String, String>{};
+                              });
+                              _loadProfileAndAudit();
+                              _runValidation();
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _clientController,
+                            decoration: const InputDecoration(
+                              labelText: 'Cliente / preset',
+                              hintText: 'ej: cliente_acme',
+                            ),
+                            onSubmitted: (_) => _loadProfileAndAudit(),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _template.description,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            '2) Importar o pegar',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              ElevatedButton.icon(
+                                onPressed: _pickFile,
+                                icon: const Icon(Icons.upload_file_outlined),
+                                label: const Text('Importar CSV/XLSX'),
+                              ),
+                              FilledButton.icon(
+                                onPressed: _ingestPaste,
+                                icon:
+                                    const Icon(Icons.content_paste_go_outlined),
+                                label: const Text('Procesar pegado'),
                               ),
                             ],
                           ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultCentroController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default centro_costo',
-                        ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultProveedorController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default proveedor',
-                        ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultObraController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default obra',
-                        ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          FilledButton.tonalIcon(
-                            onPressed: _runValidation,
-                            icon: const Icon(Icons.rule_folder_outlined),
-                            label: const Text('Validar'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _saveProfile,
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Guardar preset local'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (report != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        '4) Resultado validación: ${report.errorCount} errores, ${report.warningCount} warnings',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      if (report.issues.isEmpty)
-                        const Text('Sin observaciones. Listo para exportar.'),
-                      ...report.issues.take(12).map(
-                            (issue) => Text(
-                              'Fila ${issue.row} • ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
-                              style: TextStyle(
-                                color: issue.isWarning
-                                    ? Colors.orange.shade700
-                                    : Colors.red.shade700,
-                                fontSize: 12,
-                              ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _pasteController,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText:
+                                  'Pegá acá tabla copiada de mail/WhatsApp/Excel',
                             ),
                           ),
-                    ],
-                  ),
-                ),
-              ),
-            if (_mappedRows.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        '5) Preview + export',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Filas transformadas: ${_mappedRows.length}'),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columns: _template.fields
-                              .map(
-                                (f) => DataColumn(label: Text(f.label)),
-                              )
-                              .toList(growable: false),
-                          rows: _mappedRows.take(12).map((row) {
-                            return DataRow(
-                              cells: _template.fields
-                                  .map(
-                                    (f) => DataCell(Text(row[f.key] ?? '')),
-                                  )
-                                  .toList(growable: false),
-                            );
-                          }).toList(growable: false),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          ElevatedButton.icon(
-                            onPressed: _exportXlsx,
-                            icon: const Icon(Icons.grid_on_outlined),
-                            label: const Text('Exportar XLSX'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _exportPdf,
-                            icon: const Icon(Icons.picture_as_pdf_outlined),
-                            label: const Text('Exportar PDF'),
-                          ),
+                          if (ingest != null) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Fuente: ${ingest.sourceLabel}  •  Encabezados: ${ingest.headers.length}  •  Filas: ${ingest.rows.length}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            if (_auditEntries.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Audit log local',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._auditEntries.map(
-                        (entry) => Text(
-                          '${entry.at.toLocal()} • ${entry.action} • ${entry.templateId}/${entry.clientId} • ${entry.detail}',
-                          style: Theme.of(context).textTheme.bodySmall,
+                  if (ingest != null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              '3) Mapear columnas + defaults',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            ...ingest.headers.map((header) {
+                              final current = _headerToField[header];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        header,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: current,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Campo destino',
+                                        ),
+                                        items: <DropdownMenuItem<String>>[
+                                          const DropdownMenuItem<String>(
+                                            value: '',
+                                            child: Text('Ignorar'),
+                                          ),
+                                          ..._template.fields.map(
+                                            (field) => DropdownMenuItem<String>(
+                                              value: field.key,
+                                              child: Text(field.label),
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            final clean = (value ?? '').trim();
+                                            if (clean.isEmpty) {
+                                              _headerToField.remove(header);
+                                            } else {
+                                              _headerToField[header] = clean;
+                                            }
+                                          });
+                                          _runValidation();
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _defaultCentroController,
+                              decoration: const InputDecoration(
+                                labelText: 'Default centro_costo',
+                              ),
+                              onChanged: (_) => _runValidation(),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _defaultProveedorController,
+                              decoration: const InputDecoration(
+                                labelText: 'Default proveedor',
+                              ),
+                              onChanged: (_) => _runValidation(),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _defaultObraController,
+                              decoration: const InputDecoration(
+                                labelText: 'Default obra',
+                              ),
+                              onChanged: (_) => _runValidation(),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                FilledButton.tonalIcon(
+                                  onPressed: _runValidation,
+                                  icon: const Icon(Icons.rule_folder_outlined),
+                                  label: const Text('Validar'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _saveProfile,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Guardar preset local'),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  if (report != null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              '4) Resultado validación: ${report.errorCount} errores, ${report.warningCount} advertencias',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            if (report.issues.isEmpty)
+                              const Text(
+                                  'Sin observaciones. Listo para exportar.'),
+                            ...report.issues.take(12).map(
+                                  (issue) => Text(
+                                    'Fila ${issue.row} • ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
+                                    style: TextStyle(
+                                      color: issue.isWarning
+                                          ? Colors.orange.shade700
+                                          : Colors.red.shade700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_mappedRows.isNotEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              '5) Preview + export',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Filas transformadas: ${_mappedRows.length}'),
+                            const SizedBox(height: 8),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: _template.fields
+                                    .map(
+                                      (f) => DataColumn(label: Text(f.label)),
+                                    )
+                                    .toList(growable: false),
+                                rows: _mappedRows.take(12).map((row) {
+                                  return DataRow(
+                                    cells: _template.fields
+                                        .map(
+                                          (f) =>
+                                              DataCell(Text(row[f.key] ?? '')),
+                                        )
+                                        .toList(growable: false),
+                                  );
+                                }).toList(growable: false),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                ElevatedButton.icon(
+                                  onPressed: _exportXlsx,
+                                  icon: const Icon(Icons.grid_on_outlined),
+                                  label: const Text('Exportar XLSX'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _exportPdf,
+                                  icon:
+                                      const Icon(Icons.picture_as_pdf_outlined),
+                                  label: const Text('Exportar PDF'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_auditEntries.isNotEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              'Historial local',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            ..._auditEntries.map(
+                              (entry) => Text(
+                                '${entry.at.toLocal()} • ${entry.action} • ${entry.templateId}/${entry.clientId} • ${entry.detail}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_busy) const LinearProgressIndicator(),
+                ],
               ),
-            if (_busy) const LinearProgressIndicator(),
-          ],
+            ),
+          ),
         ),
       ),
     );
