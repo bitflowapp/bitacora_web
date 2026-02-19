@@ -1533,10 +1533,12 @@ class _StartPageState extends State<StartPage> {
 
     _toastEntry = OverlayEntry(
       builder: (_) {
+        final mq = MediaQuery.of(context);
+        final bottomInset = mq.viewPadding.bottom + mq.viewInsets.bottom + 16;
         return Positioned(
           left: 16,
           right: 16,
-          bottom: 24,
+          bottom: bottomInset,
           child: _AppleToast(
             message: msg,
             isLight: isLight,

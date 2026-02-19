@@ -3064,7 +3064,7 @@ class _StartPageState extends State<StartPage> {
       final result = await ForceUpdateService.I.forceUpdate();
       if (!mounted) return;
       _toast(result.message.trim().isEmpty
-          ? 'Recargando version nueva...'
+          ? 'Recargando versión nueva...'
           : result.message);
       return;
     }
@@ -3142,7 +3142,7 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                 (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible…'
+                    ? 'Actualización disponible…'
                     : (_updateChecking
                         ? 'Buscando actualizaciones...'
                         : 'Buscar actualizaciones…'),
@@ -3573,10 +3573,12 @@ class _StartPageState extends State<StartPage> {
 
     _toastEntry = OverlayEntry(
       builder: (_) {
+        final mq = MediaQuery.of(context);
+        final bottomInset = mq.viewPadding.bottom + mq.viewInsets.bottom + 16;
         return Positioned(
           left: 16,
           right: 16,
-          bottom: 24,
+          bottom: bottomInset,
           child: _AppleToast(
             message: msg,
             isLight: isLight,
@@ -3944,7 +3946,7 @@ class _StartPageState extends State<StartPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Actualizacion disponible',
+                              'Actualización disponible',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontWeight: FontWeight.w800,
@@ -3954,8 +3956,8 @@ class _StartPageState extends State<StartPage> {
                             const SizedBox(height: 6),
                             Text(
                               _updateSnapshot!.remoteVersion.trim().isEmpty
-                                  ? 'Hay una nueva version lista para instalar.'
-                                  : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
+                                  ? 'Hay una nueva versión lista para instalar.'
+                                  : 'Nueva versión: ${_updateSnapshot!.remoteVersion.trim()}',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
