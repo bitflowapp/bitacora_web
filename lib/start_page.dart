@@ -67,6 +67,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'config/feature_flags.dart';
 import 'core/app_error.dart';
 import 'ui/ui.dart';
 import 'workers/json_worker.dart';
@@ -3227,14 +3228,15 @@ class _StartPageState extends State<StartPage> {
               child: Text(
                   _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                await _signOutCurrentUser();
-              },
-              isDestructiveAction: true,
-              child: const Text('Cerrar sesión'),
-            ),
+            if (kAuthEnabled)
+              CupertinoActionSheetAction(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await _signOutCurrentUser();
+                },
+                isDestructiveAction: true,
+                child: const Text('Cerrar sesión'),
+              ),
           ],
           cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -3838,13 +3840,14 @@ class _StartPageState extends State<StartPage> {
                         onPressed: widget.onToggleTheme,
                       ),
                       actions: [
-                        AppButton(
-                          label: 'Cerrar sesión',
-                          icon: CupertinoIcons.escape,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: _signOutCurrentUser,
-                        ),
+                        if (kAuthEnabled)
+                          AppButton(
+                            label: 'Cerrar sesión',
+                            icon: CupertinoIcons.escape,
+                            variant: AppButtonVariant.ghost,
+                            size: AppButtonSize.sm,
+                            onPressed: _signOutCurrentUser,
+                          ),
                         AppButton(
                           label: 'Buscar',
                           icon: CupertinoIcons.search,
