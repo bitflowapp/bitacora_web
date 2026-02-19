@@ -13,8 +13,7 @@ permissions:
 
 env:
   FLUTTER_VERSION: 3.35.6
-  # Override from repo/org variable BASE_HREF when needed (for user pages use "/").
-  BASE_HREF: ${{ vars.BASE_HREF || '/bitacora_web/' }}
+  BASE_HREF: /bitacora_web/
 
 jobs:
   build:
