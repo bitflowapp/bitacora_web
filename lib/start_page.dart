@@ -3230,7 +3230,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
-                await AuthService.I.signOut();
+                await _signOutCurrentUser();
               },
               isDestructiveAction: true,
               child: const Text('Cerrar sesión'),
@@ -3244,6 +3244,14 @@ class _StartPageState extends State<StartPage> {
         );
       },
     );
+  }
+
+  Future<void> _signOutCurrentUser() async {
+    try {
+      await AuthService.I.signOut();
+    } catch (e) {
+      _toast('No se pudo cerrar sesión: $e');
+    }
   }
 
   Future<void> _openSortSheet() async {
@@ -3830,6 +3838,13 @@ class _StartPageState extends State<StartPage> {
                         onPressed: widget.onToggleTheme,
                       ),
                       actions: [
+                        AppButton(
+                          label: 'Cerrar sesión',
+                          icon: CupertinoIcons.escape,
+                          variant: AppButtonVariant.ghost,
+                          size: AppButtonSize.sm,
+                          onPressed: _signOutCurrentUser,
+                        ),
                         AppButton(
                           label: 'Buscar',
                           icon: CupertinoIcons.search,

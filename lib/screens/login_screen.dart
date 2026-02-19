@@ -75,12 +75,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final cred = await AuthService.I.signInWithGoogle();
-      final email = (cred.user?.email ?? '').trim();
+      await AuthService.I.signInWithGoogle();
+      final email = (AuthService.I.currentUser?.email ?? '').trim();
       if (email.isNotEmpty) {
         await _saveLastLoginMetadata(email);
       }
-      if (!_bioEnabled && _biometricAvailable) {
+      if (AuthService.I.currentUser != null &&
+          !_bioEnabled &&
+          _biometricAvailable) {
         await _offerEnableBiometrics();
       }
     } on FirebaseAuthException catch (e) {

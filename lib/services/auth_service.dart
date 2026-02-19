@@ -108,14 +108,26 @@ class AuthService {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  Future<UserCredential> signInWithGoogle() async {
+  Future<void> signInWithGoogle() async {
     lastError.value = '';
     try {
       if (kIsWeb) {
         final provider = GoogleAuthProvider()
           ..addScope('email')
           ..addScope('profile');
-        return _auth.signInWithPopup(provider);
+        try {
+          await _auth.signInWithPopup(provider);
+          return;
+        } on FirebaseAuthException catch (e) {
+          final code = e.code.toLowerCase();
+          final shouldFallbackToRedirect = code.contains('popup-blocked') ||
+              code.contains('popup-closed-by-user');
+          if (!shouldFallbackToRedirect) {
+            rethrow;
+          }
+          await _auth.signInWithRedirect(provider);
+          return;
+        }
       }
 
       await _ensureGoogleInit();
@@ -131,7 +143,7 @@ class AuthService {
       }
 
       final credential = GoogleAuthProvider.credential(idToken: idToken);
-      return _auth.signInWithCredential(credential);
+      await _auth.signInWithCredential(credential);
     } catch (e) {
       lastError.value = 'Google sign-in error: $e';
       rethrow;
