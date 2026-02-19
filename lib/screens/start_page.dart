@@ -28,7 +28,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show kIsWeb, kReleaseMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart'
     show Colors, Border, BorderRadius, BoxDecoration, BoxShadow, Offset;
 import 'package:flutter_animate/flutter_animate.dart';
@@ -44,6 +44,11 @@ import 'about_screen.dart';
 import 'editor_screen.dart';
 import 'privacy_screen.dart';
 import 'terms_screen.dart';
+
+const bool kShowBuildBadge = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: true,
+);
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -2054,30 +2059,32 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (!kReleaseMode && kShowBuildBadge)
+              Positioned(
+                left: 16,
+                top: 14,
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_tab == _HomeTab.sheets)

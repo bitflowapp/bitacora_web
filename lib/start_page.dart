@@ -95,6 +95,11 @@ import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
 
+const bool kShowBuildBadge = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: true,
+);
+
 class StartPage extends StatefulWidget {
   const StartPage({
     super.key,
@@ -4258,10 +4263,10 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            if (!kReleaseMode)
+            if (!kReleaseMode && kShowBuildBadge)
               Positioned(
                 left: 16,
-                bottom: 14 + bottomPad,
+                top: 14,
                 child: IgnorePointer(
                   ignoring: true,
                   child: Container(
