@@ -106,7 +106,6 @@ class LandingScreen extends StatelessWidget {
                             const SizedBox(height: 52),
                             _CtaBand(
                               onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
                             ),
                             const SizedBox(height: 52),
                             SectionHeader(
@@ -720,11 +719,9 @@ class _PriceCard extends StatelessWidget {
 class _CtaBand extends StatelessWidget {
   const _CtaBand({
     required this.onPrimary,
-    required this.onWhatsApp,
   });
 
   final VoidCallback onPrimary;
-  final VoidCallback onWhatsApp;
 
   @override
   Widget build(BuildContext context) {
@@ -764,14 +761,9 @@ class _CtaBand extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   AppButton(
-                    label: 'Probar ahora',
+                    label: 'Entrar',
                     variant: AppButtonVariant.primary,
                     onPressed: onPrimary,
-                  ),
-                  AppButton(
-                    label: 'WhatsApp',
-                    variant: AppButtonVariant.secondary,
-                    onPressed: onWhatsApp,
                   ),
                 ],
               ),
