@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'premium_config.dart';
 
@@ -48,8 +49,10 @@ class AuthService {
       StreamController<AuthUser?>.broadcast();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   StreamSubscription<User?>? _authSub;
   Future<void>? _initFuture;
+  bool _googleInitDone = false;
 
   Stream<AuthUser?> get userChanges => _userCtrl.stream;
   AuthUser? get currentUser => user.value;
@@ -64,6 +67,7 @@ class AuthService {
   Future<void> _initImpl() async {
     lastError.value = '';
     try {
+      await _ensureWebPersistence();
       final current = _auth.currentUser;
       user.value = current == null ? null : AuthUser.fromFirebase(current);
       if (!_userCtrl.isClosed) {
@@ -81,12 +85,69 @@ class AuthService {
     }
   }
 
+  Future<void> _ensureWebPersistence() async {
+    if (!kIsWeb) return;
+    try {
+      await _auth.setPersistence(Persistence.LOCAL);
+    } catch (_) {
+      // Keep default persistence if explicit setup is not available.
+    }
+  }
+
+  Future<void> _ensureGoogleInit() async {
+    if (_googleInitDone || kIsWeb) return;
+    await _googleSignIn.initialize();
+    _googleInitDone = true;
+  }
+
   Future<UserCredential> signInWithEmail({
     required String email,
     required String password,
   }) async {
     lastError.value = '';
     return _auth.signInWithEmailAndPassword(email: email, password: password);
+  }
+
+  Future<void> signInWithGoogle() async {
+    lastError.value = '';
+    try {
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider()
+          ..addScope('email')
+          ..addScope('profile');
+        try {
+          await _auth.signInWithPopup(provider);
+          return;
+        } on FirebaseAuthException catch (e) {
+          final code = e.code.toLowerCase();
+          final shouldFallbackToRedirect = code.contains('popup-blocked') ||
+              code.contains('popup-closed-by-user');
+          if (!shouldFallbackToRedirect) {
+            rethrow;
+          }
+          await _auth.signInWithRedirect(provider);
+          return;
+        }
+      }
+
+      await _ensureGoogleInit();
+      final googleUser = await _googleSignIn.authenticate(
+        scopeHint: const ['email', 'profile'],
+      );
+      final idToken = googleUser.authentication.idToken;
+      if (idToken == null || idToken.trim().isEmpty) {
+        throw FirebaseAuthException(
+          code: 'missing-google-id-token',
+          message: 'No se recibio un token valido de Google.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      await _auth.signInWithCredential(credential);
+    } catch (e) {
+      lastError.value = 'Google sign-in error: $e';
+      rethrow;
+    }
   }
 
   Future<UserCredential> createAccountWithEmail({
@@ -129,6 +190,13 @@ class AuthService {
 
   Future<void> signOut() async {
     lastError.value = '';
+    if (!kIsWeb) {
+      try {
+        if (_googleInitDone) {
+          await _googleSignIn.signOut();
+        }
+      } catch (_) {}
+    }
     await _auth.signOut();
   }
 
