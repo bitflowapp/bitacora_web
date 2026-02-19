@@ -3655,7 +3655,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!restored) {
         if (!mounted) return;
         _showActionSnack(
-          'No se pudo restaurar la sesion previa.',
+          'No se pudo restaurar la sesi\u00f3n previa.',
           isError: true,
           icon: Icons.history_toggle_off_rounded,
         );
@@ -7288,7 +7288,7 @@ class _EditorScreenState extends State<EditorScreen>
   String? _resolveOfflineStatusMessage(OfflineSyncState state) {
     switch (state) {
       case OfflineSyncState.offline:
-        return 'Sin conexion';
+        return 'Sin conexi\u00f3n';
       case OfflineSyncState.pending:
         return _pendingOfflineCount > 0
             ? 'Pendientes: $_pendingOfflineCount'
@@ -7722,7 +7722,7 @@ class _EditorScreenState extends State<EditorScreen>
       case 'save_failed':
         return 'No se pudo guardar localmente';
       case 'network_offline':
-        return 'Sin conexion';
+        return 'Sin conexi\u00f3n';
       default:
         return value;
     }
@@ -9121,7 +9121,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Se detecto una sesion previa sin flush completo. Puedes restaurar el estado local anterior.',
+                                  'Se detect\u00f3 una sesi\u00f3n previa sin flush completo. Puedes restaurar el estado local anterior.',
                               icon: Icons.history_rounded,
                               actionLabel: 'Restaurar',
                               onAction: () =>
@@ -10206,7 +10206,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 _MobileFabAction(
                                   key: const ValueKey('mobile-fab-action-undo'),
                                   icon: Icons.undo_rounded,
-                                  label: 'Undo',
+                                  label: 'Deshacer',
                                   onTap: _undoOnce,
                                 ),
                                 _MobileFabAction(
