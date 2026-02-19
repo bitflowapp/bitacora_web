@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 
+import 'config/feature_flags.dart';
 import 'firebase_options.dart';
 import 'core/sync/sync_bootstrap.dart';
 import 'screens/auth_gate.dart';
@@ -467,6 +468,13 @@ Widget buildRootPageForUri({
       initialTemplate: template,
     );
   }
+  if (!kAuthEnabled) {
+    return _AppHome(
+      isLight: isLight,
+      onToggleTheme: onToggleTheme,
+      firebaseOk: firebaseOk,
+    );
+  }
   return LandingScreen(
     isLight: isLight,
     onToggleTheme: onToggleTheme,
@@ -489,6 +497,7 @@ class _AppHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget withOptionalAuth(Widget child) {
+      if (!kAuthEnabled) return child;
       if (!firebaseOk) return child;
       return AuthGate(child: child);
     }
@@ -523,7 +532,7 @@ class _AppHome extends StatelessWidget {
       ),
     );
 
-    if (firebaseOk) return body;
+    if (firebaseOk || !kAuthEnabled) return body;
     return Stack(
       children: [
         body,

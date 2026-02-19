@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/feature_flags.dart';
 import '../services/app_config.dart';
 import '../services/auth_service.dart';
 import '../services/premium_config.dart';
@@ -200,16 +201,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   child: const Text('Avisar pago'),
                 ),
               ],
-              const SizedBox(height: 18),
-              TextButton.icon(
-                onPressed: () async {
-                  await AuthService.I.signOut();
-                  if (!mounted) return;
-                  Navigator.of(context).maybePop();
-                },
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Cerrar sesión'),
-              ),
+              if (kAuthEnabled) ...[
+                const SizedBox(height: 18),
+                TextButton.icon(
+                  onPressed: () async {
+                    await AuthService.I.signOut();
+                    if (!mounted) return;
+                    Navigator.of(context).maybePop();
+                  },
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Cerrar sesión'),
+                ),
+              ],
             ],
           );
         },
