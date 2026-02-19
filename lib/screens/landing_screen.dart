@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,6 +6,22 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/app_config.dart';
 import '../services/build_info.dart';
 import '../ui/ui.dart';
+
+const bool _kShowLandingBuildStamp = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: false,
+);
+
+class _LandingScale {
+  const _LandingScale._();
+
+  static const double s4 = 4;
+  static const double s8 = 8;
+  static const double s12 = 12;
+  static const double s16 = 16;
+  static const double s24 = 24;
+  static const double s32 = 32;
+}
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
@@ -29,16 +46,18 @@ class LandingScreen extends StatelessWidget {
           body: Stack(
             children: [
               Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          tokens.colors.bg,
-                          tokens.colors.surfaceMuted.withOpacity(0.55),
-                        ],
+                child: RepaintBoundary(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            tokens.colors.bg,
+                            tokens.colors.surfaceMuted.withOpacity(0.55),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -51,76 +70,76 @@ class LandingScreen extends StatelessWidget {
                       constraints: const BoxConstraints(maxWidth: 1160),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 28,
+                          horizontal: _LandingScale.s24,
+                          vertical: _LandingScale.s24,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'Bit\u00e1cora'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
-                            const SizedBox(height: 36),
+                            const SizedBox(height: _LandingScale.s32),
                             _HeroSection(
                               config: config,
                               onPrimary: () => context.go('/app'),
                               onWhatsApp: () => _launchWhatsApp(config),
                               onEmail: () => _launchEmail(config),
                             ),
-                            const SizedBox(height: 56),
+                            const SizedBox(height: _LandingScale.s32),
                             SectionHeader(
                               title: 'Beneficios claros y medibles',
                               subtitle:
-                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin friccion.',
+                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin fricci\u00f3n.',
                             ),
-                            const SizedBox(height: 18),
-                            _BenefitsGrid(),
-                            const SizedBox(height: 48),
+                            const SizedBox(height: _LandingScale.s16),
+                            const _BenefitsGrid(),
+                            const SizedBox(height: _LandingScale.s32),
                             SectionHeader(
-                              title: 'Como funciona',
+                              title: 'C\u00f3mo funciona',
                               subtitle:
                                   'Tres pasos simples para empezar hoy mismo.',
                             ),
-                            const SizedBox(height: 18),
-                            _HowItWorks(),
-                            const SizedBox(height: 48),
+                            const SizedBox(height: _LandingScale.s16),
+                            const _HowItWorks(),
+                            const SizedBox(height: _LandingScale.s32),
                             SectionHeader(
                               title: 'Casos de uso',
                               subtitle:
-                                  'Pensado para equipos operativos, auditorias y seguimiento diario.',
+                                  'Pensado para equipos operativos, auditor\u00edas y seguimiento diario.',
                             ),
-                            const SizedBox(height: 18),
-                            _UseCases(),
-                            const SizedBox(height: 52),
+                            const SizedBox(height: _LandingScale.s16),
+                            const _UseCases(),
+                            const SizedBox(height: _LandingScale.s32),
                             SectionHeader(
                               title: 'Planes claros, sin servidor',
                               subtitle:
                                   'Licencia local + soporte. No depende de internet para operar.',
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: _LandingScale.s16),
                             _Pricing(
                               config: config,
                               onPrimary: () => context.go('/app'),
                             ),
-                            const SizedBox(height: 52),
+                            const SizedBox(height: _LandingScale.s32),
                             _CtaBand(
                               onPrimary: () => context.go('/app'),
                               onWhatsApp: () => _launchWhatsApp(config),
                             ),
-                            const SizedBox(height: 52),
+                            const SizedBox(height: _LandingScale.s32),
                             SectionHeader(
                               title: 'FAQ',
                               subtitle:
-                                  'Respuestas rápidas para decidir sin dudas.',
+                                  'Respuestas r\u00e1pidas para decidir sin dudas.',
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: _LandingScale.s16),
                             const _FaqList(),
-                            const SizedBox(height: 36),
+                            const SizedBox(height: _LandingScale.s24),
                             _Footer(config: config),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: _LandingScale.s24),
                           ],
                         ),
                       ),
@@ -154,7 +173,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bit\u00e1cora',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -306,7 +325,7 @@ class _PreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vista rapida',
+            'Vista r\u00e1pida',
             style: t.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
@@ -328,7 +347,7 @@ class _PreviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
+            'Tu equipo ve la misma informaci\u00f3n, con trazabilidad y exportaci\u00f3n inmediata.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -340,6 +359,8 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _BenefitsGrid extends StatelessWidget {
+  const _BenefitsGrid();
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -358,12 +379,12 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Reporte listo',
-            desc: 'HTML imprimible con evidencias para auditorias.',
+            desc: 'HTML imprimible con evidencias para auditor\u00edas.',
             icon: Icons.picture_as_pdf_outlined,
           ),
           const _BenefitCard(
-            title: 'Estandar operativo',
-            desc: 'Procesos claros, menos errores y mas trazabilidad.',
+            title: 'Est\u00e1ndar operativo',
+            desc: 'Procesos claros, menos errores y m\u00e1s trazabilidad.',
             icon: Icons.rule_folder_outlined,
           ),
           const _BenefitCard(
@@ -373,7 +394,7 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Escala local',
-            desc: 'Multiples proyectos, carpetas y backups confiables.',
+            desc: 'M\u00faltiples proyectos, carpetas y backups confiables.',
             icon: Icons.grid_view_rounded,
           ),
         ];
@@ -431,6 +452,8 @@ class _BenefitCard extends StatelessWidget {
 }
 
 class _HowItWorks extends StatelessWidget {
+  const _HowItWorks();
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -450,7 +473,7 @@ class _HowItWorks extends StatelessWidget {
           _StepCard(
             index: '03',
             title: 'Exporta y entrega',
-            desc: 'Backup ZIP y reporte imprimible listo para auditorias.',
+            desc: 'Backup ZIP y reporte imprimible listo para auditor\u00edas.',
           ),
         ];
         if (wide) {
@@ -515,6 +538,8 @@ class _StepCard extends StatelessWidget {
 }
 
 class _UseCases extends StatelessWidget {
+  const _UseCases();
+
   @override
   Widget build(BuildContext context) {
     final cases = const [
@@ -626,7 +651,7 @@ class _Pricing extends StatelessWidget {
             title: 'Enterprise',
             price: _pick(config.pricingEnterprise, 'A medida'),
             features: const [
-              'Capacitacion in-company',
+              'Capacitaci\u00f3n in-company',
               'Branding y templates',
               'Soporte dedicado',
               'SLA y actualizaciones',
@@ -638,8 +663,8 @@ class _Pricing extends StatelessWidget {
             features: [
               'Mesa de ayuda dedicada',
               'Actualizaciones planificadas',
-              'Buenas practicas operativas',
-              'Acompanamiento continuo',
+              'Buenas pr\u00e1cticas operativas',
+              'Acompa\u00f1amiento continuo',
             ],
           ),
         ];
@@ -672,7 +697,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bit\u00e1cora',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -757,14 +782,14 @@ class _CtaBand extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Listo para ordenar tu operacion?',
+                      'Listo para ordenar tu operaci\u00f3n?',
                       style: t.text.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Instalacion local en minutos. Sin servidores, sin friccion.',
+                      'Instalaci\u00f3n local en minutos. Sin servidores, sin fricci\u00f3n.',
                       style: t.text.bodyMedium?.copyWith(
                         color: t.colors.textSecondary,
                       ),
@@ -811,11 +836,11 @@ class _FaqList extends StatelessWidget {
         SizedBox(height: 12),
         _FaqItem(
           q: 'Se puede migrar desde Excel?',
-          a: 'Si. Copias y pegas columnas o importas planillas existentes.',
+          a: 'S\u00ed. Copias y pegas columnas o importas planillas existentes.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
+          q: 'Qu\u00e9 pasa si se llena el almacenamiento?',
           a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
         ),
       ],
@@ -871,24 +896,26 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bit\u00e1cora' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
               'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            Text(
-              BuildInfo.stamp,
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (kDebugMode && _kShowLandingBuildStamp)
+              Text(
+                BuildInfo.stamp,
+                style:
+                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),
             ),
             TextButton(
               onPressed: () => context.go('/terms'),
-              child: const Text('Terminos'),
+              child: const Text('T\u00e9rminos'),
             ),
           ],
         ),

@@ -31,6 +31,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kDebugMode,
         defaultTargetPlatform,
         TargetPlatform,
         debugPrint,
@@ -67,6 +68,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'config/feature_flags.dart';
 import 'core/app_error.dart';
 import 'ui/ui.dart';
 import 'workers/json_worker.dart';
@@ -93,6 +95,11 @@ import 'screens/premium_screen.dart';
 import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
+
+const bool _kShowStartBuildStamp = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: false,
+);
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -3059,7 +3066,7 @@ class _StartPageState extends State<StartPage> {
       final result = await ForceUpdateService.I.forceUpdate();
       if (!mounted) return;
       _toast(result.message.trim().isEmpty
-          ? 'Recargando version nueva...'
+          ? 'Recargando versi\u00f3n nueva...'
           : result.message);
       return;
     }
@@ -3079,7 +3086,7 @@ class _StartPageState extends State<StartPage> {
     final opened =
         await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
     _toast(opened
-        ? 'Abriendo pagina de release.'
+        ? 'Abriendo p\u00e1gina de release.'
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
   }
 
@@ -3096,7 +3103,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 setState(() => _showSearch = !_showSearch);
               },
-              child: Text(_showSearch ? 'Ocultar búsqueda' : 'Buscar'),
+              child: Text(_showSearch ? 'Ocultar b\u00fasqueda' : 'Buscar'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3121,7 +3128,7 @@ class _StartPageState extends State<StartPage> {
                   ),
                 );
               },
-              child: const Text('Premium / Suscripción…'),
+              child: const Text('Premium / Suscripci\u00f3n...'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3137,10 +3144,10 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                 (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible…'
+                    ? 'Actualizaci\u00f3n disponible...'
                     : (_updateChecking
                         ? 'Buscando actualizaciones...'
-                        : 'Buscar actualizaciones…'),
+                        : 'Buscar actualizaciones...'),
               ),
             ),
             CupertinoActionSheetAction(
@@ -3162,21 +3169,21 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _openStaticPage(const TermsScreen());
               },
-              child: const Text('Términos'),
+              child: const Text('T\u00e9rminos'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openLicenses();
               },
-              child: const Text('Licencias…'),
+              child: const Text('Licencias...'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openDiagnostics();
               },
-              child: const Text('Diagnóstico / Soporte…'),
+              child: const Text('Diagn\u00f3stico / Soporte...'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3190,7 +3197,7 @@ class _StartPageState extends State<StartPage> {
                 Navigator.of(ctx).pop();
                 await _newTemplateSheet();
               },
-              child: const Text('Nueva plantilla…'),
+              child: const Text('Nueva plantilla...'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3227,14 +3234,15 @@ class _StartPageState extends State<StartPage> {
               child: Text(
                   _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                await _signOutCurrentUser();
-              },
-              isDestructiveAction: true,
-              child: const Text('Cerrar sesión'),
-            ),
+            if (kAuthEnabled)
+              CupertinoActionSheetAction(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await _signOutCurrentUser();
+                },
+                isDestructiveAction: true,
+                child: const Text('Cerrar sesión'),
+              ),
           ],
           cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -3580,9 +3588,11 @@ class _StartPageState extends State<StartPage> {
           left: 16,
           right: 16,
           bottom: 24,
-          child: _AppleToast(
-            message: msg,
-            isLight: isLight,
+          child: IgnorePointer(
+            child: _AppleToast(
+              message: msg,
+              isLight: isLight,
+            ),
           ),
         );
       },
@@ -3809,7 +3819,13 @@ class _StartPageState extends State<StartPage> {
 
     final mq = MediaQuery.of(context);
     final bottomPad = mq.padding.bottom;
+    final textScale = mq.textScaler.scale(14) / 14;
+    final compactGrid = mq.size.width < 860 || textScale > 1.12;
+    final gridCrossAxisCount = compactGrid ? 1 : 2;
+    final gridChildAspectRatio = compactGrid ? 2.08 : 2.35;
     final buildStamp = _buildStamp;
+    final showBuildStamp =
+        kDebugMode && _kShowStartBuildStamp && buildStamp.trim().isNotEmpty;
 
     return CupertinoPageScaffold(
       backgroundColor: colors.bg,
@@ -3838,13 +3854,14 @@ class _StartPageState extends State<StartPage> {
                         onPressed: widget.onToggleTheme,
                       ),
                       actions: [
-                        AppButton(
-                          label: 'Cerrar sesión',
-                          icon: CupertinoIcons.escape,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: _signOutCurrentUser,
-                        ),
+                        if (kAuthEnabled)
+                          AppButton(
+                            label: 'Cerrar sesión',
+                            icon: CupertinoIcons.escape,
+                            variant: AppButtonVariant.ghost,
+                            size: AppButtonSize.sm,
+                            onPressed: _signOutCurrentUser,
+                          ),
                         AppButton(
                           label: 'Buscar',
                           icon: CupertinoIcons.search,
@@ -3892,7 +3909,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Instalar rapido: Compartir -> Anadir a inicio',
+                              'Instalar r\u00e1pido: Compartir -> A\u00f1adir a inicio',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
@@ -3905,6 +3922,7 @@ class _StartPageState extends State<StartPage> {
                               runSpacing: 8,
                               children: [
                                 CupertinoButton(
+                                  minSize: 44,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 10),
                                   color: colors.textPrimary,
@@ -3919,6 +3937,7 @@ class _StartPageState extends State<StartPage> {
                                   ),
                                 ),
                                 CupertinoButton(
+                                  minSize: 44,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 10),
                                   color: colors.group,
@@ -3951,7 +3970,7 @@ class _StartPageState extends State<StartPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Actualizacion disponible',
+                              'Actualizaci\u00f3n disponible',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontWeight: FontWeight.w800,
@@ -3961,8 +3980,8 @@ class _StartPageState extends State<StartPage> {
                             const SizedBox(height: 6),
                             Text(
                               _updateSnapshot!.remoteVersion.trim().isEmpty
-                                  ? 'Hay una nueva version lista para instalar.'
-                                  : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
+                                  ? 'Hay una nueva versi\u00f3n lista para instalar.'
+                                  : 'Nueva versi\u00f3n: ${_updateSnapshot!.remoteVersion.trim()}',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
@@ -3975,6 +3994,7 @@ class _StartPageState extends State<StartPage> {
                               runSpacing: 8,
                               children: [
                                 CupertinoButton(
+                                  minSize: 44,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 10),
                                   color: colors.textPrimary,
@@ -3989,6 +4009,7 @@ class _StartPageState extends State<StartPage> {
                                   ),
                                 ),
                                 CupertinoButton(
+                                  minSize: 44,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 10),
                                   color: colors.group,
@@ -4187,31 +4208,34 @@ class _StartPageState extends State<StartPage> {
                               colors: colors,
                               children: [
                                 for (int i = 0; i < data.length; i++)
-                                  _AppleSheetRow(
-                                    key: ValueKey('sheet_${data[i].id}'),
-                                    colors: colors,
-                                    meta: data[i],
-                                    note:
-                                        (_sheetNotes[data[i].id] ?? '').trim(),
-                                    folderName: _folderName(
-                                        _sheetFolder[data[i].id] ?? ''),
-                                    fmt: _fmt,
-                                    tab: _tab,
-                                    busy: _busy && _busySheetId == data[i].id,
-                                    daysLeftInTrash: _tab == _HomeTab.trash
-                                        ? _daysLeftInTrash(data[i].id)
-                                        : null,
-                                    onOpen: () => _open(data[i]),
-                                    onRename: () => _rename(data[i]),
-                                    onExport: () => _exportSheet(data[i]),
-                                    onEditNote: () => _editNote(data[i]),
-                                    onMoveFolder: () =>
-                                        _moveSheetToFolder(data[i]),
-                                    onMoveToTrash: () => _moveToTrash(data[i]),
-                                    onRestore: () =>
-                                        _restoreFromTrash(data[i].id),
-                                    onDeleteForever: () =>
-                                        _deleteForever(data[i]),
+                                  RepaintBoundary(
+                                    child: _AppleSheetRow(
+                                      key: ValueKey('sheet_${data[i].id}'),
+                                      colors: colors,
+                                      meta: data[i],
+                                      note: (_sheetNotes[data[i].id] ?? '')
+                                          .trim(),
+                                      folderName: _folderName(
+                                          _sheetFolder[data[i].id] ?? ''),
+                                      fmt: _fmt,
+                                      tab: _tab,
+                                      busy: _busy && _busySheetId == data[i].id,
+                                      daysLeftInTrash: _tab == _HomeTab.trash
+                                          ? _daysLeftInTrash(data[i].id)
+                                          : null,
+                                      onOpen: () => _open(data[i]),
+                                      onRename: () => _rename(data[i]),
+                                      onExport: () => _exportSheet(data[i]),
+                                      onEditNote: () => _editNote(data[i]),
+                                      onMoveFolder: () =>
+                                          _moveSheetToFolder(data[i]),
+                                      onMoveToTrash: () =>
+                                          _moveToTrash(data[i]),
+                                      onRestore: () =>
+                                          _restoreFromTrash(data[i].id),
+                                      onDeleteForever: () =>
+                                          _deleteForever(data[i]),
+                                    ),
                                   )
                                       .animate(delay: (30 + i * 20).ms)
                                       .fadeIn(duration: 180.ms)
@@ -4223,26 +4247,28 @@ class _StartPageState extends State<StartPage> {
                             delegate: SliverChildBuilderDelegate(
                               (ctx, i) {
                                 final m = data[i];
-                                return _AppleSheetGridCard(
-                                  colors: colors,
-                                  meta: m,
-                                  note: (_sheetNotes[m.id] ?? '').trim(),
-                                  folderName:
-                                      _folderName(_sheetFolder[m.id] ?? ''),
-                                  tab: _tab,
-                                  busy: _busy && _busySheetId == m.id,
-                                  daysLeftInTrash: _tab == _HomeTab.trash
-                                      ? _daysLeftInTrash(m.id)
-                                      : null,
-                                  fmt: _fmt,
-                                  onOpen: () => _open(m),
-                                  onRename: () => _rename(m),
-                                  onExport: () => _exportSheet(m),
-                                  onEditNote: () => _editNote(m),
-                                  onMoveFolder: () => _moveSheetToFolder(m),
-                                  onMoveToTrash: () => _moveToTrash(m),
-                                  onRestore: () => _restoreFromTrash(m.id),
-                                  onDeleteForever: () => _deleteForever(m),
+                                return RepaintBoundary(
+                                  child: _AppleSheetGridCard(
+                                    colors: colors,
+                                    meta: m,
+                                    note: (_sheetNotes[m.id] ?? '').trim(),
+                                    folderName:
+                                        _folderName(_sheetFolder[m.id] ?? ''),
+                                    tab: _tab,
+                                    busy: _busy && _busySheetId == m.id,
+                                    daysLeftInTrash: _tab == _HomeTab.trash
+                                        ? _daysLeftInTrash(m.id)
+                                        : null,
+                                    fmt: _fmt,
+                                    onOpen: () => _open(m),
+                                    onRename: () => _rename(m),
+                                    onExport: () => _exportSheet(m),
+                                    onEditNote: () => _editNote(m),
+                                    onMoveFolder: () => _moveSheetToFolder(m),
+                                    onMoveToTrash: () => _moveToTrash(m),
+                                    onRestore: () => _restoreFromTrash(m.id),
+                                    onDeleteForever: () => _deleteForever(m),
+                                  ),
                                 )
                                     .animate()
                                     .fadeIn(duration: 200.ms, delay: 30.ms);
@@ -4250,41 +4276,42 @@ class _StartPageState extends State<StartPage> {
                               childCount: data.length,
                             ),
                             gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: gridCrossAxisCount,
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 10,
-                              childAspectRatio: 2.35,
+                              childAspectRatio: gridChildAspectRatio,
                             ),
                           ),
                   ),
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (showBuildStamp)
+              Positioned(
+                left: 16,
+                bottom: 14 + bottomPad,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)

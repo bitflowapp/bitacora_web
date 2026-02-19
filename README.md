@@ -1,28 +1,31 @@
-# Bitacora Pro (Windows)
+# BitFlow
+Bitácora operativa para equipos de campo: planillas editables, evidencia por celda (foto/audio/GPS), trabajo offline y exportación profesional.
 
-Bitacora operativa con evidencias en 1 lugar. Pensado para PyMEs, municipal y equipos de campo. Funciona 100% local, sin servidores.
+## Para quién
+- Equipos de inspección, obra, mantenimiento, logística y auditoría.
+- Operaciones que necesitan trazabilidad diaria sin depender de servidor.
 
-Requisitos
-- Windows 10/11
-- Chrome o Edge
+## Valor en 3 bullets
+- Captura y ordena evidencia en una sola planilla (sin fricción en campo).
+- Funciona offline-first y sincroniza/recupera cuando vuelve la conectividad.
+- Exporta en formatos vendibles (XLSX/PDF/paquete) para entrega inmediata.
 
-Como usar en 3 pasos
-1. Descomprimir el ZIP de entrega.
-2. Doble click en `run.bat` (o `run.ps1`).
-3. Se abre automaticamente en el navegador.
+## Abrir en web
+- GitHub Pages: `https://marcoluna-nqn.github.io/bitacora_web/`
+- Local (Windows): ejecutar `run.bat` o `run.ps1`.
 
-Configuracion (opcional)
-- Edita `web\config.json` para cambiar marca, email, WhatsApp y precios.
-- Si usas build desde codigo, podes editar `assets\config.json` o usar `--dart-define`.
+## Build web para Pages
+```powershell
+C:\src\flutter\bin\flutter.bat pub get
+C:\src\flutter\bin\flutter.bat build web --release --base-href "/bitacora_web/" --no-wasm-dry-run
+```
 
-Backup y reportes
-- En la app: `Exportar -> Backup del proyecto (ZIP)` para resguardar todo.
-- `Reporte HTML (imprimible)` para exportar a PDF desde el navegador.
-- Importar: `Home -> Opciones -> Importar backup ZIP`.
+Checklist completo de publicación: `docs/release_checklist_pages.md`.
 
-Problemas comunes
-- Script bloqueado: abrir PowerShell como Admin y ejecutar
-  `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`
-- Puerto en uso: el script intenta otro puerto automaticamente.
-- No abre el navegador: copiar el link que aparece en la consola y abrirlo.
-- Export/Import: si el ZIP no tiene `backup.json`, el archivo no es valido.
+## Configuración comercial (opcional)
+- `web/config.json`: marca, contacto y pricing para landing comercial.
+- `assets/config.json` o `--dart-define`: overrides por build.
+
+## Nota de seguridad/producto
+- Auth queda OFF por defecto: `BITFLOW_AUTH=false`.
+- No subir claves ni secretos al repo.

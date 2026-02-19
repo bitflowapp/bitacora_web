@@ -285,7 +285,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   const SizedBox(height: 10),
                   Text(
                     updateAvailable
-                        ? 'Actualizacion disponible.'
+                        ? 'Actualizaci\u00f3n disponible.'
                         : 'Sin actualizaciones pendientes.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(
