@@ -307,6 +307,7 @@ class _PlanCard extends StatelessWidget {
     final t = context.tokens;
     final spacing = BitflowTokens.spacing;
     final hasUrl = url.trim().isNotEmpty;
+    final planKey = ValueKey<String>('premium-plan-$title');
 
     return Container(
       padding: EdgeInsets.all(spacing.s12),
@@ -329,6 +330,7 @@ class _PlanCard extends StatelessWidget {
           ),
           SizedBox(height: spacing.s12),
           AppButton(
+            key: planKey,
             label: hasUrl ? 'Ir al pago' : 'Link no configurado',
             icon: Icons.open_in_new_rounded,
             size: AppButtonSize.lg,

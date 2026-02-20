@@ -195,6 +195,7 @@ class _TopNav extends StatelessWidget {
       ),
       actions: [
         AppButton(
+          key: const Key('landing-cta-top'),
           label: 'Probar ahora',
           variant: AppButtonVariant.primary,
           size: AppButtonSize.lg,
@@ -256,18 +257,21 @@ class _HeroSection extends StatelessWidget {
               runSpacing: 12,
               children: [
                 AppButton(
+                  key: const Key('landing-cta-hero-primary'),
                   label: 'Probar ahora',
                   variant: AppButtonVariant.primary,
                   size: AppButtonSize.lg,
                   onPressed: onPrimary,
                 ),
                 AppButton(
+                  key: const Key('landing-cta-hero-whatsapp'),
                   label: 'WhatsApp',
                   variant: AppButtonVariant.secondary,
                   size: AppButtonSize.lg,
                   onPressed: onWhatsApp,
                 ),
                 AppButton(
+                  key: const Key('landing-cta-hero-email'),
                   label: 'Email',
                   variant: AppButtonVariant.ghost,
                   size: AppButtonSize.lg,
@@ -804,12 +808,14 @@ class _CtaBand extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   AppButton(
+                    key: const Key('landing-cta-band-primary'),
                     label: 'Probar ahora',
                     variant: AppButtonVariant.primary,
                     size: AppButtonSize.lg,
                     onPressed: onPrimary,
                   ),
                   AppButton(
+                    key: const Key('landing-cta-band-whatsapp'),
                     label: 'WhatsApp',
                     variant: AppButtonVariant.secondary,
                     size: AppButtonSize.lg,

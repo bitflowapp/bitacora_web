@@ -5231,6 +5231,7 @@ class _FloatingAddButton extends StatelessWidget {
     return Opacity(
       opacity: disabled ? 0.55 : 1.0,
       child: CupertinoButton(
+        key: const Key('start-create-sheet-fab'),
         padding: EdgeInsets.zero,
         minSize: BitflowTokens.minTapTarget,
         pressedOpacity: 0.65,
