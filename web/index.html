@@ -24,7 +24,7 @@
   <meta name="twitter:image" content="icons/Icon-512.png" />
 
   <!-- BUILD ID fallback (si version.json no está disponible) -->
-  <meta name="bitflow-build" content="__BUILD_ID__" />
+  <meta name="bitflow-build" content="" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -63,7 +63,6 @@
     /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
-    /* Build badge moved to Flutter widget (_BuildBadge). */
 
     #boot-fallback {
       position: fixed;
@@ -399,7 +398,7 @@
 
         var m = document.querySelector('meta[name="bitflow-build"]');
         var v = m ? (m.getAttribute('content') || '') : '';
-        if (v && v !== '__BUILD_ID__') return v;
+        if (v) return v;
         return 'dev-' + Date.now();
       }
 
@@ -418,7 +417,6 @@
         }
       }
 
-      // Build badge moved to Flutter widget (_BuildBadge).
 
       // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
       async function nukeCachesIfBuildChanged(build) {
