@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 
 import 'config/feature_flags.dart';
+import 'core/app_error.dart';
 import 'firebase_options.dart';
 import 'core/sync/sync_bootstrap.dart';
 import 'screens/auth_gate.dart';
@@ -23,6 +24,7 @@ import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
 import 'widgets/animated_video_background.dart';
+import 'ui/app_error_boundary.dart';
 import 'ui/ui_theme.dart';
 
 const String kBuildBadgeId =
@@ -31,6 +33,29 @@ const bool kShowBuildBadge = bool.fromEnvironment(
   'SHOW_BUILD_BADGE',
   defaultValue: false,
 );
+
+final GlobalKey<AppErrorBoundaryState> _appErrorBoundaryKey =
+    GlobalKey<AppErrorBoundaryState>();
+
+void _reportGlobalError(
+  Object error,
+  StackTrace stackTrace, {
+  required String operation,
+}) {
+  try {
+    final appError = AppErrorMapper.from(
+      error,
+      flow: AppErrorFlow.load,
+      fallbackMessage: 'Se detecto un error inesperado.',
+    );
+    AppErrorReporter.I.record(
+      appError,
+      operation: operation,
+      stackTrace: stackTrace,
+    );
+  } catch (_) {}
+  _appErrorBoundaryKey.currentState?.capture(error, stackTrace);
+}
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
@@ -74,6 +99,11 @@ Future<void> main() async {
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
+      _reportGlobalError(
+        details.exception,
+        details.stack ?? StackTrace.current,
+        operation: 'flutter_error',
+      );
       if (kDebugMode) {
         // ignore: avoid_print
         print(details.exception);
@@ -83,6 +113,7 @@ Future<void> main() async {
     };
 
     PlatformDispatcher.instance.onError = (error, stack) {
+      _reportGlobalError(error, stack, operation: 'platform_dispatcher');
       if (kDebugMode) {
         // ignore: avoid_print
         print('Uncaught error: $error');
@@ -145,10 +176,16 @@ Future<void> main() async {
       );
     };
 
-    runApp(const App());
+    runApp(
+      AppErrorBoundary(
+        key: _appErrorBoundaryKey,
+        child: const App(),
+      ),
+    );
     // Persistimos override de engine en background para no bloquear primera pintura.
     unawaited(_applyEngineBaseUrlOverrideFromUrl());
   }, (error, stack) {
+    _reportGlobalError(error, stack, operation: 'zone_guarded');
     if (kDebugMode) {
       // ignore: avoid_print
       print('Zoned error: $error');
@@ -400,6 +437,11 @@ class _AppState extends State<App> {
   GoRouter _buildRouter(_BootStatus status) {
     return GoRouter(
       initialLocation: '/',
+      errorBuilder: (context, state) => _RouteErrorScreen(
+        location: state.uri.toString(),
+        isLight: _isLight,
+        onToggleTheme: _toggleTheme,
+      ),
       routes: [
         GoRoute(
           path: '/',
@@ -854,6 +896,41 @@ class _BuildBadge extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteErrorScreen extends StatelessWidget {
+  const _RouteErrorScreen({
+    required this.location,
+    required this.isLight,
+    required this.onToggleTheme,
+  });
+
+  final String location;
+  final bool isLight;
+  final VoidCallback onToggleTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedVideoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: _BootSplash(
+          isLight: isLight,
+          onToggleTheme: onToggleTheme,
+          subtitle: 'No encontramos esa ruta',
+          details:
+              'La URL solicitada no existe en esta version.\nRuta: $location',
+          showProgress: false,
+          actions: [
+            _PillButton(
+              label: 'Ir al inicio',
+              onPressed: () => context.go('/'),
+            ),
+          ],
         ),
       ),
     );
