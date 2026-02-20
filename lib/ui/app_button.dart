@@ -47,8 +47,8 @@ class _AppButtonState extends State<AppButton> {
     final disabled = widget.loading || widget.onPressed == null;
 
     final minHeight = switch (widget.size) {
-      AppButtonSize.sm => 36.0,
-      AppButtonSize.md => 42.0,
+      AppButtonSize.sm => 44.0,
+      AppButtonSize.md => 44.0,
       AppButtonSize.lg => 48.0,
     };
 
@@ -79,7 +79,7 @@ class _AppButtonState extends State<AppButton> {
         final focused = states.contains(WidgetState.focused);
         return BorderSide(
           color: focused ? t.colors.focusRing : c.border,
-          width: focused ? 1.2 : 1,
+          width: focused ? 1.8 : 1,
         );
       }),
       elevation: const WidgetStatePropertyAll<double>(0),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +7,11 @@ import '../services/app_config.dart';
 import '../services/build_info.dart';
 import '../ui/ui.dart';
 
+const bool _kShowLandingBuildStamp = bool.fromEnvironment(
+  'SHOW_BUILD_BADGE',
+  defaultValue: false,
+);
+
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
     super.key,
@@ -13,115 +19,122 @@ class LandingScreen extends StatelessWidget {
     required this.onToggleTheme,
   });
 
+  static final Future<AppConfig> _configFuture = AppConfig.load();
+
   final bool isLight;
   final VoidCallback onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<AppConfig>(
-      future: AppConfig.load(),
+      future: _configFuture,
       builder: (context, snapshot) {
         final config = snapshot.data ?? AppConfig.defaults();
         final tokens = context.tokens;
+        final space = BitflowTokens.spacing;
 
         return Scaffold(
           backgroundColor: tokens.colors.bg,
           body: Stack(
             children: [
               Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          tokens.colors.bg,
-                          tokens.colors.surfaceMuted.withOpacity(0.55),
-                        ],
+                child: RepaintBoundary(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            tokens.colors.bg,
+                            tokens.colors.surfaceMuted.withOpacity(0.55),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-              SafeArea(
-                child: SingleChildScrollView(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1160),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 28,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _TopNav(
-                              brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
-                                  : config.brandName,
-                              onToggleTheme: onToggleTheme,
-                            ),
-                            const SizedBox(height: 36),
-                            _HeroSection(
-                              config: config,
-                              onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
-                              onEmail: () => _launchEmail(config),
-                            ),
-                            const SizedBox(height: 56),
-                            SectionHeader(
-                              title: 'Beneficios claros y medibles',
-                              subtitle:
-                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin friccion.',
-                            ),
-                            const SizedBox(height: 18),
-                            _BenefitsGrid(),
-                            const SizedBox(height: 48),
-                            SectionHeader(
-                              title: 'Como funciona',
-                              subtitle:
-                                  'Tres pasos simples para empezar hoy mismo.',
-                            ),
-                            const SizedBox(height: 18),
-                            _HowItWorks(),
-                            const SizedBox(height: 48),
-                            SectionHeader(
-                              title: 'Casos de uso',
-                              subtitle:
-                                  'Pensado para equipos operativos, auditorias y seguimiento diario.',
-                            ),
-                            const SizedBox(height: 18),
-                            _UseCases(),
-                            const SizedBox(height: 52),
-                            SectionHeader(
-                              title: 'Planes claros, sin servidor',
-                              subtitle:
-                                  'Licencia local + soporte. No depende de internet para operar.',
-                            ),
-                            const SizedBox(height: 18),
-                            _Pricing(
-                              config: config,
-                              onPrimary: () => context.go('/app'),
-                            ),
-                            const SizedBox(height: 52),
-                            _CtaBand(
-                              onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
-                            ),
-                            const SizedBox(height: 52),
-                            SectionHeader(
-                              title: 'FAQ',
-                              subtitle:
-                                  'Respuestas rápidas para decidir sin dudas.',
-                            ),
-                            const SizedBox(height: 18),
-                            const _FaqList(),
-                            const SizedBox(height: 36),
-                            _Footer(config: config),
-                            const SizedBox(height: 24),
-                          ],
+              FocusTraversalGroup(
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1160),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: space.s24,
+                            vertical: space.s24,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _TopNav(
+                                brand: config.brandName.isEmpty
+                                    ? 'BitFlow'
+                                    : config.brandName,
+                                onToggleTheme: onToggleTheme,
+                              ),
+                              SizedBox(height: space.s32),
+                              _HeroSection(
+                                config: config,
+                                onPrimary: () => context.go('/app'),
+                                onWhatsApp: () => _launchWhatsApp(config),
+                                onEmail: () => _launchEmail(config),
+                              ),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Beneficios claros y medibles',
+                                subtitle:
+                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricción.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const RepaintBoundary(child: _BenefitsGrid()),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Cómo funciona',
+                                subtitle:
+                                    'Tres pasos simples para empezar hoy mismo.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const RepaintBoundary(child: _HowItWorks()),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Casos de uso',
+                                subtitle:
+                                    'Pensado para equipos operativos, auditorías y seguimiento diario.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const RepaintBoundary(child: _UseCases()),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Planes claros, sin servidor',
+                                subtitle:
+                                    'Licencia local + soporte. No depende de internet para operar.',
+                              ),
+                              SizedBox(height: space.s16),
+                              _Pricing(
+                                config: config,
+                                onPrimary: () => context.go('/app'),
+                              ),
+                              SizedBox(height: space.s32),
+                              _CtaBand(
+                                onPrimary: () => context.go('/app'),
+                                onWhatsApp: () => _launchWhatsApp(config),
+                              ),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'FAQ',
+                                subtitle:
+                                    'Respuestas rápidas para decidir sin dudas.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const RepaintBoundary(child: _FaqList()),
+                              SizedBox(height: space.s24),
+                              _Footer(config: config),
+                              SizedBox(height: space.s24),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -154,7 +167,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta BitFlow',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -174,7 +187,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitácora operativa sin conexión',
+      subtitle: 'BitFlow operativa sin conexión',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -184,11 +197,13 @@ class _TopNav extends StatelessWidget {
         AppButton(
           label: 'Probar ahora',
           variant: AppButtonVariant.primary,
+          size: AppButtonSize.lg,
           onPressed: () => context.go('/app'),
         ),
         AppButton(
           label: 'Modo',
           variant: AppButtonVariant.ghost,
+          size: AppButtonSize.lg,
           onPressed: onToggleTheme,
         ),
       ],
@@ -215,71 +230,73 @@ class _HeroSection extends StatelessWidget {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final wide = constraints.maxWidth > 880;
+        final heroContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'BitFlow operativa con evidencias en un solo lugar',
+              style: t.text.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              config.brandTagline.isNotEmpty
+                  ? config.brandTagline
+                  : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
+              style: t.text.bodyLarge?.copyWith(
+                color: t.colors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                AppButton(
+                  label: 'Probar ahora',
+                  variant: AppButtonVariant.primary,
+                  size: AppButtonSize.lg,
+                  onPressed: onPrimary,
+                ),
+                AppButton(
+                  label: 'WhatsApp',
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.lg,
+                  onPressed: onWhatsApp,
+                ),
+                AppButton(
+                  label: 'Email',
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.lg,
+                  onPressed: onEmail,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: const [
+                _Tag('Sin conexión real'),
+                _Tag('Backup ZIP'),
+                _Tag('Reporte imprimible'),
+                _Tag('Sin servidores'),
+              ],
+            ),
+          ],
+        );
+
         return Flex(
           direction: wide ? Axis.horizontal : Axis.vertical,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: wide ? 6 : 0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
-                    style: t.text.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    config.brandTagline.isNotEmpty
-                        ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
-                    style: t.text.bodyLarge?.copyWith(
-                      color: t.colors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      AppButton(
-                        label: 'Probar ahora',
-                        variant: AppButtonVariant.primary,
-                        onPressed: onPrimary,
-                      ),
-                      AppButton(
-                        label: 'WhatsApp',
-                        variant: AppButtonVariant.secondary,
-                        onPressed: onWhatsApp,
-                      ),
-                      AppButton(
-                        label: 'Email',
-                        variant: AppButtonVariant.ghost,
-                        onPressed: onEmail,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
-                      _Tag('Reporte imprimible'),
-                      _Tag('Sin servidores'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            if (wide) Expanded(flex: 6, child: heroContent) else heroContent,
             if (wide) const SizedBox(width: 26),
             if (wide)
-              Expanded(
+              const Expanded(
                 flex: 5,
                 child: _PreviewCard(),
               ),
@@ -300,13 +317,14 @@ class _PreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(space.s16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vista rapida',
+            'Vista r\u00e1pida',
             style: t.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
@@ -328,7 +346,7 @@ class _PreviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
+            'Tu equipo ve la misma informaci\u00f3n, con trazabilidad y exportaci\u00f3n inmediata.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -340,6 +358,8 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _BenefitsGrid extends StatelessWidget {
+  const _BenefitsGrid();
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -358,12 +378,12 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Reporte listo',
-            desc: 'HTML imprimible con evidencias para auditorias.',
+            desc: 'HTML imprimible con evidencias para auditor\u00edas.',
             icon: Icons.picture_as_pdf_outlined,
           ),
           const _BenefitCard(
-            title: 'Estandar operativo',
-            desc: 'Procesos claros, menos errores y mas trazabilidad.',
+            title: 'Est\u00e1ndar operativo',
+            desc: 'Procesos claros, menos errores y m\u00e1s trazabilidad.',
             icon: Icons.rule_folder_outlined,
           ),
           const _BenefitCard(
@@ -373,7 +393,7 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Escala local',
-            desc: 'Multiples proyectos, carpetas y backups confiables.',
+            desc: 'M\u00faltiples proyectos, carpetas y backups confiables.',
             icon: Icons.grid_view_rounded,
           ),
         ];
@@ -431,6 +451,8 @@ class _BenefitCard extends StatelessWidget {
 }
 
 class _HowItWorks extends StatelessWidget {
+  const _HowItWorks();
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -450,7 +472,7 @@ class _HowItWorks extends StatelessWidget {
           _StepCard(
             index: '03',
             title: 'Exporta y entrega',
-            desc: 'Backup ZIP y reporte imprimible listo para auditorias.',
+            desc: 'Backup ZIP y reporte imprimible listo para auditor\u00edas.',
           ),
         ];
         if (wide) {
@@ -515,6 +537,8 @@ class _StepCard extends StatelessWidget {
 }
 
 class _UseCases extends StatelessWidget {
+  const _UseCases();
+
   @override
   Widget build(BuildContext context) {
     final cases = const [
@@ -626,7 +650,7 @@ class _Pricing extends StatelessWidget {
             title: 'Enterprise',
             price: _pick(config.pricingEnterprise, 'A medida'),
             features: const [
-              'Capacitacion in-company',
+              'Capacitaci\u00f3n in-company',
               'Branding y templates',
               'Soporte dedicado',
               'SLA y actualizaciones',
@@ -638,8 +662,8 @@ class _Pricing extends StatelessWidget {
             features: [
               'Mesa de ayuda dedicada',
               'Actualizaciones planificadas',
-              'Buenas practicas operativas',
-              'Acompanamiento continuo',
+              'Buenas pr\u00e1cticas operativas',
+              'Acompa\u00f1amiento continuo',
             ],
           ),
         ];
@@ -672,8 +696,9 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bit\u00e1cora',
               variant: AppButtonVariant.primary,
+              size: AppButtonSize.lg,
               onPressed: onPrimary,
             ),
           ],
@@ -699,8 +724,9 @@ class _PriceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(space.s16),
       borderColor: highlight ? t.colors.accent : t.colors.border,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -743,35 +769,35 @@ class _CtaBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(space.s16),
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final wide = constraints.maxWidth > 720;
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Listo para ordenar tu operación?',
+                style: t.text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Instalación local en minutos. Sin servidores, sin fricción.',
+                style: t.text.bodyMedium?.copyWith(
+                  color: t.colors.textSecondary,
+                ),
+              ),
+            ],
+          );
           return Flex(
             direction: wide ? Axis.horizontal : Axis.vertical,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Listo para ordenar tu operacion?',
-                      style: t.text.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Instalacion local en minutos. Sin servidores, sin friccion.',
-                      style: t.text.bodyMedium?.copyWith(
-                        color: t.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              if (wide) Expanded(child: copy) else copy,
               const SizedBox(height: 14, width: 14),
               Wrap(
                 spacing: 12,
@@ -780,11 +806,13 @@ class _CtaBand extends StatelessWidget {
                   AppButton(
                     label: 'Probar ahora',
                     variant: AppButtonVariant.primary,
+                    size: AppButtonSize.lg,
                     onPressed: onPrimary,
                   ),
                   AppButton(
                     label: 'WhatsApp',
                     variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.lg,
                     onPressed: onWhatsApp,
                   ),
                 ],
@@ -811,11 +839,11 @@ class _FaqList extends StatelessWidget {
         SizedBox(height: 12),
         _FaqItem(
           q: 'Se puede migrar desde Excel?',
-          a: 'Si. Copias y pegas columnas o importas planillas existentes.',
+          a: 'S\u00ed. Copias y pegas columnas o importas planillas existentes.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
+          q: 'Qu\u00e9 pasa si se llena el almacenamiento?',
           a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
         ),
       ],
@@ -871,24 +899,34 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'BitFlow' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
               'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            Text(
-              BuildInfo.stamp,
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (kDebugMode && _kShowLandingBuildStamp)
+              Text(
+                BuildInfo.stamp,
+                style:
+                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),
             ),
             TextButton(
               onPressed: () => context.go('/terms'),
-              child: const Text('Terminos'),
+              child: const Text('T\u00e9rminos'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/contact'),
+              child: const Text('Contacto'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/changelog'),
+              child: const Text('Changelog'),
             ),
           ],
         ),
@@ -905,11 +943,12 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final radii = BitflowTokens.radii;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: t.colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(t.radii.pill),
+        borderRadius: BorderRadius.circular(radii.pill),
         border: Border.all(color: t.colors.border),
       ),
       child: Text(
