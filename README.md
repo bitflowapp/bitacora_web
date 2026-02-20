@@ -1,31 +1,47 @@
 # BitFlow
-Bitácora operativa para equipos de campo: planillas editables, evidencia por celda (foto/audio/GPS), trabajo offline y exportación profesional.
+BitFlow es una app web Flutter para operacion de campo local-first: crear planillas, capturar evidencia y exportar entregables sin depender de backend.
 
-## Para quién
-- Equipos de inspección, obra, mantenimiento, logística y auditoría.
-- Operaciones que necesitan trazabilidad diaria sin depender de servidor.
+## Propuesta de valor
+- Menos friccion en campo: datos + evidencia en una sola planilla.
+- Modo local-first real: funciona sin red y mantiene continuidad de trabajo.
+- Entregables listos para cliente: exportacion XLSX/PDF/ZIP.
 
-## Valor en 3 bullets
-- Captura y ordena evidencia en una sola planilla (sin fricción en campo).
-- Funciona offline-first y sincroniza/recupera cuando vuelve la conectividad.
-- Exporta en formatos vendibles (XLSX/PDF/paquete) para entrega inmediata.
+## Features premium
+- Editor orientado a uso movil (tap targets consistentes y feedback claro).
+- Evidencia por celda (foto/audio/GPS) con flujo operativo directo.
+- Plantillas y agente de planillas para acelerar carga/importacion.
+- Pantallas comerciales listas para demo (landing, premium, marketing/legal).
 
-## Abrir en web
-- GitHub Pages: `https://marcoluna-nqn.github.io/bitacora_web/`
-- Local (Windows): ejecutar `run.bat` o `run.ps1`.
+## Stack
+- Flutter (Web)
+- Dart
+- GoRouter
+- Persistencia local (modo local-first)
 
-## Build web para Pages
+## Auth policy (importante)
+- Auth esta OFF por defecto: `BITFLOW_AUTH=false`.
+- Este repo no requiere login obligatorio para demo sell-ready.
+
+## Ejecutar local (Windows)
 ```powershell
 C:\src\flutter\bin\flutter.bat pub get
-C:\src\flutter\bin\flutter.bat build web --release --base-href "/bitacora_web/" --no-wasm-dry-run
+C:\src\flutter\bin\flutter.bat run -d chrome --dart-define=BITFLOW_AUTH=false
 ```
 
-Checklist completo de publicación: `docs/release_checklist_pages.md`.
+## Build web release (GitHub Pages)
+```powershell
+C:\src\flutter\bin\flutter.bat build web --release --base-href "/bitacora_web/" --dart-define=BITFLOW_AUTH=false --no-wasm-dry-run
+```
 
-## Configuración comercial (opcional)
-- `web/config.json`: marca, contacto y pricing para landing comercial.
-- `assets/config.json` o `--dart-define`: overrides por build.
+## Gates de calidad
+```powershell
+C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe format --output=none --set-exit-if-changed .
+C:\src\flutter\bin\flutter.bat test
+C:\src\flutter\bin\flutter.bat analyze --no-fatal-infos --no-fatal-warnings
+```
 
-## Nota de seguridad/producto
-- Auth queda OFF por defecto: `BITFLOW_AUTH=false`.
-- No subir claves ni secretos al repo.
+## Documentacion de venta/release
+- `docs/RELEASE_CHECKLIST.md`
+- `docs/SALES_DEMO_SCRIPT.md`
+- `docs/KNOWN_LIMITS.md`
+- `docs/release_checklist_pages.md`
