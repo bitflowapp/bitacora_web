@@ -18,6 +18,9 @@ class AppToast {
         (isError
             ? Icons.error_outline_rounded
             : Icons.check_circle_outline_rounded);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final safeBottom =
+        (bottomInset + t.spacing.md).clamp(t.spacing.md, 96.0).toDouble();
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -25,6 +28,12 @@ class AppToast {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: bg,
+        margin: EdgeInsets.fromLTRB(
+          t.spacing.md,
+          t.spacing.sm,
+          t.spacing.md,
+          safeBottom,
+        ),
         duration: duration,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(t.radii.md),
