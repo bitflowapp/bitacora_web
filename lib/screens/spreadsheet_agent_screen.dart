@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../spreadsheet_agent/spreadsheet_agent.dart';
+import '../ui/ui.dart';
 
 class SpreadsheetAgentScreen extends StatefulWidget {
   const SpreadsheetAgentScreen({super.key});
@@ -113,9 +114,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         action: 'ingest_file',
         detail: '${ingested.rows.length} filas desde ${file.name}',
       );
-      _snack('Importado ${ingested.rows.length} filas desde ${file.name}.');
+      _toast('Importado ${ingested.rows.length} filas desde ${file.name}.');
     } catch (e) {
-      _snack('No se pudo importar archivo: $e');
+      _toast('No se pudo importar el archivo: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -124,7 +125,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   Future<void> _ingestPaste() async {
     final text = _pasteController.text;
     if (text.trim().isEmpty) {
-      _snack('Pegá una tabla primero.');
+      _toast('Pega una tabla primero.');
       return;
     }
 
@@ -145,7 +146,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       action: 'ingest_paste',
       detail: '${ingested.rows.length} filas desde pegado',
     );
-    _snack('Pegado procesado: ${ingested.rows.length} filas.');
+    _toast('Pegado procesado: ${ingested.rows.length} filas.');
   }
 
   void _runValidation() {
@@ -172,7 +173,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
 
   Future<void> _saveProfile() async {
     if (_ingest == null) {
-      _snack('Importá o pegá datos antes de guardar perfil.');
+      _toast('Importa o pega datos antes de guardar el perfil.');
       return;
     }
     await _agent.saveProfile(
@@ -182,16 +183,16 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       defaultValues: _defaultValues(),
     );
     await _loadProfileAndAudit();
-    _snack('Perfil de mapeo guardado localmente.');
+    _toast('Perfil de mapeo guardado localmente.');
   }
 
   Future<void> _exportXlsx() async {
     if (_mappedRows.isEmpty) {
-      _snack('No hay filas transformadas para exportar.');
+      _toast('No hay filas transformadas para exportar.');
       return;
     }
     if (_report?.hasErrors ?? false) {
-      _snack('Corregí los errores de validación antes de exportar.');
+      _toast('Corrige los errores de validación antes de exportar.');
       return;
     }
     final artifact = await _agent.exportXlsx(
@@ -200,16 +201,16 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       clientId: _currentClientId(),
     );
     await _loadProfileAndAudit();
-    _snack('XLSX exportado: ${artifact.location}');
+    _toast('XLSX exportado: ${artifact.location}');
   }
 
   Future<void> _exportPdf() async {
     if (_mappedRows.isEmpty) {
-      _snack('No hay filas transformadas para exportar.');
+      _toast('No hay filas transformadas para exportar.');
       return;
     }
     if (_report?.hasErrors ?? false) {
-      _snack('Corregí los errores de validación antes de exportar.');
+      _toast('Corrige los errores de validación antes de exportar.');
       return;
     }
     final artifact = await _agent.exportPdf(
@@ -218,340 +219,404 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       clientId: _currentClientId(),
     );
     await _loadProfileAndAudit();
-    _snack('PDF exportado: ${artifact.location}');
+    _toast('PDF exportado: ${artifact.location}');
   }
 
-  void _snack(String message) {
+  void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(context, message: message);
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
+    final bt = context.bitflow;
+    final spacing = BitflowTokens.spacing;
     final ingest = _ingest;
     final report = _report;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agente de Planillas (MVP)'),
+    return AppShell(
+      title: 'Agente de planillas',
+      subtitle: 'Importa CSV/XLSX, mapea columnas y exporta sin backend.',
+      leading: IconButton(
+        tooltip: 'Volver',
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: () => Navigator.of(context).maybePop(),
       ),
-      body: AbsorbPointer(
-        absorbing: _busy,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '1) Plantilla + cliente',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _templateId,
-                      decoration: const InputDecoration(labelText: 'Plantilla'),
-                      items: _agent.templates
-                          .map(
-                            (template) => DropdownMenuItem<String>(
-                              value: template.id,
-                              child: Text(template.name),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null || value == _templateId) return;
-                        setState(() {
-                          _templateId = value;
-                          _headerToField = <String, String>{};
-                        });
-                        _loadProfileAndAudit();
-                        _runValidation();
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _clientController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cliente / preset',
-                        hintText: 'ej: cliente_acme',
-                      ),
-                      onSubmitted: (_) => _loadProfileAndAudit(),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _template.description,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '2) Importar o pegar',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        ElevatedButton.icon(
-                          onPressed: _pickFile,
-                          icon: const Icon(Icons.upload_file_outlined),
-                          label: const Text('Importar CSV/XLSX'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _ingestPaste,
-                          icon: const Icon(Icons.content_paste_go_outlined),
-                          label: const Text('Procesar pegado'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _pasteController,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText:
-                            'Pegá acá tabla copiada de mail/WhatsApp/Excel',
-                      ),
-                    ),
-                    if (ingest != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Fuente: ${ingest.sourceLabel}  •  Encabezados: ${ingest.headers.length}  •  Filas: ${ingest.rows.length}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (ingest != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      body: FocusTraversalGroup(
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: AbsorbPointer(
+                  absorbing: _busy,
+                  child: ListView(
+                    padding: EdgeInsets.all(spacing.s8),
                     children: <Widget>[
-                      const Text(
-                        '3) Mapear columnas + defaults',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                      AppCard(
+                        padding: EdgeInsets.all(spacing.s16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              '1) Plantilla y cliente',
+                              style: t.text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: spacing.s8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _templateId,
+                              decoration:
+                                  const InputDecoration(labelText: 'Plantilla'),
+                              items: _agent.templates
+                                  .map(
+                                    (template) => DropdownMenuItem<String>(
+                                      value: template.id,
+                                      child: Text(template.name),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (value) {
+                                if (value == null || value == _templateId) {
+                                  return;
+                                }
+                                setState(() {
+                                  _templateId = value;
+                                  _headerToField = <String, String>{};
+                                });
+                                _loadProfileAndAudit();
+                                _runValidation();
+                              },
+                            ),
+                            SizedBox(height: spacing.s8),
+                            TextField(
+                              controller: _clientController,
+                              decoration: const InputDecoration(
+                                labelText: 'Cliente o preset',
+                                hintText: 'ej: cliente_acme',
+                              ),
+                              onSubmitted: (_) => _loadProfileAndAudit(),
+                            ),
+                            SizedBox(height: spacing.s8),
+                            Text(
+                              _template.description,
+                              style: bt.typography.caption,
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      ...ingest.headers.map((header) {
-                        final current = _headerToField[header];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
+                      SizedBox(height: spacing.s16),
+                      AppCard(
+                        padding: EdgeInsets.all(spacing.s16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              '2) Importar o pegar',
+                              style: t.text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: spacing.s8),
+                            Wrap(
+                              spacing: spacing.s8,
+                              runSpacing: spacing.s8,
+                              children: <Widget>[
+                                AppButton(
+                                  label: 'Importar CSV/XLSX',
+                                  icon: Icons.upload_file_outlined,
+                                  variant: AppButtonVariant.secondary,
+                                  size: AppButtonSize.lg,
+                                  onPressed: _pickFile,
+                                ),
+                                AppButton(
+                                  label: 'Procesar pegado',
+                                  icon: Icons.content_paste_go_outlined,
+                                  variant: AppButtonVariant.primary,
+                                  size: AppButtonSize.lg,
+                                  onPressed: _ingestPaste,
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: spacing.s8),
+                            TextField(
+                              controller: _pasteController,
+                              maxLines: 5,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                hintText:
+                                    'Pega una tabla copiada de mail, WhatsApp o Excel',
+                              ),
+                            ),
+                            if (ingest != null) ...<Widget>[
+                              SizedBox(height: spacing.s8),
+                              Text(
+                                'Fuente: ${ingest.sourceLabel} · Encabezados: ${ingest.headers.length} · Filas: ${ingest.rows.length}',
+                                style: bt.typography.caption,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (ingest != null) ...[
+                        SizedBox(height: spacing.s16),
+                        AppCard(
+                          padding: EdgeInsets.all(spacing.s16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  header,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                              Text(
+                                '3) Mapear columnas y defaults',
+                                style: t.text.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: current,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Campo destino',
+                              SizedBox(height: spacing.s12),
+                              ...ingest.headers.map((header) {
+                                final current = _headerToField[header];
+                                return Padding(
+                                  padding: EdgeInsets.only(bottom: spacing.s8),
+                                  child: Row(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: Text(
+                                          header,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      SizedBox(width: spacing.s12),
+                                      Expanded(
+                                        child: DropdownButtonFormField<String>(
+                                          initialValue: current,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Campo destino',
+                                          ),
+                                          items: <DropdownMenuItem<String>>[
+                                            const DropdownMenuItem<String>(
+                                              value: '',
+                                              child: Text('Ignorar'),
+                                            ),
+                                            ..._template.fields.map(
+                                              (field) =>
+                                                  DropdownMenuItem<String>(
+                                                value: field.key,
+                                                child: Text(field.label),
+                                              ),
+                                            ),
+                                          ],
+                                          onChanged: (value) {
+                                            setState(() {
+                                              final clean =
+                                                  (value ?? '').trim();
+                                              if (clean.isEmpty) {
+                                                _headerToField.remove(header);
+                                              } else {
+                                                _headerToField[header] = clean;
+                                              }
+                                            });
+                                            _runValidation();
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  items: <DropdownMenuItem<String>>[
-                                    const DropdownMenuItem<String>(
-                                      value: '',
-                                      child: Text('Ignorar'),
-                                    ),
-                                    ..._template.fields.map(
-                                      (field) => DropdownMenuItem<String>(
-                                        value: field.key,
-                                        child: Text(field.label),
+                                );
+                              }),
+                              TextField(
+                                controller: _defaultCentroController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Default centro_costo',
+                                ),
+                                onChanged: (_) => _runValidation(),
+                              ),
+                              SizedBox(height: spacing.s8),
+                              TextField(
+                                controller: _defaultProveedorController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Default proveedor',
+                                ),
+                                onChanged: (_) => _runValidation(),
+                              ),
+                              SizedBox(height: spacing.s8),
+                              TextField(
+                                controller: _defaultObraController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Default obra',
+                                ),
+                                onChanged: (_) => _runValidation(),
+                              ),
+                              SizedBox(height: spacing.s12),
+                              Wrap(
+                                spacing: spacing.s8,
+                                runSpacing: spacing.s8,
+                                children: <Widget>[
+                                  AppButton(
+                                    label: 'Validar',
+                                    icon: Icons.rule_folder_outlined,
+                                    variant: AppButtonVariant.secondary,
+                                    size: AppButtonSize.lg,
+                                    onPressed: _runValidation,
+                                  ),
+                                  AppButton(
+                                    label: 'Guardar preset local',
+                                    icon: Icons.save_outlined,
+                                    variant: AppButtonVariant.primary,
+                                    size: AppButtonSize.lg,
+                                    onPressed: _saveProfile,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (report != null) ...[
+                        SizedBox(height: spacing.s16),
+                        AppCard(
+                          padding: EdgeInsets.all(spacing.s16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                '4) Validación: ${report.errorCount} error(es), ${report.warningCount} advertencia(s)',
+                                style: t.text.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: spacing.s8),
+                              if (report.issues.isEmpty)
+                                const Text(
+                                  'Sin observaciones. Listo para exportar.',
+                                ),
+                              ...report.issues.take(12).map(
+                                    (issue) => Padding(
+                                      padding:
+                                          EdgeInsets.only(bottom: spacing.s4),
+                                      child: Text(
+                                        'Fila ${issue.row} · ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
+                                        style: TextStyle(
+                                          color: issue.isWarning
+                                              ? Colors.orange.shade700
+                                              : Colors.red.shade700,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      final clean = (value ?? '').trim();
-                                      if (clean.isEmpty) {
-                                        _headerToField.remove(header);
-                                      } else {
-                                        _headerToField[header] = clean;
-                                      }
-                                    });
-                                    _runValidation();
-                                  },
+                                  ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_mappedRows.isNotEmpty) ...[
+                        SizedBox(height: spacing.s16),
+                        AppCard(
+                          padding: EdgeInsets.all(spacing.s16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                '5) Preview y exportación',
+                                style: t.text.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: spacing.s8),
+                              Text(
+                                  'Filas transformadas: ${_mappedRows.length}'),
+                              SizedBox(height: spacing.s8),
+                              RepaintBoundary(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    columns: _template.fields
+                                        .map(
+                                          (f) => DataColumn(
+                                            label: Text(f.label),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                    rows: _mappedRows.take(12).map((row) {
+                                      return DataRow(
+                                        cells: _template.fields
+                                            .map(
+                                              (f) => DataCell(
+                                                Text(row[f.key] ?? ''),
+                                              ),
+                                            )
+                                            .toList(growable: false),
+                                      );
+                                    }).toList(growable: false),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: spacing.s12),
+                              Wrap(
+                                spacing: spacing.s8,
+                                runSpacing: spacing.s8,
+                                children: <Widget>[
+                                  AppButton(
+                                    label: 'Exportar XLSX',
+                                    icon: Icons.grid_on_outlined,
+                                    variant: AppButtonVariant.primary,
+                                    size: AppButtonSize.lg,
+                                    onPressed: _exportXlsx,
+                                  ),
+                                  AppButton(
+                                    label: 'Exportar PDF',
+                                    icon: Icons.picture_as_pdf_outlined,
+                                    variant: AppButtonVariant.secondary,
+                                    size: AppButtonSize.lg,
+                                    onPressed: _exportPdf,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_auditEntries.isNotEmpty) ...[
+                        SizedBox(height: spacing.s16),
+                        AppCard(
+                          padding: EdgeInsets.all(spacing.s16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Historial local',
+                                style: t.text.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: spacing.s8),
+                              ..._auditEntries.map(
+                                (entry) => Padding(
+                                  padding: EdgeInsets.only(bottom: spacing.s4),
+                                  child: Text(
+                                    '${entry.at.toLocal()} · ${entry.action} · ${entry.templateId}/${entry.clientId} · ${entry.detail}',
+                                    style: bt.typography.caption,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultCentroController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default centro_costo',
                         ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultProveedorController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default proveedor',
-                        ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultObraController,
-                        decoration: const InputDecoration(
-                          labelText: 'Default obra',
-                        ),
-                        onChanged: (_) => _runValidation(),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          FilledButton.tonalIcon(
-                            onPressed: _runValidation,
-                            icon: const Icon(Icons.rule_folder_outlined),
-                            label: const Text('Validar'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _saveProfile,
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Guardar preset local'),
-                          ),
-                        ],
-                      ),
+                      ],
                     ],
                   ),
                 ),
               ),
-            if (report != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        '4) Resultado validación: ${report.errorCount} errores, ${report.warningCount} warnings',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      if (report.issues.isEmpty)
-                        const Text('Sin observaciones. Listo para exportar.'),
-                      ...report.issues.take(12).map(
-                            (issue) => Text(
-                              'Fila ${issue.row} • ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
-                              style: TextStyle(
-                                color: issue.isWarning
-                                    ? Colors.orange.shade700
-                                    : Colors.red.shade700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
+            ),
+            if (_busy)
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: LinearProgressIndicator(),
               ),
-            if (_mappedRows.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        '5) Preview + export',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Filas transformadas: ${_mappedRows.length}'),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columns: _template.fields
-                              .map(
-                                (f) => DataColumn(label: Text(f.label)),
-                              )
-                              .toList(growable: false),
-                          rows: _mappedRows.take(12).map((row) {
-                            return DataRow(
-                              cells: _template.fields
-                                  .map(
-                                    (f) => DataCell(Text(row[f.key] ?? '')),
-                                  )
-                                  .toList(growable: false),
-                            );
-                          }).toList(growable: false),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          ElevatedButton.icon(
-                            onPressed: _exportXlsx,
-                            icon: const Icon(Icons.grid_on_outlined),
-                            label: const Text('Exportar XLSX'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _exportPdf,
-                            icon: const Icon(Icons.picture_as_pdf_outlined),
-                            label: const Text('Exportar PDF'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (_auditEntries.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Audit log local',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._auditEntries.map(
-                        (entry) => Text(
-                          '${entry.at.toLocal()} • ${entry.action} • ${entry.templateId}/${entry.clientId} • ${entry.detail}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (_busy) const LinearProgressIndicator(),
           ],
         ),
       ),
