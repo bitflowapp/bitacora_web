@@ -69,7 +69,7 @@ class LandingScreen extends StatelessWidget {
                             children: [
                               _TopNav(
                                 brand: config.brandName.isEmpty
-                                    ? 'Bitácora'
+                                    ? 'BitÃ¡cora'
                                     : config.brandName,
                                 onToggleTheme: onToggleTheme,
                               ),
@@ -84,13 +84,13 @@ class LandingScreen extends StatelessWidget {
                               SectionHeader(
                                 title: 'Beneficios claros y medibles',
                                 subtitle:
-                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricción.',
+                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricciÃ³n.',
                               ),
                               SizedBox(height: space.s16),
                               const _BenefitsGrid(),
                               SizedBox(height: space.s32),
                               SectionHeader(
-                                title: 'Cómo funciona',
+                                title: 'CÃ³mo funciona',
                                 subtitle:
                                     'Tres pasos simples para empezar hoy mismo.',
                               ),
@@ -100,7 +100,7 @@ class LandingScreen extends StatelessWidget {
                               SectionHeader(
                                 title: 'Casos de uso',
                                 subtitle:
-                                    'Pensado para equipos operativos, auditorías y seguimiento diario.',
+                                    'Pensado para equipos operativos, auditorÃ­as y seguimiento diario.',
                               ),
                               SizedBox(height: space.s16),
                               const _UseCases(),
@@ -124,7 +124,7 @@ class LandingScreen extends StatelessWidget {
                               SectionHeader(
                                 title: 'FAQ',
                                 subtitle:
-                                    'Respuestas rápidas para decidir sin dudas.',
+                                    'Respuestas rÃ¡pidas para decidir sin dudas.',
                               ),
                               SizedBox(height: space.s16),
                               const _FaqList(),
@@ -185,7 +185,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitácora operativa sin conexión',
+      subtitle: 'BitÃ¡cora operativa sin conexiÃ³n',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -228,74 +228,73 @@ class _HeroSection extends StatelessWidget {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final wide = constraints.maxWidth > 880;
+        final heroContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bitácora operativa con evidencias en un solo lugar',
+              style: t.text.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              config.brandTagline.isNotEmpty
+                  ? config.brandTagline
+                  : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
+              style: t.text.bodyLarge?.copyWith(
+                color: t.colors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                AppButton(
+                  label: 'Probar ahora',
+                  variant: AppButtonVariant.primary,
+                  size: AppButtonSize.lg,
+                  onPressed: onPrimary,
+                ),
+                AppButton(
+                  label: 'WhatsApp',
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.lg,
+                  onPressed: onWhatsApp,
+                ),
+                AppButton(
+                  label: 'Email',
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.lg,
+                  onPressed: onEmail,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: const [
+                _Tag('Sin conexión real'),
+                _Tag('Backup ZIP'),
+                _Tag('Reporte imprimible'),
+                _Tag('Sin servidores'),
+              ],
+            ),
+          ],
+        );
+
         return Flex(
           direction: wide ? Axis.horizontal : Axis.vertical,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: wide ? 6 : 0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
-                    style: t.text.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    config.brandTagline.isNotEmpty
-                        ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
-                    style: t.text.bodyLarge?.copyWith(
-                      color: t.colors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      AppButton(
-                        label: 'Probar ahora',
-                        variant: AppButtonVariant.primary,
-                        size: AppButtonSize.lg,
-                        onPressed: onPrimary,
-                      ),
-                      AppButton(
-                        label: 'WhatsApp',
-                        variant: AppButtonVariant.secondary,
-                        size: AppButtonSize.lg,
-                        onPressed: onWhatsApp,
-                      ),
-                      AppButton(
-                        label: 'Email',
-                        variant: AppButtonVariant.ghost,
-                        size: AppButtonSize.lg,
-                        onPressed: onEmail,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
-                      _Tag('Reporte imprimible'),
-                      _Tag('Sin servidores'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            if (wide) Expanded(flex: 6, child: heroContent) else heroContent,
             if (wide) const SizedBox(width: 26),
             if (wide)
-              Expanded(
+              const Expanded(
                 flex: 5,
                 child: _PreviewCard(),
               ),
@@ -371,7 +370,7 @@ class _BenefitsGrid extends StatelessWidget {
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin conexión real',
+            title: 'Sin conexiÃ³n real',
             desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
             icon: Icons.offline_bolt_outlined,
           ),
@@ -774,30 +773,29 @@ class _CtaBand extends StatelessWidget {
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final wide = constraints.maxWidth > 720;
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Listo para ordenar tu operación?',
+                style: t.text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Instalación local en minutos. Sin servidores, sin fricción.',
+                style: t.text.bodyMedium?.copyWith(
+                  color: t.colors.textSecondary,
+                ),
+              ),
+            ],
+          );
           return Flex(
             direction: wide ? Axis.horizontal : Axis.vertical,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Listo para ordenar tu operaci\u00f3n?',
-                      style: t.text.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Instalaci\u00f3n local en minutos. Sin servidores, sin fricci\u00f3n.',
-                      style: t.text.bodyMedium?.copyWith(
-                        color: t.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              if (wide) Expanded(child: copy) else copy,
               const SizedBox(height: 14, width: 14),
               Wrap(
                 spacing: 12,

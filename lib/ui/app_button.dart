@@ -79,7 +79,7 @@ class _AppButtonState extends State<AppButton> {
         final focused = states.contains(WidgetState.focused);
         return BorderSide(
           color: focused ? t.colors.focusRing : c.border,
-          width: focused ? 1.2 : 1,
+          width: focused ? 1.8 : 1,
         );
       }),
       elevation: const WidgetStatePropertyAll<double>(0),
