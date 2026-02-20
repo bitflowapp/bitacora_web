@@ -47,8 +47,8 @@ class _AppButtonState extends State<AppButton> {
     final disabled = widget.loading || widget.onPressed == null;
 
     final minHeight = switch (widget.size) {
-      AppButtonSize.sm => 36.0,
-      AppButtonSize.md => 42.0,
+      AppButtonSize.sm => 44.0,
+      AppButtonSize.md => 44.0,
       AppButtonSize.lg => 48.0,
     };
 

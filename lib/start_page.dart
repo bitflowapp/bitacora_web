@@ -4584,8 +4584,8 @@ class _PillIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoButton(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      minSize: 0,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      minSize: BitflowTokens.minTapTarget,
       pressedOpacity: 0.55,
       onPressed: onTap,
       child: Icon(icon, size: 20, color: color),
@@ -4884,12 +4884,12 @@ class _SuggestedListCard extends StatelessWidget {
           const SizedBox(width: 10),
           CupertinoButton(
             padding: EdgeInsets.zero,
-            minSize: 0,
+            minSize: BitflowTokens.minTapTarget,
             pressedOpacity: 0.55,
             onPressed: onAdd,
             child: Container(
-              width: 34,
-              height: 34,
+              width: BitflowTokens.minTapTarget,
+              height: BitflowTokens.minTapTarget,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.isLight
@@ -4899,7 +4899,7 @@ class _SuggestedListCard extends StatelessWidget {
                 border: Border.all(color: border),
               ),
               child: const Icon(CupertinoIcons.add,
-                  color: Color(0xFF1A1A1E), size: 20),
+                  color: Color(0xFF1A1A1E), size: 22),
             ),
           ),
         ],
@@ -5044,7 +5044,7 @@ class _FloatingAddButton extends StatelessWidget {
       opacity: disabled ? 0.55 : 1.0,
       child: CupertinoButton(
         padding: EdgeInsets.zero,
-        minSize: 0,
+        minSize: BitflowTokens.minTapTarget,
         pressedOpacity: 0.65,
         onPressed: onTap,
         child: Container(
@@ -5122,14 +5122,15 @@ class _AppleSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spacing = BitflowTokens.spacing;
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(BitflowTokens.radii.lg),
         border: Border.all(color: colors.separator),
         boxShadow: [colors.subtleShadow],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(spacing.s16),
       child: child,
     );
   }
@@ -5149,7 +5150,7 @@ class _AppleInsetGroupedList extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(BitflowTokens.radii.lg),
         border: Border.all(color: colors.separator),
         boxShadow: [colors.subtleShadow],
       ),

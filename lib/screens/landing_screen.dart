@@ -12,17 +12,6 @@ const bool _kShowLandingBuildStamp = bool.fromEnvironment(
   defaultValue: false,
 );
 
-class _LandingScale {
-  const _LandingScale._();
-
-  static const double s4 = 4;
-  static const double s8 = 8;
-  static const double s12 = 12;
-  static const double s16 = 16;
-  static const double s24 = 24;
-  static const double s32 = 32;
-}
-
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
     super.key,
@@ -40,6 +29,7 @@ class LandingScreen extends StatelessWidget {
       builder: (context, snapshot) {
         final config = snapshot.data ?? AppConfig.defaults();
         final tokens = context.tokens;
+        final space = BitflowTokens.spacing;
 
         return Scaffold(
           backgroundColor: tokens.colors.bg,
@@ -63,84 +53,86 @@ class LandingScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              SafeArea(
-                child: SingleChildScrollView(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1160),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: _LandingScale.s24,
-                          vertical: _LandingScale.s24,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _TopNav(
-                              brand: config.brandName.isEmpty
-                                  ? 'Bit\u00e1cora'
-                                  : config.brandName,
-                              onToggleTheme: onToggleTheme,
-                            ),
-                            const SizedBox(height: _LandingScale.s32),
-                            _HeroSection(
-                              config: config,
-                              onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
-                              onEmail: () => _launchEmail(config),
-                            ),
-                            const SizedBox(height: _LandingScale.s32),
-                            SectionHeader(
-                              title: 'Beneficios claros y medibles',
-                              subtitle:
-                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin fricci\u00f3n.',
-                            ),
-                            const SizedBox(height: _LandingScale.s16),
-                            const _BenefitsGrid(),
-                            const SizedBox(height: _LandingScale.s32),
-                            SectionHeader(
-                              title: 'C\u00f3mo funciona',
-                              subtitle:
-                                  'Tres pasos simples para empezar hoy mismo.',
-                            ),
-                            const SizedBox(height: _LandingScale.s16),
-                            const _HowItWorks(),
-                            const SizedBox(height: _LandingScale.s32),
-                            SectionHeader(
-                              title: 'Casos de uso',
-                              subtitle:
-                                  'Pensado para equipos operativos, auditor\u00edas y seguimiento diario.',
-                            ),
-                            const SizedBox(height: _LandingScale.s16),
-                            const _UseCases(),
-                            const SizedBox(height: _LandingScale.s32),
-                            SectionHeader(
-                              title: 'Planes claros, sin servidor',
-                              subtitle:
-                                  'Licencia local + soporte. No depende de internet para operar.',
-                            ),
-                            const SizedBox(height: _LandingScale.s16),
-                            _Pricing(
-                              config: config,
-                              onPrimary: () => context.go('/app'),
-                            ),
-                            const SizedBox(height: _LandingScale.s32),
-                            _CtaBand(
-                              onPrimary: () => context.go('/app'),
-                              onWhatsApp: () => _launchWhatsApp(config),
-                            ),
-                            const SizedBox(height: _LandingScale.s32),
-                            SectionHeader(
-                              title: 'FAQ',
-                              subtitle:
-                                  'Respuestas r\u00e1pidas para decidir sin dudas.',
-                            ),
-                            const SizedBox(height: _LandingScale.s16),
-                            const _FaqList(),
-                            const SizedBox(height: _LandingScale.s24),
-                            _Footer(config: config),
-                            const SizedBox(height: _LandingScale.s24),
-                          ],
+              FocusTraversalGroup(
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1160),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: space.s24,
+                            vertical: space.s24,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _TopNav(
+                                brand: config.brandName.isEmpty
+                                    ? 'Bitácora'
+                                    : config.brandName,
+                                onToggleTheme: onToggleTheme,
+                              ),
+                              SizedBox(height: space.s32),
+                              _HeroSection(
+                                config: config,
+                                onPrimary: () => context.go('/app'),
+                                onWhatsApp: () => _launchWhatsApp(config),
+                                onEmail: () => _launchEmail(config),
+                              ),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Beneficios claros y medibles',
+                                subtitle:
+                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricción.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const _BenefitsGrid(),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Cómo funciona',
+                                subtitle:
+                                    'Tres pasos simples para empezar hoy mismo.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const _HowItWorks(),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Casos de uso',
+                                subtitle:
+                                    'Pensado para equipos operativos, auditorías y seguimiento diario.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const _UseCases(),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'Planes claros, sin servidor',
+                                subtitle:
+                                    'Licencia local + soporte. No depende de internet para operar.',
+                              ),
+                              SizedBox(height: space.s16),
+                              _Pricing(
+                                config: config,
+                                onPrimary: () => context.go('/app'),
+                              ),
+                              SizedBox(height: space.s32),
+                              _CtaBand(
+                                onPrimary: () => context.go('/app'),
+                                onWhatsApp: () => _launchWhatsApp(config),
+                              ),
+                              SizedBox(height: space.s32),
+                              SectionHeader(
+                                title: 'FAQ',
+                                subtitle:
+                                    'Respuestas rápidas para decidir sin dudas.',
+                              ),
+                              SizedBox(height: space.s16),
+                              const _FaqList(),
+                              SizedBox(height: space.s24),
+                              _Footer(config: config),
+                              SizedBox(height: space.s24),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -203,11 +195,13 @@ class _TopNav extends StatelessWidget {
         AppButton(
           label: 'Probar ahora',
           variant: AppButtonVariant.primary,
+          size: AppButtonSize.lg,
           onPressed: () => context.go('/app'),
         ),
         AppButton(
           label: 'Modo',
           variant: AppButtonVariant.ghost,
+          size: AppButtonSize.lg,
           onPressed: onToggleTheme,
         ),
       ],
@@ -268,16 +262,19 @@ class _HeroSection extends StatelessWidget {
                       AppButton(
                         label: 'Probar ahora',
                         variant: AppButtonVariant.primary,
+                        size: AppButtonSize.lg,
                         onPressed: onPrimary,
                       ),
                       AppButton(
                         label: 'WhatsApp',
                         variant: AppButtonVariant.secondary,
+                        size: AppButtonSize.lg,
                         onPressed: onWhatsApp,
                       ),
                       AppButton(
                         label: 'Email',
                         variant: AppButtonVariant.ghost,
+                        size: AppButtonSize.lg,
                         onPressed: onEmail,
                       ),
                     ],
@@ -319,8 +316,9 @@ class _PreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(space.s16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -699,6 +697,7 @@ class _Pricing extends StatelessWidget {
             AppButton(
               label: 'Probar Bit\u00e1cora',
               variant: AppButtonVariant.primary,
+              size: AppButtonSize.lg,
               onPressed: onPrimary,
             ),
           ],
@@ -724,8 +723,9 @@ class _PriceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(space.s16),
       borderColor: highlight ? t.colors.accent : t.colors.border,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,8 +768,9 @@ class _CtaBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final space = BitflowTokens.spacing;
     return AppCard(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(space.s16),
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final wide = constraints.maxWidth > 720;
@@ -805,11 +806,13 @@ class _CtaBand extends StatelessWidget {
                   AppButton(
                     label: 'Probar ahora',
                     variant: AppButtonVariant.primary,
+                    size: AppButtonSize.lg,
                     onPressed: onPrimary,
                   ),
                   AppButton(
                     label: 'WhatsApp',
                     variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.lg,
                     onPressed: onWhatsApp,
                   ),
                 ],
@@ -932,11 +935,12 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final radii = BitflowTokens.radii;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: t.colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(t.radii.pill),
+        borderRadius: BorderRadius.circular(radii.pill),
         border: Border.all(color: t.colors.border),
       ),
       child: Text(
