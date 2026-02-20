@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 env:
-  FLUTTER_CHANNEL: stable
+  FLUTTER_VERSION: 3.35.6
   # Override from repo/org variable BASE_HREF when needed (for user pages use "/").
   BASE_HREF: ${{ vars.BASE_HREF || '/bitacora_web/' }}
 
@@ -26,8 +26,11 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+
+      - name: Resolve Dart binary from Flutter SDK
+        run: echo "DART_BIN=$FLUTTER_ROOT/bin/cache/dart-sdk/bin/dart" >> "$GITHUB_ENV"
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -39,7 +42,7 @@ jobs:
         run: flutter pub get
 
       - name: Format check
-        run: dart format --set-exit-if-changed .
+        run: "$DART_BIN" format --output=none --set-exit-if-changed .
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -71,6 +74,7 @@ jobs:
           echo "Using BASE_HREF=${{ env.BASE_HREF }}"
           flutter build web --release \
             --base-href "${{ env.BASE_HREF }}" \
+            --dart-define=BITFLOW_AUTH=false \
             --dart-define=BUILD_ID=${{ github.run_id }}-${{ github.run_attempt }} \
             --dart-define=ENGINE_BASE_URL=${{ vars.ENGINE_BASE_URL }} \
             --dart-define=GIT_SHA=${{ github.sha }} \
