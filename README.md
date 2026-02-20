@@ -1,28 +1,47 @@
-# Bitacora Pro (Windows)
+# BitFlow
+BitFlow es una app web Flutter para operacion de campo local-first: crear planillas, capturar evidencia y exportar entregables sin depender de backend.
 
-Bitacora operativa con evidencias en 1 lugar. Pensado para PyMEs, municipal y equipos de campo. Funciona 100% local, sin servidores.
+## Propuesta de valor
+- Menos friccion en campo: datos + evidencia en una sola planilla.
+- Modo local-first real: funciona sin red y mantiene continuidad de trabajo.
+- Entregables listos para cliente: exportacion XLSX/PDF/ZIP.
 
-Requisitos
-- Windows 10/11
-- Chrome o Edge
+## Features premium
+- Editor orientado a uso movil (tap targets consistentes y feedback claro).
+- Evidencia por celda (foto/audio/GPS) con flujo operativo directo.
+- Plantillas y agente de planillas para acelerar carga/importacion.
+- Pantallas comerciales listas para demo (landing, premium, marketing/legal).
 
-Como usar en 3 pasos
-1. Descomprimir el ZIP de entrega.
-2. Doble click en `run.bat` (o `run.ps1`).
-3. Se abre automaticamente en el navegador.
+## Stack
+- Flutter (Web)
+- Dart
+- GoRouter
+- Persistencia local (modo local-first)
 
-Configuracion (opcional)
-- Edita `web\config.json` para cambiar marca, email, WhatsApp y precios.
-- Si usas build desde codigo, podes editar `assets\config.json` o usar `--dart-define`.
+## Auth policy (importante)
+- Auth esta OFF por defecto: `BITFLOW_AUTH=false`.
+- Este repo no requiere login obligatorio para demo sell-ready.
 
-Backup y reportes
-- En la app: `Exportar -> Backup del proyecto (ZIP)` para resguardar todo.
-- `Reporte HTML (imprimible)` para exportar a PDF desde el navegador.
-- Importar: `Home -> Opciones -> Importar backup ZIP`.
+## Ejecutar local (Windows)
+```powershell
+C:\src\flutter\bin\flutter.bat pub get
+C:\src\flutter\bin\flutter.bat run -d chrome --dart-define=BITFLOW_AUTH=false
+```
 
-Problemas comunes
-- Script bloqueado: abrir PowerShell como Admin y ejecutar
-  `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`
-- Puerto en uso: el script intenta otro puerto automaticamente.
-- No abre el navegador: copiar el link que aparece en la consola y abrirlo.
-- Export/Import: si el ZIP no tiene `backup.json`, el archivo no es valido.
+## Build web release (GitHub Pages)
+```powershell
+C:\src\flutter\bin\flutter.bat build web --release --base-href "/bitacora_web/" --dart-define=BITFLOW_AUTH=false --no-wasm-dry-run
+```
+
+## Gates de calidad
+```powershell
+C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe format --output=none --set-exit-if-changed .
+C:\src\flutter\bin\flutter.bat test
+C:\src\flutter\bin\flutter.bat analyze --no-fatal-infos --no-fatal-warnings
+```
+
+## Documentacion de venta/release
+- `docs/RELEASE_CHECKLIST.md`
+- `docs/SALES_DEMO_SCRIPT.md`
+- `docs/KNOWN_LIMITS.md`
+- `docs/release_checklist_pages.md`

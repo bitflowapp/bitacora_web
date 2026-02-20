@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <base href="$FLUTTER_BASE_HREF" />
@@ -9,17 +9,27 @@
   <!-- iOS: viewport correcto -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <title>Bitacora Web — Operaciones con evidencias</title>
-  <meta name="description" content="Bitacora operativa offline con evidencias, adjuntos y exportacion lista para auditorias." />
+  <title>BitFlow - Planillas rápidas, local-first y exportables</title>
+  <meta name="description" content="BitFlow: planillas rápidas local-first con evidencias por celda, operación offline y exportación inmediata para equipos de campo." />
   <meta name="robots" content="index,follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="BitFlow" />
+  <meta property="og:title" content="BitFlow - Planillas rápidas, local-first y exportables" />
+  <meta property="og:description" content="Operación de campo sin servidor: captura datos con evidencia y exporta ZIP/XLSX/PDF para entregar al cliente." />
+  <meta property="og:image" content="icons/Icon-512.png" />
+  <meta property="og:url" content="https://marcoluna-nqn.github.io/bitacora_web/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="BitFlow - Planillas rápidas, local-first y exportables" />
+  <meta name="twitter:description" content="BitFlow: operación local-first con evidencias, sin backend obligatorio." />
+  <meta name="twitter:image" content="icons/Icon-512.png" />
 
   <!-- BUILD ID fallback (si version.json no está disponible) -->
-  <meta name="bitflow-build" content="__BUILD_ID__" />
+  <meta name="bitflow-build" content="" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Bitacora Web" />
-  <meta name="application-name" content="Bitacora Web" />
+  <meta name="apple-mobile-web-app-title" content="BitFlow" />
+  <meta name="application-name" content="BitFlow" />
   <meta name="theme-color" content="#111111" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
@@ -53,7 +63,6 @@
     /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
-    /* Build badge moved to Flutter widget (_BuildBadge). */
 
     #boot-fallback {
       position: fixed;
@@ -389,7 +398,7 @@
 
         var m = document.querySelector('meta[name="bitflow-build"]');
         var v = m ? (m.getAttribute('content') || '') : '';
-        if (v && v !== '__BUILD_ID__') return v;
+        if (v) return v;
         return 'dev-' + Date.now();
       }
 
@@ -408,7 +417,6 @@
         }
       }
 
-      // Build badge moved to Flutter widget (_BuildBadge).
 
       // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
       async function nukeCachesIfBuildChanged(build) {
