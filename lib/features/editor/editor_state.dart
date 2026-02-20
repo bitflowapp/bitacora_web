@@ -17250,9 +17250,10 @@ class _EditorScreenState extends State<EditorScreen>
                       permission: ph.Permission.camera,
                     );
                     if (!preflightOk) return;
+                    if (!mounted || !ctx.mounted) return;
                     try {
                       final outcome = await PhotoAcquireService.I
-                          .captureFromCamera(context: context);
+                          .captureFromCamera(context: ctx);
                       if (!ctx.mounted) return;
                       Navigator.of(
                         ctx,
