@@ -16,6 +16,7 @@ import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
+import 'screens/marketing_screen.dart';
 import 'start_page.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
@@ -453,6 +454,13 @@ class _AppState extends State<App> {
           ),
         ),
         GoRoute(
+          path: '/landing',
+          builder: (context, state) => LandingScreen(
+            isLight: _isLight,
+            onToggleTheme: _toggleTheme,
+          ),
+        ),
+        GoRoute(
           path: '/app',
           builder: (context, state) => _AppHome(
             isLight: _isLight,
@@ -474,6 +482,14 @@ class _AppState extends State<App> {
         GoRoute(
           path: '/terms',
           builder: (context, state) => const LegalScreen.terms(),
+        ),
+        GoRoute(
+          path: '/contact',
+          builder: (context, state) => const MarketingScreen.contact(),
+        ),
+        GoRoute(
+          path: '/changelog',
+          builder: (context, state) => const MarketingScreen.changelog(),
         ),
       ],
     );

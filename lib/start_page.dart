@@ -498,6 +498,8 @@ class _StartPageState extends State<StartPage> {
   bool _hideUpdateBanner = false;
   bool _iosInstallHelperHiddenSession = false;
   bool _iosInstallHelperHiddenPersistent = false;
+  bool _showFirstRunTips = false;
+  bool _firstRunDontShowAgain = false;
   static const String _kPrefIosInstallHelperDismissed =
       'bitflow.ios_install_helper_dismissed.v1';
 
@@ -621,9 +623,20 @@ class _StartPageState extends State<StartPage> {
     try {
       final p = await SharedPreferences.getInstance();
       final done = p.getBool(_kPrefOnboardingDone) ?? false;
-      if (done || !mounted) return;
-      await _showOnboardingDialog();
+      if (!mounted) return;
+      setState(() {
+        _showFirstRunTips = !done;
+        _firstRunDontShowAgain = false;
+      });
     } catch (_) {}
+  }
+
+  Future<void> _dismissFirstRunTips({bool dontShowAgain = true}) async {
+    if (dontShowAgain) {
+      await _markOnboardingDone();
+    }
+    if (!mounted) return;
+    setState(() => _showFirstRunTips = false);
   }
 
   Future<void> _markOnboardingDone() async {
@@ -3892,6 +3905,154 @@ class _StartPageState extends State<StartPage> {
                       ),
                     ),
                   ),
+                  if (_showFirstRunTips)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _AppleSectionCard(
+                          colors: colors,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Primeros pasos',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Primer arranque listo para producción: tres pasos, sin modal pesado.',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '1. Crea tu primera hoja o usa una plantilla comercial.',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '2. Registra datos y evidencia por celda (foto/audio/GPS).',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '3. Exporta ZIP/XLSX/PDF para compartir sin depender de servidor.',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  CupertinoSwitch(
+                                    value: _firstRunDontShowAgain,
+                                    onChanged: (value) {
+                                      setState(
+                                        () => _firstRunDontShowAgain = value,
+                                      );
+                                    },
+                                  ),
+                                  Text(
+                                    'No mostrar de nuevo',
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  CupertinoButton(
+                                    minSize: 44,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () {},
+                                    child: Text(
+                                      'Siguiente',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    minSize: 44,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.textPrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () async {
+                                      await _dismissFirstRunTips(
+                                        dontShowAgain: _firstRunDontShowAgain,
+                                      );
+                                      if (!mounted) return;
+                                      await _newSheet();
+                                    },
+                                    child: Text(
+                                      'Crear hoja',
+                                      style: TextStyle(
+                                        color: colors.surface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    minSize: 44,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () => _dismissFirstRunTips(
+                                      dontShowAgain: _firstRunDontShowAgain,
+                                    ),
+                                    child: Text(
+                                      'Ahora no',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_shouldShowIosInstallHelper)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -4044,25 +4205,28 @@ class _StartPageState extends State<StartPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                      child: _RemindersSummaryGrid(
-                        isLight: isLight,
-                        today: todayCount,
-                        scheduled: scheduledCount,
-                        all: allCount,
-                        flagged: flaggedCount,
-                        completed: completedCount,
-                        onTapToday: () => _applySummaryTap(_SummaryKind.today),
-                        onTapScheduled: () =>
-                            _applySummaryTap(_SummaryKind.scheduled),
-                        onTapAll: () => _applySummaryTap(_SummaryKind.all),
-                        onTapFlagged: () =>
-                            _applySummaryTap(_SummaryKind.flagged),
-                        onTapCompleted: () =>
-                            _applySummaryTap(_SummaryKind.completed),
-                      )
-                          .animate()
-                          .fadeIn(duration: 220.ms)
-                          .move(begin: const Offset(0, 6)),
+                      child: RepaintBoundary(
+                        child: _RemindersSummaryGrid(
+                          isLight: isLight,
+                          today: todayCount,
+                          scheduled: scheduledCount,
+                          all: allCount,
+                          flagged: flaggedCount,
+                          completed: completedCount,
+                          onTapToday: () =>
+                              _applySummaryTap(_SummaryKind.today),
+                          onTapScheduled: () =>
+                              _applySummaryTap(_SummaryKind.scheduled),
+                          onTapAll: () => _applySummaryTap(_SummaryKind.all),
+                          onTapFlagged: () =>
+                              _applySummaryTap(_SummaryKind.flagged),
+                          onTapCompleted: () =>
+                              _applySummaryTap(_SummaryKind.completed),
+                        )
+                            .animate()
+                            .fadeIn(duration: 220.ms)
+                            .move(begin: const Offset(0, 6)),
+                      ),
                     ),
                   ),
 
@@ -4070,21 +4234,23 @@ class _StartPageState extends State<StartPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                      child: _SuggestedListCard(
-                        colors: colors,
-                        title: 'Lista sugerida: Carpeta del mes',
-                        subtitle:
-                            'Organiza automáticamente las planillas nuevas.',
-                        onAdd: () async {
-                          final created = await _createFolderDialog(context);
-                          if (created == null) return;
-                          if (!mounted) return;
-                          setState(() {
-                            _tab = _HomeTab.sheets;
-                            _selectedFolderId = created.id;
-                            _quick = _QuickFilter.none;
-                          });
-                        },
+                      child: RepaintBoundary(
+                        child: _SuggestedListCard(
+                          colors: colors,
+                          title: 'Lista sugerida: Carpeta del mes',
+                          subtitle:
+                              'Organiza automáticamente las planillas nuevas.',
+                          onAdd: () async {
+                            final created = await _createFolderDialog(context);
+                            if (created == null) return;
+                            if (!mounted) return;
+                            setState(() {
+                              _tab = _HomeTab.sheets;
+                              _selectedFolderId = created.id;
+                              _quick = _QuickFilter.none;
+                            });
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -4107,23 +4273,25 @@ class _StartPageState extends State<StartPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          _ListsCard(
-                            colors: colors,
-                            items: _buildHomeLists(colors),
-                            onTap: (item) {
-                              switch (item.kind) {
-                                case _ListKind.root:
-                                  _applyListTap(_ListKind.root, folderId: '');
-                                  break;
-                                case _ListKind.folder:
-                                  _applyListTap(_ListKind.folder,
-                                      folderId: item.folderId);
-                                  break;
-                                case _ListKind.trash:
-                                  _applyListTap(_ListKind.trash);
-                                  break;
-                              }
-                            },
+                          RepaintBoundary(
+                            child: _ListsCard(
+                              colors: colors,
+                              items: _buildHomeLists(colors),
+                              onTap: (item) {
+                                switch (item.kind) {
+                                  case _ListKind.root:
+                                    _applyListTap(_ListKind.root, folderId: '');
+                                    break;
+                                  case _ListKind.folder:
+                                    _applyListTap(_ListKind.folder,
+                                        folderId: item.folderId);
+                                    break;
+                                  case _ListKind.trash:
+                                    _applyListTap(_ListKind.trash);
+                                    break;
+                                }
+                              },
+                            ),
                           ),
                         ],
                       ).animate().fadeIn(duration: 220.ms, delay: 40.ms),

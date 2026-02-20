@@ -19,13 +19,15 @@ class LandingScreen extends StatelessWidget {
     required this.onToggleTheme,
   });
 
+  static final Future<AppConfig> _configFuture = AppConfig.load();
+
   final bool isLight;
   final VoidCallback onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<AppConfig>(
-      future: AppConfig.load(),
+      future: _configFuture,
       builder: (context, snapshot) {
         final config = snapshot.data ?? AppConfig.defaults();
         final tokens = context.tokens;
@@ -69,7 +71,7 @@ class LandingScreen extends StatelessWidget {
                             children: [
                               _TopNav(
                                 brand: config.brandName.isEmpty
-                                    ? 'BitÃ¡cora'
+                                    ? 'BitFlow'
                                     : config.brandName,
                                 onToggleTheme: onToggleTheme,
                               ),
@@ -84,26 +86,26 @@ class LandingScreen extends StatelessWidget {
                               SectionHeader(
                                 title: 'Beneficios claros y medibles',
                                 subtitle:
-                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricciÃ³n.',
+                                    'Operaciones con evidencia en un solo lugar, sin servidores y sin fricción.',
                               ),
                               SizedBox(height: space.s16),
-                              const _BenefitsGrid(),
+                              const RepaintBoundary(child: _BenefitsGrid()),
                               SizedBox(height: space.s32),
                               SectionHeader(
-                                title: 'CÃ³mo funciona',
+                                title: 'Cómo funciona',
                                 subtitle:
                                     'Tres pasos simples para empezar hoy mismo.',
                               ),
                               SizedBox(height: space.s16),
-                              const _HowItWorks(),
+                              const RepaintBoundary(child: _HowItWorks()),
                               SizedBox(height: space.s32),
                               SectionHeader(
                                 title: 'Casos de uso',
                                 subtitle:
-                                    'Pensado para equipos operativos, auditorÃ­as y seguimiento diario.',
+                                    'Pensado para equipos operativos, auditorías y seguimiento diario.',
                               ),
                               SizedBox(height: space.s16),
-                              const _UseCases(),
+                              const RepaintBoundary(child: _UseCases()),
                               SizedBox(height: space.s32),
                               SectionHeader(
                                 title: 'Planes claros, sin servidor',
@@ -124,10 +126,10 @@ class LandingScreen extends StatelessWidget {
                               SectionHeader(
                                 title: 'FAQ',
                                 subtitle:
-                                    'Respuestas rÃ¡pidas para decidir sin dudas.',
+                                    'Respuestas rápidas para decidir sin dudas.',
                               ),
                               SizedBox(height: space.s16),
-                              const _FaqList(),
+                              const RepaintBoundary(child: _FaqList()),
                               SizedBox(height: space.s24),
                               _Footer(config: config),
                               SizedBox(height: space.s24),
@@ -165,7 +167,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bit\u00e1cora',
+        'subject': 'Consulta BitFlow',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -185,7 +187,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'BitÃ¡cora operativa sin conexiÃ³n',
+      subtitle: 'BitFlow operativa sin conexión',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -232,7 +234,7 @@ class _HeroSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Bitácora operativa con evidencias en un solo lugar',
+              'BitFlow operativa con evidencias en un solo lugar',
               style: t.text.displaySmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.6,
@@ -370,7 +372,7 @@ class _BenefitsGrid extends StatelessWidget {
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin conexiÃ³n real',
+            title: 'Sin conexión real',
             desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
             icon: Icons.offline_bolt_outlined,
           ),
@@ -897,7 +899,7 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bit\u00e1cora' : config.brandName,
+              config.brandName.isEmpty ? 'BitFlow' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
@@ -917,6 +919,14 @@ class _Footer extends StatelessWidget {
             TextButton(
               onPressed: () => context.go('/terms'),
               child: const Text('T\u00e9rminos'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/contact'),
+              child: const Text('Contacto'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/changelog'),
+              child: const Text('Changelog'),
             ),
           ],
         ),

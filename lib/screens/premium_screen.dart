@@ -17,6 +17,16 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
+  late final Stream<PremiumState> _premiumStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _premiumStream = kAuthEnabled
+        ? PremiumService.I.watchCurrentUserPremium()
+        : Stream<PremiumState>.value(PremiumState.signedOut());
+  }
+
   Future<void> _openCheckout(String url) async {
     final parsed = Uri.tryParse(url.trim());
     if (parsed == null) {
@@ -87,10 +97,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
     final bt = context.bitflow;
     final spacing = BitflowTokens.spacing;
 
-    final Stream<PremiumState> premiumStream = kAuthEnabled
-        ? PremiumService.I.watchCurrentUserPremium()
-        : Stream<PremiumState>.value(PremiumState.signedOut());
-
     return AppShell(
       title: 'BitFlow Premium',
       subtitle: 'Planes claros para operación local sin backend obligatorio.',
@@ -101,7 +107,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       ),
       body: FocusTraversalGroup(
         child: StreamBuilder<PremiumState>(
-          stream: premiumStream,
+          stream: _premiumStream,
           builder: (context, snapshot) {
             final state = snapshot.data ?? PremiumState.signedOut();
             final trialEndsAt = state.trialEndsAt?.toLocal();
