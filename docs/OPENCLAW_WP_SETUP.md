@@ -77,7 +77,22 @@ Luego escanear QR en WhatsApp y verificar con `openclaw status`.
   - Usar el script `openclaw_jariel_start.ps1` (manejo de puerto nativo Windows).
 - Puerto 18789 ocupado:
   - El script detecta PID y lo detiene antes de iniciar gateway.
-- Rate limit / problemas de proveedor:
-  - Revisar `openclaw status`, `openclaw health --json` y logs stdout/stderr.
+- `API rate limit reached` en WhatsApp (causa real vista en P11):
+  - OpenClaw puede estar usando un `auth-profiles.json` viejo en `C:\Users\marco\.openclaw\agents\main\agent\` con otra cuenta distinta al `CODEX_HOME` actual.
+  - Verificar identidad activa sin exponer secretos:
+```powershell
+openclaw logs --plain --limit 200
+```
+  - Buscar en log:
+    - `API rate limit reached`
+    - `No API key found for provider "openai-codex"`
+  - Reparación usada:
+    1. Backup de `auth-profiles.json` y `auth.json` (timestamp).
+    2. Sincronizar auth de OpenClaw con `C:\Users\marco\.codex_plus_jariel\auth.json`.
+    3. Si el gateway queda en `No API key found`, regenerar perfil con:
+```powershell
+openclaw models auth paste-token --provider openai-codex --profile-id openai-codex:default --expires-in 240h
+```
+    4. Reiniciar gateway con `openclaw_jariel_start.ps1`.
 - WhatsApp no responde aunque esté vinculado:
   - Relanzar script de arranque y revisar líneas de provider en `openclaw_gateway_stdout_*.log`.
