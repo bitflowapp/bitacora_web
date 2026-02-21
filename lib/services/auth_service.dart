@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'premium_config.dart';
+import 'runtime_flags.dart';
 
 class AuthUser {
   final String id;
@@ -35,6 +36,13 @@ class AuthUser {
 class AuthService {
   static final AuthService I = AuthService._();
 
+  static const AuthUser demoUser = AuthUser(
+    id: 'demo_user',
+    name: 'Demo User',
+    email: 'demo@bitflow.local',
+    isAnonymous: true,
+  );
+
   AuthService._() {
     user.addListener(() {
       if (_userCtrl.isClosed) return;
@@ -55,8 +63,10 @@ class AuthService {
   bool _googleInitDone = false;
 
   Stream<AuthUser?> get userChanges => _userCtrl.stream;
-  AuthUser? get currentUser => user.value;
-  bool get isSignedIn => _auth.currentUser != null;
+  AuthUser? get currentUser =>
+      RuntimeFlags.isAuthRequired ? user.value : (user.value ?? demoUser);
+  bool get isSignedIn =>
+      RuntimeFlags.isAuthRequired ? _auth.currentUser != null : true;
 
   /// Inicializa estado desde SharedPreferences. Idempotente.
   Future<void> init() {
@@ -67,6 +77,14 @@ class AuthService {
   Future<void> _initImpl() async {
     lastError.value = '';
     try {
+      if (!RuntimeFlags.isAuthRequired) {
+        user.value = demoUser;
+        if (!_userCtrl.isClosed) {
+          _userCtrl.add(user.value);
+        }
+        return;
+      }
+
       await _ensureWebPersistence();
       final current = _auth.currentUser;
       user.value = current == null ? null : AuthUser.fromFirebase(current);
@@ -190,6 +208,11 @@ class AuthService {
 
   Future<void> signOut() async {
     lastError.value = '';
+    if (!RuntimeFlags.isAuthRequired) {
+      user.value = demoUser;
+      return;
+    }
+
     if (!kIsWeb) {
       try {
         if (_googleInitDone) {

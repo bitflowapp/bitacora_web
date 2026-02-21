@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../screens/editor_screen.dart';
 import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/runtime_flags.dart';
 import '../services/sheet_store.dart';
 
 class AuthGate extends StatefulWidget {
@@ -26,7 +27,9 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _initAuth() async {
-    await AuthService.I.init();
+    if (RuntimeFlags.isAuthRequired) {
+      await AuthService.I.init();
+    }
     final sheetId = await _resolveSheetId();
     if (!mounted) return;
     setState(() {
@@ -58,6 +61,10 @@ class _AuthGateState extends State<AuthGate> {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
+    }
+
+    if (!RuntimeFlags.isAuthRequired) {
+      return EditorScreen(sheetId: _sheetId!);
     }
 
     return StreamBuilder<AuthUser?>(

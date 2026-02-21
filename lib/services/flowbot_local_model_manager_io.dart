@@ -82,7 +82,9 @@ class _FlowBotLocalModelManagerIo implements FlowBotLocalModelManager {
 
       final bytes = await target.length();
       if (bytes <= 0) {
-        await target.delete().catchError((_) => target);
+        try {
+          await target.delete();
+        } catch (_) {}
         return const FlowBotModelDownloadResult(
           ok: false,
           error: 'El archivo de modelo quedo vacio.',

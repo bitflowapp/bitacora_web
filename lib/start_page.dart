@@ -93,6 +93,7 @@ import 'screens/premium_screen.dart';
 import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
+import 'services/runtime_flags.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -633,20 +634,24 @@ class _StartPageState extends State<StartPage> {
     bool dontShow = false;
 
     Future<void> closeDialog(BuildContext ctx) async {
+      final navigator = Navigator.of(ctx);
       if (dontShow) {
         await _markOnboardingDone();
       }
-      if (mounted) Navigator.of(ctx).pop();
+      if (!mounted) return;
+      navigator.pop();
     }
 
     Future<void> closeAndRun(
       BuildContext ctx,
       Future<void> Function() action,
     ) async {
+      final navigator = Navigator.of(ctx);
       if (dontShow) {
         await _markOnboardingDone();
       }
-      if (mounted) Navigator.of(ctx).pop();
+      if (!mounted) return;
+      navigator.pop();
       await action();
     }
 
@@ -1269,9 +1274,10 @@ class _StartPageState extends State<StartPage> {
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () async {
+                final navigator = Navigator.of(ctx);
                 final create = await _showTemplatePackPreview(template);
                 if (!mounted || !create) return;
-                Navigator.of(ctx).pop(template);
+                navigator.pop(template);
               },
               child: Ink(
                 padding: const EdgeInsets.all(12),
@@ -3227,14 +3233,15 @@ class _StartPageState extends State<StartPage> {
               child: Text(
                   _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                await _signOutCurrentUser();
-              },
-              isDestructiveAction: true,
-              child: const Text('Cerrar sesión'),
-            ),
+            if (RuntimeFlags.isAuthRequired)
+              CupertinoActionSheetAction(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await _signOutCurrentUser();
+                },
+                isDestructiveAction: true,
+                child: const Text('Cerrar sesión'),
+              ),
           ],
           cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -3247,6 +3254,10 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _signOutCurrentUser() async {
+    if (!RuntimeFlags.isAuthRequired) {
+      _toast('Modo demo activo: no hay sesión para cerrar.');
+      return;
+    }
     try {
       await AuthService.I.signOut();
     } catch (e) {
@@ -3838,13 +3849,14 @@ class _StartPageState extends State<StartPage> {
                         onPressed: widget.onToggleTheme,
                       ),
                       actions: [
-                        AppButton(
-                          label: 'Cerrar sesión',
-                          icon: CupertinoIcons.escape,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: _signOutCurrentUser,
-                        ),
+                        if (RuntimeFlags.isAuthRequired)
+                          AppButton(
+                            label: 'Cerrar sesión',
+                            icon: CupertinoIcons.escape,
+                            variant: AppButtonVariant.ghost,
+                            size: AppButtonSize.sm,
+                            onPressed: _signOutCurrentUser,
+                          ),
                         AppButton(
                           label: 'Buscar',
                           icon: CupertinoIcons.search,

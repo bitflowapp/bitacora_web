@@ -21,6 +21,7 @@ import 'services/engine_math_client.dart'; // si lo seguis usando en otras parte
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
+import 'services/runtime_flags.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
@@ -398,15 +399,35 @@ class _AppState extends State<App> {
 
   GoRouter _buildRouter(_BootStatus status) {
     return GoRouter(
-      initialLocation: '/',
+      initialLocation: RuntimeFlags.openHomeDirectly ? '/app' : '/',
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => buildRootPageForUri(
-            uri: state.uri,
+          builder: (context, state) {
+            if (RuntimeFlags.openHomeDirectly) {
+              final template = resolveDemoTemplateFromSlug(
+                state.uri.queryParameters['template'],
+              );
+              return _AppHome(
+                isLight: _isLight,
+                onToggleTheme: _toggleTheme,
+                firebaseOk: status.firebaseOk,
+                initialTemplate: template,
+              );
+            }
+            return buildRootPageForUri(
+              uri: state.uri,
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+              firebaseOk: status.firebaseOk,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/landing',
+          builder: (context, state) => LandingScreen(
             isLight: _isLight,
             onToggleTheme: _toggleTheme,
-            firebaseOk: status.firebaseOk,
           ),
         ),
         GoRoute(
@@ -489,7 +510,7 @@ class _AppHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget withOptionalAuth(Widget child) {
-      if (!firebaseOk) return child;
+      if (!firebaseOk || !RuntimeFlags.isAuthRequired) return child;
       return AuthGate(child: child);
     }
 
@@ -523,13 +544,18 @@ class _AppHome extends StatelessWidget {
       ),
     );
 
-    if (firebaseOk) return body;
+    final notices = <String>[
+      if (!firebaseOk) 'Firebase no inicio. Modo offline habilitado.',
+      if (!RuntimeFlags.isAuthRequired)
+        'Modo demo activo: login deshabilitado temporalmente.',
+    ];
+
+    if (notices.isEmpty) return body;
+
     return Stack(
       children: [
         body,
-        const _TopNotice(
-          message: 'Firebase no inicio. Modo offline habilitado.',
-        ),
+        _TopNotice(message: notices.join(' • ')),
       ],
     );
   }

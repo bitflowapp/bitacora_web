@@ -6,6 +6,7 @@ import '../services/app_config.dart';
 import '../services/auth_service.dart';
 import '../services/premium_config.dart';
 import '../services/premium_service.dart';
+import '../services/runtime_flags.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -108,112 +109,160 @@ class _PremiumScreenState extends State<PremiumScreen> {
       appBar: AppBar(
         title: const Text('Premium'),
       ),
-      body: StreamBuilder<PremiumState>(
-        stream: PremiumService.I.watchCurrentUserPremium(),
-        builder: (context, snapshot) {
-          final state = snapshot.data ?? PremiumState.signedOut();
-          final trialEndsAt = state.trialEndsAt?.toLocal();
-          final statusText = state.premiumActive
-              ? (state.isPremium
-                  ? 'Premium activo'
-                  : 'Te quedan ${state.remainingTrialDays} día(s) de prueba')
-              : 'Prueba finalizada';
-          final user = AuthService.I.currentUser;
+      body: RuntimeFlags.isAuthRequired
+          ? StreamBuilder<PremiumState>(
+              stream: PremiumService.I.watchCurrentUserPremium(),
+              builder: (context, snapshot) {
+                final state = snapshot.data ?? PremiumState.signedOut();
+                final trialEndsAt = state.trialEndsAt?.toLocal();
+                final statusText = state.premiumActive
+                    ? (state.isPremium
+                        ? 'Premium activo'
+                        : 'Te quedan ${state.remainingTrialDays} día(s) de prueba')
+                    : 'Prueba finalizada';
+                final user = AuthService.I.currentUser;
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                statusText,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 24,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                trialEndsAt == null
-                    ? 'No hay fecha de finalización de prueba registrada.'
-                    : 'Fin de prueba: ${trialEndsAt.day.toString().padLeft(2, '0')}/${trialEndsAt.month.toString().padLeft(2, '0')}/${trialEndsAt.year}',
-                style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              if (user != null)
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Text(
+                      statusText,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 24,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      trialEndsAt == null
+                          ? 'No hay fecha de finalización de prueba registrada.'
+                          : 'Fin de prueba: ${trialEndsAt.day.toString().padLeft(2, '0')}/${trialEndsAt.month.toString().padLeft(2, '0')}/${trialEndsAt.year}',
+                      style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                    ),
+                    const SizedBox(height: 4),
+                    if (user != null)
+                      Text(
+                        'Usuario: ${user.email ?? user.id}',
+                        style:
+                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                      ),
+                    const SizedBox(height: 22),
+                    const _SectionTitle(text: 'Mercado Pago'),
+                    const SizedBox(height: 10),
+                    _PayButton(
+                      label: 'Pro mensual',
+                      url: PremiumConfig.proMonthlyUrl,
+                      onTap: _openCheckout,
+                    ),
+                    const SizedBox(height: 10),
+                    _PayButton(
+                      label: 'Equipos mensual',
+                      url: PremiumConfig.teamsMonthlyUrl,
+                      onTap: _openCheckout,
+                    ),
+                    const SizedBox(height: 10),
+                    _PayButton(
+                      label: 'Pro anual',
+                      url: PremiumConfig.proAnnualUrl,
+                      onTap: _openCheckout,
+                    ),
+                    const SizedBox(height: 10),
+                    _PayButton(
+                      label: 'Equipos anual',
+                      url: PremiumConfig.teamsAnnualUrl,
+                      onTap: _openCheckout,
+                    ),
+                    if (PremiumConfig.hasTransferCbu) ...[
+                      const SizedBox(height: 24),
+                      const _SectionTitle(text: 'Transferencia'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'CBU: ${_formatCbu(PremiumConfig.transferCbu)}',
+                        style:
+                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _copyCbu(PremiumConfig.transferCbu),
+                        icon: const Icon(Icons.copy_rounded),
+                        label: const Text('Copiar CBU'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Acreditación manual (no automática).',
+                        style:
+                            theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton(
+                        onPressed: _openPaymentNotice,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('Avisar pago'),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        await AuthService.I.signOut();
+                        if (!mounted) return;
+                        navigator.maybePop();
+                      },
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Cerrar sesión'),
+                    ),
+                  ],
+                );
+              },
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
                 Text(
-                  'Usuario: ${user.email ?? user.id}',
-                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                  'Modo demo',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 24,
+                  ),
                 ),
-              const SizedBox(height: 22),
-              const _SectionTitle(text: 'Mercado Pago'),
-              const SizedBox(height: 10),
-              _PayButton(
-                label: 'Pro mensual',
-                url: PremiumConfig.proMonthlyUrl,
-                onTap: _openCheckout,
-              ),
-              const SizedBox(height: 10),
-              _PayButton(
-                label: 'Equipos mensual',
-                url: PremiumConfig.teamsMonthlyUrl,
-                onTap: _openCheckout,
-              ),
-              const SizedBox(height: 10),
-              _PayButton(
-                label: 'Pro anual',
-                url: PremiumConfig.proAnnualUrl,
-                onTap: _openCheckout,
-              ),
-              const SizedBox(height: 10),
-              _PayButton(
-                label: 'Equipos anual',
-                url: PremiumConfig.teamsAnnualUrl,
-                onTap: _openCheckout,
-              ),
-              if (PremiumConfig.hasTransferCbu) ...[
-                const SizedBox(height: 24),
-                const _SectionTitle(text: 'Transferencia'),
                 const SizedBox(height: 8),
                 Text(
-                  'CBU: ${_formatCbu(PremiumConfig.transferCbu)}',
+                  'La autenticación está desactivada temporalmente. El estado Premium por usuario no se evalúa en este modo.',
                   style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _copyCbu(PremiumConfig.transferCbu),
-                  icon: const Icon(Icons.copy_rounded),
-                  label: const Text('Copiar CBU'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
+                const SizedBox(height: 22),
+                const _SectionTitle(text: 'Mercado Pago'),
+                const SizedBox(height: 10),
+                _PayButton(
+                  label: 'Pro mensual',
+                  url: PremiumConfig.proMonthlyUrl,
+                  onTap: _openCheckout,
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  'Acreditación manual (no automática).',
-                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
+                _PayButton(
+                  label: 'Equipos mensual',
+                  url: PremiumConfig.teamsMonthlyUrl,
+                  onTap: _openCheckout,
                 ),
                 const SizedBox(height: 10),
-                FilledButton(
-                  onPressed: _openPaymentNotice,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: const Text('Avisar pago'),
+                _PayButton(
+                  label: 'Pro anual',
+                  url: PremiumConfig.proAnnualUrl,
+                  onTap: _openCheckout,
+                ),
+                const SizedBox(height: 10),
+                _PayButton(
+                  label: 'Equipos anual',
+                  url: PremiumConfig.teamsAnnualUrl,
+                  onTap: _openCheckout,
                 ),
               ],
-              const SizedBox(height: 18),
-              TextButton.icon(
-                onPressed: () async {
-                  await AuthService.I.signOut();
-                  if (!mounted) return;
-                  Navigator.of(context).maybePop();
-                },
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Cerrar sesión'),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
     );
   }
 }
