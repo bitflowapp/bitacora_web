@@ -67,7 +67,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'config/feature_flags.dart';
 import 'core/app_error.dart';
 import 'ui/ui.dart';
 import 'workers/json_worker.dart';
@@ -94,6 +93,7 @@ import 'screens/premium_screen.dart';
 import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
+import 'services/runtime_flags.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -634,20 +634,24 @@ class _StartPageState extends State<StartPage> {
     bool dontShow = false;
 
     Future<void> closeDialog(BuildContext ctx) async {
+      final navigator = Navigator.of(ctx);
       if (dontShow) {
         await _markOnboardingDone();
       }
-      if (mounted) Navigator.of(ctx).pop();
+      if (!mounted) return;
+      navigator.pop();
     }
 
     Future<void> closeAndRun(
       BuildContext ctx,
       Future<void> Function() action,
     ) async {
+      final navigator = Navigator.of(ctx);
       if (dontShow) {
         await _markOnboardingDone();
       }
-      if (mounted) Navigator.of(ctx).pop();
+      if (!mounted) return;
+      navigator.pop();
       await action();
     }
 
@@ -1270,9 +1274,10 @@ class _StartPageState extends State<StartPage> {
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () async {
+                final navigator = Navigator.of(ctx);
                 final create = await _showTemplatePackPreview(template);
                 if (!mounted || !create) return;
-                Navigator.of(ctx).pop(template);
+                navigator.pop(template);
               },
               child: Ink(
                 padding: const EdgeInsets.all(12),
@@ -3228,7 +3233,7 @@ class _StartPageState extends State<StartPage> {
               child: Text(
                   _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
             ),
-            if (kAuthEnabled)
+            if (RuntimeFlags.isAuthRequired)
               CupertinoActionSheetAction(
                 onPressed: () async {
                   Navigator.of(ctx).pop();
@@ -3248,7 +3253,20 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
+  Future<void> _openCommercialCta() async {
+    final navigator = Navigator.of(context);
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PremiumScreen(),
+      ),
+    );
+  }
+
   Future<void> _signOutCurrentUser() async {
+    if (!RuntimeFlags.isAuthRequired) {
+      _toast('Modo demo activo: no hay sesión para cerrar.');
+      return;
+    }
     try {
       await AuthService.I.signOut();
     } catch (e) {
@@ -3840,7 +3858,7 @@ class _StartPageState extends State<StartPage> {
                         onPressed: widget.onToggleTheme,
                       ),
                       actions: [
-                        if (kAuthEnabled)
+                        if (RuntimeFlags.isAuthRequired)
                           AppButton(
                             label: 'Cerrar sesión',
                             icon: CupertinoIcons.escape,
@@ -3876,6 +3894,77 @@ class _StartPageState extends State<StartPage> {
                     ),
                   ),
                 ),
+                if (RuntimeFlags.demoMode)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _AppleSectionCard(
+                        colors: colors,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: colors.separator),
+                                  ),
+                                  child: Text(
+                                    'Modo demo',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Login desactivado temporalmente para la presentación comercial.',
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontSize: 13,
+                                      height: 1.25,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              children: [
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  color: colors.textPrimary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _openCommercialCta,
+                                  child: Text(
+                                    'Solicitar versión completa',
+                                    style: TextStyle(
+                                      color: colors.surface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_shouldShowIosInstallHelper)
                   SliverToBoxAdapter(
                     child: Padding(

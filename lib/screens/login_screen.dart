@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/feature_flags.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_auth_service.dart';
+import '../services/runtime_flags.dart';
 import '../services/secure_kv.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -39,6 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loadBiometricState() async {
+    if (!RuntimeFlags.isAuthRequired) return;
+
     final lastEmail = await SecureKv.I.readString(SecureKvKeys.lastEmail);
     final hasLoginAt = (await SecureKv.I.readString(SecureKvKeys.lastLoginAt))
         ?.trim()
@@ -370,8 +373,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final cardBg = theme.brightness == Brightness.dark
         ? const Color(0xFF0B0D1A)
         : const Color(0xFFFFFFFF);
-    final showQuickAccess =
-        _bioEnabled && _biometricAvailable && _hasLoggedOnceOnDevice;
+    final authEnabled = RuntimeFlags.isAuthRequired;
+    final showQuickAccess = authEnabled &&
+        _bioEnabled &&
+        _biometricAvailable &&
+        _hasLoggedOnceOnDevice;
 
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(999),
@@ -483,51 +489,70 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Continua con Google o usa correo y contrasena.',
+                        authEnabled
+                            ? 'Continua con Google o usa correo y contrasena.'
+                            : 'Modo demo activo: el login está deshabilitado temporalmente.',
                         style:
                             theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(
-                        key: const Key('login-google'),
-                        onPressed: _busy ? null : _continueWithGoogle,
-                        icon: const _GoogleMark(),
-                        label: Text(
-                          _busy ? 'Procesando...' : 'Continuar con Google',
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                          shape: shape,
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                      if (authEnabled) ...[
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          key: const Key('login-google'),
+                          onPressed: _busy ? null : _continueWithGoogle,
+                          icon: const _GoogleMark(),
+                          label: Text(
+                            _busy ? 'Procesando...' : 'Continuar con Google',
+                          ),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                            shape: shape,
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                        key: const Key('login-email'),
-                        onPressed: _busy
-                            ? null
-                            : () {
-                                setState(
-                                    () => _showEmailForm = !_showEmailForm);
-                              },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          shape: shape,
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(height: 10),
+                        OutlinedButton(
+                          key: const Key('login-email'),
+                          onPressed: _busy
+                              ? null
+                              : () {
+                                  setState(
+                                      () => _showEmailForm = !_showEmailForm);
+                                },
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            shape: shape,
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          child: Text(
+                            _showEmailForm
+                                ? 'Ocultar correo'
+                                : 'Continuar con correo',
                           ),
                         ),
-                        child: Text(
-                          _showEmailForm
-                              ? 'Ocultar correo'
-                              : 'Continuar con correo',
+                      ] else ...[
+                        const SizedBox(height: 18),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.dividerColor.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: const Text(
+                            'Accedé desde la portada o /app. Google y correo están ocultos en demo.',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
+                      ],
                       AnimatedCrossFade(
                         firstChild: const SizedBox(height: 0),
                         secondChild: Column(
@@ -585,7 +610,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        crossFadeState: _showEmailForm
+                        crossFadeState: authEnabled && _showEmailForm
                             ? CrossFadeState.showSecond
                             : CrossFadeState.showFirst,
                         duration: const Duration(milliseconds: 180),

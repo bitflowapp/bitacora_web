@@ -6,6 +6,7 @@ import '../services/biometric_auth_service.dart';
 import 'login_screen.dart';
 import 'biometric_lock_screen.dart';
 import '../services/auth_service.dart';
+import '../services/runtime_flags.dart';
 import '../services/secure_kv.dart';
 
 class AuthGate extends StatefulWidget {
@@ -32,19 +33,25 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    AuthService.I.user.addListener(_onUserChanged);
+    if (RuntimeFlags.isAuthRequired) {
+      AuthService.I.user.addListener(_onUserChanged);
+    }
     _boot();
   }
 
   @override
   void dispose() {
-    AuthService.I.user.removeListener(_onUserChanged);
+    if (RuntimeFlags.isAuthRequired) {
+      AuthService.I.user.removeListener(_onUserChanged);
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!RuntimeFlags.isAuthRequired) return;
+
     if (state == AppLifecycleState.resumed) {
       _refreshLockState();
       _maybePromptBiometricEnable();
@@ -57,6 +64,16 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   }
 
   Future<void> _boot() async {
+    if (!RuntimeFlags.isAuthRequired) {
+      if (!mounted) return;
+      setState(() {
+        _ready = true;
+        _error = '';
+        _locked = false;
+      });
+      return;
+    }
+
     String err = '';
     try {
       await AuthService.I.init().timeout(const Duration(seconds: 4));
@@ -200,6 +217,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (!RuntimeFlags.isAuthRequired) {
+      return widget.child;
+    }
+
     if (!_ready) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),

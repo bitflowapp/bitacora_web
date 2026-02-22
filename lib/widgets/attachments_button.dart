@@ -72,11 +72,12 @@ class _AttachmentsButtonState extends State<AttachmentsButton> {
           onPressed: disabled
               ? null
               : () async {
+                  final messenger = ScaffoldMessenger.of(context);
                   await _add();
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   final n = _items.length;
                   if (n > 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text('Adjuntos en esta fila: $n'),
                         duration: const Duration(milliseconds: 1500),
@@ -92,16 +93,17 @@ class _AttachmentsButtonState extends State<AttachmentsButton> {
               ? null
               : () async {
                   await _reload();
-                  if (!mounted || _row == null) return;
+                  if (!context.mounted || _row == null) return;
 
+                  final selectedRow = _row!;
                   await showModalBottomSheet<void>(
                     context: context,
                     useSafeArea: true,
                     isScrollControlled: true,
                     showDragHandle: true,
                     builder: (_) => _AttachmentsSheet(
-                      sheetId: _row!.$1,
-                      row: _row!.$2,
+                      sheetId: selectedRow.$1,
+                      row: selectedRow.$2,
                       onChanged: widget.onChanged ?? () {},
                     ),
                   );
