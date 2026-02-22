@@ -439,6 +439,32 @@ class _AppState extends State<App> {
           ),
         ),
         GoRoute(
+          path: '/app/sheet/:sheetId',
+          builder: (context, state) {
+            final rawId = state.pathParameters['sheetId'] ?? '';
+            final sheetId = Uri.decodeComponent(rawId).trim();
+            final initialName = state.uri.queryParameters['name']?.trim();
+
+            final home = _AppHome(
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+              firebaseOk: status.firebaseOk,
+              initialSheetId: sheetId.isEmpty ? null : sheetId,
+              initialSheetName: (initialName == null || initialName.isEmpty)
+                  ? null
+                  : initialName,
+            );
+
+            return PopScope(
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                context.go('/app');
+              },
+              child: home,
+            );
+          },
+        ),
+        GoRoute(
           path: '/perf',
           builder: (context, state) => EditorPerfHarnessScreen(
             isLight: _isLight,
@@ -500,12 +526,16 @@ class _AppHome extends StatelessWidget {
     required this.onToggleTheme,
     required this.firebaseOk,
     this.initialTemplate,
+    this.initialSheetId,
+    this.initialSheetName,
   });
 
   final bool isLight;
   final VoidCallback onToggleTheme;
   final bool firebaseOk;
   final DemoTemplateSpec? initialTemplate;
+  final String? initialSheetId;
+  final String? initialSheetName;
 
   @override
   Widget build(BuildContext context) {
@@ -515,6 +545,17 @@ class _AppHome extends StatelessWidget {
     }
 
     final home = () {
+      if (initialSheetId != null && initialSheetId!.trim().isNotEmpty) {
+        return withOptionalAuth(
+          EditorScreen(
+            isLight: isLight,
+            onToggleTheme: onToggleTheme,
+            sheetId: initialSheetId!.trim(),
+            initialName: initialSheetName,
+          ),
+        );
+      }
+
       if (initialTemplate != null) {
         final template = initialTemplate!;
         return withOptionalAuth(

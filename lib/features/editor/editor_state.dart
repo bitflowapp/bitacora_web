@@ -8893,14 +8893,18 @@ class _EditorScreenState extends State<EditorScreen>
         }
 
         if (isMobile) {
-          if (_engineFallbackMode && _engineStatus != null) {
+          if (!_suppressEngineUnavailableUx &&
+              _engineFallbackMode &&
+              _engineStatus != null) {
             _maybeShowMobileStatusSnack(
               ctx,
               pal,
               message: _engineStatus,
               isError: false,
             );
-          } else if (_engineStatusIsError && _engineStatus != null) {
+          } else if (!_suppressEngineUnavailableUx &&
+              _engineStatusIsError &&
+              _engineStatus != null) {
             _maybeShowMobileStatusSnack(
               ctx,
               pal,
@@ -9399,7 +9403,9 @@ class _EditorScreenState extends State<EditorScreen>
                               bg: _smokeBg(pal),
                               fg: _smokeFg(pal),
                             ),
-                          if (isDesktop && _engineStatus != null)
+                          if (isDesktop &&
+                              !_suppressEngineUnavailableUx &&
+                              _engineStatus != null)
                             _StatusBar(
                               text: _engineStatus!,
                               bg: _engineStatusIsError
@@ -20104,10 +20110,11 @@ Este paquete incluye:
 
       setState(() {
         _engineFallbackMode = true;
-        _engineStatus = _engineFallbackMessage;
+        _engineStatus =
+            _suppressEngineUnavailableUx ? null : _engineFallbackMessage;
         _engineStatusIsError = false;
       });
-      if (manualRetry) {
+      if (manualRetry && !_suppressEngineUnavailableUx) {
         _showSnack(_engineFallbackMessage, isError: false);
       }
     } finally {
@@ -20115,8 +20122,9 @@ Este paquete incluye:
     }
   }
 
-  String get _engineFallbackMessage =>
-      'Engine no disponible. Modo local activo.';
+  bool get _suppressEngineUnavailableUx => RuntimeFlags.demoMode;
+
+  String get _engineFallbackMessage => 'Modo local activo.';
 
   Future<void> _retryEngineConnection() async {
     await _initEngineConnection(manualRetry: true);
@@ -20176,14 +20184,15 @@ Este paquete incluye:
       );
       if (!mounted) return true;
       setState(() {
-        _engineStatus = showErrors ? 'Engine OK' : null;
+        _engineStatus =
+            (showErrors && !_suppressEngineUnavailableUx) ? 'Engine OK' : null;
         _engineStatusIsError = false;
         _engineLastOk = true;
         _engineLastError = null;
         _engineLastCheckAt = DateTime.now();
         _engineFallbackMode = false;
       });
-      if (showErrors) {
+      if (showErrors && !_suppressEngineUnavailableUx) {
         _showSnack('Engine listo', isError: false);
       }
       return true;
@@ -20193,16 +20202,19 @@ Este paquete incluye:
         debugPrint('[engine] health fail: $details');
       }
       if (mounted) {
+        final shouldShowEngineFeedback =
+            showErrors && !_suppressEngineUnavailableUx;
         setState(() {
-          _engineStatus = showErrors ? _engineErrorMessage(e) : null;
-          _engineStatusIsError = showErrors;
+          _engineStatus =
+              shouldShowEngineFeedback ? _engineErrorMessage(e) : null;
+          _engineStatusIsError = shouldShowEngineFeedback;
           _engineLastOk = false;
           _engineLastError = _engineErrorMessage(e);
           _engineLastCheckAt = DateTime.now();
           _engineFallbackMode = true;
         });
-        if (showErrors) {
-          _showSnack(_engineStatus ?? 'Engine no disponible', isError: true);
+        if (shouldShowEngineFeedback) {
+          _showSnack(_engineStatus ?? _engineFallbackMessage, isError: true);
         }
       }
       return false;
