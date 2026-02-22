@@ -72,6 +72,7 @@ import 'ui/ui.dart';
 import 'workers/json_worker.dart';
 import 'services/app_error_reporter.dart';
 import 'services/app_update_service.dart';
+import 'services/app_config.dart';
 import 'services/engine_api.dart';
 import 'services/engine_config.dart';
 import 'services/sheet_store.dart';
@@ -1661,9 +1662,27 @@ class _StartPageState extends State<StartPage> {
       'Notas',
     ];
     final rows = <List<String>>[
-      <String>['1) GPS', '', '', '', 'Toc GPS en esta fila.'],
-      <String>['2) Foto', '', '', '', 'Adjunt una foto.'],
-      <String>['3) Audio', '', '', '', 'Grab un audio.'],
+      <String>[
+        'Relevamiento inicial',
+        '',
+        '',
+        '',
+        'Registrar ubicación del punto inspeccionado.',
+      ],
+      <String>[
+        'Evidencia fotográfica',
+        '',
+        '',
+        '',
+        'Adjuntar foto del estado actual.',
+      ],
+      <String>[
+        'Observación de cierre',
+        '',
+        '',
+        '',
+        'Grabar audio breve con hallazgos y próximos pasos.',
+      ],
     ];
 
     final state = TableState(
@@ -1673,7 +1692,7 @@ class _StartPageState extends State<StartPage> {
     );
 
     SheetStore.saveState(id, state);
-    SheetStore.rename(id, 'Prueba rápida');
+    SheetStore.rename(id, 'Demo inspección en campo');
 
     _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
     if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
@@ -3253,13 +3272,63 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
-  Future<void> _openCommercialCta() async {
+  Future<void> _openCommercialInfo() async {
     final navigator = Navigator.of(context);
     await navigator.push(
       MaterialPageRoute<void>(
         builder: (_) => const PremiumScreen(),
       ),
     );
+  }
+
+  Future<Uri?> _buildCommercialContactUri() async {
+    final cfg = await AppConfig.load();
+    const fallbackWhatsapp = '+54 9 299 620 9136';
+    const fallbackEmail = 'marcoantoniolunavillegas@gmail.com';
+
+    final whatsappRaw = cfg.contactWhatsApp.trim().isNotEmpty
+        ? cfg.contactWhatsApp.trim()
+        : fallbackWhatsapp;
+    final whatsappDigits = whatsappRaw.replaceAll(RegExp(r'[^0-9]'), '');
+    final whatsappText = cfg.whatsappMessage.trim().isNotEmpty
+        ? cfg.whatsappMessage.trim()
+        : 'Hola, quiero información sobre la versión completa de BitFlow.';
+
+    if (whatsappDigits.isNotEmpty) {
+      return Uri.parse(
+        'https://wa.me/$whatsappDigits?text=${Uri.encodeComponent(whatsappText)}',
+      );
+    }
+
+    final email = cfg.contactEmail.trim().isNotEmpty
+        ? cfg.contactEmail.trim()
+        : fallbackEmail;
+    if (email.isNotEmpty) {
+      return Uri(
+        scheme: 'mailto',
+        path: email,
+        queryParameters: <String, String>{
+          'subject': 'Consulta versión completa BitFlow',
+          'body':
+              'Hola, quiero conocer precios y alcance de la versión completa de BitFlow.',
+        },
+      );
+    }
+
+    return null;
+  }
+
+  Future<void> _openCommercialCta() async {
+    final uri = await _buildCommercialContactUri();
+    if (uri == null) {
+      await _openCommercialInfo();
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      _toast('No se pudo abrir el canal de contacto.');
+    }
   }
 
   Future<void> _signOutCurrentUser() async {
@@ -3924,18 +3993,37 @@ class _StartPageState extends State<StartPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Login desactivado temporalmente para la presentación comercial.',
+                                    'Login desactivado temporalmente',
                                     style: TextStyle(
                                       color: colors.textSecondary,
-                                      fontSize: 13,
-                                      height: 1.25,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'BitFlow: planillas operativas con carga rápida, evidencias y seguimiento.',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Cargá datos en campo, adjuntá fotos/audio y mantené trazabilidad sin fricción.',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.25,
+                              ),
                             ),
                             const SizedBox(height: 10),
                             Wrap(
@@ -3951,9 +4039,25 @@ class _StartPageState extends State<StartPage> {
                                   borderRadius: BorderRadius.circular(10),
                                   onPressed: _openCommercialCta,
                                   child: Text(
-                                    'Solicitar versión completa',
+                                    'Contactar',
                                     style: TextStyle(
                                       color: colors.surface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _openCommercialInfo,
+                                  child: Text(
+                                    'Solicitar versión completa',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
