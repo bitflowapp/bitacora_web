@@ -1443,7 +1443,29 @@ class _StartPageState extends State<StartPage> {
         ? '/app/sheet/$encodedSheetId'
         : '/app/sheet/$encodedSheetId?name=${Uri.encodeQueryComponent(cleanName)}';
 
-    await context.push(route);
+    var openedWithRouter = false;
+    try {
+      await context.push(route);
+      openedWithRouter = true;
+    } catch (_) {
+      openedWithRouter = false;
+    }
+
+    if (!openedWithRouter) {
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        CupertinoPageRoute(
+          builder: (_) => EditorScreen(
+            isLight: widget.isLight,
+            onToggleTheme: widget.onToggleTheme,
+            sheetId: sheetId,
+            initialName: cleanName.isEmpty ? null : cleanName,
+            engineBaseUrl: _engineBaseForEditor(),
+          ),
+        ),
+      );
+    }
+
     if (!mounted) return;
     _reload();
   }
