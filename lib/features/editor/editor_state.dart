@@ -23,6 +23,49 @@ const bool _kFlutterTestEnv = bool.fromEnvironment('FLUTTER_TEST');
 const bool _kEnableEditorPerfInstrumentation =
     _kDebugEditorPerfInstrumentation || _kDebugGridBuildCounter;
 
+class EditorStorageFallbackReasonMapping {
+  const EditorStorageFallbackReasonMapping({
+    required this.storageVariant,
+    required this.snackVariant,
+  });
+
+  final String storageVariant;
+  final String snackVariant;
+}
+
+EditorStorageFallbackReasonMapping classifyEditorStorageFallbackReason(
+  String? reasonCode,
+) {
+  final normalizedReason = (reasonCode ?? '').trim().toLowerCase();
+  switch (normalizedReason) {
+    case 'quota_exceeded':
+      return const EditorStorageFallbackReasonMapping(
+        storageVariant: 'quota_exceeded',
+        snackVariant: 'quota_exceeded',
+      );
+    case 'storage_session_only':
+      return const EditorStorageFallbackReasonMapping(
+        storageVariant: 'storage_session_only',
+        snackVariant: 'storage_session_only',
+      );
+    case 'storage_blocked':
+      return const EditorStorageFallbackReasonMapping(
+        storageVariant: 'storage_blocked',
+        snackVariant: 'storage_blocked',
+      );
+    case 'unknown_storage_error':
+      return const EditorStorageFallbackReasonMapping(
+        storageVariant: 'unknown_storage_error',
+        snackVariant: 'generic',
+      );
+    default:
+      return const EditorStorageFallbackReasonMapping(
+        storageVariant: 'generic',
+        snackVariant: 'generic',
+      );
+  }
+}
+
 // ??? Persistencia segura: NO guardar thumbs base64 en prefs/localStorage.
 const bool _kPersistPhotoThumbs = true;
 const String _kPrefEngineApiKey = 'bitflow.engine_api_key';
@@ -293,7 +336,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isSecureContext = true;
   bool? _storageOk;
   String? _storageMessage;
-  bool _storageWarned = false;
+  final Set<String> _storageWarnedReasons = <String>{};
   VoidCallback? _cellDraftListener;
   VoidCallback? _mobileDraftListener;
   Timer? _cellDraftSyncT;
@@ -318,6 +361,7 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _saveT;
   Timer? _validationDebounceT;
   bool _saving = false;
+  bool _lastSaveSucceeded = true;
   _EditorLongOperationState? _longOperation;
   bool _saveHapticPending = false;
   final EditorAtomicSnapshotStore _atomicSnapshotStore =
@@ -638,8 +682,7 @@ class _EditorScreenState extends State<EditorScreen>
       _lastAttachmentCapabilities = webCaps;
       if (webCaps?.privateModeLikely == true) {
         _storageOk = false;
-        _storageMessage =
-            'Session-only (${webCaps?.privateModeReason ?? 'private_mode'})';
+        _storageMessage = 'Modo temporal del navegador';
       } else {
         _storageOk = result.ok;
         _storageMessage = result.message;
@@ -647,7 +690,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
     if (webCaps?.privateModeLikely == true) {
       _showActionSnack(
-        'Modo temporal detectado: al recargar podrias perder adjuntos.',
+        'Modo temporal detectado: al recargar o cerrar la pestaña podrías perder adjuntos. Exportá ZIP para conservar.',
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -1195,7 +1238,11 @@ class _EditorScreenState extends State<EditorScreen>
       throw StateError('save_payload_invalid');
     }
 
-    await prefs.setString(_prefsKeyStaging, encoded);
+    final wroteStaging = await prefs.setString(_prefsKeyStaging, encoded);
+    if (!wroteStaging) {
+      throw StateError('staging_write_failed');
+    }
+
     final stagedRaw = prefs.getString(_prefsKeyStaging);
     if (stagedRaw == null || _decodeSheetModelRaw(stagedRaw) == null) {
       throw StateError('staging_write_invalid');
@@ -1213,10 +1260,23 @@ class _EditorScreenState extends State<EditorScreen>
 
     final current = prefs.getString(_prefsKey);
     if (current != null && current.trim().isNotEmpty) {
-      await prefs.setString(_prefsKeyBackup, current);
+      final wroteBackup = await prefs.setString(_prefsKeyBackup, current);
+      if (!wroteBackup && kDebugMode) {
+        debugPrint(
+            '[EditorScreen] flow=save kind=storage op=backup_write_failed');
+      }
     }
-    await prefs.setString(_prefsKey, stagedRaw);
-    await prefs.remove(_prefsKeyStaging);
+
+    final wrotePrimary = await prefs.setString(_prefsKey, stagedRaw);
+    if (!wrotePrimary) {
+      throw StateError('primary_write_failed');
+    }
+
+    final removedStaging = await prefs.remove(_prefsKeyStaging);
+    if (!removedStaging && kDebugMode) {
+      debugPrint(
+          '[EditorScreen] flow=save kind=storage op=staging_cleanup_failed');
+    }
   }
 
   void _showRecoveryNotice(String source) {
@@ -1595,6 +1655,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _saveT?.cancel();
     _saving = true;
+    _lastSaveSucceeded = false;
     _savePending = false;
     _lastSaveStartedAt = DateTime.now();
     _updateSaveStatus();
@@ -1615,6 +1676,7 @@ class _EditorScreenState extends State<EditorScreen>
 
       _lastSavedRev = startRev;
       _lastBackup = _latestBackupFromPrefs(prefs);
+      _lastSaveSucceeded = true;
 
       if (!mounted) return;
       setState(() {
@@ -1626,9 +1688,15 @@ class _EditorScreenState extends State<EditorScreen>
       await _clearSavedEditPending();
       if (_saveHapticPending) {
         AppHaptics.success();
+        _showActionSnack(
+          'Cambios guardados.',
+          isError: false,
+          icon: Icons.check_circle_outline_rounded,
+        );
       }
       await _createBackupIfNeeded();
     } catch (e, st) {
+      _lastSaveSucceeded = false;
       if (_pendingOfflineCount > 0 && mounted) {
         unawaited(_markOfflineSyncFailure('save_failed'));
       }
@@ -1636,6 +1704,8 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.save,
         operation: 'save_local',
+        fallbackMessage:
+            'No pudimos guardar los cambios. Revisá tu conexión o almacenamiento local e intentá otra vez.',
         stackTrace: st,
         icon: Icons.save_outlined,
       );
@@ -7828,6 +7898,13 @@ class _EditorScreenState extends State<EditorScreen>
         isError: false,
         icon: Icons.bug_report_outlined,
       );
+    } on _EditorLongOperationCancelled {
+      if (!mounted) return;
+      _showActionSnack(
+        AppStrings.infoExportCancelled,
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
     } catch (_) {
       if (!mounted) return;
       unawaited(_copyDiagnosticToClipboard(encoded));
@@ -8225,22 +8302,39 @@ class _EditorScreenState extends State<EditorScreen>
       message: message,
       cancellable: cancellable,
     );
-    if (mounted) {
-      setState(() => _longOperation = next);
+    if (!mounted) {
+      _longOperation = next;
       return;
     }
-    _longOperation = next;
+    _setEditorState(() => _longOperation = next);
+  }
+
+  bool _tryBeginLongOperation({
+    required String message,
+    required bool cancellable,
+  }) {
+    final current = _longOperation;
+    if (current != null && !current.cancelRequested) {
+      _showActionSnack(
+        'Ya hay una operación en curso. Esperá a que termine o cancelala.',
+        isError: false,
+        icon: Icons.hourglass_top_rounded,
+      );
+      return false;
+    }
+    _beginLongOperation(message: message, cancellable: cancellable);
+    return true;
   }
 
   void _setLongOperationMessage(String message) {
     final current = _longOperation;
     if (current == null || current.message == message) return;
     final next = current.copyWith(message: message);
-    if (mounted) {
-      setState(() => _longOperation = next);
+    if (!mounted) {
+      _longOperation = next;
       return;
     }
-    _longOperation = next;
+    _setEditorState(() => _longOperation = next);
   }
 
   void _requestLongOperationCancel() {
@@ -8252,10 +8346,10 @@ class _EditorScreenState extends State<EditorScreen>
       cancelRequested: true,
       message: AppStrings.progressCancelling,
     );
-    if (mounted) {
-      setState(() => _longOperation = next);
-    } else {
+    if (!mounted) {
       _longOperation = next;
+    } else {
+      _setEditorState(() => _longOperation = next);
     }
     _showActionSnack(
       AppStrings.infoOperationCancelling,
@@ -8266,11 +8360,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _clearLongOperation() {
     if (_longOperation == null) return;
-    if (mounted) {
-      setState(() => _longOperation = null);
+    if (!mounted) {
+      _longOperation = null;
       return;
     }
-    _longOperation = null;
+    _setEditorState(() => _longOperation = null);
   }
 
   bool _isLongOperationCancelled() {
@@ -8549,20 +8643,47 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  void _warnStorageFallbackOnce(String kindLabel) {
-    if (_storageWarned) return;
-    _storageWarned = true;
+  void _warnStorageFallbackOnce(String kindLabel, {String? reasonCode}) {
+    final mapping = classifyEditorStorageFallbackReason(reasonCode);
+    final reasonKey = mapping.storageVariant.trim().isEmpty
+        ? 'generic'
+        : mapping.storageVariant.trim();
+    if (_storageWarnedReasons.contains(reasonKey)) return;
+    _storageWarnedReasons.add(reasonKey);
+    if (kDebugMode) {
+      debugPrint(
+        '[EditorScreen] storage_fallback kind=$kindLabel '
+        'reason=${reasonCode ?? 'null'} mapped=${mapping.storageVariant}',
+      );
+    }
+    final storageMessage = switch (mapping.storageVariant) {
+      'quota_exceeded' => 'Espacio local del navegador agotado',
+      'storage_session_only' => 'Modo temporal/incógnito del navegador',
+      'storage_blocked' => 'Guardado local bloqueado por el navegador',
+      'unknown_storage_error' => 'Guardado local temporal',
+      _ => 'Modo temporal del navegador',
+    };
+    final snackMessage = switch (mapping.snackVariant) {
+      'quota_exceeded' =>
+        'Espacio local agotado para $kindLabel. Exportá ZIP y liberá almacenamiento del sitio antes de seguir.',
+      'storage_session_only' =>
+        'Guardado temporal para $kindLabel: el navegador está en modo temporal/incógnito. Exportá ZIP antes de cerrar.',
+      'storage_blocked' =>
+        'Guardado local bloqueado para $kindLabel. Revisá permisos del sitio o exportá ZIP para conservar.',
+      _ =>
+        'Guardado temporal para $kindLabel: si cerrás o recargás podrías perder adjuntos. Exportá ZIP para conservar.',
+    };
     if (mounted) {
       setState(() {
         _storageOk = false;
-        _storageMessage = 'Session-only';
+        _storageMessage = storageMessage;
       });
     } else {
       _storageOk = false;
-      _storageMessage = 'Session-only';
+      _storageMessage = storageMessage;
     }
     _showActionSnack(
-      'Storage limitado: $kindLabel en modo temporal (session-only). Exporta ZIP para conservar.',
+      snackMessage,
       isError: false,
       icon: Icons.warning_amber_rounded,
     );
@@ -9113,7 +9234,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  "Storage limitado: ${_storageMessage ?? 'no disponible'}. Guardado temporal. Exporta ZIP.",
+                                  "Guardado temporal de adjuntos: ${_storageMessage ?? 'sin persistencia'}. Exportá ZIP para no perder evidencias.",
                               icon: Icons.warning_amber_rounded,
                               actionLabel: 'Exportar ZIP',
                               onAction: () =>
@@ -17336,10 +17457,12 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -17379,6 +17502,9 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: xlsxBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
+        successMessage: share
+            ? 'XLSX listo para compartir.'
+            : 'XLSX exportado en este dispositivo.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -17389,10 +17515,35 @@ class _EditorScreenState extends State<EditorScreen>
         icon: Icons.info_outline_rounded,
       );
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _showActionSnack(
+          AppStrings.infoExportCancelled,
+          isError: false,
+          icon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share ? 'share_xlsx' : 'export_xlsx',
+          fallbackMessage: share
+              ? 'Compartir XLSX no está disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar XLSX no está disponible en este dispositivo.',
+          stackTrace: st,
+          icon: Icons.table_view_rounded,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
+        fallbackMessage: share
+            ? 'No pudimos compartir el XLSX. Podés exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el XLSX. Intentá nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
@@ -17407,10 +17558,12 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
@@ -17441,6 +17594,8 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: pdfBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
+        successMessage:
+            share ? 'PDF listo para compartir.' : 'PDF exportado con éxito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -17455,6 +17610,9 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
+        fallbackMessage: share
+            ? 'No pudimos compartir el PDF. Podés exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el PDF. Intentá nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
@@ -17466,10 +17624,12 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _exportZipBundle({required bool share}) async {
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -17531,6 +17691,9 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: zipBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
+        successMessage: share
+            ? 'Paquete ZIP listo para compartir.'
+            : 'Paquete ZIP exportado con éxito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -17545,6 +17708,9 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
+        fallbackMessage: share
+            ? 'No pudimos compartir el paquete ZIP. Podés exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el paquete ZIP. Intentá nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -17554,10 +17720,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _exportBackupZip() async {
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       final bundle = await _prepareBackupBundle(
@@ -17632,10 +17800,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _exportHtmlReport() async {
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressPreparingExport,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
@@ -18993,10 +19163,12 @@ class _EditorScreenState extends State<EditorScreen>
     _PackageImportBundle bundle, {
     required _PackageImportMode mode,
   }) async {
-    _beginLongOperation(
+    if (!_tryBeginLongOperation(
       message: AppStrings.progressImportingBackup,
       cancellable: true,
-    );
+    )) {
+      return;
+    }
     try {
       _throwIfLongOperationCancelled();
       final normalized = SheetStore.normalizeModel(bundle.sheetRaw);
@@ -19032,10 +19204,12 @@ class _EditorScreenState extends State<EditorScreen>
           );
           if (picked == null || !mounted) return;
           policy = picked;
-          _beginLongOperation(
+          if (!_tryBeginLongOperation(
             message: AppStrings.progressImportingBackup,
             cancellable: true,
-          );
+          )) {
+            return;
+          }
         }
         final applied = _computePackageMergePlan(
           imported: loaded,
@@ -19043,6 +19217,9 @@ class _EditorScreenState extends State<EditorScreen>
         );
         _applyPackageMergePlan(applied);
         await _saveLocalNow();
+        if (!_lastSaveSucceeded) {
+          return;
+        }
         _addHistoryEvent(
           type: 'package_merge',
           message:
@@ -19064,6 +19241,9 @@ class _EditorScreenState extends State<EditorScreen>
         if (mounted) {
           _applyLoadedModel(loaded);
           await _saveLocalNow();
+          if (!_lastSaveSucceeded) {
+            return;
+          }
           _addHistoryEvent(
             type: 'package_import_replace',
             message:
@@ -19912,6 +20092,7 @@ Este paquete incluye:
     required Uint8List bytes,
     required bool share,
     bool Function()? shouldCancel,
+    String? successMessage,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
@@ -19920,10 +20101,32 @@ Este paquete incluye:
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
 
+    void notifySuccess() {
+      final msg = (successMessage ?? '').trim();
+      if (msg.isEmpty || !mounted) return;
+      _showActionSnack(
+        msg,
+        isError: false,
+        icon: share ? Icons.ios_share_rounded : Icons.download_done_rounded,
+      );
+    }
+
+    void notifySavedFallbackFromShare() {
+      if (!mounted) return;
+      _showActionSnack(
+        'No pudimos abrir compartir en este dispositivo. Archivo exportado.',
+        isError: false,
+        icon: Icons.download_done_rounded,
+      );
+    }
+
     if (share) {
       if (kIsWeb) {
         final shared = await _tryShareWebFile(xf);
-        if (shared) return;
+        if (shared) {
+          notifySuccess();
+          return;
+        }
         _throwIfOperationCancelledBy(shouldCancel);
         await xf.saveTo(name);
         if (!mounted) return;
@@ -19944,7 +20147,10 @@ Este paquete incluye:
           bytes: bytes,
           shouldCancel: shouldCancel,
         );
-        if (shared) return;
+        if (shared) {
+          notifySuccess();
+          return;
+        }
       }
     }
 
@@ -19952,6 +20158,11 @@ Este paquete incluye:
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         await xf.saveTo(name);
+        if (share) {
+          notifySavedFallbackFromShare();
+        } else {
+          notifySuccess();
+        }
         return;
       } catch (_) {}
     }
@@ -19960,6 +20171,7 @@ Este paquete incluye:
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         await Share.shareXFiles([xf], subject: 'Exportación de Bit Flow');
+        notifySuccess();
         return;
       } catch (_) {}
     }
@@ -19978,16 +20190,26 @@ Este paquete incluye:
       suggestedName: name,
       acceptedTypeGroups: [typeGroup],
     );
-    if (loc == null) return;
+    if (loc == null) {
+      throw const _EditorLongOperationCancelled();
+    }
     _throwIfOperationCancelledBy(shouldCancel);
     await xf.saveTo(loc.path);
+    if (share) {
+      notifySavedFallbackFromShare();
+    } else {
+      notifySuccess();
+    }
   }
 
   Future<bool> _tryShareWebFile(XFile file) async {
     try {
       await Share.shareXFiles([file], subject: 'Exportación de Bit Flow');
       return true;
-    } catch (_) {
+    } catch (e) {
+      if (_looksLikeShareUserCancel(e)) {
+        throw const _EditorLongOperationCancelled();
+      }
       return false;
     }
   }
@@ -20010,7 +20232,11 @@ Este paquete incluye:
           text: shareText,
         );
         return true;
-      } catch (_) {}
+      } catch (e) {
+        if (_looksLikeShareUserCancel(e)) {
+          throw const _EditorLongOperationCancelled();
+        }
+      }
 
       try {
         _throwIfOperationCancelledBy(shouldCancel);
@@ -20020,7 +20246,11 @@ Este paquete incluye:
           text: shareText,
         );
         return true;
-      } catch (_) {}
+      } catch (e) {
+        if (_looksLikeShareUserCancel(e)) {
+          throw const _EditorLongOperationCancelled();
+        }
+      }
 
       try {
         _throwIfOperationCancelledBy(shouldCancel);
@@ -20058,9 +20288,25 @@ Este paquete incluye:
         text: shareText,
       );
       return true;
-    } catch (_) {
+    } catch (e) {
+      if (_looksLikeShareUserCancel(e)) {
+        throw const _EditorLongOperationCancelled();
+      }
       return false;
     }
+  }
+
+  bool _looksLikeShareUserCancel(Object error) {
+    final lower = error.toString().toLowerCase();
+    return lower.contains('aborterror') ||
+        lower.contains('user aborted') ||
+        lower.contains('aborted by user') ||
+        lower.contains('share canceled') ||
+        lower.contains('share cancelled') ||
+        lower.contains('cancelled') ||
+        lower.contains('canceled') ||
+        lower.contains('dismissed') ||
+        lower.contains('did not share');
   }
 
   String _two(int n) => n.toString().padLeft(2, '0');
@@ -20515,7 +20761,10 @@ Este paquete incluye:
     if (storedPhoto != null && storedPhoto.storedRef.trim().isNotEmpty) {
       photoRef = storedPhoto.storedRef;
       if (photoRef.startsWith('mem:') || storedPhoto.storageLabel == 'ram') {
-        _warnStorageFallbackOnce('foto');
+        _warnStorageFallbackOnce(
+          'foto',
+          reasonCode: kIsWeb ? WebBlobStore.I.lastSaveReason : null,
+        );
       }
       photoOk = true;
     } else {

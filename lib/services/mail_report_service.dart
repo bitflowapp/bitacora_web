@@ -86,7 +86,7 @@ class MailReportService {
 
     // Aseguramos Uint8List sin copiar si ya viene así.
     final Uint8List bytes = xlsxBytes is Uint8List
-        ? (xlsxBytes as Uint8List)
+        ? xlsxBytes
         : Uint8List.fromList(xlsxBytes);
 
     // Metadata opcional para logs del backend (si CloudMailer lo soporta).

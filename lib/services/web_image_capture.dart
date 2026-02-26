@@ -122,7 +122,7 @@ Future<WebImageCaptureResult> captureWebImage({
   String _snapshot() {
     final filesLen = input.files?.length ?? 0;
     final valueLen = input.value?.length ?? 0;
-    final vis = html.document.visibilityState ?? 'unknown';
+    final vis = html.document.visibilityState;
     final focus = html.document.activeElement != null;
     return 'vis=$vis focus=$focus valueLen=$valueLen files=$filesLen';
   }

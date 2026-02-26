@@ -43,7 +43,6 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
         indexFontSize: 13.8,
       );
     case _GridDensity.normal:
-    default:
       return const _GridMetrics(
         rowH: 61,
         headerH: 56,

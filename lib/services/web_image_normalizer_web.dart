@@ -113,16 +113,18 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
     final url = html.Url.createObjectUrlFromBlob(blob);
     final image = html.ImageElement();
     final completer = Completer<_DecodedImage?>();
-    StreamSubscription<html.Event>? loadSub;
-    StreamSubscription<html.Event>? errorSub;
+    late final StreamSubscription<html.Event> loadSub;
+    late final StreamSubscription<html.Event> errorSub;
 
     void complete(_DecodedImage? value) {
       if (!completer.isCompleted) completer.complete(value);
     }
 
     loadSub = image.onLoad.listen((_) {
-      final width = image.naturalWidth ?? image.width ?? 0;
-      final height = image.naturalHeight ?? image.height ?? 0;
+      final width =
+          image.naturalWidth > 0 ? image.naturalWidth : (image.width ?? 0);
+      final height =
+          image.naturalHeight > 0 ? image.naturalHeight : (image.height ?? 0);
       if (width <= 0 || height <= 0) {
         complete(null);
         return;
@@ -138,8 +140,8 @@ class WebImageNormalizerImpl implements WebImageNormalizer {
         onTimeout: () => null,
       );
     } finally {
-      await loadSub?.cancel();
-      await errorSub?.cancel();
+      await loadSub.cancel();
+      await errorSub.cancel();
       html.Url.revokeObjectUrl(url);
     }
   }

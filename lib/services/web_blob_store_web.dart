@@ -17,6 +17,10 @@ class WebBlobStoreImpl implements WebBlobStore {
 
   idb.Database? _db;
   final Map<String, WebBlobRecord> _mem = {};
+  String? _lastSaveReason;
+
+  @override
+  String? get lastSaveReason => _lastSaveReason;
 
   Future<idb.Database?> _ensureDb() async {
     if (_db != null) return _db;
@@ -43,6 +47,7 @@ class WebBlobStoreImpl implements WebBlobStore {
     required String mime,
     required int size,
   }) async {
+    _lastSaveReason = null;
     html.Blob blob;
     if (source is html.Blob) {
       blob = source;
@@ -76,10 +81,14 @@ class WebBlobStoreImpl implements WebBlobStore {
           blob: blob,
           storageMode: 'indexeddb',
           sessionOnly: false,
+          storageReason: null,
         );
-      } catch (_) {
+      } catch (e) {
+        _lastSaveReason = _classifyStorageReason(e);
         // fallthrough to Cache API
       }
+    } else {
+      _lastSaveReason = 'storage_blocked';
     }
 
     final cacheSaved = await _saveToCache(
@@ -100,6 +109,7 @@ class WebBlobStoreImpl implements WebBlobStore {
         blob: blob,
         storageMode: 'cache',
         sessionOnly: false,
+        storageReason: _lastSaveReason,
       );
     }
 
@@ -113,6 +123,7 @@ class WebBlobStoreImpl implements WebBlobStore {
       blob: blob,
       storageMode: 'ram',
       sessionOnly: true,
+      storageReason: _lastSaveReason ?? 'unknown_storage_error',
     );
     _mem[key] = rec;
     return rec;
@@ -146,6 +157,7 @@ class WebBlobStoreImpl implements WebBlobStore {
             blob: blob,
             storageMode: 'indexeddb',
             sessionOnly: false,
+            storageReason: null,
           );
         }
       } catch (_) {
@@ -168,11 +180,17 @@ class WebBlobStoreImpl implements WebBlobStore {
   }) async {
     try {
       final caches = html.window.caches;
-      if (caches == null) return false;
+      if (caches == null) {
+        _lastSaveReason ??= 'storage_blocked';
+        return false;
+      }
       final cache = _requireJsObject(await caches.open(_cacheName));
       final responseCtor =
           js_util.getProperty<Object?>(js_util.globalThis, 'Response');
-      if (responseCtor == null) return false;
+      if (responseCtor == null) {
+        _lastSaveReason ??= 'storage_blocked';
+        return false;
+      }
       final response = js_util.callConstructor<Object>(
         responseCtor,
         <Object?>[blob],
@@ -185,7 +203,8 @@ class WebBlobStoreImpl implements WebBlobStore {
         ),
       );
       return true;
-    } catch (_) {
+    } catch (e) {
+      _lastSaveReason = _classifyStorageReason(e);
       return false;
     }
   }
@@ -221,6 +240,7 @@ class WebBlobStoreImpl implements WebBlobStore {
         blob: blob,
         storageMode: 'cache',
         sessionOnly: false,
+        storageReason: null,
       );
     } catch (_) {
       return null;
@@ -311,5 +331,28 @@ class WebBlobStoreImpl implements WebBlobStore {
       throw StateError('null_js_value');
     }
     return value;
+  }
+
+  String _classifyStorageReason(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('quota') ||
+        lower.contains('quotaexceeded') ||
+        lower.contains('insufficient storage')) {
+      return 'quota_exceeded';
+    }
+    if (lower.contains('private') ||
+        lower.contains('incognito') ||
+        lower.contains('session') ||
+        lower.contains('notallowederror') ||
+        lower.contains('securityerror')) {
+      return 'storage_session_only';
+    }
+    if (lower.contains('indexeddb') ||
+        lower.contains('blocked') ||
+        lower.contains('invalidstateerror') ||
+        lower.contains('null_js_value')) {
+      return 'storage_blocked';
+    }
+    return 'unknown_storage_error';
   }
 }

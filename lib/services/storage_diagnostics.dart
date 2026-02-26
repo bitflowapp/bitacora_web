@@ -4,10 +4,12 @@ class StorageCheckResult {
   const StorageCheckResult({
     required this.ok,
     required this.message,
+    this.code = 'ok',
   });
 
   final bool ok;
   final String message;
+  final String code;
 }
 
 class StorageDiagnostics {
@@ -28,13 +30,53 @@ class StorageDiagnostics {
 
       return StorageCheckResult(
         ok: ok,
-        message: ok ? 'OK' : 'No se pudo escribir en storage.',
+        code: ok ? 'ok' : 'storage_probe_failed',
+        message: ok
+            ? 'OK'
+            : 'No pudimos confirmar guardado local persistente. Exportá ZIP para evitar pérdida de datos.',
       );
     } catch (e) {
+      final classified = _classifyStorageError(e);
       return StorageCheckResult(
         ok: false,
-        message: e.toString(),
+        code: classified.code,
+        message: classified.message,
       );
     }
+  }
+
+  static StorageCheckResult classifyErrorForTest(Object error) {
+    final classified = _classifyStorageError(error);
+    return StorageCheckResult(
+      ok: false,
+      code: classified.code,
+      message: classified.message,
+    );
+  }
+
+  static ({String code, String message}) _classifyStorageError(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('quota') || lower.contains('quotaexceeded')) {
+      return (
+        code: 'quota_exceeded',
+        message:
+            'Espacio local del navegador agotado. Exportá ZIP y liberá almacenamiento del sitio antes de seguir.',
+      );
+    }
+    if (lower.contains('indexeddb') ||
+        lower.contains('private') ||
+        lower.contains('incognito') ||
+        lower.contains('blocked')) {
+      return (
+        code: 'storage_session_only',
+        message:
+            'El navegador está en modo temporal/incógnito y puede no guardar adjuntos de forma permanente. Exportá ZIP antes de cerrar.',
+      );
+    }
+    return (
+      code: 'storage_blocked',
+      message:
+          'El navegador bloqueó el guardado local persistente. Probá habilitar almacenamiento del sitio o exportar ZIP.',
+    );
   }
 }
