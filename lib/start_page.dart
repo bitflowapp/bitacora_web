@@ -76,6 +76,7 @@ import 'services/app_update_service.dart';
 import 'services/app_config.dart';
 import 'services/engine_api.dart';
 import 'services/engine_config.dart';
+import 'services/export_flow_outcome.dart';
 import 'services/sheet_store.dart';
 import 'services/web_capabilities.dart';
 import 'models/cell_ref.dart';
@@ -1768,47 +1769,52 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
+  void _setStartPageState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   void _beginBusyOperation({
     required String message,
     required bool canCancel,
     String? busySheetId,
   }) {
-    if (mounted) {
-      setState(() {
-        _busy = true;
-        _busySheetId = busySheetId;
-        _busyMessage = message;
-        _busyCanCancel = canCancel;
-        _busyCancelRequested = false;
-      });
+    if (!mounted) {
+      _busy = true;
+      _busySheetId = busySheetId;
+      _busyMessage = message;
+      _busyCanCancel = canCancel;
+      _busyCancelRequested = false;
       return;
     }
-    _busy = true;
-    _busySheetId = busySheetId;
-    _busyMessage = message;
-    _busyCanCancel = canCancel;
-    _busyCancelRequested = false;
+    _setStartPageState(() {
+      _busy = true;
+      _busySheetId = busySheetId;
+      _busyMessage = message;
+      _busyCanCancel = canCancel;
+      _busyCancelRequested = false;
+    });
   }
 
   void _setBusyMessage(String message) {
     if (_busyMessage == message) return;
-    if (mounted) {
-      setState(() => _busyMessage = message);
+    if (!mounted) {
+      _busyMessage = message;
       return;
     }
-    _busyMessage = message;
+    _setStartPageState(() => _busyMessage = message);
   }
 
   void _requestBusyCancel() {
     if (!_busyCanCancel || _busyCancelRequested) return;
-    if (mounted) {
-      setState(() {
+    if (!mounted) {
+      _busyCancelRequested = true;
+      _busyMessage = AppStrings.progressCancelling;
+    } else {
+      _setStartPageState(() {
         _busyCancelRequested = true;
         _busyMessage = AppStrings.progressCancelling;
       });
-    } else {
-      _busyCancelRequested = true;
-      _busyMessage = AppStrings.progressCancelling;
     }
     _toast(AppStrings.infoOperationCancelling);
   }
@@ -1820,21 +1826,21 @@ class _StartPageState extends State<StartPage> {
   }
 
   void _endBusyOperation() {
-    if (mounted) {
-      setState(() {
-        _busy = false;
-        _busySheetId = null;
-        _busyMessage = '';
-        _busyCanCancel = false;
-        _busyCancelRequested = false;
-      });
+    if (!mounted) {
+      _busy = false;
+      _busySheetId = null;
+      _busyMessage = '';
+      _busyCanCancel = false;
+      _busyCancelRequested = false;
       return;
     }
-    _busy = false;
-    _busySheetId = null;
-    _busyMessage = '';
-    _busyCanCancel = false;
-    _busyCancelRequested = false;
+    _setStartPageState(() {
+      _busy = false;
+      _busySheetId = null;
+      _busyMessage = '';
+      _busyCanCancel = false;
+      _busyCancelRequested = false;
+    });
   }
 
   Future<void> _importBackupZip() async {
@@ -1845,7 +1851,7 @@ class _StartPageState extends State<StartPage> {
     );
 
     final file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) return;
+    if (file == null || _busy) return;
 
     _beginBusyOperation(
       message: AppStrings.progressImportingBackup,
@@ -2357,11 +2363,28 @@ class _StartPageState extends State<StartPage> {
     } on _StartPageOperationCancelled {
       _toast(AppStrings.infoExportCancelled);
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _toast(AppStrings.infoExportCancelled);
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportStartPageErrorMessage(
+          'start_page_export_xlsx_unsupported_platform',
+          flow: AppErrorFlow.exportData,
+          operation: 'export_sheet_xlsx',
+          fallbackMessage:
+              'La exportación XLSX desde Inicio no está disponible en este dispositivo. Abrí la planilla y exportá ZIP/PDF desde el editor.',
+        );
+        return;
+      }
       if (!mounted) return;
       _reportStartPageError(
         e,
         flow: AppErrorFlow.exportData,
         operation: 'export_sheet_xlsx',
+        fallbackMessage:
+            'No pudimos exportar la planilla. Intentá nuevamente o usá exportación desde el editor.',
         stackTrace: st,
       );
     } finally {
@@ -3980,7 +4003,7 @@ class _StartPageState extends State<StartPage> {
                                     border: Border.all(color: colors.separator),
                                   ),
                                   child: Text(
-                                    'Modo demo',
+                                    'Demo local',
                                     style: TextStyle(
                                       color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
@@ -3991,7 +4014,7 @@ class _StartPageState extends State<StartPage> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Login desactivado temporalmente',
+                                    'Listo para probar sin login.',
                                     style: TextStyle(
                                       color: colors.textSecondary,
                                       fontSize: 12,
@@ -4003,7 +4026,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              'BitFlow: planillas operativas con carga rápida, evidencias y seguimiento.',
+                              'BitFlow ordena relevamientos y evidencia en una sola planilla operativa.',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontSize: 15,
@@ -4013,14 +4036,80 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Cargá datos en campo, adjuntá fotos/audio y mantené trazabilidad sin fricción.',
+                              'Flujo demo sugerido: Nueva planilla -> cargar 3 registros -> exportar ZIP.',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
                                 height: 1.25,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Guardado local en este navegador. En modo temporal/incógnito conviene exportar ZIP antes de cerrar.',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                                height: 1.25,
+                              ),
+                            ),
                             const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              children: [
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  color: colors.textPrimary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _busy ? null : _newSheet,
+                                  child: Text(
+                                    'Nueva planilla',
+                                    style: TextStyle(
+                                      color: colors.surface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _busy || data.isEmpty
+                                      ? null
+                                      : () => _open(data.first),
+                                  child: Text(
+                                    'Abrir última',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(10),
+                                  onPressed: _busy ? null : _newTemplateSheet,
+                                  child: Text(
+                                    'Probar demo',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
                             Wrap(
                               spacing: 10,
                               runSpacing: 8,
@@ -4364,6 +4453,7 @@ class _StartPageState extends State<StartPage> {
                         tab: _tab,
                         onNew: _newSheet,
                         onTemplate: _newTemplateSheet,
+                        onImport: _importBackupZip,
                         onFolders: _openFolderPicker,
                         isBusy: _busy,
                       ),
@@ -5432,6 +5522,7 @@ class _AppleEmptyState extends StatelessWidget {
     required this.tab,
     required this.onNew,
     required this.onTemplate,
+    required this.onImport,
     required this.onFolders,
     required this.isBusy,
   });
@@ -5440,6 +5531,7 @@ class _AppleEmptyState extends StatelessWidget {
   final _HomeTab tab;
   final Future<void> Function() onNew;
   final Future<void> Function() onTemplate;
+  final Future<void> Function() onImport;
   final Future<void> Function() onFolders;
   final bool isBusy;
 
@@ -5485,6 +5577,17 @@ class _AppleEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           if (tab == _HomeTab.sheets)
+            Text(
+              'Inicio rápido: Crear planilla -> completar filas -> Exportar ZIP.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          const SizedBox(height: 10),
+          if (tab == _HomeTab.sheets)
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 10,
@@ -5504,11 +5607,17 @@ class _AppleEmptyState extends StatelessWidget {
                   label: AppStrings.semTemplates,
                   button: true,
                   child: AppButton(
-                    label: 'Plantilla',
+                    label: 'Probar demo',
                     icon: CupertinoIcons.square_grid_2x2,
                     variant: AppButtonVariant.secondary,
                     onPressed: isBusy ? null : () => onTemplate(),
                   ),
+                ),
+                AppButton(
+                  label: 'Importar ZIP',
+                  icon: CupertinoIcons.archivebox,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: isBusy ? null : () => onImport(),
                 ),
                 AppButton(
                   label: 'Carpetas',

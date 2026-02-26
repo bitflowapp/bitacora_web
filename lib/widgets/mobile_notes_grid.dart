@@ -10,7 +10,6 @@ double _mobileCardH(_GridDensity density) {
     case _GridDensity.roomy:
       return 45.0;
     case _GridDensity.normal:
-    default:
       return 38.0;
   }
 }
@@ -22,7 +21,6 @@ double _mobileRowPadH(_GridDensity density) {
     case _GridDensity.roomy:
       return 14.0;
     case _GridDensity.normal:
-    default:
       return 13.0;
   }
 }
@@ -34,7 +32,6 @@ double _mobileRowPadV(_GridDensity density) {
     case _GridDensity.roomy:
       return 7.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -46,7 +43,6 @@ double _mobileRowSpacing(_GridDensity density) {
     case _GridDensity.roomy:
       return 10.0;
     case _GridDensity.normal:
-    default:
       return 9.0;
   }
 }
@@ -58,7 +54,6 @@ double _mobileCardGap(_GridDensity density) {
     case _GridDensity.roomy:
       return 10.0;
     case _GridDensity.normal:
-    default:
       return 9.0;
   }
 }
@@ -70,7 +65,6 @@ double _mobileCardPadH(_GridDensity density) {
     case _GridDensity.roomy:
       return 12.0;
     case _GridDensity.normal:
-    default:
       return 11.0;
   }
 }
@@ -82,7 +76,6 @@ double _mobileCardPadV(_GridDensity density) {
     case _GridDensity.roomy:
       return 7.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -99,7 +92,6 @@ double _mobileListPadTop(_GridDensity density) {
     case _GridDensity.roomy:
       return 8.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -111,7 +103,6 @@ double _mobileListPadBottom(_GridDensity density) {
     case _GridDensity.roomy:
       return 14.0;
     case _GridDensity.normal:
-    default:
       return 12.0;
   }
 }
@@ -123,7 +114,6 @@ double _mobileTextSize(_GridDensity density, {required bool isHeader}) {
     case _GridDensity.roomy:
       return isHeader ? 14.0 : 14.0;
     case _GridDensity.normal:
-    default:
       return isHeader ? 13.0 : 13.0;
   }
 }

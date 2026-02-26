@@ -1,7 +1,4 @@
 // lib/widgets/typing_fx.dart
-import 'dart:async' show unawaited;
-
-import 'package:flutter/material.dart';
 import '../services/sound_bank.dart';
 
 class TypingFx {
@@ -17,25 +14,5 @@ class TypingFx {
       SoundBank.instance.play(Sfx.type, gain: gain);
       _last = now;
     }
-  }
-}
-
-// Ejemplo de uso dentro de un StatefulWidget del editor:
-class _CellEditorState extends State<StatefulWidget> {
-  final _fx = TypingFx();
-
-  @override
-  void initState() {
-    super.initState();
-    // Precarga de audio
-    unawaited(SoundBank.instance.init());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      autofocus: true,
-      onChanged: (_) => _fx.click(), // sonido de tipeo con throttle
-    );
   }
 }

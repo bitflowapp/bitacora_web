@@ -39,7 +39,6 @@ class KeyboardInsetsController with WidgetsBindingObserver {
     _scheduleEmit(forceNow: true);
   }
 
-  @override
   void dispose() {
     _emitThrottleT?.cancel();
     _visualThrottleT?.cancel();

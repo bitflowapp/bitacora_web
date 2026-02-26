@@ -1301,7 +1301,6 @@ TextAlign _gridTextAlignToFlutter(_GridTextAlignX value) {
     case _GridTextAlignX.right:
       return TextAlign.right;
     case _GridTextAlignX.left:
-    default:
       return TextAlign.left;
   }
 }
@@ -1319,7 +1318,6 @@ Alignment _gridCellAlignment({
       x = 1;
       break;
     case _GridTextAlignX.left:
-    default:
       x = -1;
       break;
   }
@@ -1333,7 +1331,6 @@ Alignment _gridCellAlignment({
       y = 1;
       break;
     case _GridTextAlignY.middle:
-    default:
       y = 0;
       break;
   }

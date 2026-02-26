@@ -8,7 +8,7 @@ class WebCapabilitiesImpl {
   static bool get isStandalone {
     try {
       final mediaQuery = html.window.matchMedia('(display-mode: standalone)');
-      final mediaStandalone = mediaQuery.matches ?? false;
+      final mediaStandalone = mediaQuery.matches;
       final navStandaloneRaw = js_util.getProperty(
         html.window.navigator,
         'standalone',
@@ -73,10 +73,15 @@ class WebCapabilitiesImpl {
     return false;
   }
 
-  static bool get isOnline => html.window.navigator.onLine ?? true;
+  static bool get isOnline => html.window.navigator.onLine == true;
 
-  static bool get geolocationAvailable =>
-      html.window.navigator.geolocation != null;
+  static bool get geolocationAvailable {
+    try {
+      return js_util.hasProperty(html.window.navigator, 'geolocation');
+    } catch (_) {
+      return false;
+    }
+  }
 
   static bool get mediaRecorderSupported {
     try {

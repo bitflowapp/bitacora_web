@@ -16,7 +16,7 @@ class WebInteropBridge {
     web.window.addEventListener(
         'bitacora:gps',
         (web.Event e) {
-          final detailAny = (e as web.CustomEvent).detail as JSAny?;
+          final detailAny = (e as web.CustomEvent).detail;
           final map = detailAny?.dartify() as Map<Object?, Object?>?;
           if (map == null) return;
           final lat = (map['lat'] as num).toDouble();
@@ -29,7 +29,7 @@ class WebInteropBridge {
     web.window.addEventListener(
         'bitacora:speech',
         (web.Event e) {
-          final detailAny = (e as web.CustomEvent).detail as JSAny?;
+          final detailAny = (e as web.CustomEvent).detail;
           final map = detailAny?.dartify() as Map<Object?, Object?>?;
           final txt = (map?['text'] as String?) ?? '';
           if (txt.isNotEmpty) onSpeech((text: txt));
