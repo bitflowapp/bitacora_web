@@ -103,6 +103,7 @@ Bitacora_Release_*.zip
 error.log
 .tmp_*
 *.tmp
+/logs/*
 
 # Generated web bundles
 build_web/
