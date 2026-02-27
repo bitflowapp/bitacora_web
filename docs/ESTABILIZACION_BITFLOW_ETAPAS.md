@@ -373,27 +373,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Exportar ZIP tras warning:
   - Confirmar camino de conservacion disponible.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 10 - P0 anti reentrancia (double tap) en export/import (2026-02-26)
 
 ### Reentrancias cerradas
@@ -424,27 +403,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - En editor/inicio: salir rapido de la pantalla durante operacion.
   - No debe haber crashes ni estados de busy colgados.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 11 - P0 no false-success en fallback de export (2026-02-26)
 
 ### Caso cerrado (false-success)
@@ -479,27 +437,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Probar unsupported (si plataforma aplica):
   - Debe mantener mensaje comercial/accionable y no marcar exito.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 12 - P0 lifecycle (timer debounce + callbacks post-dispose) (2026-02-26)
 
 ### Riesgo lifecycle cerrado
@@ -546,27 +483,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
   - verificar ausencia de excepciones / callbacks tardios
 - No se agrego en P0 para evitar test UI frágil con mayor costo de mantenimiento que el fix puntual.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 13 - P0 StartPage async/context (carpetas + acciones externas) (2026-02-26)
 
 ### Riesgos encontrados (StartPage)
@@ -608,27 +524,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Revalidar import/export desde Inicio (cancelar y unsupported si aplica):
   - sin exito falso, sin errores de context/mounted
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 14 - P0 StartPage reentrancia + semantica de import/export (2026-02-26)
 
 ### Riesgo encontrado
@@ -670,27 +565,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Widget/integration test para doble tap en tile de planilla y verificacion de una sola navegacion.
 - No se agrego en esta iteracion por limite de 3 hunks y para evitar test UI frágil en P0.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 15 - P0 Editor (Smart Paste) reentrancia + gate de long operation (2026-02-26)
 
 ### Riesgo encontrado
@@ -733,27 +607,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Widget test de reentrancia: mantener `longOperation` activo y disparar `_pasteFromClipboard()` para verificar que devuelve fallo controlado sin pisar el estado.
 - No se agrego en esta iteracion por limite de hunks y por costo de harness UI.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 16 - P0 pickers/cancelacion en adjuntos (2026-02-26)
 
 ### Riesgo encontrado
@@ -798,27 +651,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Alinear tambien el snack de cancelacion de foto (`_processPhotoOutcome`) para que no use estilo de error en cancelaciones de usuario.
 - Se dejo fuera por limite de hunks en esta iteracion.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 17 - P0 consolidacion semantica foto (2026-02-26)
 
 ### Riesgo encontrado
@@ -852,27 +684,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
 - Adjuntar foto OK:
   - flujo normal sin regresion (sin cambios visuales extra)
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 18 - P0 semantica cancelacion audio picker/fallback (2026-02-26)
 
 ### Riesgo encontrado
@@ -919,27 +730,6 @@ Objetivo: confiabilidad y reducción de bugs sin cambios estéticos ni nuevas de
     - loguear `audio_store=mem` al retornar `StoredAudio(storageKey: 'mem:...')`
   - no se aplico en esta iteracion para respetar el limite de 3 archivos junto con fix + test + docs.
 
----
-
-## Resumen ejecutivo (cierre P0 - 2026-02-27)
-
-- Problema resuelto:
-  - se estabilizaron flujos criticos para evitar falsos positivos y estados inconsistentes:
-  - cancelado != error != exito (pickers/export/import/share)
-  - hardening de `mounted/context` post-`await` en Editor y StartPage
-  - guardas de reentrancia (double tap) en navegacion/import y operaciones largas
-  - fallback de storage web observable (audio/foto/archivo/video) con warning accionable y dedupe
-- Validacion tecnica (corrida completa):
-  - `flutter analyze` -> EXIT 1 (deuda historica), 376 issues (66 warnings / 310 infos)
-  - `flutter test --no-pub` -> EXIT 0, 135 tests OK
-  - `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
-- Delta final vs baseline de esta corrida:
-  - analyze sin regresion: 376 -> 376 issues, warnings 66 -> 66, infos 310 -> 310
-- Estado comercial:
-  - flujo demo listo para venta tecnica (sin crash en paths auditados de P0)
-  - cancelaciones y fallbacks visibles para usuario, sin exito falso
-
----
 ## Etapa 19 - P0 observabilidad fallback audio web (2026-02-26)
 
 ### Riesgo encontrado
