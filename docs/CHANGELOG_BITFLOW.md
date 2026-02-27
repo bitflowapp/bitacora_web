@@ -1,5 +1,44 @@
-# CHANGELOG BITFLOW
+﻿# CHANGELOG BITFLOW
 
+## 2026-02-27 - Stabilize P0
+
+### Alcance
+- Cierre P0 de estabilidad sin features nuevas ni dependencias nuevas.
+- Hardening de lifecycle/reentrancia en Editor y StartPage.
+- Semantica consistente de cancelado/unsupported/error real en attachments/export/import.
+- Observabilidad de fallback de audio web con reason/store y warning accionable.
+
+### Cambios clave
+- `lib/features/editor/editor_state.dart`
+  - gate central de operacion larga en guardado/manual y smart paste para evitar solape por double tap.
+  - guardas `mounted` adicionales post-`await` en flujos de vistas/modales.
+- `lib/start_page.dart`
+  - anti-reentrancia en apertura de editor e import ZIP.
+  - clasificacion de picker/import para cancelado/unsupported/error real.
+- `lib/features/editor/attachments/attachments_controller.dart`
+  - cancelaciones de foto/audio/video/archivo no se reportan como error.
+  - excepciones de picker clasificadas con `classifyExportFlowOutcome`.
+  - warning de fallback web para audio con `store|reason` deduplicado.
+- `lib/services/audio_storage_service_web.dart`
+  - metadata interna `lastSaveStore/lastSaveReason` + logging debug-only de fallback.
+- `lib/services/export_flow_outcome.dart`
+  - nuevos patrones de cancelacion de image/audio picker.
+- `test/export_flow_outcome_test.dart`
+  - guardrails extra para cancelacion de image/audio picker.
+
+### Validacion
+- `dart format` (archivos tocados) -> EXIT 0
+- `flutter analyze` -> EXIT 1 (deuda historica, sin delta)
+  - 376 issues: 66 warnings / 310 infos (sin errores)
+- `flutter test --no-pub` -> EXIT 0 (135 tests)
+- `flutter build web --dart-define=DEMO_MODE=true --dart-define=AUTH_ENABLED=false` -> EXIT 0
+
+### Delta analyzer vs baseline de esta corrida
+- issues: 376 -> 376
+- warnings: 66 -> 66
+- infos: 310 -> 310
+
+---
 ## 2026-02-24 — Auditoría integral (sin implementación P0/P1)
 
 ### Alcance
@@ -193,4 +232,6 @@ Mejorar percepción de producto en feedback crítico (guardar/exportar/compartir
 - `flutter test test/editor_storage_fallback_reason_test.dart test/storage_diagnostics_test.dart` → `TEST_EXIT:0`
 - `flutter test` → `TEST_EXIT:0`
 - `flutter analyze lib/services/location_web_impl_web.dart lib/features/editor/editor_state.dart lib/services/export_xlsx_saver_stub.dart` → `ANALYZE_EXIT:1` (deuda histórica en `editor_state.dart`, sin regresión funcional)
+
+
 
