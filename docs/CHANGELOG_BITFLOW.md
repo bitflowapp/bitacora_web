@@ -38,6 +38,15 @@
 - warnings: 66 -> 66
 - infos: 310 -> 310
 
+### RC publication pack (LinkedIn + demo)
+- Nuevos docs de salida comercial/tecnica:
+  - `docs/RELEASE_NOTES_P0.md`
+  - `docs/DEMO_SCRIPT_90S.md`
+  - `docs/LINKEDIN_POST_DRAFT.md`
+  - `docs/KNOWN_LIMITATIONS_P1.md`
+- Se deja guion reproducible de demo corta (60-90s), post largo/corto, respuestas y DM de seguimiento.
+- Se explicitan limites P1 de forma honesta para evitar sobreventa.
+
 ---
 ## 2026-02-24 — Auditoría integral (sin implementación P0/P1)
 
