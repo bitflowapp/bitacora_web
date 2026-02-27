@@ -640,6 +640,37 @@ extension _EditorAttachments on _EditorScreenState {
     return await future;
   }
 
+  ExportFlowOutcome _classifyPhotoPickerOutcome(Object errorOrMessage) =>
+      classifyExportFlowOutcome(errorOrMessage);
+
+  bool _handlePhotoPickerClassifiedMessage(
+    ExportFlowOutcome outcome, {
+    required String unsupportedMessage,
+    required String unsupportedOperation,
+  }) {
+    if (outcome == ExportFlowOutcome.cancelled) {
+      _showActionSnack(
+        'Cancelado por el usuario.',
+        isError: false,
+        icon: Icons.photo_outlined,
+      );
+      return true;
+    }
+    if (outcome == ExportFlowOutcome.unsupported) {
+      _reportFlowErrorMessage(
+        unsupportedMessage,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: unsupportedOperation,
+        fallbackMessage:
+            'Adjuntar foto no esta disponible en este dispositivo.',
+        icon: Icons.photo_outlined,
+        diagnosticType: DiagnosticActionType.photo,
+      );
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _pickPhotoForCell(int r, int c,
       {bool fromCamera = false}) async {
     if (r < 0 || r >= _rows.length) return;
@@ -677,6 +708,29 @@ extension _EditorAttachments on _EditorScreenState {
       await _handlePhotoOutcome(future, ref, fromCamera: fromCamera);
       return;
     } catch (e, st) {
+      final outcome = _classifyPhotoPickerOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        if (!mounted) return;
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.photo,
+          ok: false,
+          message: 'photo_cancelled',
+        );
+        DiagnosticsLog.I.updatePhotoAttempt(
+          stage: 'cancelled',
+          error: e.toString(),
+          stack: st.toString(),
+        );
+      }
+      if (outcome != ExportFlowOutcome.failed) {
+        if (!mounted) return;
+        _handlePhotoPickerClassifiedMessage(
+          outcome,
+          unsupportedMessage: 'photo_open_picker_unsupported',
+          unsupportedOperation: 'photo_open_picker',
+        );
+        return;
+      }
       DiagnosticsLog.I.record(
         type: DiagnosticActionType.photo,
         ok: false,
@@ -727,6 +781,7 @@ extension _EditorAttachments on _EditorScreenState {
           _isIosWeb &&
           (outcome.cancelled || outcome.blocked || outcome.isError)) {
         final fallbackOutcome = await _offerGalleryFallback();
+        if (!mounted) return;
         if (fallbackOutcome != null) {
           currentOutcome = fallbackOutcome;
         }
@@ -752,7 +807,7 @@ extension _EditorAttachments on _EditorScreenState {
         );
         _showActionSnack(
           'Cancelado por el usuario.',
-          isError: true,
+          isError: false,
           icon: Icons.photo_outlined,
         );
         return;
@@ -785,6 +840,33 @@ extension _EditorAttachments on _EditorScreenState {
       }
       if (!currentOutcome.ok) {
         final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
+        final classified = _classifyPhotoPickerOutcome(rawMsg);
+        if (classified != ExportFlowOutcome.failed) {
+          final cancelled = classified == ExportFlowOutcome.cancelled;
+          _updatePhotoFlowStatus(
+            cancelled
+                ? 'Destino $label · cancelado'
+                : 'Destino $label · no disponible',
+            target: targetRef,
+          );
+          _clearPhotoFlowStatusSoon();
+          DiagnosticsLog.I.record(
+            type: DiagnosticActionType.photo,
+            ok: false,
+            message:
+                cancelled ? 'photo_cancelled' : 'photo_unsupported $rawMsg',
+          );
+          DiagnosticsLog.I.updatePhotoAttempt(
+            stage: cancelled ? 'cancelled' : 'unsupported',
+            error: rawMsg,
+          );
+          _handlePhotoPickerClassifiedMessage(
+            classified,
+            unsupportedMessage: rawMsg,
+            unsupportedOperation: 'photo_outcome_unsupported',
+          );
+          return;
+        }
         final lower = rawMsg.toLowerCase();
         final readFail = lower.contains('empty_bytes') ||
             lower.contains('leer la imagen') ||
@@ -938,7 +1020,9 @@ extension _EditorAttachments on _EditorScreenState {
             }
             storageLabel = save.storageLabel;
             storageKey = save.storageKey;
-            if (storageLabel == 'ram' || save.sessionOnly) {
+            if ((kIsWeb && storageLabel != 'indexeddb') ||
+                storageLabel == 'ram' ||
+                save.sessionOnly) {
               _warnStorageFallbackOnce('foto');
             }
             DiagnosticsLog.I.updatePhotoAttempt(
@@ -2127,7 +2211,44 @@ extension _EditorAttachments on _EditorScreenState {
         'mpeg',
       ],
     );
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        if (!mounted) return;
+        _showActionSnack(
+          'Adjuntar video cancelado.',
+          isError: false,
+          icon: Icons.videocam_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowErrorMessage(
+          'video_open_picker_unsupported',
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'video_open_picker',
+          fallbackMessage:
+              'Adjuntar video no esta disponible en este dispositivo.',
+          icon: Icons.videocam_rounded,
+          diagnosticType: DiagnosticActionType.video,
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'video_open_picker',
+        stackTrace: st,
+        fallbackMessage: 'No se pudo abrir el selector para adjuntar video.',
+        icon: Icons.videocam_rounded,
+        diagnosticType: DiagnosticActionType.video,
+      );
+      return;
+    }
+    if (!mounted) return;
     await _attachGenericFileToCell(
       ref,
       picked: xf,
@@ -2165,7 +2286,44 @@ extension _EditorAttachments on _EditorScreenState {
         'zip',
       ],
     );
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        if (!mounted) return;
+        _showActionSnack(
+          'Adjuntar archivo cancelado.',
+          isError: false,
+          icon: Icons.attach_file_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowErrorMessage(
+          'file_open_picker_unsupported',
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'file_open_picker',
+          fallbackMessage:
+              'Adjuntar archivo no esta disponible en este dispositivo.',
+          icon: Icons.attach_file_rounded,
+          diagnosticType: DiagnosticActionType.file,
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'file_open_picker',
+        stackTrace: st,
+        fallbackMessage: 'No se pudo abrir el selector para adjuntar archivo.',
+        icon: Icons.attach_file_rounded,
+        diagnosticType: DiagnosticActionType.file,
+      );
+      return;
+    }
+    if (!mounted) return;
     await _attachGenericFileToCell(
       ref,
       picked: xf,
@@ -2190,7 +2348,7 @@ extension _EditorAttachments on _EditorScreenState {
       if (picked == null) {
         _showActionSnack(
           'Adjuntar $sourceLabel cancelado.',
-          isError: true,
+          isError: false,
           icon: icon,
         );
         return;
@@ -2287,7 +2445,9 @@ extension _EditorAttachments on _EditorScreenState {
               throw Exception('storage_blocked: ${kind.name}_store_failed');
             }
             storageLabel = save.storageLabel;
-            if (storageLabel == 'ram' || save.sessionOnly) {
+            if ((kIsWeb && storageLabel != 'indexeddb') ||
+                storageLabel == 'ram' ||
+                save.sessionOnly) {
               _warnStorageFallbackOnce(sourceLabel);
             }
             return save.storedRef;
@@ -2658,9 +2818,44 @@ extension _EditorAttachments on _EditorScreenState {
         );
       },
     );
-    if (pickFile != true) return false;
+    if (!mounted) return false;
+    if (pickFile != true) {
+      _handleAudioPickerClassifiedMessage(ExportFlowOutcome.cancelled);
+      return true;
+    }
     await _attachAudioFromFile(ref);
     return true;
+  }
+
+  ExportFlowOutcome _classifyAudioPickerOutcome(Object errorOrMessage) =>
+      classifyExportFlowOutcome(errorOrMessage);
+
+  bool _handleAudioPickerClassifiedMessage(
+    ExportFlowOutcome outcome, {
+    String? unsupportedMessage,
+    String? unsupportedOperation,
+  }) {
+    if (outcome == ExportFlowOutcome.cancelled) {
+      _showActionSnack(
+        'Adjuntar audio cancelado.',
+        isError: false,
+        icon: Icons.audiotrack_rounded,
+      );
+      return true;
+    }
+    if (outcome == ExportFlowOutcome.unsupported) {
+      _reportFlowErrorMessage(
+        unsupportedMessage ?? 'audio_open_picker_unsupported',
+        flow: AppErrorFlow.attachmentPermission,
+        operation: unsupportedOperation ?? 'audio_open_picker',
+        fallbackMessage:
+            'Adjuntar audio desde archivo no esta disponible en este dispositivo.',
+        icon: Icons.audiotrack_rounded,
+        diagnosticType: DiagnosticActionType.audio,
+      );
+      return true;
+    }
+    return false;
   }
 
   Future<void> _attachAudioFromFile(CellRef ref) async {
@@ -2684,14 +2879,35 @@ extension _EditorAttachments on _EditorScreenState {
       ],
     );
 
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = _classifyAudioPickerOutcome(e);
+      if (outcome != ExportFlowOutcome.failed) {
+        if (!mounted) return;
+        _handleAudioPickerClassifiedMessage(
+          outcome,
+          unsupportedMessage: 'audio_open_picker_unsupported',
+          unsupportedOperation: 'audio_open_picker',
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'audio_open_picker',
+        stackTrace: st,
+        fallbackMessage:
+            'No se pudo abrir el selector para adjuntar audio desde archivo.',
+        icon: Icons.audiotrack_rounded,
+        diagnosticType: DiagnosticActionType.audio,
+      );
+      return;
+    }
     if (!mounted) return;
     if (xf == null) {
-      _showActionSnack(
-        'Adjuntar audio cancelado.',
-        isError: true,
-        icon: Icons.audiotrack_rounded,
-      );
+      _handleAudioPickerClassifiedMessage(ExportFlowOutcome.cancelled);
       return;
     }
 
@@ -2773,6 +2989,8 @@ extension _EditorAttachments on _EditorScreenState {
     final usedSource =
         source == 'record' ? AttachmentSource.record : AttachmentSource.files;
     String? storageKey;
+    String? audioStorageLabel;
+    String? audioStorageReason;
     int storedSize = recording.bytes?.lengthInBytes ?? 0;
 
     final pipeline = await _attachmentPipeline.run<RecordedAudio>(
@@ -2796,8 +3014,35 @@ extension _EditorAttachments on _EditorScreenState {
           storedSize = stored.bytesLength;
           storageKey = stored.storageKey;
           final storedRef = _audioStoredRefFrom(stored);
-          if (storedRef.startsWith('mem:')) {
-            _warnStorageFallbackOnce('audio');
+          if (kIsWeb) {
+            try {
+              final dynamic audioStore = _audioStore;
+              final dynamic lastStore = audioStore.lastSaveStore;
+              final dynamic lastReason = audioStore.lastSaveReason;
+              if (lastStore is String && lastStore.trim().isNotEmpty) {
+                audioStorageLabel = lastStore.trim();
+              }
+              if (lastReason is String && lastReason.trim().isNotEmpty) {
+                audioStorageReason = lastReason.trim();
+              }
+            } catch (_) {}
+          }
+          final normalizedStore =
+              (audioStorageLabel ?? '').trim().toLowerCase();
+          final resolvedStore = normalizedStore.isEmpty
+              ? (storedRef.startsWith('mem:') ? 'mem' : 'unknown')
+              : normalizedStore;
+          final normalizedReason = (audioStorageReason ?? '').trim();
+          final resolvedReason = normalizedReason.isEmpty
+              ? 'unknown_storage_error'
+              : normalizedReason.toLowerCase();
+          final degradedStore = resolvedStore != 'indexeddb';
+          if (degradedStore || storedRef.startsWith('mem:')) {
+            _warnStorageFallbackOnce(
+              'audio',
+              reasonCode: resolvedReason,
+              storageLabel: resolvedStore,
+            );
           }
           return storedRef;
         },

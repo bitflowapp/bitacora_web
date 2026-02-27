@@ -1432,43 +1432,49 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
+  bool _openEditorRouteInFlight = false;
+
   Future<void> _openEditorRoute({
     required String sheetId,
     String? initialName,
   }) async {
-    if (!mounted) return;
-
-    final encodedSheetId = Uri.encodeComponent(sheetId.trim());
-    final cleanName = (initialName ?? '').trim();
-    final route = cleanName.isEmpty
-        ? '/app/sheet/$encodedSheetId'
-        : '/app/sheet/$encodedSheetId?name=${Uri.encodeQueryComponent(cleanName)}';
-
-    var openedWithRouter = false;
+    if (!mounted || _openEditorRouteInFlight) return;
+    _openEditorRouteInFlight = true;
     try {
-      await context.push(route);
-      openedWithRouter = true;
-    } catch (_) {
-      openedWithRouter = false;
-    }
+      final encodedSheetId = Uri.encodeComponent(sheetId.trim());
+      final cleanName = (initialName ?? '').trim();
+      final route = cleanName.isEmpty
+          ? '/app/sheet/$encodedSheetId'
+          : '/app/sheet/$encodedSheetId?name=${Uri.encodeQueryComponent(cleanName)}';
 
-    if (!openedWithRouter) {
-      if (!mounted) return;
-      await Navigator.of(context).push<void>(
-        CupertinoPageRoute(
-          builder: (_) => EditorScreen(
-            isLight: widget.isLight,
-            onToggleTheme: widget.onToggleTheme,
-            sheetId: sheetId,
-            initialName: cleanName.isEmpty ? null : cleanName,
-            engineBaseUrl: _engineBaseForEditor(),
+      var openedWithRouter = false;
+      try {
+        await context.push(route);
+        openedWithRouter = true;
+      } catch (_) {
+        openedWithRouter = false;
+      }
+
+      if (!openedWithRouter) {
+        if (!mounted) return;
+        await Navigator.of(context).push<void>(
+          CupertinoPageRoute(
+            builder: (_) => EditorScreen(
+              isLight: widget.isLight,
+              onToggleTheme: widget.onToggleTheme,
+              sheetId: sheetId,
+              initialName: cleanName.isEmpty ? null : cleanName,
+              engineBaseUrl: _engineBaseForEditor(),
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    if (!mounted) return;
-    _reload();
+      if (!mounted) return;
+      _reload();
+    } finally {
+      _openEditorRouteInFlight = false;
+    }
   }
 
   Future<void> _createAndOpenSheet({TemplateKind? template}) async {
@@ -1843,14 +1849,57 @@ class _StartPageState extends State<StartPage> {
     });
   }
 
+  bool _importBackupZipInFlight = false;
+
   Future<void> _importBackupZip() async {
-    if (_busy) return;
+    if (_busy || _importBackupZipInFlight) {
+      _toast('Ya hay una operacion en curso. Espera a que termine.');
+      return;
+    }
+    _importBackupZipInFlight = true;
     final typeGroup = const XTypeGroup(
       label: 'Backup ZIP',
       extensions: ['zip'],
     );
 
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    XFile? file;
+    try {
+      try {
+        file = await openFile(acceptedTypeGroups: [typeGroup]);
+      } catch (e, st) {
+        final outcome = classifyExportFlowOutcome(e);
+        if (outcome == ExportFlowOutcome.cancelled) {
+          _toast(AppStrings.infoImportCancelled);
+          return;
+        }
+        if (outcome == ExportFlowOutcome.unsupported) {
+          _reportStartPageErrorMessage(
+            'start_page_import_zip_unsupported_platform',
+            flow: AppErrorFlow.importData,
+            operation: 'import_backup_open_picker',
+            fallbackMessage:
+                'La importacion ZIP desde Inicio no esta disponible en este dispositivo.',
+          );
+          return;
+        }
+        _reportStartPageError(
+          e,
+          flow: AppErrorFlow.importData,
+          operation: 'import_backup_open_picker',
+          stackTrace: st,
+          fallbackMessage:
+              'No pudimos abrir el selector de archivos para importar.',
+        );
+        return;
+      }
+    } finally {
+      if (!mounted) {
+        _importBackupZipInFlight = false;
+      } else {
+        _setStartPageState(() => _importBackupZipInFlight = false);
+      }
+    }
+    if (!mounted) return;
     if (file == null || _busy) return;
 
     _beginBusyOperation(
@@ -2205,6 +2254,21 @@ class _StartPageState extends State<StartPage> {
     } on _StartPageOperationCancelled {
       _toast(AppStrings.infoImportCancelled);
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _toast(AppStrings.infoImportCancelled);
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportStartPageErrorMessage(
+          'start_page_import_zip_unsupported_platform',
+          flow: AppErrorFlow.importData,
+          operation: 'import_backup_zip',
+          fallbackMessage:
+              'La importacion ZIP desde Inicio no esta disponible en este dispositivo.',
+        );
+        return;
+      }
       _reportStartPageError(
         e,
         flow: AppErrorFlow.importData,
@@ -2583,6 +2647,7 @@ class _StartPageState extends State<StartPage> {
       okText: 'Eliminar',
       danger: true,
     );
+    if (!mounted || !ctx.mounted) return;
     if (ok != true) return;
 
     _folders.removeWhere((f) => f.id == folder.id);
@@ -2620,6 +2685,7 @@ class _StartPageState extends State<StartPage> {
             'Ejemplos: “$suggested, “Septiembre 2026, “Obra X. Un solo nivel, simple y ordenado.',
       ),
     );
+    if (!mounted || !ctx.mounted) return null;
 
     final trimmed = (name ?? '').trim();
     if (trimmed.isEmpty) return null;
@@ -2648,6 +2714,7 @@ class _StartPageState extends State<StartPage> {
       placeholder: 'Nombre',
       okText: 'Guardar',
     );
+    if (!mounted || !ctx.mounted) return null;
 
     final trimmed = (name ?? '').trim();
     if (trimmed.isEmpty) return null;
@@ -3110,6 +3177,7 @@ class _StartPageState extends State<StartPage> {
     if (defaultTargetPlatform == TargetPlatform.android) {
       final url = Uri.parse(AppUpdateService.androidLatestApkUrl);
       final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
       _toast(opened
           ? 'Abriendo descarga de Android...'
           : 'No se pudo abrir la descarga.');
@@ -3121,6 +3189,7 @@ class _StartPageState extends State<StartPage> {
     );
     final opened =
         await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
     _toast(opened
         ? 'Abriendo pagina de release.'
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
@@ -3144,6 +3213,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openFolderPicker();
               },
               child: const Text('Carpetas…'),
@@ -3151,6 +3221,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openMailSettings();
               },
               child: const Text('Ajustes (Correo/Motor)…'),
@@ -3158,6 +3229,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const PremiumScreen(),
@@ -3169,6 +3241,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openStaticPage(const SpreadsheetAgentScreen());
               },
               child: const Text('Agente de planillas (MVP)…'),
@@ -3176,6 +3249,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _checkForUpdates(silent: false);
               },
               child: Text(
@@ -3189,6 +3263,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openStaticPage(const AboutScreen());
               },
               child: const Text('Acerca de…'),
@@ -3196,6 +3271,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openStaticPage(const PrivacyScreen());
               },
               child: const Text('Privacidad'),
@@ -3203,6 +3279,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openStaticPage(const TermsScreen());
               },
               child: const Text('Términos'),
@@ -3210,6 +3287,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openLicenses();
               },
               child: const Text('Licencias…'),
@@ -3217,6 +3295,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openDiagnostics();
               },
               child: const Text('Diagnóstico / Soporte…'),
@@ -3224,6 +3303,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _importBackupZip();
               },
               child: const Text('Importar paquete ZIP...'),
@@ -3231,6 +3311,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _newTemplateSheet();
               },
               child: const Text('Nueva plantilla…'),
@@ -3238,6 +3319,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _createSmokeTestSheet();
               },
               child: const Text('Prueba rápida (GPS/Fotos/Audio)…'),
@@ -3245,6 +3327,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openSortSheet();
               },
               child: const Text('Ordenar…'),
@@ -3252,6 +3335,7 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
+                if (!mounted) return;
                 await _openViewSheet();
               },
               child: const Text('Vista…'),
@@ -3274,6 +3358,7 @@ class _StartPageState extends State<StartPage> {
               CupertinoActionSheetAction(
                 onPressed: () async {
                   Navigator.of(ctx).pop();
+                  if (!mounted) return;
                   await _signOutCurrentUser();
                 },
                 isDestructiveAction: true,
@@ -3291,6 +3376,7 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openCommercialInfo() async {
+    if (!mounted) return;
     final navigator = Navigator.of(context);
     await navigator.push(
       MaterialPageRoute<void>(

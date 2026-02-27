@@ -4,6 +4,7 @@ import 'dart:html' as html;
 import 'dart:indexed_db' as idb;
 import 'dart:typed_data';
 import 'dart:async';
+import 'dart:developer' as developer;
 // ignore: uri_does_not_exist
 import 'dart:js_util' as js_util;
 
@@ -18,9 +19,11 @@ class WebBlobStoreImpl implements WebBlobStore {
   idb.Database? _db;
   final Map<String, WebBlobRecord> _mem = {};
   String? _lastSaveReason;
+  String? _lastSaveStore;
 
   @override
   String? get lastSaveReason => _lastSaveReason;
+  String? get lastSaveStore => _lastSaveStore;
 
   Future<idb.Database?> _ensureDb() async {
     if (_db != null) return _db;
@@ -48,6 +51,7 @@ class WebBlobStoreImpl implements WebBlobStore {
     required int size,
   }) async {
     _lastSaveReason = null;
+    _lastSaveStore = null;
     html.Blob blob;
     if (source is html.Blob) {
       blob = source;
@@ -57,6 +61,18 @@ class WebBlobStoreImpl implements WebBlobStore {
       blob = html.Blob(<Object>[], mime);
     }
     final now = DateTime.now();
+    void debugLogSaveDecision(String store, String? reasonCode) {
+      assert(() {
+        final reason =
+            (reasonCode ?? '').trim().isEmpty ? 'none' : reasonCode!.trim();
+        developer.log(
+          '[web-blob] save bytes=$size store=$store reason=$reason',
+          name: 'bitflow.web_blob',
+        );
+        return true;
+      }());
+    }
+
     final recordMap = <String, dynamic>{
       'blob': blob,
       'name': name,
@@ -72,6 +88,8 @@ class WebBlobStoreImpl implements WebBlobStore {
         final store = tx.objectStore(_storeName);
         await store.put(recordMap, key);
         await tx.completed;
+        _lastSaveStore = 'indexeddb';
+        debugLogSaveDecision('indexeddb', null);
         return WebBlobRecord(
           key: key,
           name: name,
@@ -100,6 +118,12 @@ class WebBlobStoreImpl implements WebBlobStore {
       createdAtIso: now.toIso8601String(),
     );
     if (cacheSaved) {
+      final finalReasonCode = (_lastSaveReason ?? '').trim().isEmpty
+          ? 'unknown_storage_error'
+          : _lastSaveReason!;
+      _lastSaveReason = finalReasonCode;
+      _lastSaveStore = 'cache';
+      debugLogSaveDecision('cache', finalReasonCode);
       return WebBlobRecord(
         key: key,
         name: name,
@@ -109,11 +133,17 @@ class WebBlobStoreImpl implements WebBlobStore {
         blob: blob,
         storageMode: 'cache',
         sessionOnly: false,
-        storageReason: _lastSaveReason,
+        storageReason: finalReasonCode,
       );
     }
 
     // Fallback RAM
+    final finalReasonCode = (_lastSaveReason ?? '').trim().isEmpty
+        ? 'unknown_storage_error'
+        : _lastSaveReason!;
+    _lastSaveReason = finalReasonCode;
+    _lastSaveStore = 'ram';
+    debugLogSaveDecision('ram', finalReasonCode);
     final rec = WebBlobRecord(
       key: key,
       name: name,
@@ -123,7 +153,7 @@ class WebBlobStoreImpl implements WebBlobStore {
       blob: blob,
       storageMode: 'ram',
       sessionOnly: true,
-      storageReason: _lastSaveReason ?? 'unknown_storage_error',
+      storageReason: finalReasonCode,
     );
     _mem[key] = rec;
     return rec;
