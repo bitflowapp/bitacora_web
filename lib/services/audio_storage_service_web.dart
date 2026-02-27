@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'audio_service.dart';
@@ -10,6 +9,11 @@ class AudioStorageServiceImpl implements AudioStorageService {
   static final Map<String, Map<String, dynamic>> _memStore =
       <String, Map<String, dynamic>>{};
   Box<dynamic>? _box;
+  String? _lastSaveStore;
+  String? _lastSaveReason;
+
+  String? get lastSaveStore => _lastSaveStore;
+  String? get lastSaveReason => _lastSaveReason;
 
   Future<void> _ensureBox() async {
     if (_box != null && _box!.isOpen) return;
@@ -37,6 +41,10 @@ class AudioStorageServiceImpl implements AudioStorageService {
     required String attachmentId,
     required RecordedAudio recording,
   }) async {
+    _lastSaveStore = null;
+    _lastSaveReason = null;
+    final bytesLength = recording.bytes?.lengthInBytes ?? 0;
+
     try {
       final bytes = recording.bytes;
       if (bytes == null || bytes.isEmpty) return null;
@@ -49,13 +57,21 @@ class AudioStorageServiceImpl implements AudioStorageService {
         'bytes': bytes,
       });
 
+      _lastSaveStore = 'indexeddb';
+      _lastSaveReason = null;
+      _debugLogSave(
+        bytesLength: bytesLength,
+        store: _lastSaveStore!,
+        reasonCode: _lastSaveReason,
+      );
+
       return StoredAudio(
         storageKey: key,
         fileName: recording.fileName,
         mime: recording.mime,
         bytesLength: bytes.lengthInBytes,
       );
-    } catch (_) {
+    } catch (e) {
       final bytes = recording.bytes;
       if (bytes == null || bytes.isEmpty) return null;
       final key = _makeKey(sheetId, cellKey, attachmentId);
@@ -64,6 +80,13 @@ class AudioStorageServiceImpl implements AudioStorageService {
         'mime': recording.mime,
         'bytes': bytes,
       };
+      _lastSaveStore = 'mem';
+      _lastSaveReason = _classifyStorageReason(e);
+      _debugLogSave(
+        bytesLength: bytesLength,
+        store: _lastSaveStore!,
+        reasonCode: _lastSaveReason,
+      );
       return StoredAudio(
         storageKey: 'mem:$key',
         fileName: recording.fileName,
@@ -103,5 +126,39 @@ class AudioStorageServiceImpl implements AudioStorageService {
   String _sanitize(String raw) {
     final t = raw.trim().isEmpty ? 'x' : raw.trim();
     return t.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+  }
+
+  String _classifyStorageReason(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('quota') ||
+        lower.contains('quotaexceeded') ||
+        lower.contains('insufficient storage')) {
+      return 'quota_exceeded';
+    }
+    if (lower.contains('private') ||
+        lower.contains('incognito') ||
+        lower.contains('session') ||
+        lower.contains('notallowederror') ||
+        lower.contains('securityerror')) {
+      return 'storage_session_only';
+    }
+    if (lower.contains('indexeddb') ||
+        lower.contains('blocked') ||
+        lower.contains('invalidstateerror')) {
+      return 'storage_blocked';
+    }
+    return 'unknown_storage_error';
+  }
+
+  void _debugLogSave({
+    required int bytesLength,
+    required String store,
+    required String? reasonCode,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[audio-store-web] save bytes=$bytesLength '
+      'store=$store reason=${reasonCode ?? 'none'}',
+    );
   }
 }

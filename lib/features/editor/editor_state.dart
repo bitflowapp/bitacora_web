@@ -1637,7 +1637,12 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    _beginLongOperation(message: AppStrings.progressSaving, cancellable: false);
+    if (!_tryBeginLongOperation(
+      message: AppStrings.progressSaving,
+      cancellable: false,
+    )) {
+      return;
+    }
     _saveHapticPending = true;
     try {
       await _saveLocalNow();
@@ -3257,6 +3262,14 @@ class _EditorScreenState extends State<EditorScreen>
       showClose: false,
       barrierDismissible: true,
     );
+    if (!mounted) {
+      nameController.dispose();
+      statusController.dispose();
+      textController.dispose();
+      dateFromController.dispose();
+      dateToController.dispose();
+      return;
+    }
 
     final name = nameController.text.trim();
     final statusValue = statusController.text.trim();
@@ -3345,6 +3358,7 @@ class _EditorScreenState extends State<EditorScreen>
       _applySavedViewColumns(next.id, announce: false, persistActive: false);
     });
     await _persistSavedViewsPref();
+    if (!mounted) return;
     _showActionSnack(
       'Vista "${next.name}" guardada.',
       isError: false,
@@ -3379,6 +3393,10 @@ class _EditorScreenState extends State<EditorScreen>
       showClose: false,
       barrierDismissible: true,
     );
+    if (!mounted) {
+      controller.dispose();
+      return;
+    }
     final nextName = controller.text.trim();
     controller.dispose();
     if (accepted != true || nextName.isEmpty) return;
@@ -3423,6 +3441,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
     });
     await _persistSavedViewsPref();
+    if (!mounted) return;
     _showActionSnack(
       'Vista "${removed.name}" eliminada.',
       isError: false,
@@ -8643,17 +8662,46 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  void _warnStorageFallbackOnce(String kindLabel, {String? reasonCode}) {
-    final mapping = classifyEditorStorageFallbackReason(reasonCode);
+  void _warnStorageFallbackOnce(
+    String kindLabel, {
+    String? reasonCode,
+    String? storageLabel,
+  }) {
+    final labelLower = kindLabel.trim().toLowerCase();
+    final isCapabilityWarning = labelLower.startsWith('modo temporal');
+    final isAudioFallback = labelLower == 'audio';
+    String? inferredStore;
+    String? inferredReason;
+    if (kIsWeb && !isCapabilityWarning) {
+      inferredReason = WebBlobStore.I.lastSaveReason;
+      try {
+        final dynamic webStore = WebBlobStore.I;
+        final candidate = webStore.lastSaveStore;
+        if (candidate is String) {
+          inferredStore = candidate;
+        }
+      } catch (_) {}
+    }
+    final effectiveReasonCode = (reasonCode ??
+            (isAudioFallback ? 'unknown_storage_error' : inferredReason))
+        ?.trim();
+    final effectiveStore =
+        (storageLabel ?? (isAudioFallback ? 'ram' : inferredStore))?.trim();
+    final mapping = classifyEditorStorageFallbackReason(effectiveReasonCode);
     final reasonKey = mapping.storageVariant.trim().isEmpty
         ? 'generic'
         : mapping.storageVariant.trim();
-    if (_storageWarnedReasons.contains(reasonKey)) return;
-    _storageWarnedReasons.add(reasonKey);
+    final storeKey = (effectiveStore ?? '').trim().toLowerCase().isEmpty
+        ? 'unknown'
+        : (effectiveStore ?? '').trim().toLowerCase();
+    final warnKey = '$storeKey|$reasonKey';
+    if (_storageWarnedReasons.contains(warnKey)) return;
+    _storageWarnedReasons.add(warnKey);
     if (kDebugMode) {
       debugPrint(
         '[EditorScreen] storage_fallback kind=$kindLabel '
-        'reason=${reasonCode ?? 'null'} mapped=${mapping.storageVariant}',
+        'store=$storeKey reason=${effectiveReasonCode ?? 'null'} '
+        'mapped=${mapping.storageVariant}',
       );
     }
     final storageMessage = switch (mapping.storageVariant) {
@@ -15313,7 +15361,7 @@ class _EditorScreenState extends State<EditorScreen>
     final totalOps = headerChanges.length + plan.changedCells;
     const chunkCells = 200;
     if (totalOps > 0) {
-      _beginLongOperation(
+      if (!_tryBeginLongOperation(
         message: _smartPasteProgressMessage(
           rows: parsed.rowCount,
           cols: parsed.columnCount,
@@ -15321,7 +15369,11 @@ class _EditorScreenState extends State<EditorScreen>
           total: totalOps,
         ),
         cancellable: true,
-      );
+      )) {
+        return fail(
+          'Ya hay una operacion en curso. Espera a que termine y reintenta el pegado.',
+        );
+      }
       try {
         var processed = 0;
         for (final header in headerChanges) {
@@ -15601,7 +15653,11 @@ class _EditorScreenState extends State<EditorScreen>
     Timer? debounceT;
     List<_GlobalSearchResult> results = const <_GlobalSearchResult>[];
 
-    Future<void> runSearch(StateSetter setModalState) async {
+    Future<void> runSearch(
+      BuildContext modalCtx,
+      StateSetter setModalState,
+    ) async {
+      if (!mounted || !modalCtx.mounted) return;
       final q = ec.text.trim();
       if (q.isEmpty) {
         setModalState(() {
@@ -15615,7 +15671,7 @@ class _EditorScreenState extends State<EditorScreen>
         q,
         includeAllSheets: includeAllSheets,
       );
-      if (!mounted) return;
+      if (!mounted || !modalCtx.mounted) return;
       setModalState(() {
         results = found;
         searching = false;
@@ -15643,7 +15699,7 @@ class _EditorScreenState extends State<EditorScreen>
                   onChanged: (_) {
                     debounceT?.cancel();
                     debounceT = Timer(const Duration(milliseconds: 180), () {
-                      unawaited(runSearch(setModalState));
+                      unawaited(runSearch(ctx, setModalState));
                     });
                   },
                 ),
@@ -15656,7 +15712,7 @@ class _EditorScreenState extends State<EditorScreen>
                   onChanged: (value) {
                     setModalState(() => includeAllSheets = value);
                     AppHaptics.selection();
-                    unawaited(runSearch(setModalState));
+                    unawaited(runSearch(ctx, setModalState));
                   },
                 ),
                 const SizedBox(height: 6),
@@ -17606,6 +17662,28 @@ class _EditorScreenState extends State<EditorScreen>
         icon: Icons.info_outline_rounded,
       );
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _showActionSnack(
+          AppStrings.infoExportCancelled,
+          isError: false,
+          icon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share ? 'share_pdf' : 'export_pdf',
+          fallbackMessage: share
+              ? 'Compartir PDF no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar PDF no esta disponible en este dispositivo.',
+          stackTrace: st,
+          icon: Icons.picture_as_pdf_outlined,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
@@ -17704,6 +17782,28 @@ class _EditorScreenState extends State<EditorScreen>
         icon: Icons.info_outline_rounded,
       );
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _showActionSnack(
+          AppStrings.infoExportCancelled,
+          isError: false,
+          icon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share ? 'share_zip' : 'export_zip',
+          fallbackMessage: share
+              ? 'Compartir paquete ZIP no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar paquete ZIP no esta disponible en este dispositivo.',
+          stackTrace: st,
+          icon: Icons.folder_zip_rounded,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
@@ -17787,6 +17887,27 @@ class _EditorScreenState extends State<EditorScreen>
         icon: Icons.info_outline_rounded,
       );
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _showActionSnack(
+          AppStrings.infoExportCancelled,
+          isError: false,
+          icon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: 'export_backup_zip',
+          fallbackMessage:
+              'Exportar backup ZIP no esta disponible en este dispositivo.',
+          stackTrace: st,
+          icon: Icons.backup_rounded,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
@@ -17850,6 +17971,27 @@ class _EditorScreenState extends State<EditorScreen>
         icon: Icons.info_outline_rounded,
       );
     } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _showActionSnack(
+          AppStrings.infoExportCancelled,
+          isError: false,
+          icon: Icons.info_outline_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: 'export_html',
+          fallbackMessage:
+              'Exportar reporte HTML no esta disponible en este dispositivo.',
+          stackTrace: st,
+          icon: Icons.description_rounded,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
@@ -20171,9 +20313,21 @@ Este paquete incluye:
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         await Share.shareXFiles([xf], subject: 'Exportación de Bit Flow');
-        notifySuccess();
+        if (share) {
+          notifySuccess();
+        } else if (mounted) {
+          _showActionSnack(
+            'No pudimos guardar directo en este dispositivo. Abrimos compartir para que lo guardes o envies.',
+            isError: false,
+            icon: Icons.ios_share_rounded,
+          );
+        }
         return;
-      } catch (_) {}
+      } catch (e) {
+        if (_looksLikeShareUserCancel(e)) {
+          throw const _EditorLongOperationCancelled();
+        }
+      }
     }
 
     final lower = name.toLowerCase();

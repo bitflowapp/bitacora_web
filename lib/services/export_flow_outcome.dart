@@ -30,6 +30,11 @@ bool _looksLikeCancelled(String lower) {
   return lower.contains('aborterror') ||
       lower.contains('user aborted') ||
       lower.contains('aborted by user') ||
+      lower.contains('no image selected') ||
+      lower.contains('image selection cancelled') ||
+      lower.contains('user cancelled') ||
+      lower.contains('user canceled') ||
+      lower.contains('canceled by user') ||
       lower.contains('share canceled') ||
       lower.contains('share cancelled') ||
       lower.contains('cancelled') ||
