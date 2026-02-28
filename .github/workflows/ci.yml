@@ -23,8 +23,10 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Analyze (RC mode)
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Analyze budget (baseline 374)
+        env:
+          ANALYZE_BASELINE: "374"
+        run: dart scripts/analyze_budget.dart
 
       - name: Test
         run: flutter test
