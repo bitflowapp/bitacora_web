@@ -58,7 +58,7 @@ Future<void> main(List<String> args) async {
 }
 
 int _readBaseline(List<String> args) {
-  const fallback = 100;
+  const fallback = 12;
   final env = Platform.environment['ANALYZE_BASELINE'];
   if (env != null) {
     final parsed = int.tryParse(env.trim());
