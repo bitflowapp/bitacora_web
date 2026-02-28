@@ -11,6 +11,8 @@ class _IOSaver implements AttachmentSaver {
   @override
   Future<void> save(String name, Uint8List bytes, String mime) async {
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
-    await Share.shareXFiles([xf]);
+    await SharePlus.instance.share(
+      ShareParams(files: [xf]),
+    );
   }
 }

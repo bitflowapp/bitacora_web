@@ -107,8 +107,8 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
     try {
       await completer.future.timeout(const Duration(seconds: 2));
     } catch (_) {
-      metaSub?.cancel();
-      canPlaySub?.cancel();
+      metaSub.cancel();
+      canPlaySub.cancel();
     }
   }
 
@@ -215,10 +215,8 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
 
       Uint8List? bytes;
       final blob = await canvas.toBlob('image/jpeg', widget.jpegQuality);
-      if (blob != null) {
-        bytes = await _blobToBytes(blob);
-      }
-
+      bytes = await _blobToBytes(blob);
+    
       bytes ??=
           _dataUrlToBytes(canvas.toDataUrl('image/jpeg', widget.jpegQuality));
 
@@ -293,7 +291,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
     final canCapture = !_starting && !_capturing && _error == null;
     final canShot = canCapture && (_captured != null || _ready);
     return Material(
-      color: Colors.black.withOpacity(0.88),
+      color: Colors.black.withValues(alpha: 0.88),
       child: SafeArea(
         child: Column(
           children: [
@@ -352,7 +350,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
                               margin: const EdgeInsets.all(12),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
+                                color: Colors.black.withValues(alpha: 0.7),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.white24),
                               ),

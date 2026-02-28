@@ -1211,9 +1211,9 @@ class _EditorScreenState extends State<EditorScreen>
   String get _backupListKey => '$_prefsKey:bk:list';
   String get _prefsRecentValuesKey => '$_prefsKey:recent_values.v1';
   String get _prefsEditorDefaultsKey => '$_prefsKey:defaults.v1';
-  String get _prefsSavedViewsKey => '$_prefsKey:${_kPrefSavedViews}';
+  String get _prefsSavedViewsKey => '$_prefsKey:$_kPrefSavedViews';
   String get _prefsActiveViewKey => '$_prefsKey:active_saved_view.v1';
-  String get _prefsHistoryKey => '$_prefsKey:${_kPrefHistoryLog}';
+  String get _prefsHistoryKey => '$_prefsKey:$_kPrefHistoryLog';
   String _backupKey(DateTime ts) =>
       '$_prefsKey:bk:${ts.millisecondsSinceEpoch}';
 
@@ -3143,7 +3143,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: statusColId,
+                initialValue: statusColId,
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Filtro por estado',
@@ -3163,7 +3163,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: textColId,
+                initialValue: textColId,
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Filtro de texto',
@@ -3183,7 +3183,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: dateColId,
+                initialValue: dateColId,
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Filtro de fecha',
@@ -3221,7 +3221,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: sortColId,
+                initialValue: sortColId,
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Ordenar por',
@@ -7388,8 +7388,9 @@ class _EditorScreenState extends State<EditorScreen>
         return 'Sincronizado';
       case OfflineSyncState.failed:
         final retry = _offlineRetryAt?.toLocal();
-        if (retry == null)
+        if (retry == null) {
           return _offlineLastError ?? 'Fallo de sincronizacion';
+        }
         return 'Reintento ${_two(retry.hour)}:${_two(retry.minute)}';
     }
   }
@@ -9166,17 +9167,17 @@ class _EditorScreenState extends State<EditorScreen>
                                       onBatch: () =>
                                           unawaited(_openBatchActionsSheet()),
                                       onGps: () =>
-                                          unawaited(this._runGpsForSelection()),
+                                          unawaited(_runGpsForSelection()),
                                       onPhoto: () => unawaited(
-                                          this._runPhotoForSelection()),
+                                          _runPhotoForSelection()),
                                       onVideo: () => unawaited(
-                                          this._runVideoForSelection()),
+                                          _runVideoForSelection()),
                                       onAudio: () => unawaited(
-                                          this._runAudioForSelection()),
+                                          _runAudioForSelection()),
                                       onFile: () => unawaited(
-                                          this._runFileForSelection()),
+                                          _runFileForSelection()),
                                       onAttachments: () => unawaited(
-                                        this._runOpenAttachmentsForSelection(),
+                                        _runOpenAttachmentsForSelection(),
                                       ),
                                       onShare: () => unawaited(
                                           _exportZipBundle(share: true)),
@@ -9428,7 +9429,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: pal.border.withOpacity(0.22),
+                                    color: pal.border.withValues(alpha: 0.22),
                                     blurRadius: 10,
                                     offset: const Offset(0, 3),
                                   ),
@@ -10402,7 +10403,7 @@ class _EditorScreenState extends State<EditorScreen>
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(
+                            color: Colors.black.withValues(alpha: 
                               pal.isLight ? 0.18 : 0.34,
                             ),
                           ),
@@ -12738,7 +12739,7 @@ class _EditorScreenState extends State<EditorScreen>
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<_ColType>(
-                              value: type,
+                              initialValue: type,
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Tipo',
@@ -12862,7 +12863,7 @@ class _EditorScreenState extends State<EditorScreen>
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<int>(
-                              value: wrapLines,
+                              initialValue: wrapLines,
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Wrap',
@@ -12898,7 +12899,7 @@ class _EditorScreenState extends State<EditorScreen>
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<_GridTextAlignX>(
-                              value: textAlignPref,
+                              initialValue: textAlignPref,
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Alineacion',
@@ -12942,7 +12943,7 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<_GridTextAlignY>(
-                        value: verticalAlignPref,
+                        initialValue: verticalAlignPref,
                         decoration: const InputDecoration(
                           isDense: true,
                           labelText: 'Alineacion vertical',
@@ -14873,7 +14874,7 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     final safeTotal = total <= 0 ? 1 : total;
     final pct = ((processed / safeTotal) * 100).round().clamp(0, 100);
-    return 'Pegando tabla ${rows}x${cols}... $pct% ($processed/$safeTotal)';
+    return 'Pegando tabla ${rows}x$cols... $pct% ($processed/$safeTotal)';
   }
 
   List<List<String>> _smartPastePreviewRows(
@@ -16129,7 +16130,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(
                     isDense: true,
                     labelText: 'Tipo',
@@ -18193,9 +18194,9 @@ class _EditorScreenState extends State<EditorScreen>
       final now = DateTime.now();
       final title = _sheetName.trim().isEmpty ? 'Bitacora' : _sheetName.trim();
 
-      html.write('<!doctype html><html><head><meta charset=\"utf-8\">');
+      html.write('<!doctype html><html><head><meta charset="utf-8">');
       html.write(
-        '<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
       );
       html.write('<title>${esc.convert(title)} - Reporte</title>');
       html.write('<style>');
@@ -18228,14 +18229,14 @@ class _EditorScreenState extends State<EditorScreen>
       );
       html.write('@media print{button{display:none;} body{margin:8px;}}');
       html.write('</style></head><body>');
-      html.write('<div class=\"header\">');
-      html.write('<div class=\"brand\">${esc.convert(title)}</div>');
+      html.write('<div class="header">');
+      html.write('<div class="brand">${esc.convert(title)}</div>');
       html.write(
-        '<div class=\"muted\">Generado: ${_formatDateTimeShort(now)}</div>',
+        '<div class="muted">Generado: ${_formatDateTimeShort(now)}</div>',
       );
       html.write('</div>');
       html.write(
-        '<div class=\"actions\"><button onclick=\"window.print()\">Imprimir / Guardar PDF</button></div>',
+        '<div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>',
       );
       html.write('<table><thead><tr>');
 
@@ -18256,19 +18257,19 @@ class _EditorScreenState extends State<EditorScreen>
           final meta = _cellMetaAt(r, c);
           final photos = meta?.photos ?? const <PhotoAttachment>[];
           if (photos.isNotEmpty) {
-            html.write('<div class=\"evidences\">');
+            html.write('<div class="evidences">');
             for (final photo in photos) {
               _throwIfOperationCancelledBy(shouldCancel);
               final dataUri = await _photoThumbDataUri(photo);
               if (dataUri.isEmpty) continue;
-              html.write('<div class=\"evidence\">');
-              html.write('<img src=\"$dataUri\" alt=\"evidencia\">');
+              html.write('<div class="evidence">');
+              html.write('<img src="$dataUri" alt="evidencia">');
               final caption = photo.caption.trim().isNotEmpty
                   ? photo.caption.trim()
                   : photo.filename.trim();
               final dateLabel = _formatDateTimeShort(photo.addedAt);
               html.write(
-                '<div class=\"cap\">${esc.convert(caption)}<br>${esc.convert(dateLabel)}</div>',
+                '<div class="cap">${esc.convert(caption)}<br>${esc.convert(dateLabel)}</div>',
               );
               html.write('</div>');
             }
@@ -19174,7 +19175,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       final photos = assets.where((a) => a['kind'] == 'photo').length;
       final audios = assets.where((a) => a['kind'] == 'audio').length;
-      final rows = ((sheetRaw as Map)['rows'] as List?)?.length ?? 0;
+      final rows = ((sheetRaw)['rows'] as List?)?.length ?? 0;
       final sourceSheetId = (sheetRaw['sheetId'] ?? '').toString().trim();
       final sourceSheetName = (sheetRaw['name'] ?? '').toString().trim();
       return _PackageImportBundle(
@@ -20312,7 +20313,12 @@ Este paquete incluye:
     if (isMobile) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles([xf], subject: 'Exportación de Bit Flow');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [xf],
+            subject: 'Exportación de Bit Flow',
+          ),
+        );
         if (share) {
           notifySuccess();
         } else if (mounted) {
@@ -20358,7 +20364,12 @@ Este paquete incluye:
 
   Future<bool> _tryShareWebFile(XFile file) async {
     try {
-      await Share.shareXFiles([file], subject: 'Exportación de Bit Flow');
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [file],
+          subject: 'Exportación de Bit Flow',
+        ),
+      );
       return true;
     } catch (e) {
       if (_looksLikeShareUserCancel(e)) {
@@ -20380,10 +20391,12 @@ Este paquete incluye:
     if (path != null && path.trim().isNotEmpty) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles(
-          <XFile>[XFile(path, mimeType: mime, name: name)],
-          subject: 'Exportación de Bit Flow',
-          text: shareText,
+        await SharePlus.instance.share(
+          ShareParams(
+            files: <XFile>[XFile(path, mimeType: mime, name: name)],
+            subject: 'Exportación de Bit Flow',
+            text: shareText,
+          ),
         );
         return true;
       } catch (e) {
@@ -20394,10 +20407,12 @@ Este paquete incluye:
 
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles(
-          <XFile>[XFile(path, name: name)],
-          subject: 'Exportación de Bit Flow',
-          text: shareText,
+        await SharePlus.instance.share(
+          ShareParams(
+            files: <XFile>[XFile(path, name: name)],
+            subject: 'Exportación de Bit Flow',
+            text: shareText,
+          ),
         );
         return true;
       } catch (e) {
@@ -20436,10 +20451,12 @@ Este paquete incluye:
 
     try {
       _throwIfOperationCancelledBy(shouldCancel);
-      await Share.shareXFiles(
-        <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
-        subject: 'Exportación de Bit Flow',
-        text: shareText,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
+          subject: 'Exportación de Bit Flow',
+          text: shareText,
+        ),
       );
       return true;
     } catch (e) {

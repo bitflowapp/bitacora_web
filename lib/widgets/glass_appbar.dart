@@ -30,12 +30,12 @@ class GlassAppBarBackground extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: isLight
                   ? [
-                      base.withOpacity(0.80),
-                      base.withOpacity(0.94),
+                      base.withValues(alpha: 0.80),
+                      base.withValues(alpha: 0.94),
                     ]
                   : [
-                      base.withOpacity(0.78),
-                      base.withOpacity(0.94),
+                      base.withValues(alpha: 0.78),
+                      base.withValues(alpha: 0.94),
                     ],
             ),
           ),
