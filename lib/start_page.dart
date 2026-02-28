@@ -464,6 +464,16 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefSheetCreatedAt = 'bitflow.sheet_created_at.v1';
   static const String _kPrefSheetNotes = 'bitflow.sheet_notes.v1';
   static const String _kPrefTrash = 'bitflow.trash.v1';
+  static const String _kPrefDemoModeEnabled = 'bitflow.demo_mode_enabled.v1';
+  static const String _kPrefDemoSampleSheetId = 'bitflow.demo_sample_sheet_id.v1';
+  static const String _kProCtaUrl = String.fromEnvironment(
+    'BITFLOW_PRO_CTA_URL',
+    defaultValue: '',
+  );
+  static const String _kSupportUrl = String.fromEnvironment(
+    'BITFLOW_SUPPORT_URL',
+    defaultValue: '',
+  );
 
   bool _orgLoaded = false;
   String? _orgLoadError;
@@ -475,6 +485,8 @@ class _StartPageState extends State<StartPage> {
   final Map<String, String> _sheetNotes = <String, String>{}; // sheetId -> note
   final Map<String, int> _trashDeletedAtMs =
       <String, int>{}; // sheetId -> deletedAtMs
+  bool _demoModeEnabled = true;
+  String _demoSampleSheetId = '';
 
   // --------------------- Busy state ---------------------
   bool _busy = false;
@@ -524,12 +536,22 @@ class _StartPageState extends State<StartPage> {
 
   void _reload() {
     if (!mounted) return;
+    var changedDemoMarker = false;
     setState(() {
       _items = SheetStore.list();
+      final sampleId = _demoSampleSheetId.trim();
+      if (sampleId.isNotEmpty &&
+          !_items.any((m) => m.id == sampleId)) {
+        _demoSampleSheetId = '';
+        changedDemoMarker = true;
+      }
     });
     if (_orgLoaded) {
       unawaited(_syncCreatedAtForKnownSheets());
       unawaited(_purgeExpiredTrashIfNeeded());
+      if (changedDemoMarker) {
+        unawaited(_saveOrg());
+      }
     }
   }
 
@@ -836,6 +858,9 @@ class _StartPageState extends State<StartPage> {
       final createdRaw = p.getString(_kPrefSheetCreatedAt) ?? '{}';
       final notesRaw = p.getString(_kPrefSheetNotes) ?? '{}';
       final trashRaw = p.getString(_kPrefTrash) ?? '{}';
+      final demoModeEnabled = p.getBool(_kPrefDemoModeEnabled) ?? true;
+      final demoSampleSheetId =
+          (p.getString(_kPrefDemoSampleSheetId) ?? '').trim();
 
       final foldersJson = _safeJsonDecodeList(foldersRaw);
       final folderMapJson = _safeJsonDecodeMap(folderMapRaw);
@@ -866,6 +891,8 @@ class _StartPageState extends State<StartPage> {
       _trashDeletedAtMs
         ..clear()
         ..addAll(_mapStringInt(trashJson));
+      _demoModeEnabled = demoModeEnabled;
+      _demoSampleSheetId = demoSampleSheetId;
 
       if (!mounted) return;
       setState(() {
@@ -899,6 +926,8 @@ class _StartPageState extends State<StartPage> {
     await p.setString(_kPrefSheetCreatedAt, createdJson);
     await p.setString(_kPrefSheetNotes, notesJson);
     await p.setString(_kPrefTrash, trashJson);
+    await p.setBool(_kPrefDemoModeEnabled, _demoModeEnabled);
+    await p.setString(_kPrefDemoSampleSheetId, _demoSampleSheetId.trim());
   }
 
   Future<void> _syncCreatedAtForKnownSheets() async {
@@ -1733,6 +1762,123 @@ class _StartPageState extends State<StartPage> {
     if (!mounted) return;
 
     await _openEditorRoute(sheetId: id);
+  }
+
+  bool get _demoSampleLoaded {
+    final id = _demoSampleSheetId.trim();
+    if (id.isEmpty) return false;
+    if (_trashDeletedAtMs.containsKey(id)) return false;
+    return _items.any((m) => m.id == id);
+  }
+
+  Future<void> _loadDemoSampleSheet() async {
+    if (_busy) return;
+
+    final existingId = _demoSampleSheetId.trim();
+    if (existingId.isNotEmpty &&
+        _items.any((m) => m.id == existingId) &&
+        !_trashDeletedAtMs.containsKey(existingId)) {
+      await _openEditorRoute(sheetId: existingId);
+      return;
+    }
+
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final headers = <String>[
+      'Fecha',
+      'Actividad',
+      'Estado',
+      'Responsable',
+      'Observacion',
+      'Fotos',
+    ];
+    final rows = <List<String>>[
+      <String>[
+        DateTime.now().toIso8601String().substring(0, 10),
+        'Relevamiento inicial',
+        'OK',
+        'Operador A',
+        'Inicio de jornada validado',
+        '',
+      ],
+      <String>[
+        DateTime.now().toIso8601String().substring(0, 10),
+        'Punto GPS',
+        'Pendiente',
+        'Operador B',
+        'Capturar coordenadas y foto de evidencia',
+        '',
+      ],
+      <String>[
+        DateTime.now().toIso8601String().substring(0, 10),
+        'Cierre de turno',
+        'Pendiente',
+        'Supervisor',
+        'Registrar observaciones finales',
+        '',
+      ],
+    ];
+
+    final state = TableState(
+      headers: headers,
+      rows: rows,
+      savedAt: DateTime.now(),
+    );
+
+    SheetStore.saveState(id, state);
+    SheetStore.rename(id, 'Ejemplo BitFlow (demo)');
+    _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
+    _sheetNotes[id] =
+        'Ejemplo reversible de demostracion. Puedes quitarlo desde Inicio.';
+    _trashDeletedAtMs.remove(id);
+    _demoSampleSheetId = id;
+    await _saveOrg();
+    _reload();
+    if (!mounted) return;
+    _toast('Ejemplo demo cargado. Puedes quitarlo cuando quieras.');
+    await _openEditorRoute(sheetId: id);
+  }
+
+  Future<void> _removeDemoSample({bool notify = true}) async {
+    final id = _demoSampleSheetId.trim();
+    if (id.isEmpty) {
+      if (notify) _toast('No hay ejemplo demo activo.');
+      return;
+    }
+
+    try {
+      SheetStore.delete(id);
+      _trashDeletedAtMs.remove(id);
+      _sheetNotes.remove(id);
+      _sheetFolder.remove(id);
+      _sheetCreatedAtMs.remove(id);
+      _demoSampleSheetId = '';
+      await _saveOrg();
+      _reload();
+      if (notify && mounted) {
+        _toast('Ejemplo demo eliminado.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _toast('No se pudo quitar el ejemplo demo: $e');
+    }
+  }
+
+  Future<void> _toggleDemoMode() async {
+    if (_busy) return;
+    final next = !_demoModeEnabled;
+    setState(() => _demoModeEnabled = next);
+    if (!next && _demoSampleLoaded) {
+      await _removeDemoSample(notify: false);
+    } else {
+      await _saveOrg();
+      _reload();
+    }
+    if (!mounted) return;
+    _toast(
+      next
+          ? 'Modo demo activado. Puedes cargar un ejemplo temporal.'
+          : 'Modo demo desactivado.',
+    );
   }
 
   String _genAttachmentId(String prefix) {
@@ -3143,11 +3289,20 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openSupportChannel() async {
+    final supportUrl = _kSupportUrl.trim();
+    if (supportUrl.isNotEmpty) {
+      final uri = Uri.tryParse(supportUrl);
+      if (uri != null) {
+        final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (opened) return;
+      }
+    }
+
     final mail = Uri(
       scheme: 'mailto',
       path: 'soporte@bitflow.app',
       queryParameters: const <String, String>{
-        'subject': 'Soporte BitFlow',
+        'subject': 'Soporte cliente BitFlow',
       },
     );
 
@@ -3160,7 +3315,7 @@ class _StartPageState extends State<StartPage> {
     final opened =
         await launchUrl(issues, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      _toast('No se pudo abrir el canal de soporte.');
+      _toast('No se pudo abrir soporte. Escríbenos a soporte@bitflow.app.');
     }
   }
 
@@ -3206,6 +3361,16 @@ class _StartPageState extends State<StartPage> {
                 );
               },
               child: const Text('Premium / Suscripción…'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                if (!mounted) return;
+                await _toggleDemoMode();
+              },
+              child: Text(
+                _demoModeEnabled ? 'Desactivar modo demo' : 'Activar modo demo',
+              ),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3392,6 +3557,16 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openCommercialCta() async {
+    final forcedUrl = _kProCtaUrl.trim();
+    if (forcedUrl.isNotEmpty) {
+      final forcedUri = Uri.tryParse(forcedUrl);
+      if (forcedUri != null) {
+        final opened =
+            await launchUrl(forcedUri, mode: LaunchMode.externalApplication);
+        if (opened) return;
+      }
+    }
+
     final uri = await _buildCommercialContactUri();
     if (uri == null) {
       await _openCommercialInfo();
@@ -4017,7 +4192,7 @@ class _StartPageState extends State<StartPage> {
                               : null,
                         ),
                         AppButton(
-                          label: 'Soporte',
+                          label: 'Soporte cliente',
                           icon: CupertinoIcons.question_circle,
                           variant: AppButtonVariant.ghost,
                           size: AppButtonSize.sm,
@@ -4075,7 +4250,24 @@ class _StartPageState extends State<StartPage> {
                       ),
                     ),
                   ),
-                if (RuntimeFlags.demoMode)
+                if (_tab == _HomeTab.sheets)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _ProLicenseCard(
+                        colors: colors,
+                        busy: _busy,
+                        demoModeEnabled: _demoModeEnabled,
+                        demoSampleLoaded: _demoSampleLoaded,
+                        onPrimaryCta: _openCommercialCta,
+                        onSupport: _openSupportChannel,
+                        onLoadDemo: _loadDemoSampleSheet,
+                        onRemoveDemo: _removeDemoSample,
+                        onToggleDemoMode: _toggleDemoMode,
+                      ),
+                    ),
+                  ),
+                if (RuntimeFlags.demoMode && _demoModeEnabled)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -4192,9 +4384,9 @@ class _StartPageState extends State<StartPage> {
                                   ),
                                   color: colors.group,
                                   borderRadius: BorderRadius.circular(10),
-                                  onPressed: _busy ? null : _newTemplateSheet,
+                                  onPressed: _busy ? null : _loadDemoSampleSheet,
                                   child: Text(
-                                    'Probar demo',
+                                    'Cargar ejemplo',
                                     style: TextStyle(
                                       color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
@@ -5469,6 +5661,142 @@ class _SegmentedScope extends StatelessWidget {
           child: Text('Todas', style: TextStyle(fontWeight: FontWeight.w700)),
         ),
       },
+    );
+  }
+}
+
+class _ProLicenseCard extends StatelessWidget {
+  const _ProLicenseCard({
+    required this.colors,
+    required this.busy,
+    required this.demoModeEnabled,
+    required this.demoSampleLoaded,
+    required this.onPrimaryCta,
+    required this.onSupport,
+    required this.onLoadDemo,
+    required this.onRemoveDemo,
+    required this.onToggleDemoMode,
+  });
+
+  final _ApplePalette colors;
+  final bool busy;
+  final bool demoModeEnabled;
+  final bool demoSampleLoaded;
+  final Future<void> Function() onPrimaryCta;
+  final Future<void> Function() onSupport;
+  final Future<void> Function() onLoadDemo;
+  final Future<void> Function({bool notify}) onRemoveDemo;
+  final Future<void> Function() onToggleDemoMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final bullets = <String>[
+      'Licencia por equipo con exportación profesional (XLSX/ZIP/PDF).',
+      'Operación offline con respaldo local y trazabilidad de evidencias.',
+      'Soporte de onboarding para equipos de campo y operaciones.',
+    ];
+
+    return AppCard(
+      radius: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: colors.group,
+                  border: Border.all(color: colors.separator),
+                ),
+                child: Text(
+                  'Pro / Licencia',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                demoModeEnabled ? 'Demo activado' : 'Demo desactivado',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'BitFlow listo para despliegue cliente',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final bullet in bullets)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '• $bullet',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              AppButton(
+                label: 'Solicitar licencia',
+                icon: CupertinoIcons.cart_fill_badge_plus,
+                variant: AppButtonVariant.primary,
+                onPressed: busy ? null : () => onPrimaryCta(),
+              ),
+              AppButton(
+                label: 'Soporte cliente',
+                icon: CupertinoIcons.headphones,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => onSupport(),
+              ),
+              AppButton(
+                label: demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
+                icon: demoModeEnabled
+                    ? CupertinoIcons.eye_slash
+                    : CupertinoIcons.play_circle,
+                variant: AppButtonVariant.ghost,
+                onPressed: busy ? null : () => onToggleDemoMode(),
+              ),
+              if (demoModeEnabled)
+                AppButton(
+                  label: demoSampleLoaded ? 'Quitar ejemplo' : 'Cargar ejemplo',
+                  icon: demoSampleLoaded
+                      ? CupertinoIcons.trash
+                      : CupertinoIcons.sparkles,
+                  variant: AppButtonVariant.ghost,
+                  onPressed: busy
+                      ? null
+                      : (demoSampleLoaded
+                          ? () => onRemoveDemo(notify: true)
+                          : () => onLoadDemo()),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
