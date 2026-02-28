@@ -339,7 +339,9 @@ class LocationService {
         last,
         rejectMocked: rejectMocked,
         maxAccuracyMeters: maxAccuracyMeters,
-      )) return null;
+      )) {
+        return null;
+      }
 
       final fix = LocationFix.fromPosition(last, source: 'lastKnown');
       _promoteCacheIfNeeded(fix, sourceForStatus: 'lastKnown');
@@ -624,7 +626,9 @@ class LocationService {
           p,
           rejectMocked: rejectMocked,
           maxAccuracyMeters: rejectAboveAccuracyMeters,
-        )) return;
+        )) {
+          return;
+        }
 
         final fix = LocationFix.fromPosition(p, source: 'stream(shared)');
 
@@ -845,7 +849,9 @@ class LocationService {
         p,
         rejectMocked: rejectMocked,
         maxAccuracyMeters: rejectAboveAccuracyMeters,
-      )) continue;
+      )) {
+        continue;
+      }
 
       final fix = LocationFix.fromPosition(p, source: 'stream');
       final lastForOutlier = _lastSeenFix ?? _cache.value;

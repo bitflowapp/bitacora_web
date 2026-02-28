@@ -100,10 +100,10 @@ Future<T?> showAppModal<T>({
     transitionDuration: AppMotion.modal,
     pageBuilder: (_, __, ___) => AppModal(
       title: title,
-      child: child,
       actions: actions,
       showClose: showClose,
       maxWidth: maxWidth,
+      child: child,
     ),
     transitionBuilder: (ctx, animation, _, modal) {
       return AppMotion.modalTransition(

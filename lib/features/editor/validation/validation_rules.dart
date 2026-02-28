@@ -47,8 +47,9 @@ class ColumnValidationRule {
         if (enumValues.isNotEmpty) {
           final ok =
               enumValues.any((it) => it.toLowerCase() == value.toLowerCase());
-          if (!ok)
+          if (!ok) {
             return 'Valor no permitido. Opciones: ${enumValues.join(', ')}';
+          }
         }
         break;
       default:

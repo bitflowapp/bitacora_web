@@ -44,7 +44,9 @@ class SmartDataSource extends DataGridSource {
   String _k(int r, int c) => '$r:$c';
 
   void disposeControllers() {
-    for (final c in _ctls.values) c.dispose();
+    for (final c in _ctls.values) {
+      c.dispose();
+    }
     _ctls.clear();
   }
 
