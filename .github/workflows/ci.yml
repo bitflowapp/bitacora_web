@@ -23,9 +23,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Analyze budget (baseline 12)
+      - name: Analyze budget (baseline 0)
         env:
-          ANALYZE_BASELINE: "12"
+          ANALYZE_BASELINE: "0"
         run: dart scripts/analyze_budget.dart
 
       - name: Test
