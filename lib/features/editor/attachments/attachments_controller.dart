@@ -1,4 +1,4 @@
-part of '../editor_screen.dart';
+﻿part of '../editor_screen.dart';
 
 extension _EditorAttachments on _EditorScreenState {
   static const String _kDirtyAttachmentsOutboxKind =
@@ -71,7 +71,7 @@ extension _EditorAttachments on _EditorScreenState {
     switch (status) {
       case AttachmentStore.uploadStatusUploading:
         return (
-          label: 'Subiendo…',
+          label: 'Subiendoâ€¦',
           icon: Icons.cloud_upload_rounded,
           color: pal.accent,
           canRetry: false,
@@ -373,7 +373,7 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.doc:
         return 'No se pudo adjuntar el archivo. Causa: $reason.';
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicación. Causa: $reason.';
+        return 'No se pudo guardar la ubicaciÃ³n. Causa: $reason.';
     }
   }
 
@@ -430,20 +430,6 @@ extension _EditorAttachments on _EditorScreenState {
     final stackText = stackTrace?.toString().trim() ?? '';
     if (stackText.isNotEmpty) lines.add('stack=$stackText');
     return lines.join('\n');
-  }
-
-  String _photoStoredRefFrom(StoredPhoto stored) {
-    final path = stored.path.trim();
-    if (path.isNotEmpty) {
-      if (path.startsWith('key:') || path.startsWith('mem:')) {
-        return path;
-      }
-      return 'file:$path';
-    }
-    if (stored.dataB64.trim().isNotEmpty) {
-      return 'b64:${stored.dataB64}';
-    }
-    return '';
   }
 
   String _photoPathFromRef(String storedRef) {
@@ -535,78 +521,6 @@ extension _EditorAttachments on _EditorScreenState {
     });
   }
 
-  void _startPhotoPickFromGesture({
-    required int r,
-    required int c,
-    required bool fromCamera,
-    required BuildContext sheetContext,
-  }) {
-    if (r < 0 || r >= _rows.length) return;
-    if (c < 0 || c >= _headers.length) return;
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
-    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
-    if (fromCamera &&
-        _guardInsecureContext(
-          DiagnosticActionType.photo,
-          actionLabel: 'Camara',
-        )) {
-      return;
-    }
-
-    _photoFlowActive = true;
-    _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} \u00b7 esperando seleccion',
-      target: ref,
-    );
-
-    final future = fromCamera
-        ? PhotoAcquireService.I.captureFromCamera(context: context)
-        : PhotoAcquireService.I.pickFromGallery();
-
-    unawaited(_handlePhotoOutcome(
-      future,
-      ref,
-      fromCamera: fromCamera,
-      sheetContext: sheetContext,
-    ));
-  }
-
-  Future<void> _handlePhotoOutcome(
-    Future<PhotoAcquireOutcome> future,
-    CellRef targetRef, {
-    required bool fromCamera,
-    BuildContext? sheetContext,
-  }) async {
-    final outcome = await future;
-    if (!mounted) return;
-
-    if (fromCamera &&
-        _isIosWeb &&
-        (outcome.cancelled || outcome.blocked || outcome.isError)) {
-      final fallbackOutcome = await _offerGalleryFallback();
-      if (!mounted) return;
-      if (fallbackOutcome != null) {
-        await _handlePhotoOutcomeResult(fallbackOutcome, targetRef);
-        if (sheetContext != null && mounted && sheetContext.mounted) {
-          if (Navigator.of(sheetContext).canPop()) {
-            Navigator.of(sheetContext).pop();
-          }
-        }
-        _photoFlowActive = false;
-        return;
-      }
-    }
-
-    await _handlePhotoOutcomeResult(outcome, targetRef);
-    if (sheetContext != null && mounted && sheetContext.mounted) {
-      if (Navigator.of(sheetContext).canPop()) {
-        Navigator.of(sheetContext).pop();
-      }
-    }
-    _photoFlowActive = false;
-  }
-
   Future<PhotoAcquireOutcome?> _offerGalleryFallback() async {
     if (!mounted) return null;
     final future = await showDialog<Future<PhotoAcquireOutcome>>(
@@ -616,9 +530,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la cámara'),
+          title: const Text('No se pudo abrir la cÃ¡mara'),
           content: const Text(
-            'No se pudo capturar desde cámara. ¿Querés elegir desde galería?',
+            'No se pudo capturar desde cÃ¡mara. Â¿QuerÃ©s elegir desde galerÃ­a?',
           ),
           actions: [
             TextButton(
@@ -671,102 +585,6 @@ extension _EditorAttachments on _EditorScreenState {
     return false;
   }
 
-  Future<void> _pickPhotoForCell(int r, int c,
-      {bool fromCamera = false}) async {
-    if (r < 0 || r >= _rows.length) return;
-    if (c < 0 || c >= _headers.length) return;
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
-
-    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
-    if (fromCamera &&
-        _guardInsecureContext(
-          DiagnosticActionType.photo,
-          actionLabel: 'Camara',
-        )) {
-      return;
-    }
-
-    if (fromCamera) {
-      final preflightOk = await _runPermissionPreflight(
-        storageKey: _kPrefCameraRationaleSeen,
-        permissionLabel: 'cámara',
-        rationaleTitle: 'Permiso de cámara',
-        rationaleMessage:
-            'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
-            'Las fotos quedan en tu almacenamiento local.',
-        permission: ph.Permission.camera,
-      );
-      if (!preflightOk) return;
-      if (!mounted) return;
-    }
-
-    try {
-      final future = fromCamera
-          ? PhotoAcquireService.I.captureFromCamera(context: context)
-          : PhotoAcquireService.I.pickFromGallery();
-      await _handlePhotoOutcome(future, ref, fromCamera: fromCamera);
-      return;
-    } catch (e, st) {
-      final outcome = _classifyPhotoPickerOutcome(e);
-      if (outcome == ExportFlowOutcome.cancelled) {
-        if (!mounted) return;
-        DiagnosticsLog.I.record(
-          type: DiagnosticActionType.photo,
-          ok: false,
-          message: 'photo_cancelled',
-        );
-        DiagnosticsLog.I.updatePhotoAttempt(
-          stage: 'cancelled',
-          error: e.toString(),
-          stack: st.toString(),
-        );
-      }
-      if (outcome != ExportFlowOutcome.failed) {
-        if (!mounted) return;
-        _handlePhotoPickerClassifiedMessage(
-          outcome,
-          unsupportedMessage: 'photo_open_picker_unsupported',
-          unsupportedOperation: 'photo_open_picker',
-        );
-        return;
-      }
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_error $e',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'error',
-        error: e.toString(),
-        stack: st.toString(),
-      );
-      _reportFlowError(
-        e,
-        flow: AppErrorFlow.attachmentPermission,
-        operation: 'photo_pick_for_cell',
-        stackTrace: st,
-        fallbackMessage: _photoMessageForCause('unknown'),
-        icon: Icons.photo_outlined,
-        diagnosticType: DiagnosticActionType.photo,
-      );
-      return;
-    }
-  }
-
-  Future<void> _handlePhotoOutcomeResult(
-    PhotoAcquireOutcome outcome,
-    CellRef targetRef, {
-    bool fromCamera = false,
-    int? replaceIndex,
-  }) {
-    return _processPhotoOutcome(
-      outcome,
-      targetRef,
-      fromCamera: fromCamera,
-      replaceIndex: replaceIndex,
-    );
-  }
 
   Future<void> _processPhotoOutcome(
     PhotoAcquireOutcome outcome,
@@ -833,7 +651,7 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a cámara o galería desde este navegador.',
+              'No se pudo acceder a cÃ¡mara o galerÃ­a desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
@@ -845,8 +663,8 @@ extension _EditorAttachments on _EditorScreenState {
           final cancelled = classified == ExportFlowOutcome.cancelled;
           _updatePhotoFlowStatus(
             cancelled
-                ? 'Destino $label · cancelado'
-                : 'Destino $label · no disponible',
+                ? 'Destino $label Â· cancelado'
+                : 'Destino $label Â· no disponible',
             target: targetRef,
           );
           _clearPhotoFlowStatusSoon();
@@ -1241,23 +1059,6 @@ extension _EditorAttachments on _EditorScreenState {
     return true;
   }
 
-  void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
-    final current = _cellMeta[ref.key];
-    final photos = <PhotoAttachment>[
-      ...?current?.photos,
-      attachment,
-    ];
-    final next = CellMeta(
-      gps: current?.gps,
-      photos: photos,
-      audios: current?.audios ?? const <AudioAttachment>[],
-    );
-    _setCellMetaEntry(r, c, next, markDirty: true);
-    unawaited(_enqueueDirtyAttachmentsSync());
-    _refreshCellAfterSave(r, c);
-  }
 
   Future<void> _deletePhotoFromCell(int r, int c, int index) async {
     final ref = _cellRefAt(r, c);
@@ -2782,7 +2583,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                 },
-                child: const Text('Abrir configuración'),
+                child: const Text('Abrir configuraciÃ³n'),
               ),
           ],
         );
@@ -3186,10 +2987,10 @@ extension _EditorAttachments on _EditorScreenState {
 
     final preflightOk = await _runPermissionPreflight(
       storageKey: _kPrefMicrophoneRationaleSeen,
-      permissionLabel: 'micrófono',
-      rationaleTitle: 'Permiso de micrófono',
+      permissionLabel: 'micrÃ³fono',
+      rationaleTitle: 'Permiso de micrÃ³fono',
       rationaleMessage:
-          'Usamos el micrófono para grabar notas de voz en la celda activa. '
+          'Usamos el micrÃ³fono para grabar notas de voz en la celda activa. '
           'Los audios quedan en tu almacenamiento local.',
       permission: ph.Permission.microphone,
     );
@@ -3375,7 +3176,7 @@ extension _EditorAttachments on _EditorScreenState {
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('Detén la grabación para reproducir.', isError: false);
+      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
       return;
     }
 
@@ -3712,7 +3513,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Prueba rápida (GPS/Foto/Audio)',
+            label: 'Prueba rÃ¡pida (GPS/Foto/Audio)',
             icon: Icons.science_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {

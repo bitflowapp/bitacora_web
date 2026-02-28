@@ -5097,6 +5097,7 @@ class _SuggestedListCard extends StatelessWidget {
             padding: EdgeInsets.zero,
             pressedOpacity: 0.55,
             onPressed: onAdd,
+            minimumSize: const Size(0, 0),
             child: Container(
               width: 34,
               height: 34,
@@ -5110,7 +5111,7 @@ class _SuggestedListCard extends StatelessWidget {
               ),
               child: const Icon(CupertinoIcons.add,
                   color: Color(0xFF1A1A1E), size: 20),
-            ), minimumSize: Size(0, 0),
+            ),
           ),
         ],
       ),
@@ -5256,6 +5257,7 @@ class _FloatingAddButton extends StatelessWidget {
         padding: EdgeInsets.zero,
         pressedOpacity: 0.65,
         onPressed: onTap,
+        minimumSize: const Size(0, 0),
         child: Container(
           width: 56,
           height: 56,
@@ -5271,7 +5273,7 @@ class _FloatingAddButton extends StatelessWidget {
           ),
           child: const Icon(CupertinoIcons.add,
               color: Color(0xFFFFFFFF), size: 28),
-        ), minimumSize: Size(0, 0),
+        ),
       ),
     );
   }
@@ -6008,6 +6010,7 @@ class _SheetActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      minimumSize: const Size(0, 0),
       onPressed: () async {
         await showCupertinoModalPopup<void>(
           context: context,
@@ -6098,7 +6101,7 @@ class _SheetActionButton extends StatelessWidget {
           },
         );
       },
-      child: Icon(CupertinoIcons.ellipsis, color: colors.muted, size: 20), minimumSize: Size(0, 0),
+      child: Icon(CupertinoIcons.ellipsis, color: colors.muted, size: 20),
     );
   }
 }

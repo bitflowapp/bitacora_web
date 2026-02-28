@@ -170,7 +170,7 @@ class BitflowEngineClient {
   ///
   /// - [sheetId]: identificador lógico de la hoja (obra/campaña).
   /// - [headers]: encabezados de la tabla (títulos de columnas).
-  /// - [rows]: filas de datos (List<List<String>> normalmente).
+  /// - [rows]: filas de datos (`List<List<String>>` normalmente).
   /// - [operation]: "calc", "tank_anodes", "cathodic_analyze",
   ///                "grounding_analyze", "cp_design_current", etc.
   /// - [focusRow]/[focusCol]: celda activa en la UI (opcional).
