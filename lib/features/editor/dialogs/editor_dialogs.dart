@@ -222,24 +222,28 @@ extension _EditorDialogs on _EditorScreenState {
     final picked = await showAppModal<_GridDensity>(
       context: context,
       title: AppStrings.editorDensity,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final d in _GridDensity.values)
-            RadioListTile<_GridDensity>(
-              value: d,
-              groupValue: _gridDensity,
-              onChanged: (v) => Navigator.of(context).pop(v),
-              activeColor: _palette(context).accent,
-              title: Text(
-                _densityLabel(d),
-                style: TextStyle(
-                  color: _palette(context).fg,
-                  fontWeight: FontWeight.w700,
+      child: RadioGroup<_GridDensity>(
+        groupValue: _gridDensity,
+        onChanged: (value) {
+          if (value != null) Navigator.of(context).pop(value);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final d in _GridDensity.values)
+              RadioListTile<_GridDensity>(
+                value: d,
+                activeColor: _palette(context).accent,
+                title: Text(
+                  _densityLabel(d),
+                  style: TextStyle(
+                    color: _palette(context).fg,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       actions: [
         AppButton(
@@ -262,30 +266,34 @@ extension _EditorDialogs on _EditorScreenState {
     final picked = await showAppModal<_GpsWriteMode>(
       context: context,
       title: AppStrings.editorGpsMode,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final mode in _GpsWriteMode.values)
-            RadioListTile<_GpsWriteMode>(
-              dense: true,
-              value: mode,
-              groupValue: _gpsWriteMode,
-              onChanged: (v) => Navigator.of(context).pop(v),
-              title: Text(
-                _gpsModeLabel(mode),
-                style: TextStyle(
-                  color: _palette(context).fg,
-                  fontWeight: FontWeight.w700,
+      child: RadioGroup<_GpsWriteMode>(
+        groupValue: _gpsWriteMode,
+        onChanged: (value) {
+          if (value != null) Navigator.of(context).pop(value);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final mode in _GpsWriteMode.values)
+              RadioListTile<_GpsWriteMode>(
+                dense: true,
+                value: mode,
+                title: Text(
+                  _gpsModeLabel(mode),
+                  style: TextStyle(
+                    color: _palette(context).fg,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                subtitle: Text(
+                  _gpsModeDesc(mode),
+                  style:
+                      TextStyle(color: _palette(context).fgMuted, fontSize: 12),
+                ),
+                activeColor: _palette(context).accent,
               ),
-              subtitle: Text(
-                _gpsModeDesc(mode),
-                style:
-                    TextStyle(color: _palette(context).fgMuted, fontSize: 12),
-              ),
-              activeColor: _palette(context).accent,
-            ),
-        ],
+          ],
+        ),
       ),
       actions: [
         AppButton(
