@@ -21,8 +21,33 @@ class LandingScreen extends StatelessWidget {
     return FutureBuilder<AppConfig>(
       future: AppConfig.load(),
       builder: (context, snapshot) {
-        final config = snapshot.data ?? AppConfig.defaults();
         final tokens = context.tokens;
+        final isLoading = snapshot.connectionState != ConnectionState.done &&
+            !snapshot.hasData;
+
+        if (isLoading) {
+          return Scaffold(
+            backgroundColor: tokens.colors.bg,
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: const LoadingState(
+                      message: 'Preparando demo comercial...',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final config = snapshot.data ?? AppConfig.defaults();
+        final hasConfigError = snapshot.hasError;
+        final hasContactChannels = config.contactEmail.trim().isNotEmpty ||
+            config.contactWhatsApp.trim().isNotEmpty;
 
         return Scaffold(
           backgroundColor: tokens.colors.bg,
@@ -37,7 +62,7 @@ class LandingScreen extends StatelessWidget {
                         end: Alignment.bottomRight,
                         colors: [
                           tokens.colors.bg,
-                          tokens.colors.surfaceMuted.withOpacity(0.55),
+                          tokens.colors.surfaceMuted.withValues(alpha: 0.55),
                         ],
                       ),
                     ),
@@ -63,6 +88,28 @@ class LandingScreen extends StatelessWidget {
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
+                            if (hasConfigError) ...[
+                              const SizedBox(height: 16),
+                              AppErrorState(
+                                compact: true,
+                                title: 'Configuracion comercial incompleta',
+                                message:
+                                    'Se cargaron valores por defecto para no frenar la demo.',
+                                actionLabel: 'Ir a la app',
+                                onAction: () => context.go('/app'),
+                              ),
+                            ],
+                            if (!hasContactChannels) ...[
+                              const SizedBox(height: 16),
+                              EmptyState(
+                                title: 'Falta canal de contacto',
+                                message:
+                                    'Configura email o WhatsApp para recibir consultas desde la landing.',
+                                actionLabel: 'Abrir aplicacion',
+                                onAction: () => context.go('/app'),
+                                icon: Icons.support_agent_outlined,
+                              ),
+                            ],
                             const SizedBox(height: 36),
                             _HeroSection(
                               config: config,

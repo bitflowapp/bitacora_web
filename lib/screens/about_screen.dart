@@ -10,6 +10,7 @@ import '../services/app_update_service.dart';
 import '../services/build_info.dart';
 import '../services/force_update_service.dart';
 import '../services/sheet_store.dart';
+import '../ui/ui.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -151,6 +152,20 @@ class _AboutScreenState extends State<AboutScreen> {
     }
   }
 
+  Future<void> _sendFeedbackEmail() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'soporte@bitflow.app',
+      queryParameters: const <String, String>{
+        'subject': 'Feedback BitFlow',
+      },
+    );
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      _showSnack('No se pudo abrir el correo de soporte.');
+    }
+  }
+
   void _showSnack(String message) {
     if (!mounted) return;
     final text = message.trim();
@@ -161,12 +176,32 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.tokens;
     final localVersion = _lastCheck?.localVersion ?? '...';
     final localBuild = _lastCheck?.localBuildNumber ?? '...';
     final localBuildId = _lastCheck?.localBuildId ?? BuildInfo.buildIdLabel;
     final remoteVersion = _lastCheck?.remoteVersion ?? '';
     final remoteBuildId = _lastCheck?.remoteBuildId ?? '';
     final updateAvailable = _lastCheck?.updateAvailable ?? false;
+    final diagnosticsRows = <_AboutValueRow>[
+      _AboutValueRow(label: 'Version', value: localVersion),
+      _AboutValueRow(label: 'Build', value: localBuild),
+      _AboutValueRow(label: 'BuildId', value: localBuildId),
+      _AboutValueRow(label: 'Stamp', value: BuildInfo.stamp),
+      _AboutValueRow(
+        label: 'Hoja',
+        value: (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
+      ),
+      _AboutValueRow(
+        label: 'Filas/Cols',
+        value:
+            '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
+      ),
+      if (remoteVersion.isNotEmpty)
+        _AboutValueRow(label: 'Remota', value: remoteVersion),
+      if (remoteBuildId.isNotEmpty)
+        _AboutValueRow(label: 'BuildId remoto', value: remoteBuildId),
+    ];
 
     return Scaffold(
       appBar: AppBar(title: const Text(AboutScreen.routeTitle)),
@@ -188,119 +223,94 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _InfoRow(label: 'Version', value: localVersion),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'Build', value: localBuild),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'BuildId', value: localBuildId),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    label: 'Hoja',
-                    value:
-                        (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
-                  ),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    label: 'Filas/Cols',
-                    value:
-                        '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
-                  ),
-                  if (remoteVersion.isNotEmpty || remoteBuildId.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Divider(
-                      height: 1,
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.14,
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionHeader(
+                  title: 'Version y estado',
+                  subtitle: updateAvailable
+                      ? 'Hay una actualizacion lista para instalar.'
+                      : 'Aplicacion al dia.',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: updateAvailable
+                          ? tokens.colors.warningBg
+                          : tokens.colors.successBg,
+                      borderRadius: BorderRadius.circular(tokens.radii.pill),
+                      border: Border.all(
+                        color: updateAvailable
+                            ? tokens.colors.borderStrong
+                            : tokens.colors.border,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    if (remoteVersion.isNotEmpty)
-                      _InfoRow(label: 'Remota', value: remoteVersion),
-                    if (remoteVersion.isNotEmpty && remoteBuildId.isNotEmpty)
-                      const SizedBox(height: 10),
-                    if (remoteBuildId.isNotEmpty)
-                      _InfoRow(label: 'BuildId remoto', value: remoteBuildId),
+                    child: Text(
+                      updateAvailable ? 'Update disponible' : 'OK',
+                      style: tokens.text.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: tokens.colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                AppTable<_AboutValueRow>(
+                  columns: [
+                    AppTableColumn.text(
+                      label: 'Dato',
+                      minWidth: 180,
+                      value: (row) => row.label,
+                    ),
+                    AppTableColumn.text(
+                      label: 'Valor',
+                      minWidth: 280,
+                      value: (row) => row.value,
+                    ),
                   ],
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _checking ? null : _checkForUpdates,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.12),
-                          foregroundColor: theme.colorScheme.onSurface,
-                        ),
-                        icon: _checking
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.sync_rounded),
-                        label: Text(
+                  rows: diagnosticsRows,
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    AppButton(
+                      label:
                           _checking ? 'Buscando...' : 'Buscar actualizaciones',
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: updateAvailable ? _applyUpdate : null,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.24,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(Icons.system_update_rounded),
-                        label: const Text('Actualizar'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _copyDiagnostics,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.24,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(Icons.content_copy_rounded),
-                        label: const Text('Copiar diagnostico'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    updateAvailable
-                        ? 'Actualizacion disponible.'
-                        : 'Sin actualizaciones pendientes.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.74,
-                      ),
-                      fontWeight:
-                          updateAvailable ? FontWeight.w700 : FontWeight.w500,
+                      icon: Icons.sync_rounded,
+                      loading: _checking,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _checking ? null : _checkForUpdates,
                     ),
-                  ),
-                ],
-              ),
+                    AppButton(
+                      label: 'Actualizar',
+                      icon: Icons.system_update_rounded,
+                      variant: AppButtonVariant.primary,
+                      onPressed: updateAvailable ? _applyUpdate : null,
+                    ),
+                    AppButton(
+                      label: 'Copiar diagnostico',
+                      icon: Icons.content_copy_rounded,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: _copyDiagnostics,
+                    ),
+                    AppButton(
+                      label: 'Feedback',
+                      icon: Icons.mail_outline_rounded,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: _sendFeedbackEmail,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
-          Card(
+          AppCard(
             child: Column(
               children: [
                 ListTile(
@@ -333,12 +343,10 @@ class _AboutScreenState extends State<AboutScreen> {
                   onTap: _openIssues,
                 ),
                 const Divider(height: 1),
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: _InfoRow(
-                    label: 'Contacto',
-                    value: 'soporte@bitflow.app',
-                  ),
+                const ListTile(
+                  leading: Icon(Icons.support_agent_outlined),
+                  title: Text('Contacto'),
+                  subtitle: Text('soporte@bitflow.app'),
                 ),
               ],
             ),
@@ -363,36 +371,8 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
+class _AboutValueRow {
+  const _AboutValueRow({required this.label, required this.value});
   final String label;
   final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 122,
-          child: Text(
-            label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
