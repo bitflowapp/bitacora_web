@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [1.2.6-rc.1] - 2026-02-28
+
+Added
+- Nuevos componentes UI base: `AppTable` y `AppErrorState` para estandarizar tabla y errores.
+- `docs/quickstart.md` (guia corta para usuario final).
+- `LICENSE` comercial (all rights reserved).
+
+Changed
+- Home (`StartPage`) con estados de inicializacion mas claros, acceso visible a `Soporte` y `Version`.
+- Landing comercial con estado `loading` y manejo de configuracion incompleta (`error/empty`) con CTA.
+- About rediseñada con design system (cards, botones pill, tabla minimalista de version/build) y boton de feedback.
+- README actualizado para entrega cliente (install/run/build/deploy/troubleshooting).
+
+Quality
+- Validacion de regresion: tests de onboarding y About pasando.
+- Build web release verificado en entorno local.
+
 ## [1.2.5] - 2026-02-13
 
 Added
