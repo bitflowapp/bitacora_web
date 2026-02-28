@@ -1,8 +1,7 @@
 part of '../editor_screen.dart';
 
-class SaveStatusChip extends StatelessWidget {
-  const SaveStatusChip({
-    super.key,
+class _SaveStatusChip extends StatelessWidget {
+  const _SaveStatusChip({
     required this.palette,
     required this.status,
   });
@@ -114,9 +113,8 @@ class SaveStatusChip extends StatelessWidget {
   }
 }
 
-class SyncStatusChip extends StatelessWidget {
-  const SyncStatusChip({
-    super.key,
+class _SyncStatusChip extends StatelessWidget {
+  const _SyncStatusChip({
     required this.palette,
     required this.status,
     this.onTap,

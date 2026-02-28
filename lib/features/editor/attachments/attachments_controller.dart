@@ -1459,7 +1459,6 @@ extension _EditorAttachments on _EditorScreenState {
               : photo.mime.trim();
           return AppModal(
             title: 'Adjunto guardado',
-            child: Text('Guardado sin vista previa (mime=$mimeLabel).'),
             actions: [
               AppButton(
                 label: 'Cerrar',
@@ -1472,6 +1471,7 @@ extension _EditorAttachments on _EditorScreenState {
                 onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
               ),
             ],
+            child: Text('Guardado sin vista previa (mime=$mimeLabel).'),
           );
         }
         final preview = kIsWeb
@@ -1496,7 +1496,6 @@ extension _EditorAttachments on _EditorScreenState {
               ? 'Vista previa'
               : photo.filename.trim(),
           maxWidth: 960,
-          child: AttachmentPreviewModal(preview: preview),
           actions: [
             AppButton(
               label: 'Descargar',
@@ -1509,6 +1508,7 @@ extension _EditorAttachments on _EditorScreenState {
               onPressed: () => Navigator.of(ctx).pop(),
             ),
           ],
+          child: AttachmentPreviewModal(preview: preview),
         );
       },
     );
@@ -1667,7 +1667,7 @@ extension _EditorAttachments on _EditorScreenState {
                       setSheetState(() {});
                     }
 
-                    final tile = AttachmentTile(
+                    final tile = _AttachmentTile(
                       palette: pal,
                       thumb: thumbWidget(),
                       typeIcon: previewable
@@ -1689,9 +1689,10 @@ extension _EditorAttachments on _EditorScreenState {
                     );
 
                     return DragTarget<int>(
-                      onWillAccept: (from) => from != null && from != idx,
-                      onAccept: (from) {
-                        _reorderPhotoOnCell(r, c, from, idx);
+                      onWillAcceptWithDetails: (details) =>
+                          details.data != idx,
+                      onAcceptWithDetails: (details) {
+                        _reorderPhotoOnCell(r, c, details.data, idx);
                         setSheetState(() {});
                       },
                       builder: (ctx3, candidate, rejected) {
@@ -1745,7 +1746,7 @@ extension _EditorAttachments on _EditorScreenState {
                     ),
                     child: Column(
                       children: [
-                        AttachmentsSheetHeader(
+                        _AttachmentsSheetHeader(
                           palette: pal,
                           title: 'Evidencias - ${CellKey(r, c).a1}',
                           count: photos.length,
@@ -2094,7 +2095,7 @@ extension _EditorAttachments on _EditorScreenState {
                         metaRow(
                           'Lat/Lon',
                           hasGps
-                              ? '${lat!.toStringAsFixed(6)}, ${lon!.toStringAsFixed(6)}'
+                              ? '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}'
                               : '-',
                         ),
                         metaRow(
@@ -2605,7 +2606,9 @@ extension _EditorAttachments on _EditorScreenState {
     if (key.isEmpty) return '';
     if (key.startsWith('file:') ||
         key.startsWith('key:') ||
-        key.startsWith('mem:')) return key;
+        key.startsWith('mem:')) {
+      return key;
+    }
     final hasSlash = key.contains('\\') || key.contains('/');
     if (key.contains(':') && !hasSlash) return 'key:$key';
     return hasSlash ? 'file:$key' : 'key:$key';

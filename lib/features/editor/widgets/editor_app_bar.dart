@@ -281,11 +281,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            SaveStatusChip(
+                            _SaveStatusChip(
                               palette: palette,
                               status: controller.saveStatus,
                             ),
-                            SyncStatusChip(
+                            _SyncStatusChip(
                               palette: palette,
                               status: controller.offlineStatus,
                               onTap: onOpenOfflineQueue,
@@ -868,7 +868,7 @@ class _MobileCompactHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        SaveStatusChip(
+                        _SaveStatusChip(
                           palette: palette,
                           status: controller.saveStatus,
                         ),
