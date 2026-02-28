@@ -465,14 +465,31 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefSheetNotes = 'bitflow.sheet_notes.v1';
   static const String _kPrefTrash = 'bitflow.trash.v1';
   static const String _kPrefDemoModeEnabled = 'bitflow.demo_mode_enabled.v1';
-  static const String _kPrefDemoSampleSheetId = 'bitflow.demo_sample_sheet_id.v1';
+  static const String _kPrefDemoSampleSheetId =
+      'bitflow.demo_sample_sheet_id.v1';
   static const String _kProCtaUrl = String.fromEnvironment(
+    'PRO_CTA_URL',
+    defaultValue: '',
+  );
+  static const String _kProCtaUrlLegacy = String.fromEnvironment(
     'BITFLOW_PRO_CTA_URL',
     defaultValue: '',
   );
-  static const String _kSupportUrl = String.fromEnvironment(
+  static const String _kSupportEmail = String.fromEnvironment(
+    'SUPPORT_EMAIL',
+    defaultValue: '',
+  );
+  static const String _kSupportWhatsApp = String.fromEnvironment(
+    'SUPPORT_WHATSAPP',
+    defaultValue: '',
+  );
+  static const String _kSupportUrlLegacy = String.fromEnvironment(
     'BITFLOW_SUPPORT_URL',
     defaultValue: '',
+  );
+  static const String _kReleaseVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: '1.3.0',
   );
 
   bool _orgLoaded = false;
@@ -499,6 +516,34 @@ class _StartPageState extends State<StartPage> {
   late final TextEditingController _searchEC;
 
   String get _buildStamp => BuildInfo.stamp;
+  String get _proCtaUrl {
+    final primary = _kProCtaUrl.trim();
+    if (primary.isNotEmpty) return primary;
+    return _kProCtaUrlLegacy.trim();
+  }
+
+  String get _supportEmailOrDefault {
+    final env = _kSupportEmail.trim();
+    if (env.isNotEmpty) return env;
+    return 'soporte@bitflow.app';
+  }
+
+  String get _supportWhatsAppDigits {
+    final raw = _kSupportWhatsApp.trim();
+    if (raw.isEmpty) return '';
+    return raw.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String get _supportChannelLabel {
+    if (_supportWhatsAppDigits.isNotEmpty) {
+      return 'Soporte por WhatsApp y email.';
+    }
+    if (_kSupportUrlLegacy.trim().isNotEmpty) {
+      return 'Soporte por canal dedicado y email.';
+    }
+    return 'Soporte por email.';
+  }
+
   final AppUpdateService _appUpdateService = const AppUpdateService();
   AppUpdateSnapshot? _updateSnapshot;
   bool _updateChecking = false;
@@ -540,8 +585,7 @@ class _StartPageState extends State<StartPage> {
     setState(() {
       _items = SheetStore.list();
       final sampleId = _demoSampleSheetId.trim();
-      if (sampleId.isNotEmpty &&
-          !_items.any((m) => m.id == sampleId)) {
+      if (sampleId.isNotEmpty && !_items.any((m) => m.id == sampleId)) {
         _demoSampleSheetId = '';
         changedDemoMarker = true;
       }
@@ -2199,7 +2243,7 @@ class _StartPageState extends State<StartPage> {
         if (kind.isEmpty || id.isEmpty) continue;
         assetsById['$kind:$id'] = a.cast<String, dynamic>();
       }
-    
+
       final filesByPath = <String, ArchiveFile>{};
       for (final f in archive) {
         filesByPath[f.name] = f;
@@ -3289,19 +3333,29 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openSupportChannel() async {
-    final supportUrl = _kSupportUrl.trim();
+    final supportUrl = _kSupportUrlLegacy.trim();
     if (supportUrl.isNotEmpty) {
       final uri = Uri.tryParse(supportUrl);
       if (uri != null) {
-        final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final opened =
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
         if (opened) return;
       }
     }
 
+    final supportWhatsAppDigits = _supportWhatsAppDigits;
+    if (supportWhatsAppDigits.isNotEmpty) {
+      final wa = Uri.parse(
+        'https://wa.me/$supportWhatsAppDigits?text=${Uri.encodeComponent('Hola, necesito soporte de BitFlow.')}',
+      );
+      final opened = await launchUrl(wa, mode: LaunchMode.externalApplication);
+      if (opened) return;
+    }
+
     final mail = Uri(
       scheme: 'mailto',
-      path: 'soporte@bitflow.app',
-      queryParameters: const <String, String>{
+      path: _supportEmailOrDefault,
+      queryParameters: <String, String>{
         'subject': 'Soporte cliente BitFlow',
       },
     );
@@ -3315,7 +3369,7 @@ class _StartPageState extends State<StartPage> {
     final opened =
         await launchUrl(issues, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      _toast('No se pudo abrir soporte. Escríbenos a soporte@bitflow.app.');
+      _toast('No se pudo abrir soporte. Escribenos a $_supportEmailOrDefault.');
     }
   }
 
@@ -3524,13 +3578,20 @@ class _StartPageState extends State<StartPage> {
     const fallbackWhatsapp = '+54 9 299 620 9136';
     const fallbackEmail = 'marcoantoniolunavillegas@gmail.com';
 
+    final whatsappText = cfg.whatsappMessage.trim().isNotEmpty
+        ? cfg.whatsappMessage.trim()
+        : 'Hola, quiero informacion sobre BitFlow Pro.';
+    final supportEnvDigits = _supportWhatsAppDigits;
+    if (supportEnvDigits.isNotEmpty) {
+      return Uri.parse(
+        'https://wa.me/$supportEnvDigits?text=${Uri.encodeComponent(whatsappText)}',
+      );
+    }
+
     final whatsappRaw = cfg.contactWhatsApp.trim().isNotEmpty
         ? cfg.contactWhatsApp.trim()
         : fallbackWhatsapp;
     final whatsappDigits = whatsappRaw.replaceAll(RegExp(r'[^0-9]'), '');
-    final whatsappText = cfg.whatsappMessage.trim().isNotEmpty
-        ? cfg.whatsappMessage.trim()
-        : 'Hola, quiero información sobre la versión completa de BitFlow.';
 
     if (whatsappDigits.isNotEmpty) {
       return Uri.parse(
@@ -3538,17 +3599,18 @@ class _StartPageState extends State<StartPage> {
       );
     }
 
-    final email = cfg.contactEmail.trim().isNotEmpty
-        ? cfg.contactEmail.trim()
-        : fallbackEmail;
+    final email = _kSupportEmail.trim().isNotEmpty
+        ? _kSupportEmail.trim()
+        : (cfg.contactEmail.trim().isNotEmpty
+            ? cfg.contactEmail.trim()
+            : fallbackEmail);
     if (email.isNotEmpty) {
       return Uri(
         scheme: 'mailto',
         path: email,
         queryParameters: <String, String>{
-          'subject': 'Consulta versión completa BitFlow',
-          'body':
-              'Hola, quiero conocer precios y alcance de la versión completa de BitFlow.',
+          'subject': 'Consulta BitFlow Pro',
+          'body': 'Hola, quiero conocer precios y alcance de BitFlow Pro.',
         },
       );
     }
@@ -3557,7 +3619,7 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openCommercialCta() async {
-    final forcedUrl = _kProCtaUrl.trim();
+    final forcedUrl = _proCtaUrl;
     if (forcedUrl.isNotEmpty) {
       final forcedUri = Uri.tryParse(forcedUrl);
       if (forcedUri != null) {
@@ -4257,6 +4319,8 @@ class _StartPageState extends State<StartPage> {
                       child: _ProLicenseCard(
                         colors: colors,
                         busy: _busy,
+                        releaseVersion: _kReleaseVersion,
+                        supportChannelLabel: _supportChannelLabel,
                         demoModeEnabled: _demoModeEnabled,
                         demoSampleLoaded: _demoSampleLoaded,
                         onPrimaryCta: _openCommercialCta,
@@ -4300,7 +4364,7 @@ class _StartPageState extends State<StartPage> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Listo para probar sin login.',
+                                    'Prueba guiada sin tocar tus datos reales.',
                                     style: TextStyle(
                                       color: colors.textSecondary,
                                       fontSize: 12,
@@ -4312,7 +4376,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              'BitFlow ordena relevamientos y evidencia en una sola planilla operativa.',
+                              'Demo reversible para mostrar valor en minutos.',
                               style: TextStyle(
                                 color: colors.textPrimary,
                                 fontSize: 15,
@@ -4322,7 +4386,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Flujo demo sugerido: Nueva planilla -> cargar 3 registros -> exportar ZIP.',
+                              'Flujo sugerido: Cargar ejemplo -> revisar evidencia -> exportar ZIP.',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 13,
@@ -4331,7 +4395,7 @@ class _StartPageState extends State<StartPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Guardado local en este navegador. En modo temporal/incógnito conviene exportar ZIP antes de cerrar.',
+                              'Puedes cargar y quitar el ejemplo cuando quieras. No altera tus datos actuales.',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontSize: 12,
@@ -4384,9 +4448,10 @@ class _StartPageState extends State<StartPage> {
                                   ),
                                   color: colors.group,
                                   borderRadius: BorderRadius.circular(10),
-                                  onPressed: _busy ? null : _loadDemoSampleSheet,
+                                  onPressed:
+                                      _busy ? null : _loadDemoSampleSheet,
                                   child: Text(
-                                    'Cargar ejemplo',
+                                    'Probar demo reversible',
                                     style: TextStyle(
                                       color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
@@ -5156,10 +5221,12 @@ class _SummaryCard extends StatelessWidget {
           gradient: gradient,
           borderRadius: BorderRadius.circular(t.radii.lg),
           border: Border.all(
-              color: const Color(0xFFFFFFFF).withValues(alpha: 0.18), width: 0.8),
+              color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
+              width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: t.colors.isLight ? 0.22 : 0.45),
+              color: Colors.black
+                  .withValues(alpha: t.colors.isLight ? 0.22 : 0.45),
               blurRadius: 16,
               offset: const Offset(0, 10),
             ),
@@ -5669,6 +5736,8 @@ class _ProLicenseCard extends StatelessWidget {
   const _ProLicenseCard({
     required this.colors,
     required this.busy,
+    required this.releaseVersion,
+    required this.supportChannelLabel,
     required this.demoModeEnabled,
     required this.demoSampleLoaded,
     required this.onPrimaryCta,
@@ -5680,6 +5749,8 @@ class _ProLicenseCard extends StatelessWidget {
 
   final _ApplePalette colors;
   final bool busy;
+  final String releaseVersion;
+  final String supportChannelLabel;
   final bool demoModeEnabled;
   final bool demoSampleLoaded;
   final Future<void> Function() onPrimaryCta;
@@ -5690,10 +5761,28 @@ class _ProLicenseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bullets = <String>[
-      'Licencia por equipo con exportación profesional (XLSX/ZIP/PDF).',
-      'Operación offline con respaldo local y trazabilidad de evidencias.',
-      'Soporte de onboarding para equipos de campo y operaciones.',
+    final includes = <String>[
+      'Exportaciones profesionales (XLSX, ZIP y PDF) listas para cliente.',
+      'Operacion offline con evidencia por registro y respaldo local.',
+      'Activacion comercial rapida sin migrar tus planillas actuales.',
+      'Acompanamiento de soporte para onboarding y puesta en marcha.',
+    ];
+
+    final faq = <Map<String, String>>[
+      {
+        'q': 'Cuanto tarda activar BitFlow Pro?',
+        'a':
+            'Normalmente el mismo dia habil. Tu equipo sigue operando sin pausas.',
+      },
+      {
+        'q': 'Se puede probar sin riesgo?',
+        'a':
+            'Si. La demo reversible carga un ejemplo y puedes quitarlo en un clic.',
+      },
+      {
+        'q': 'Como me contacto si necesito ayuda?',
+        'a': supportChannelLabel,
+      },
     ];
 
     return AppCard(
@@ -5705,14 +5794,15 @@ class _ProLicenseCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
                   color: colors.group,
                   border: Border.all(color: colors.separator),
                 ),
                 child: Text(
-                  'Pro / Licencia',
+                  'BitFlow Pro',
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontSize: 12,
@@ -5722,7 +5812,7 @@ class _ProLicenseCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                demoModeEnabled ? 'Demo activado' : 'Demo desactivado',
+                'Version $releaseVersion',
                 style: TextStyle(
                   color: colors.textSecondary,
                   fontSize: 12,
@@ -5733,7 +5823,7 @@ class _ProLicenseCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'BitFlow listo para despliegue cliente',
+            'Activa Pro y convierte BitFlow en una entrega cliente.',
             style: TextStyle(
               color: colors.textPrimary,
               fontSize: 17,
@@ -5742,58 +5832,206 @@ class _ProLicenseCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          for (final bullet in bullets)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                '• $bullet',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  height: 1.25,
-                ),
-              ),
+          Text(
+            'Menos friccion operativa, mas velocidad de cierre y soporte comercial visible.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
             ),
+          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 10,
             runSpacing: 8,
             children: [
               AppButton(
-                label: 'Solicitar licencia',
+                label: 'Activar BitFlow Pro',
                 icon: CupertinoIcons.cart_fill_badge_plus,
                 variant: AppButtonVariant.primary,
                 onPressed: busy ? null : () => onPrimaryCta(),
               ),
               AppButton(
-                label: 'Soporte cliente',
+                label: 'Soporte',
                 icon: CupertinoIcons.headphones,
                 variant: AppButtonVariant.secondary,
                 onPressed: () => onSupport(),
               ),
-              AppButton(
-                label: demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
-                icon: demoModeEnabled
-                    ? CupertinoIcons.eye_slash
-                    : CupertinoIcons.play_circle,
-                variant: AppButtonVariant.ghost,
-                onPressed: busy ? null : () => onToggleDemoMode(),
-              ),
-              if (demoModeEnabled)
-                AppButton(
-                  label: demoSampleLoaded ? 'Quitar ejemplo' : 'Cargar ejemplo',
-                  icon: demoSampleLoaded
-                      ? CupertinoIcons.trash
-                      : CupertinoIcons.sparkles,
-                  variant: AppButtonVariant.ghost,
-                  onPressed: busy
-                      ? null
-                      : (demoSampleLoaded
-                          ? () => onRemoveDemo(notify: true)
-                          : () => onLoadDemo()),
-                ),
             ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Que incluye Pro',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final item in includes) _buildBullet(item),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.group.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.separator),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.sparkles,
+                      size: 16,
+                      color: colors.textPrimary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Demo reversible',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      demoModeEnabled ? 'Activa' : 'Pausada',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Carga una planilla ejemplo para mostrar el flujo completo y quitarla sin dejar residuos.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    AppButton(
+                      label:
+                          demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
+                      icon: demoModeEnabled
+                          ? CupertinoIcons.eye_slash
+                          : CupertinoIcons.play_circle,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: busy ? null : () => onToggleDemoMode(),
+                    ),
+                    if (demoModeEnabled)
+                      AppButton(
+                        label: demoSampleLoaded
+                            ? 'Quitar ejemplo reversible'
+                            : 'Probar demo reversible',
+                        icon: demoSampleLoaded
+                            ? CupertinoIcons.trash
+                            : CupertinoIcons.sparkles,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: busy
+                            ? null
+                            : (demoSampleLoaded
+                                ? () => onRemoveDemo(notify: true)
+                                : () => onLoadDemo()),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'FAQ rapida',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final item in faq) _buildFaqItem(item['q']!, item['a']!),
+          const SizedBox(height: 10),
+          Text(
+            'Confianza: Version $releaseVersion | Soporte disponible',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Privacidad: tu equipo controla que datos comparte al exportar o contactar soporte.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 11,
+              height: 1.25,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        '- $text',
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          height: 1.25,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFaqItem(String q, String a) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.separator),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            q,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            a,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 12,
+              height: 1.25,
+            ),
           ),
         ],
       ),
@@ -6724,4 +6962,3 @@ class _MailSettingsResult {
   final String engineMode;
   final String manualBaseUrl;
 }
-
