@@ -1,7 +1,6 @@
 import 'dart:async';
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-import 'dart:math' as math;
+import 'package:bitacora_web/web/html_compat.dart' as html;import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'web_image_normalizer.dart';

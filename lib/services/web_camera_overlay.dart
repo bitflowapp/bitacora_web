@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:typed_data';
 import 'dart:ui_web' as ui;
 

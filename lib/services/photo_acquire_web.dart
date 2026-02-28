@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:html' as html;
-import 'dart:typed_data';
+import 'package:bitacora_web/web/html_compat.dart' as html;import 'dart:typed_data';
 
 import 'web_file_bytes.dart';
 

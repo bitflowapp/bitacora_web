@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 
 import 'force_update_service.dart';
 

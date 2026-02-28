@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'dart:html' as html;
-
-import '../models/table_state.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;import '../models/table_state.dart';
 
 class LocalStore {
   /// Clave nueva para Bit Flow.

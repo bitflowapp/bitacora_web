@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert' as convert;
-import 'dart:html' as html;
-
-import '../models/table_state.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;import '../models/table_state.dart';
 
 /// Wrapper para el worker JS en web/workers/json_parser_worker.js
 class JsonWorker {

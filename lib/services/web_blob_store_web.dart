@@ -1,12 +1,9 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: uri_does_not_exist
-import 'dart:indexed_db' as idb;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:developer' as developer;
-// ignore: uri_does_not_exist
-import 'dart:js_util' as js_util;
+import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 
 import 'web_blob_store.dart';
 
@@ -16,7 +13,7 @@ class WebBlobStoreImpl implements WebBlobStore {
   static const _cacheName = 'bf_blob_store_cache_v1';
   static const _cachePathPrefix = '/_bitflow_blob_cache/';
 
-  idb.Database? _db;
+  dynamic _db;
   final Map<String, WebBlobRecord> _mem = {};
   String? _lastSaveReason;
   String? _lastSaveStore;
@@ -25,14 +22,14 @@ class WebBlobStoreImpl implements WebBlobStore {
   String? get lastSaveReason => _lastSaveReason;
   String? get lastSaveStore => _lastSaveStore;
 
-  Future<idb.Database?> _ensureDb() async {
+  Future<dynamic> _ensureDb() async {
     if (_db != null) return _db;
     try {
       _db = await html.window.indexedDB!.open(
         _dbName,
         version: 1,
         onUpgradeNeeded: (e) {
-          final db = (e.target as idb.Request).result as idb.Database;
+          final db = (e.target as dynamic).result;
           db.createObjectStore(_storeName);
         },
       );
