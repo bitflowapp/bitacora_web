@@ -48,8 +48,9 @@ Ejemplo:
 
 ```powershell
 flutter build web --release `
-  --dart-define=CONTACT_EMAIL=ventas@tuempresa.com `
-  --dart-define=CONTACT_WHATSAPP=+5491122334455
+  --dart-define=PRO_CTA_URL=https://tuempresa.com/bitflow-pro `
+  --dart-define=SUPPORT_EMAIL=soporte@tuempresa.com `
+  --dart-define=SUPPORT_WHATSAPP=+5491122334455
 ```
 
 Notas de seguridad:
