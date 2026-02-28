@@ -1,7 +1,7 @@
 part of '../editor_screen.dart';
 
-class AttachmentTile extends StatelessWidget {
-  const AttachmentTile({
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({
     required this.palette,
     required this.thumb,
     required this.typeIcon,

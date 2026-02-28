@@ -7,17 +7,17 @@ class LegalScreen extends StatelessWidget {
   const LegalScreen.privacy({super.key})
       : title = 'Politica de privacidad',
         sections = const [
-          _LegalSection(
+          LegalSection(
             title: 'Datos locales',
             body:
                 'La aplicacion funciona sin servidores. La informacion se guarda localmente en el navegador o equipo del usuario.',
           ),
-          _LegalSection(
+          LegalSection(
             title: 'Control del usuario',
             body:
                 'Cada equipo decide que exporta, comparte o elimina. No recolectamos ni enviamos informacion automaticamente.',
           ),
-          _LegalSection(
+          LegalSection(
             title: 'Respaldo',
             body:
                 'Se recomienda exportar respaldos ZIP de forma periodica para resguardar evidencias.',
@@ -27,17 +27,17 @@ class LegalScreen extends StatelessWidget {
   const LegalScreen.terms({super.key})
       : title = 'Terminos de uso',
         sections = const [
-          _LegalSection(
+          LegalSection(
             title: 'Uso permitido',
             body:
                 'La licencia permite operar la aplicacion de manera local para registrar actividades y evidencias.',
           ),
-          _LegalSection(
+          LegalSection(
             title: 'Responsabilidad',
             body:
                 'El usuario es responsable de la calidad y seguridad de los datos exportados y compartidos.',
           ),
-          _LegalSection(
+          LegalSection(
             title: 'Soporte',
             body:
                 'El soporte se brinda segun el plan contratado. No incluye hosting ni almacenamiento remoto.',
@@ -45,7 +45,7 @@ class LegalScreen extends StatelessWidget {
         ];
 
   final String title;
-  final List<_LegalSection> sections;
+  final List<LegalSection> sections;
 
   @override
   Widget build(BuildContext context) {
@@ -111,8 +111,8 @@ class LegalScreen extends StatelessWidget {
   }
 }
 
-class _LegalSection {
-  const _LegalSection({required this.title, required this.body});
+class LegalSection {
+  const LegalSection({required this.title, required this.body});
 
   final String title;
   final String body;
