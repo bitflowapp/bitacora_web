@@ -1157,7 +1157,7 @@ class _PhotosCell extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Image.memory(
-              thumbBytes!,
+              thumbBytes,
               width: 26,
               height: 26,
               fit: BoxFit.cover,

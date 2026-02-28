@@ -21,12 +21,12 @@ class SmartSheet extends StatefulWidget {
   final String sheetName;
 
   const SmartSheet({
-    Key? key,
+    super.key,
     required this.theme,
     required this.initialHeaders,
     required this.initialRows,
     this.sheetName = 'Hoja inteligente',
-  }) : super(key: key);
+  });
 
   @override
   State<SmartSheet> createState() => _SmartSheetState();
@@ -301,7 +301,7 @@ class _SmartSheetState extends State<SmartSheet> {
                   color: tableStyle.cellBg,
                   borderRadius: BorderRadius.circular(14),
                   border:
-                      Border.all(color: tableStyle.gridLine.withOpacity(0.8)),
+                      Border.all(color: tableStyle.gridLine.withValues(alpha: 0.8)),
                   boxShadow: [
                     if (isLight)
                       const BoxShadow(

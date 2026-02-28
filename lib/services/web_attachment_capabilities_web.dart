@@ -3,7 +3,6 @@ import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import 'dart:js_util' as js_util;
 
 import 'web_attachment_capabilities.dart';
-import 'web_audio_recorder.dart';
 import 'web_capabilities.dart';
 
 class WebAttachmentCapabilitiesImpl implements WebAttachmentCapabilities {

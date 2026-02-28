@@ -28,7 +28,7 @@ class PremiumState {
     final now = DateTime.now().toUtc();
     if (!now.isBefore(trialEndsAt!)) return 0;
     final remainingHours = trialEndsAt!.difference(now).inHours;
-    return ((remainingHours / 24).ceil().clamp(1, 36500)) as int;
+    return ((remainingHours / 24).ceil().clamp(1, 36500));
   }
 
   static PremiumState signedOut() {

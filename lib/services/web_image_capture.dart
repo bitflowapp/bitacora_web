@@ -67,7 +67,7 @@ Future<WebImageCaptureResult> captureWebImage({
 }) {
   final _ = jpegQuality;
 
-  html.FileUploadInputElement _getPersistentInput() {
+  html.FileUploadInputElement getPersistentInput() {
     final existing = html.document.getElementById('_bf_photo_input');
     if (existing is html.FileUploadInputElement) return existing;
     final el = html.FileUploadInputElement()
@@ -84,7 +84,7 @@ Future<WebImageCaptureResult> captureWebImage({
     return el;
   }
 
-  final input = _getPersistentInput();
+  final input = getPersistentInput();
   input.setAttribute('capture', capture ? 'environment' : '');
   input.value = '';
 
@@ -119,7 +119,7 @@ Future<WebImageCaptureResult> captureWebImage({
     );
   }
 
-  String _snapshot() {
+  String snapshot() {
     final filesLen = input.files?.length ?? 0;
     final valueLen = input.value?.length ?? 0;
     final vis = html.document.visibilityState;
@@ -132,7 +132,7 @@ Future<WebImageCaptureResult> captureWebImage({
     final outcomeOk = result.status == WebImageCaptureStatus.success;
     final bytesLen = result.bytes?.length ?? 0;
     logStep(
-      'photo:web outcome=${result.status.name} bytes=$bytesLen ${_snapshot()}',
+      'photo:web outcome=${result.status.name} bytes=$bytesLen ${snapshot()}',
       ok: outcomeOk,
     );
     DiagnosticsLog.I.updatePhotoAttempt(
@@ -160,7 +160,7 @@ Future<WebImageCaptureResult> captureWebImage({
     }
   }
 
-  String _guessMimeFromName(String name) {
+  String guessMimeFromName(String name) {
     final lower = name.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
@@ -172,7 +172,7 @@ Future<WebImageCaptureResult> captureWebImage({
     return '';
   }
 
-  String _fallbackName(String mime) {
+  String fallbackName(String mime) {
     final ts = DateTime.now().millisecondsSinceEpoch;
     String ext = 'jpg';
     if (mime.contains('png')) ext = 'png';
@@ -189,9 +189,9 @@ Future<WebImageCaptureResult> captureWebImage({
     final fileType = file.type.trim();
     final name = file.name.trim().isNotEmpty ? file.name.trim() : '';
 
-    final nameFinal = name.isNotEmpty ? name : _fallbackName(fileType);
+    final nameFinal = name.isNotEmpty ? name : fallbackName(fileType);
     logStep(
-      'photo:web files=1 source=$source name=$nameFinal type=$fileType size=${file.size} ${_snapshot()}',
+      'photo:web files=1 source=$source name=$nameFinal type=$fileType size=${file.size} ${snapshot()}',
     );
     DiagnosticsLog.I.updatePhotoAttempt(
       stage: 'file_selected',
@@ -211,7 +211,7 @@ Future<WebImageCaptureResult> captureWebImage({
         final rawType = (data['rawType'] ?? '').toString();
         final err = data['error'];
         logStep(
-          'photo:web read_$stage name=$nameFinal type=$fileType size=${file.size} bytes=$bytesLen raw=$rawType ${_snapshot()}',
+          'photo:web read_$stage name=$nameFinal type=$fileType size=${file.size} bytes=$bytesLen raw=$rawType ${snapshot()}',
           ok: err == null,
         );
         DiagnosticsLog.I.updatePhotoAttempt(
@@ -239,7 +239,7 @@ Future<WebImageCaptureResult> captureWebImage({
     }
 
     final sniffed = sniffMime(bytes ?? Uint8List(0), name: nameFinal);
-    final guess = _guessMimeFromName(nameFinal);
+    final guess = guessMimeFromName(nameFinal);
     final finalMime = sniffed.isNotEmpty
         ? sniffed
         : (fileType.isNotEmpty
@@ -257,7 +257,7 @@ Future<WebImageCaptureResult> captureWebImage({
     );
 
     logStep(
-        'photo:web bytes=${bytes?.length ?? 0} mime=$finalMime name=$nameFinal size=${file.size} ${_snapshot()}');
+        'photo:web bytes=${bytes?.length ?? 0} mime=$finalMime name=$nameFinal size=${file.size} ${snapshot()}');
 
     finish(WebImageCaptureResult.success(
       bytes: bytes ?? Uint8List(0),
@@ -272,7 +272,7 @@ Future<WebImageCaptureResult> captureWebImage({
     if (finished || polling) return;
     polling = true;
     pollTick = 0;
-    logStep('photo:web poll_start reason=$reason ${_snapshot()}');
+    logStep('photo:web poll_start reason=$reason ${snapshot()}');
     pollTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
       if (finished) {
         t.cancel();
@@ -281,7 +281,7 @@ Future<WebImageCaptureResult> captureWebImage({
       pollTick += 1;
       final files = input.files;
       final len = files?.length ?? 0;
-      logStep('photo:web poll[$pollTick] files=$len ${_snapshot()}');
+      logStep('photo:web poll[$pollTick] files=$len ${snapshot()}');
       if (len > 0 && files != null) {
         t.cancel();
         polling = false;
@@ -291,7 +291,7 @@ Future<WebImageCaptureResult> captureWebImage({
       if (pollTick * 100 >= pollMaxMs) {
         t.cancel();
         polling = false;
-        logStep('photo:web poll_timeout ${_snapshot()}', ok: false);
+        logStep('photo:web poll_timeout ${snapshot()}', ok: false);
         finish(WebImageCaptureResult.cancelled());
       }
     });
@@ -300,7 +300,7 @@ Future<WebImageCaptureResult> captureWebImage({
   changeSub = input.onChange.listen((_) async {
     final files = input.files;
     final len = files?.length ?? 0;
-    logStep('photo:web change files=$len ${_snapshot()}');
+    logStep('photo:web change files=$len ${snapshot()}');
     if (files == null || files.isEmpty) {
       startPolling('change-empty');
       return;
@@ -310,7 +310,7 @@ Future<WebImageCaptureResult> captureWebImage({
 
   focusSub = html.window.onFocus.listen((_) {
     if (finished) return;
-    logStep('photo:web focus ${_snapshot()}');
+    logStep('photo:web focus ${snapshot()}');
     final files = input.files;
     if (files != null && files.isNotEmpty) {
       unawaited(processFile(files.first, source: 'focus'));
@@ -323,7 +323,7 @@ Future<WebImageCaptureResult> captureWebImage({
     if (finished) return;
     final state = html.document.visibilityState;
     if (state == 'visible') {
-      logStep('photo:web visible ${_snapshot()}');
+      logStep('photo:web visible ${snapshot()}');
       final files = input.files;
       if (files != null && files.isNotEmpty) {
         unawaited(processFile(files.first, source: 'visible'));
@@ -340,7 +340,7 @@ Future<WebImageCaptureResult> captureWebImage({
   });
 
   logStep(
-    'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari secure=${html.window.isSecureContext == true} inApp=${WebCapabilities.isInAppBrowser} gUM=${WebCapabilities.cameraAvailable} capture=$capture ${_snapshot()}',
+    'photo:web init ua="$ua" isIOS=$isIOS isSafari=$isSafari secure=${html.window.isSecureContext == true} inApp=${WebCapabilities.isInAppBrowser} gUM=${WebCapabilities.cameraAvailable} capture=$capture ${snapshot()}',
   );
   DiagnosticsLog.I.updatePhotoAttempt(
     stage: 'picker_open',
@@ -356,10 +356,10 @@ Future<WebImageCaptureResult> captureWebImage({
     clearStack: true,
   );
   try {
-    logStep('photo:web click capture=$capture ${_snapshot()}');
+    logStep('photo:web click capture=$capture ${snapshot()}');
     input.click();
   } catch (e) {
-    logStep('photo:web click_error $e ${_snapshot()}', ok: false);
+    logStep('photo:web click_error $e ${snapshot()}', ok: false);
     finish(WebImageCaptureResult.blocked('El navegador bloqueo el selector.'));
   }
   return completer.future;

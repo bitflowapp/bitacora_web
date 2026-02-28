@@ -7,7 +7,6 @@
 // La app sólo sube bytes del XLSX.
 
 import 'dart:convert' show HtmlEscape, HtmlEscapeMode;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
