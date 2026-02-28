@@ -451,6 +451,7 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefOnboardingDone = 'bitflow.onboarding_done.v1';
 
   bool _prefsLoaded = false;
+  String? _prefsLoadError;
   String _defaultEmail = '';
   bool _autoSend = true;
 
@@ -469,6 +470,7 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefTrash = 'bitflow.trash.v1';
 
   bool _orgLoaded = false;
+  String? _orgLoadError;
 
   final List<_Folder> _folders = <_Folder>[];
   final Map<String, String> _sheetFolder =
@@ -579,10 +581,14 @@ class _StartPageState extends State<StartPage> {
         _manualEngineBaseUrl = manual ?? '';
         _lastResolvedEngineBaseUrl = lastResolved;
         _prefsLoaded = true;
+        _prefsLoadError = null;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _prefsLoaded = true);
+      setState(() {
+        _prefsLoaded = true;
+        _prefsLoadError = e.toString();
+      });
     }
   }
 
@@ -611,6 +617,7 @@ class _StartPageState extends State<StartPage> {
       _manualEngineBaseUrl = manualBaseUrl.trim();
       _lastResolvedEngineBaseUrl = lastResolved;
       _prefsLoaded = true;
+      _prefsLoadError = null;
     });
   }
 
@@ -867,15 +874,17 @@ class _StartPageState extends State<StartPage> {
       if (!mounted) return;
       setState(() {
         _orgLoaded = true;
+        _orgLoadError = null;
       });
 
       // Primera sincronización: createdAt para planillas existentes + purge TTL.
       await _syncCreatedAtForKnownSheets();
       await _purgeExpiredTrashIfNeeded();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _orgLoaded = true;
+        _orgLoadError = e.toString();
       });
     }
   }
@@ -3195,6 +3204,28 @@ class _StartPageState extends State<StartPage> {
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
   }
 
+  Future<void> _openSupportChannel() async {
+    final mail = Uri(
+      scheme: 'mailto',
+      path: 'soporte@bitflow.app',
+      queryParameters: const <String, String>{
+        'subject': 'Soporte BitFlow',
+      },
+    );
+
+    final sent = await launchUrl(mail, mode: LaunchMode.externalApplication);
+    if (sent) return;
+
+    final issues = Uri.parse(
+      'https://github.com/marcoluna-nqn/bitacora_web/issues',
+    );
+    final opened =
+        await launchUrl(issues, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      _toast('No se pudo abrir el canal de soporte.');
+    }
+  }
+
   Future<void> _openMoreSheet(_ApplePalette colors) async {
     await showCupertinoModalPopup<void>(
       context: context,
@@ -3989,6 +4020,13 @@ class _StartPageState extends State<StartPage> {
   Widget build(BuildContext context) {
     final isLight = widget.isLight;
     final colors = _ApplePalette(isLight: isLight);
+    final startupErrors = <String>[
+      if ((_prefsLoadError ?? '').trim().isNotEmpty)
+        'Preferencias: ${_prefsLoadError!.trim()}',
+      if ((_orgLoadError ?? '').trim().isNotEmpty)
+        'Organizacion: ${_orgLoadError!.trim()}',
+    ];
+    final showInitialLoading = !_prefsLoaded || !_orgLoaded;
 
     final data = _visibleSheets;
     final sAll = _statsAll;
@@ -4020,7 +4058,7 @@ class _StartPageState extends State<StartPage> {
                       title: _tab == _HomeTab.trash ? 'Papelera' : 'BitFlow',
                       subtitle: _tab == _HomeTab.trash
                           ? 'Elementos eliminados recientemente'
-                          : '${data.length} planillas activas',
+                          : '${data.length} planillas activas | ${BuildInfo.buildIdLabel}',
                       leading: AppButton(
                         label: isLight ? 'Noche' : 'Día',
                         icon: isLight
@@ -4057,6 +4095,21 @@ class _StartPageState extends State<StartPage> {
                               : null,
                         ),
                         AppButton(
+                          label: 'Soporte',
+                          icon: CupertinoIcons.question_circle,
+                          variant: AppButtonVariant.ghost,
+                          size: AppButtonSize.sm,
+                          onPressed: _openSupportChannel,
+                        ),
+                        AppButton(
+                          label: 'Version',
+                          icon: CupertinoIcons.info_circle,
+                          variant: AppButtonVariant.ghost,
+                          size: AppButtonSize.sm,
+                          onPressed: () =>
+                              unawaited(_openStaticPage(const AboutScreen())),
+                        ),
+                        AppButton(
                           label: 'Más',
                           icon: CupertinoIcons.ellipsis,
                           variant: AppButtonVariant.secondary,
@@ -4067,6 +4120,39 @@ class _StartPageState extends State<StartPage> {
                     ),
                   ),
                 ),
+                if (showInitialLoading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: LoadingState(
+                        message: 'Preparando BitFlow para tu primer uso...',
+                      ),
+                    ),
+                  ),
+                if (startupErrors.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: AppErrorState(
+                        compact: true,
+                        title: 'Algunas preferencias no se cargaron',
+                        message:
+                            'BitFlow continuo con configuracion segura para evitar bloquear el inicio.',
+                        details: startupErrors.join('\n'),
+                        actionLabel: 'Reintentar inicio',
+                        onAction: () {
+                          setState(() {
+                            _prefsLoaded = false;
+                            _orgLoaded = false;
+                            _prefsLoadError = null;
+                            _orgLoadError = null;
+                          });
+                          unawaited(_loadPrefs());
+                          unawaited(_loadOrg());
+                        },
+                      ),
+                    ),
+                  ),
                 if (RuntimeFlags.demoMode)
                   SliverToBoxAdapter(
                     child: Padding(
