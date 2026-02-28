@@ -309,7 +309,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withOpacity(0.65);
+        final divider = theme.dividerColor.withValues(alpha: 0.65);
         final cardBg = theme.cardColor;
 
         Widget tile({
@@ -498,7 +498,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withOpacity(0.55);
+        final divider = theme.dividerColor.withValues(alpha: 0.55);
         final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
 
         Widget actionTile({
@@ -703,9 +703,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     final appearanceKey = Object.hash(
       theme.brightness,
-      theme.scaffoldBackgroundColor.value,
-      theme.dividerColor.value,
-      theme.colorScheme.surfaceVariant.value,
+      theme.scaffoldBackgroundColor.toARGB32(),
+      theme.dividerColor.toARGB32(),
+      theme.colorScheme.surfaceContainerHighest.toARGB32(),
     );
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
@@ -722,7 +722,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                 style: t.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.2,
-                  color: t.colorScheme.onSurface.withOpacity(0.70),
+                  color: t.colorScheme.onSurface.withValues(alpha: 0.70),
                 ),
               ),
             ),
@@ -1023,8 +1023,8 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     final theme = Theme.of(context);
-    final bg = theme.scaffoldBackgroundColor.withOpacity(0.92);
-    final divider = theme.dividerColor.withOpacity(0.55);
+    final bg = theme.scaffoldBackgroundColor.withValues(alpha: 0.92);
+    final divider = theme.dividerColor.withValues(alpha: 0.55);
     final canOpenLast = onOpenLast != null;
 
     return DecoratedBox(
@@ -1205,7 +1205,7 @@ class _SheetCardState extends State<_SheetCard> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
           side: BorderSide(
-            color: theme.dividerColor.withOpacity(0.60),
+            color: theme.dividerColor.withValues(alpha: 0.60),
             width: 0.8,
           ),
         ),
@@ -1248,7 +1248,7 @@ class _SheetCardState extends State<_SheetCard> {
                                 Icons.star_rounded,
                                 size: 18,
                                 color: theme.colorScheme.onSurface
-                                    .withOpacity(0.65),
+                                    .withValues(alpha: 0.65),
                               ),
                             ],
                           ],
@@ -1319,7 +1319,7 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bg = theme.colorScheme.surfaceVariant.withOpacity(
+    final bg = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
       theme.brightness == Brightness.dark ? 0.55 : 0.70,
     );
 
@@ -1369,8 +1369,8 @@ class _PillIcon extends StatelessWidget {
     final c = color ?? theme.colorScheme.primary;
 
     final bg = filled
-        ? c.withOpacity(theme.brightness == Brightness.dark ? 0.22 : 0.14)
-        : theme.colorScheme.surfaceVariant.withOpacity(
+        ? c.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14)
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
             theme.brightness == Brightness.dark ? 0.55 : 0.70,
           );
 

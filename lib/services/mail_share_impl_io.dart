@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_email_sender/flutter_email_sender.dart';
-import 'package:share_plus/share_plus.dart' show Share, XFile;
+import 'package:share_plus/share_plus.dart' show ShareParams, SharePlus, XFile;
 import 'package:url_launcher/url_launcher.dart';
 
 final class MailShareIo {
@@ -56,10 +56,12 @@ final class MailShareIo {
 
     // 3) share sheet del sistema con el archivo
     try {
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        text: body ?? '',
-        subject: subject,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(filePath)],
+          text: body ?? '',
+          subject: subject,
+        ),
       );
     } catch (_) {
       // sin más fallbacks razonables

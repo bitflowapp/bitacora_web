@@ -171,7 +171,7 @@ class _LocationSheetState extends State<_LocationSheet> {
                       Icon(
                         Icons.location_off,
                         size: 40,
-                        color: theme.iconTheme.color?.withOpacity(
+                        color: theme.iconTheme.color?.withValues(alpha: 
                             theme.brightness == Brightness.dark ? 0.7 : 0.5),
                       ),
                       const SizedBox(height: 6),
@@ -185,7 +185,7 @@ class _LocationSheetState extends State<_LocationSheet> {
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.textTheme.bodySmall?.color
-                              ?.withOpacity(0.8),
+                              ?.withValues(alpha: 0.8),
                         ),
                       ),
                     ],

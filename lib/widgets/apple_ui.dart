@@ -120,7 +120,7 @@ class AppleButton extends StatelessWidget {
     }
 
     if (!effectiveEnabled) {
-      fg = t.colors.textSecondary.withOpacity(0.5);
+      fg = t.colors.textSecondary.withValues(alpha: 0.5);
     }
 
     final content = Row(
@@ -219,8 +219,8 @@ class AppleToolbar extends StatelessWidget {
     final t = AppTheme.of(context);
     final bg = backgroundColor ??
         (t.colors.isLight
-            ? t.colors.surfaceElevated.withOpacity(0.9)
-            : t.colors.surfaceElevated.withOpacity(0.75));
+            ? t.colors.surfaceElevated.withValues(alpha: 0.9)
+            : t.colors.surfaceElevated.withValues(alpha: 0.75));
 
     return AppleCard(
       padding: padding,

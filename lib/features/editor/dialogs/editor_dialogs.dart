@@ -24,7 +24,7 @@ extension _EditorDialogs on _EditorScreenState {
               SwitchListTile(
                 value: dateDefault,
                 onChanged: (value) => setModalState(() => dateDefault = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Fecha: completar con hoy al crear fila'),
                 subtitle: const Text('Aplica en columnas Fecha/Hora'),
               ),
@@ -32,7 +32,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: statusDefault,
                 onChanged: (value) =>
                     setModalState(() => statusDefault = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Estado: default OK'),
                 subtitle: const Text('Aplica en columnas Estado'),
               ),
@@ -40,7 +40,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: autoIncrement,
                 onChanged: (value) =>
                     setModalState(() => autoIncrement = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('ID/Progresiva: autoincrement'),
                 subtitle: const Text(
                   'Toma el ultimo valor numerico y suma +1',
@@ -50,7 +50,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: inlinePreviews,
                 onChanged: (value) =>
                     setModalState(() => inlinePreviews = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Previews en celdas'),
                 subtitle: const Text(
                   'Muestra miniaturas inline (puede usar mas memoria en grillas grandes).',
@@ -60,7 +60,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: mobileCompactMode,
                 onChanged: (value) =>
                     setModalState(() => mobileCompactMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Modo compacto (mobile auto-hide)'),
                 subtitle: const Text(
                   'Oculta header al hacer scroll para maximizar la grilla.',
@@ -69,7 +69,7 @@ extension _EditorDialogs on _EditorScreenState {
               SwitchListTile(
                 value: zenMode,
                 onChanged: (value) => setModalState(() => zenMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Modo Zen'),
                 subtitle: const Text(
                   'Oculta la barra superior hasta salir de Zen.',
@@ -79,7 +79,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: mobileFocusCellMode,
                 onChanged: (value) =>
                     setModalState(() => mobileFocusCellMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Focus cell mode (mobile)'),
                 subtitle: const Text(
                   'Al editar, centra la celda activa sin reflow pesado.',
@@ -89,7 +89,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: flowBotUseLocalLlm,
                 onChanged: (value) =>
                     setModalState(() => flowBotUseLocalLlm = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('FlowBot Local LLM (sin API)'),
                 subtitle: Text(
                   _flowBotLocalModelPath.trim().isEmpty

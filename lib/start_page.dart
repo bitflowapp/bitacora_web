@@ -45,9 +45,6 @@ import 'package:flutter/material.dart'
         BoxShadow,
         Offset,
         BoxConstraints,
-        Dialog,
-        TextButton,
-        ElevatedButton,
         Switch,
         PageView,
         PageController,
@@ -714,6 +711,30 @@ class _StartPageState extends State<StartPage> {
               title: 'Primeros pasos',
               showClose: true,
               maxWidth: 560,
+              actions: [
+                if (page > 0)
+                  AppButton(
+                    label: 'Volver',
+                    variant: AppButtonVariant.ghost,
+                    onPressed: goBack,
+                  ),
+                AppButton(
+                  label: 'Ahora no',
+                  variant: AppButtonVariant.ghost,
+                  onPressed: () => closeDialog(ctx),
+                ),
+                AppButton(
+                  label: page < 2 ? 'Siguiente' : 'Listo',
+                  variant: AppButtonVariant.primary,
+                  onPressed: () async {
+                    if (page < 2) {
+                      goNext();
+                      return;
+                    }
+                    await closeDialog(ctx);
+                  },
+                ),
+              ],
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,30 +804,6 @@ class _StartPageState extends State<StartPage> {
                   ),
                 ],
               ),
-              actions: [
-                if (page > 0)
-                  AppButton(
-                    label: 'Volver',
-                    variant: AppButtonVariant.ghost,
-                    onPressed: goBack,
-                  ),
-                AppButton(
-                  label: 'Ahora no',
-                  variant: AppButtonVariant.ghost,
-                  onPressed: () => closeDialog(ctx),
-                ),
-                AppButton(
-                  label: page < 2 ? 'Siguiente' : 'Listo',
-                  variant: AppButtonVariant.primary,
-                  onPressed: () async {
-                    if (page < 2) {
-                      goNext();
-                      return;
-                    }
-                    await closeDialog(ctx);
-                  },
-                ),
-              ],
             );
           },
         );
@@ -2052,17 +2049,15 @@ class _StartPageState extends State<StartPage> {
       normalized['savedAt'] = DateTime.now().toIso8601String();
 
       final assetsById = <String, Map<String, dynamic>>{};
-      if (assetsRaw is List) {
-        for (final a in assetsRaw) {
-          _throwIfBusyCancelled();
-          if (a is! Map) continue;
-          final kind = (a['kind'] ?? '').toString();
-          final id = (a['id'] ?? '').toString();
-          if (kind.isEmpty || id.isEmpty) continue;
-          assetsById['$kind:$id'] = a.cast<String, dynamic>();
-        }
+      for (final a in assetsRaw) {
+        _throwIfBusyCancelled();
+        if (a is! Map) continue;
+        final kind = (a['kind'] ?? '').toString();
+        final id = (a['id'] ?? '').toString();
+        if (kind.isEmpty || id.isEmpty) continue;
+        assetsById['$kind:$id'] = a.cast<String, dynamic>();
       }
-
+    
       final filesByPath = <String, ArchiveFile>{};
       for (final f in archive) {
         filesByPath[f.name] = f;
@@ -2482,6 +2477,13 @@ class _StartPageState extends State<StartPage> {
         return AppModal(
           title: 'Ayuda rapida',
           showClose: false,
+          actions: [
+            AppButton(
+              label: 'Cerrar',
+              variant: AppButtonVariant.ghost,
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2506,13 +2508,6 @@ class _StartPageState extends State<StartPage> {
               ),
             ],
           ),
-          actions: [
-            AppButton(
-              label: 'Cerrar',
-              variant: AppButtonVariant.ghost,
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
         );
       },
     );
@@ -2633,13 +2628,13 @@ class _StartPageState extends State<StartPage> {
 
     await Navigator.of(context).push<void>(
       CupertinoPageRoute(
-        builder: (_) => _FolderManagerPage(
+        builder: (routeCtx) => _FolderManagerPage(
           isLight: widget.isLight,
           folders: _folders,
           getCount: _countSheetsInFolder,
-          onCreate: () => _createFolderDialog(_),
-          onRename: (f) => _renameFolderDialog(_, f),
-          onDelete: (f) => _deleteFolderFlow(_, f),
+          onCreate: () => _createFolderDialog(routeCtx),
+          onRename: (f) => _renameFolderDialog(routeCtx, f),
+          onDelete: (f) => _deleteFolderFlow(routeCtx, f),
         ),
       ),
     );
@@ -3794,7 +3789,6 @@ class _StartPageState extends State<StartPage> {
     _toastEntry?.remove();
 
     final overlay = Overlay.of(context);
-    if (overlay == null) return;
 
     final isLight = widget.isLight;
 
@@ -3998,8 +3992,9 @@ class _StartPageState extends State<StartPage> {
       if (_trashDeletedAtMs.containsKey(m.id)) continue;
       total++;
       final d = m.updatedAt.toLocal();
-      if (d.year == now.year && d.month == now.month && d.day == now.day)
+      if (d.year == now.year && d.month == now.month && d.day == now.day) {
         today++;
+      }
       totalRows += m.rows;
     }
     return (total: total, today: today, totalRows: totalRows);
@@ -4856,7 +4851,6 @@ class _StartPageState extends State<StartPage> {
   Map<String, String> _mapStringString(Map<String, dynamic> m) {
     final out = <String, String>{};
     m.forEach((k, v) {
-      if (k is! String) return;
       if (v is String) out[k] = v;
       if (v is num) out[k] = v.toString();
     });
@@ -4866,7 +4860,6 @@ class _StartPageState extends State<StartPage> {
   Map<String, int> _mapStringInt(Map<String, dynamic> m) {
     final out = <String, int>{};
     m.forEach((k, v) {
-      if (k is! String) return;
       if (v is int) out[k] = v;
       if (v is num) out[k] = v.toInt();
       if (v is String) {
@@ -4926,7 +4919,7 @@ class _TopPillActions extends StatelessWidget {
             border: Border.all(color: border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(colors.isLight ? 0.08 : 0.45),
+                color: Colors.black.withValues(alpha: colors.isLight ? 0.08 : 0.45),
                 blurRadius: 16,
                 offset: const Offset(0, 10),
               ),
@@ -5011,10 +5004,9 @@ class _PillIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      minSize: 0,
       pressedOpacity: 0.55,
       onPressed: onTap,
-      child: Icon(icon, size: 20, color: color),
+      child: Icon(icon, size: 20, color: color), minimumSize: Size(0, 0),
     );
   }
 }
@@ -5179,10 +5171,10 @@ class _SummaryCard extends StatelessWidget {
           gradient: gradient,
           borderRadius: BorderRadius.circular(t.radii.lg),
           border: Border.all(
-              color: const Color(0xFFFFFFFF).withOpacity(0.18), width: 0.8),
+              color: const Color(0xFFFFFFFF).withValues(alpha: 0.18), width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(t.colors.isLight ? 0.22 : 0.45),
+              color: Colors.black.withValues(alpha: t.colors.isLight ? 0.22 : 0.45),
               blurRadius: 16,
               offset: const Offset(0, 10),
             ),
@@ -5197,10 +5189,10 @@ class _SummaryCard extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFFFF).withOpacity(0.18),
+                  color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFFFFFFFF).withOpacity(0.18),
+                      color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
                       width: 1),
                 ),
                 child: Icon(icon, size: 18, color: const Color(0xFFFFFFFF)),
@@ -5310,7 +5302,6 @@ class _SuggestedListCard extends StatelessWidget {
           const SizedBox(width: 10),
           CupertinoButton(
             padding: EdgeInsets.zero,
-            minSize: 0,
             pressedOpacity: 0.55,
             onPressed: onAdd,
             child: Container(
@@ -5326,7 +5317,7 @@ class _SuggestedListCard extends StatelessWidget {
               ),
               child: const Icon(CupertinoIcons.add,
                   color: Color(0xFF1A1A1E), size: 20),
-            ),
+            ), minimumSize: Size(0, 0),
           ),
         ],
       ),
@@ -5470,7 +5461,6 @@ class _FloatingAddButton extends StatelessWidget {
       opacity: disabled ? 0.55 : 1.0,
       child: CupertinoButton(
         padding: EdgeInsets.zero,
-        minSize: 0,
         pressedOpacity: 0.65,
         onPressed: onTap,
         child: Container(
@@ -5488,7 +5478,7 @@ class _FloatingAddButton extends StatelessWidget {
           ),
           child: const Icon(CupertinoIcons.add,
               color: Color(0xFFFFFFFF), size: 28),
-        ),
+        ), minimumSize: Size(0, 0),
       ),
     );
   }
@@ -6259,7 +6249,6 @@ class _SheetActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      minSize: 0,
       onPressed: () async {
         await showCupertinoModalPopup<void>(
           context: context,
@@ -6350,7 +6339,7 @@ class _SheetActionButton extends StatelessWidget {
           },
         );
       },
-      child: Icon(CupertinoIcons.ellipsis, color: colors.muted, size: 20),
+      child: Icon(CupertinoIcons.ellipsis, color: colors.muted, size: 20), minimumSize: Size(0, 0),
     );
   }
 }
@@ -6646,12 +6635,3 @@ class _MailSettingsResult {
   final String manualBaseUrl;
 }
 
-// ---------------- Compat: Color.withValues(alpha: ...) ----------------
-// Si tu Flutter ya lo tiene nativo, esta extensión no molesta: el miembro real gana.
-extension _ColorWithValuesCompat on Color {
-  Color withValues({double? alpha}) {
-    if (alpha == null) return this;
-    final a = (alpha.clamp(0.0, 1.0) * 255).round().clamp(0, 255);
-    return withAlpha(a);
-  }
-}

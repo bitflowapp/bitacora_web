@@ -244,8 +244,8 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
                 gradient: isDisabled
                     ? LinearGradient(
                         colors: [
-                          c.surfaceVariant.withOpacity(0.6),
-                          c.surface.withOpacity(0.6),
+                          c.surfaceContainerHighest.withValues(alpha: 0.6),
+                          c.surface.withValues(alpha: 0.6),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -262,7 +262,7 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
                           )
                         : LinearGradient(
                             colors: [
-                              c.surfaceVariant,
+                              c.surfaceContainerHighest,
                               c.surface,
                             ],
                             begin: Alignment.topLeft,
@@ -271,14 +271,14 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
                 boxShadow: isRecording
                     ? [
                         BoxShadow(
-                          color: orange.withOpacity(0.55),
+                          color: orange.withValues(alpha: 0.55),
                           blurRadius: 20,
                           spreadRadius: 2,
                         ),
                       ]
                     : [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
+                          color: Colors.black.withValues(alpha: 0.12),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -287,7 +287,7 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
               child: Icon(
                 isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
                 color: isDisabled
-                    ? c.onSurface.withOpacity(0.35)
+                    ? c.onSurface.withValues(alpha: 0.35)
                     : isRecording
                         ? Colors.white
                         : c.primary,

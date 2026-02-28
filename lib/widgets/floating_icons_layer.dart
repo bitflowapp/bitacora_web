@@ -73,10 +73,10 @@ class _FloatingIconsLayerState extends State<FloatingIconsLayer>
   Widget build(BuildContext context) {
     final light = widget.isLight;
     final glassColor =
-        light ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.18);
+        light ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.18);
     final borderColor =
-        light ? Colors.white.withOpacity(0.35) : Colors.white.withOpacity(0.10);
-    final glow = widget.seed.withOpacity(light ? 0.20 : 0.25);
+        light ? Colors.white.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.10);
+    final glow = widget.seed.withValues(alpha: light ? 0.20 : 0.25);
 
     return IgnorePointer(
       ignoring: true,
@@ -197,7 +197,7 @@ class _GlassIcon extends StatelessWidget {
             child: Icon(
               icon,
               size: size * 0.54,
-              color: Colors.white.withOpacity(0.90),
+              color: Colors.white.withValues(alpha: 0.90),
             ),
           ),
         ),

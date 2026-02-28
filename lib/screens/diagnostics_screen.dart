@@ -73,7 +73,12 @@ class DiagnosticsScreen extends StatefulWidget {
       name: fileName,
       mimeType: mimeType,
     );
-    await Share.shareXFiles([file], subject: fileName);
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [file],
+        subject: fileName,
+      ),
+    );
   }
 
   static Future<DiagnosticsAppInfo> _loadAppInfoFromPlatform() async {

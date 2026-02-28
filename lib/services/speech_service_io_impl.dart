@@ -123,8 +123,8 @@ class SpeechService implements SpeechPort {
     Timer? to;
 
     Future<void> finish([String? value]) async {
-      if (to != null && to!.isActive) {
-        to!.cancel();
+      if (to != null && to.isActive) {
+        to.cancel();
       }
       if (_isListening) {
         try {
@@ -143,10 +143,12 @@ class SpeechService implements SpeechPort {
 
       await _speech.listen(
         localeId: localeId ?? _currentLocale,
-        listenMode: stt.ListenMode.dictation,
         listenFor: autoTimeout,
-        partialResults: true,
-        cancelOnError: true,
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: true,
+        ),
         onResult: (r) {
           final text = r.recognizedWords.trim();
           if (text.isNotEmpty) {

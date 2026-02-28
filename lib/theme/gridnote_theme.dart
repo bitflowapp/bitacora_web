@@ -40,10 +40,10 @@ Color _mix(Color a, Color b, double t) {
   int lerpInt(int x, int y) => x + ((y - x) * tt).round();
 
   return Color.fromARGB(
-    lerpInt(a.alpha, b.alpha),
-    lerpInt(a.red, b.red),
-    lerpInt(a.green, b.green),
-    lerpInt(a.blue, b.blue),
+    lerpInt((a.a * 255).round() & 0xff, (b.a * 255).round() & 0xff),
+    lerpInt((a.r * 255).round() & 0xff, (b.r * 255).round() & 0xff),
+    lerpInt((a.g * 255).round() & 0xff, (b.g * 255).round() & 0xff),
+    lerpInt((a.b * 255).round() & 0xff, (b.b * 255).round() & 0xff),
   );
 }
 
@@ -102,8 +102,6 @@ class GridnoteTheme {
     final overlayFocusRing = accentMono.withAlpha(_a(light ? 0.20 : 0.30));
 
     // Tonos secundarios para headers/variants.
-    final surfaceVariant =
-        light ? const Color(0xFFF2F2F4) : const Color(0xFF1A1A1E);
     final onSurfaceVariant =
         (light ? const Color(0xFF111827) : const Color(0xFFE5E7EB))
             .withAlpha(_a(light ? 0.78 : 0.82));
@@ -111,10 +109,8 @@ class GridnoteTheme {
     final scheme = baseScheme.copyWith(
       primary: accentMono,
       secondary: accentMono,
-      background: scaffold,
       surface: card,
       surfaceContainerHighest: card,
-      surfaceVariant: surfaceVariant,
       onSurfaceVariant: onSurfaceVariant,
       outline: divider.withAlpha(_a(light ? 0.90 : 0.70)),
       outlineVariant: divider.withAlpha(_a(light ? 0.86 : 0.60)),
@@ -295,62 +291,62 @@ class GridnoteTheme {
       // Botones: píldora + overlay sutil (pressed/hover).
       filledButtonTheme: FilledButtonThemeData(
         style: ButtonStyle(
-          shape: const MaterialStatePropertyAll(pillShape),
-          padding: const MaterialStatePropertyAll(
+          shape: const WidgetStatePropertyAll(pillShape),
+          padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           ),
-          textStyle: MaterialStatePropertyAll(
+          textStyle: WidgetStatePropertyAll(
             textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
-          overlayColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.pressed)) return overlayPressed;
-            if (states.contains(MaterialState.hovered)) return overlayHover;
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) return overlayPressed;
+            if (states.contains(WidgetState.hovered)) return overlayHover;
             return null;
           }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: ButtonStyle(
-          shape: const MaterialStatePropertyAll(pillShape),
-          side: MaterialStatePropertyAll(
+          shape: const WidgetStatePropertyAll(pillShape),
+          side: WidgetStatePropertyAll(
             BorderSide(color: divider.withAlpha(_a(light ? 0.78 : 0.55))),
           ),
-          padding: const MaterialStatePropertyAll(
+          padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           ),
-          textStyle: MaterialStatePropertyAll(
+          textStyle: WidgetStatePropertyAll(
             textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
-          overlayColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.pressed)) return overlayPressed;
-            if (states.contains(MaterialState.hovered)) return overlayHover;
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) return overlayPressed;
+            if (states.contains(WidgetState.hovered)) return overlayHover;
             return null;
           }),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: ButtonStyle(
-          shape: const MaterialStatePropertyAll(pillShape),
-          padding: const MaterialStatePropertyAll(
+          shape: const WidgetStatePropertyAll(pillShape),
+          padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           ),
-          textStyle: MaterialStatePropertyAll(
+          textStyle: WidgetStatePropertyAll(
             textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
-          overlayColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.pressed)) return overlayPressed;
-            if (states.contains(MaterialState.hovered)) return overlayHover;
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) return overlayPressed;
+            if (states.contains(WidgetState.hovered)) return overlayHover;
             return null;
           }),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
-          shape: const MaterialStatePropertyAll(pillShape),
-          padding: const MaterialStatePropertyAll(EdgeInsets.all(10)),
-          overlayColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.pressed)) return overlayPressed;
-            if (states.contains(MaterialState.hovered)) return overlayHover;
+          shape: const WidgetStatePropertyAll(pillShape),
+          padding: const WidgetStatePropertyAll(EdgeInsets.all(10)),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) return overlayPressed;
+            if (states.contains(WidgetState.hovered)) return overlayHover;
             return null;
           }),
         ),
@@ -358,28 +354,28 @@ class GridnoteTheme {
 
       // Switch/Checkbox “calmados”.
       switchTheme: SwitchThemeData(
-        trackOutlineColor: MaterialStatePropertyAll(
+        trackOutlineColor: WidgetStatePropertyAll(
           divider.withAlpha(_a(light ? 0.70 : 0.50)),
         ),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return accentMono.withAlpha(_a(light ? 0.24 : 0.36));
           }
           return divider.withAlpha(_a(light ? 0.28 : 0.34));
         }),
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) return accentMono;
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return accentMono;
           return light ? Colors.white : const Color(0xFF16161A);
         }),
       ),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.80 : 0.58))),
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) return accentMono;
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return accentMono;
           return Colors.transparent;
         }),
-        checkColor: const MaterialStatePropertyAll(Colors.white),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
       ),
 
       // Chips “pill” premium.
@@ -387,7 +383,7 @@ class GridnoteTheme {
         shape: pillShape,
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.78 : 0.55))),
         backgroundColor:
-            scheme.surfaceVariant.withAlpha(_a(light ? 0.65 : 0.55)),
+            scheme.surfaceContainerHighest.withAlpha(_a(light ? 0.65 : 0.55)),
         selectedColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
         labelStyle: textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
@@ -452,14 +448,14 @@ class GridnoteTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         indicatorColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
-        labelTextStyle: MaterialStatePropertyAll(
+        labelTextStyle: WidgetStatePropertyAll(
           textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w700,
             color: scheme.onSurfaceVariant,
           ),
         ),
-        iconTheme: MaterialStateProperty.resolveWith((states) {
-          final selected = states.contains(MaterialState.selected);
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             color: selected ? accentMono : scheme.onSurfaceVariant,
             size: 22,
@@ -485,8 +481,8 @@ class GridnoteTheme {
       // Scrollbars discretas.
       scrollbarTheme: ScrollbarThemeData(
         radius: const Radius.circular(12),
-        thickness: const MaterialStatePropertyAll(9),
-        thumbVisibility: const MaterialStatePropertyAll(true),
+        thickness: const WidgetStatePropertyAll(9),
+        thumbVisibility: const WidgetStatePropertyAll(true),
       ),
 
       // Dividers finos (grilla).
