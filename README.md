@@ -62,12 +62,26 @@ Notas de seguridad:
 - Artifact principal web: `build/web`
 - Publicacion GitHub Pages: `.github/workflows/pages.yml`
 - Android release (APK): `.github/workflows/android_release.yml`
+- Release web local (Windows, validaciones incluidas): `scripts/release_web.ps1`
+- Deploy opcional a `gh-pages`: `scripts/deploy_gh_pages.ps1`
 
 Entrega tipica a cliente:
 
 1. Build web release
 1. Copiar `build/web` a hosting o `docs/` segun estrategia
 1. Entregar quickstart de usuario final: `docs/quickstart.md`
+
+Release recomendado (PowerShell):
+
+```powershell
+.\scripts\release_web.ps1
+```
+
+Deploy opcional a GitHub Pages (branch `gh-pages`):
+
+```powershell
+.\scripts\deploy_gh_pages.ps1
+```
 
 ## Troubleshooting (Windows)
 
