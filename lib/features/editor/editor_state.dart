@@ -418,9 +418,6 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _photoFlowClearT;
   String? _engineBaseResolved;
   String? _engineKeyResolved;
-  DateTime? _engineLastCheckAt;
-  bool _engineLastOk = false;
-  String? _engineLastError;
   bool _engineHealthCheckInFlight = false;
   bool _engineFallbackMode = false;
   late final EngineApi _engineApi = EngineApi();
@@ -470,8 +467,8 @@ class _EditorScreenState extends State<EditorScreen>
   DateTime _lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
   VoidCallback? _detachWebFlushSignal;
   int _fillDownCount = 5;
-  int _incrementCount = 5;
-  int _incrementStep = 1;
+  final int _incrementCount = 5;
+  final int _incrementStep = 1;
   Set<_CellRef> _invalidCells = <_CellRef>{};
   Map<_CellRef, String> _invalidCellMessages = <_CellRef, String>{};
   int _pendingRequired = 0;
@@ -3796,10 +3793,6 @@ class _EditorScreenState extends State<EditorScreen>
       kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   bool get _isIosWeb => kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-
-  bool get _isAndroidDevice =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-
   double _effectiveKeyboardInset(
     BuildContext context, {
     double? mediaQueryInset,
@@ -13692,63 +13685,6 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Future<void> _promptIncrement(BuildContext context, int r, int c) async {
-    if (c < 0 || c >= _headers.length - 1) return;
-    final countCtrl = TextEditingController(text: _incrementCount.toString());
-    final stepCtrl = TextEditingController(text: _incrementStep.toString());
-    final res = await showDialog<List<int>>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Incrementar'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: countCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Cantidad'),
-              ),
-              TextField(
-                controller: stepCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Paso'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () {
-                final count = int.tryParse(countCtrl.text.trim());
-                final step = int.tryParse(stepCtrl.text.trim());
-                if (count == null || step == null) {
-                  Navigator.of(ctx).pop();
-                  return;
-                }
-                Navigator.of(ctx).pop([count, step]);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-    countCtrl.dispose();
-    stepCtrl.dispose();
-    if (!mounted) return;
-    if (res == null || res.length != 2) return;
-    final count = res[0];
-    final step = res[1];
-    if (count <= 0) return;
-    _incrementCount = count;
-    _incrementStep = step == 0 ? 1 : step;
-    _incrementDownColumn(r, c, count: _incrementCount, step: _incrementStep);
-  }
-
   void _incrementDownColumn(
     int r,
     int c, {
@@ -13920,18 +13856,6 @@ class _EditorScreenState extends State<EditorScreen>
       if (ref.rowId == rowId) return true;
     }
     return false;
-  }
-
-  bool _rowIsEffectivelyEmpty(_RowModel row) {
-    final dataCols = math.max(0, _headers.length - 1);
-    for (int c = 0; c < dataCols && c < row.cells.length; c++) {
-      if (row.cells[c].trim().isNotEmpty) return false;
-    }
-    if (row.photos.isNotEmpty) return false;
-    if (row.gpsLat != null || row.gpsLng != null) return false;
-    if (row.reviewed) return false;
-    if (_rowHasMetaForRow(row.id)) return false;
-    return true;
   }
 
   bool _shouldShowPremiumEmptyState() {
@@ -14983,29 +14907,30 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    RadioListTile<_SmartPasteMode>(
-                      key: const Key('smart_paste_mode_replace'),
-                      value: _SmartPasteMode.replaceFromActive,
+                    RadioGroup<_SmartPasteMode>(
                       groupValue: mode,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
                       onChanged: (value) {
                         if (value == null) return;
                         setModalState(() => mode = value);
                       },
-                      title: const Text('Reemplazar desde celda activa'),
-                    ),
-                    RadioListTile<_SmartPasteMode>(
-                      key: const Key('smart_paste_mode_insert'),
-                      value: _SmartPasteMode.insertRows,
-                      groupValue: mode,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setModalState(() => mode = value);
-                      },
-                      title: const Text('Insertar filas'),
+                      child: Column(
+                        children: [
+                          RadioListTile<_SmartPasteMode>(
+                            key: const Key('smart_paste_mode_replace'),
+                            value: _SmartPasteMode.replaceFromActive,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Reemplazar desde celda activa'),
+                          ),
+                          RadioListTile<_SmartPasteMode>(
+                            key: const Key('smart_paste_mode_insert'),
+                            value: _SmartPasteMode.insertRows,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Insertar filas'),
+                          ),
+                        ],
+                      ),
                     ),
                     SwitchListTile.adaptive(
                       key: const Key('smart_paste_toggle_header'),
@@ -15377,7 +15302,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       try {
         var processed = 0;
-        for (final header in headerChanges) {
+        for (final _ in headerChanges) {
           _throwIfLongOperationCancelled();
           processed++;
           if (processed % chunkCells == 0 || processed == totalOps) {
@@ -16246,14 +16171,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   bool _cellHasGps(int r, int c) => _cellMetaAt(r, c)?.hasGps ?? false;
-  bool _cellHasPhotos(int r, int c) => _cellMetaAt(r, c)?.hasPhotos ?? false;
   bool _cellHasAudios(int r, int c) => _cellMetaAt(r, c)?.hasAudios ?? false;
-
-  List<PhotoAttachment> _cellPhotosAt(int r, int c) =>
-      _cellMetaAt(r, c)?.photos ?? const <PhotoAttachment>[];
-
-  List<AudioAttachment> _cellAudiosAt(int r, int c) =>
-      _cellMetaAt(r, c)?.audios ?? const <AudioAttachment>[];
 
   String _cellPhotoThumb(int r, int c) {
     final meta = _cellMetaAt(r, c);
@@ -16274,18 +16192,6 @@ class _EditorScreenState extends State<EditorScreen>
         : _attachmentProcessingCells.remove(localRef);
     if (changed) {
       _bumpRowVersionById(_rows[idx.r].id);
-    }
-  }
-
-  Future<T> _withAttachmentProcessing<T>(
-    CellRef ref,
-    Future<T> Function() action,
-  ) async {
-    _setAttachmentProcessing(ref, true);
-    try {
-      return await action();
-    } finally {
-      _setAttachmentProcessing(ref, false);
     }
   }
 
@@ -16542,10 +16448,6 @@ class _EditorScreenState extends State<EditorScreen>
     });
     _engineStatus = null;
     _engineStatusIsError = false;
-  }
-
-  Future<void> _pasteGpsIntoCell(int r, int c) async {
-    await _requestGpsForCell(r, c, forceWriteText: true);
   }
 
   Future<_GpsOutcome> _getGpsFixWithFallback({
@@ -19082,10 +18984,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Uint8List _archiveFileBytes(ArchiveFile file) {
-    final content = file.content;
-    if (content is Uint8List) return content;
-    if (content is List<int>) return Uint8List.fromList(content);
-    return Uint8List(0);
+    return file.content;
   }
 
   ArchiveFile? _findArchiveFileByPath(
@@ -19888,205 +19787,6 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Map<String, dynamic> _buildPortableSheetJson({
-    required Map<String, Map<String, dynamic>> manifestCells,
-  }) {
-    final rows = <Map<String, dynamic>>[];
-    for (int r = 0; r < _rows.length; r++) {
-      final row = _rows[r];
-      final cells = <String, String>{};
-      for (int c = 0; c < _headers.length; c++) {
-        final value = c < row.cells.length ? row.cells[c] : '';
-        if (value.trim().isEmpty) continue;
-        cells[CellKey(r, c).a1] = value;
-      }
-      rows.add(<String, dynamic>{'row': r + 1, 'id': row.id, 'cells': cells});
-    }
-
-    return <String, dynamic>{
-      'schema_version': 1,
-      'sheet_id': widget.sheetId,
-      'sheet_name': _sheetName,
-      'exported_at_utc': DateTime.now().toUtc().toIso8601String(),
-      'headers': List<String>.from(_headers, growable: false),
-      'rows': rows,
-      'attachments_manifest': manifestCells,
-    };
-  }
-
-  String _portableViewerHtml() {
-    return '''
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BitFlow Viewer</title>
-  <style>
-    :root {
-      --bg: #f5f6f8;
-      --panel: #ffffffcc;
-      --ink: #0b0d12;
-      --muted: #5f6673;
-      --line: #d8dde6;
-    }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: linear-gradient(180deg,#f7f8fa 0%,#edf0f5 100%); }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
-    .card { backdrop-filter: blur(8px); background: var(--panel); border: 1px solid #ffffff88; border-radius: 16px; box-shadow: 0 8px 30px #0f172a14; padding: 14px; }
-    h1 { margin: 0 0 6px; font-size: 20px; }
-    .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
-    table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 12px; overflow: hidden; }
-    th, td { border: 1px solid var(--line); padding: 8px; font-size: 12px; vertical-align: top; }
-    th { background: #f4f6fa; position: sticky; top: 0; z-index: 1; text-align: left; }
-    .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
-    #attachments { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill,minmax(210px,1fr)); gap: 10px; }
-    .att { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 10px; }
-    .att a { color: #0b57d0; text-decoration: none; word-break: break-word; }
-    .cell-title { font-weight: 700; margin-bottom: 8px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <h1 id="title">BitFlow Viewer</h1>
-      <div class="meta" id="meta"></div>
-      <div style="overflow:auto; max-height: 65vh;">
-        <table id="grid"></table>
-      </div>
-      <div class="hint">Toca una celda para ver adjuntos.</div>
-      <div id="attachments"></div>
-    </div>
-  </div>
-  <script src="./app.js"></script>
-</body>
-</html>
-''';
-  }
-
-  String _portableViewerJs() {
-    return '''
-(async function () {
-  const byId = (id) => document.getElementById(id);
-  const title = byId('title');
-  const meta = byId('meta');
-  const grid = byId('grid');
-  const attachments = byId('attachments');
-
-  let payload;
-  try {
-    const res = await fetch('../sheet.json');
-    payload = await res.json();
-  } catch (err) {
-    title.textContent = 'BitFlow Viewer (error)';
-    meta.textContent = 'No se pudo leer sheet.json';
-    return;
-  }
-
-  const headers = Array.isArray(payload.headers) ? payload.headers : [];
-  const rows = Array.isArray(payload.rows) ? payload.rows : [];
-  const manifest = payload.attachments_manifest || {};
-
-  title.textContent = payload.sheet_name || 'BitFlow Viewer';
-  meta.textContent = 'Exportado: ' + (payload.exported_at_utc || 'n/a');
-
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  headers.forEach((h) => {
-    const th = document.createElement('th');
-    th.textContent = h;
-    trh.appendChild(th);
-  });
-  thead.appendChild(trh);
-  grid.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  rows.forEach((rowObj, rIdx) => {
-    const tr = document.createElement('tr');
-    const cells = rowObj.cells || {};
-    headers.forEach((_, cIdx) => {
-      const a1 = colLetters(cIdx) + String(rIdx + 1);
-      const td = document.createElement('td');
-      td.textContent = cells[a1] || '';
-      td.style.cursor = 'pointer';
-      td.addEventListener('click', () => showAttachments(a1));
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  grid.appendChild(tbody);
-
-  function showAttachments(cellRef) {
-    attachments.innerHTML = '';
-    const block = manifest[cellRef];
-    const title = document.createElement('div');
-    title.className = 'cell-title';
-    title.textContent = 'Adjuntos de ' + cellRef;
-    attachments.appendChild(title);
-    if (!block) {
-      const empty = document.createElement('div');
-      empty.textContent = 'Sin adjuntos en esta celda.';
-      attachments.appendChild(empty);
-      return;
-    }
-    const list = [];
-    if (Array.isArray(block.photos)) list.push(...block.photos.map((x) => ({...x, type: (x.type || 'photo')})));
-    if (Array.isArray(block.audios)) list.push(...block.audios.map((x) => ({...x, type: 'audio'})));
-    if (!list.length) {
-      const empty = document.createElement('div');
-      empty.textContent = 'Sin adjuntos en esta celda.';
-      attachments.appendChild(empty);
-      return;
-    }
-    list.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'att';
-      const kind = document.createElement('div');
-      kind.textContent = item.type || 'file';
-      kind.style.fontWeight = '700';
-      kind.style.marginBottom = '4px';
-      const name = document.createElement('div');
-      name.textContent = item.fileName || 'archivo';
-      const link = document.createElement('a');
-      link.href = '../' + (item.path || '');
-      link.textContent = 'Abrir';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      card.appendChild(kind);
-      card.appendChild(name);
-      card.appendChild(link);
-      attachments.appendChild(card);
-    });
-  }
-
-  function colLetters(idx) {
-    let n = idx + 1;
-    let out = '';
-    while (n > 0) {
-      const rem = (n - 1) % 26;
-      out = String.fromCharCode(65 + rem) + out;
-      n = Math.floor((n - 1) / 26);
-    }
-    return out || 'A';
-  }
-})();
-''';
-  }
-
-  String _portableViewerReadme() {
-    return '''
-BitFlow portable viewer
-=======================
-1) Descomprime el ZIP completo.
-2) Abre "viewer/index.html" en un navegador moderno.
-3) Si el navegador bloquea lectura local, levanta un servidor estatico simple.
-
-Este paquete incluye:
-- sheet.json
-- attachments/
-- viewer/index.html + viewer/app.js
-''';
-  }
-
   String _exportPhotoFileName(
     String cellRef,
     PhotoAttachment photo, {
@@ -20553,9 +20253,6 @@ Este paquete incluye:
         setState(() {
           _engineStatus = null;
           _engineStatusIsError = false;
-          _engineLastOk = false;
-          _engineLastError = null;
-          _engineLastCheckAt = DateTime.now();
           _engineFallbackMode = true;
         });
       }
@@ -20580,9 +20277,6 @@ Este paquete incluye:
             _engineStatus = null;
             _engineStatusIsError = false;
           }
-          _engineLastOk = false;
-          _engineLastError = 'URL invalida o vacia';
-          _engineLastCheckAt = DateTime.now();
           _engineFallbackMode = true;
         });
       }
@@ -20604,9 +20298,6 @@ Este paquete incluye:
         _engineStatus =
             (showErrors && !_suppressEngineUnavailableUx) ? 'Engine OK' : null;
         _engineStatusIsError = false;
-        _engineLastOk = true;
-        _engineLastError = null;
-        _engineLastCheckAt = DateTime.now();
         _engineFallbackMode = false;
       });
       if (showErrors && !_suppressEngineUnavailableUx) {
@@ -20625,9 +20316,6 @@ Este paquete incluye:
           _engineStatus =
               shouldShowEngineFeedback ? _engineErrorMessage(e) : null;
           _engineStatusIsError = shouldShowEngineFeedback;
-          _engineLastOk = false;
-          _engineLastError = _engineErrorMessage(e);
-          _engineLastCheckAt = DateTime.now();
           _engineFallbackMode = true;
         });
         if (shouldShowEngineFeedback) {
@@ -20689,42 +20377,6 @@ Este paquete incluye:
     } catch (_) {
       return null;
     }
-  }
-
-  Future<bool> _checkEngineHealth(String baseUrl) async {
-    final normalized = EngineConfig.normalize(baseUrl);
-    if (!EngineConfig.isValidBaseUrl(normalized)) return false;
-
-    final candidates = <String>[
-      '/openapi.json',
-      '/healthz',
-      '/readyz',
-      '/health',
-      '/',
-    ];
-
-    for (final path in candidates) {
-      try {
-        await _engineApi.getJsonFromBase(
-          normalized,
-          path,
-          timeout: const Duration(seconds: 10),
-        );
-        if (kDebugMode) {
-          debugPrint('[engine] health ok: $normalized$path');
-        }
-        return true;
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint(
-            '[engine] health fail: $normalized$path -> '
-            '${_engineErrorDetails(e)}',
-          );
-        }
-      }
-    }
-
-    return false;
   }
 
   String _engineErrorMessage(Object error) {
