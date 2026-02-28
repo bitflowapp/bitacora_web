@@ -3,9 +3,9 @@
     "short_name": "BitFlow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#f4f4f5",
-    "theme_color": "#111111",
-    "description": "BitFlow: bitacoras tecnicas con captura de evidencia, respaldo e historial local.",
+    "background_color": "#F7F1E6",
+    "theme_color": "#C9AB84",
+    "description": "BitFlow: bitácoras operativas con evidencias, respaldo local y exportación profesional.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
