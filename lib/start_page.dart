@@ -24,7 +24,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' show ImageFilter;
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
@@ -1756,10 +1755,7 @@ class _StartPageState extends State<StartPage> {
   }
 
   Uint8List _archiveFileBytes(ArchiveFile file) {
-    final content = file.content;
-    if (content is Uint8List) return content;
-    if (content is List<int>) return Uint8List.fromList(content);
-    return Uint8List(0);
+    return file.content;
   }
 
   CellRef? _resolveImportCellRef(
@@ -2458,59 +2454,6 @@ class _StartPageState extends State<StartPage> {
     } finally {
       _endBusyOperation();
     }
-  }
-
-  Future<void> _exportLatestSheet() async {
-    final list = _visibleSheets;
-    if (list.isEmpty) {
-      _toast('No hay planillas para exportar.');
-      return;
-    }
-    await _exportSheet(list.first);
-  }
-
-  Future<void> _showHelpDialog() async {
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AppModal(
-          title: 'Ayuda rapida',
-          showClose: false,
-          actions: [
-            AppButton(
-              label: 'Cerrar',
-              variant: AppButtonVariant.ghost,
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Nuevo: crea una planilla con columnas y filas.',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Exportar: exporta la planilla mas reciente en XLSX.',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Importar: restaura un paquete ZIP desde este equipo.',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'El reporte HTML y el paquete/backup ZIP se generan dentro del Editor.',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   // --------------------- Notes (“mensaje destacado) ---------------------
@@ -3617,13 +3560,6 @@ class _StartPageState extends State<StartPage> {
     return '$dd/$mm $hh:$min';
   }
 
-  String _fmtDateFromMs(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    return '$dd/$mm/${d.year}';
-  }
-
   String _sanitizeFileName(String s) {
     final r = RegExp(r'[\\/:*?"<>|]+');
     final cleaned = s.trim().replaceAll(r, '_');
@@ -3998,15 +3934,6 @@ class _StartPageState extends State<StartPage> {
       totalRows += m.rows;
     }
     return (total: total, today: today, totalRows: totalRows);
-  }
-
-  ({int total, int totalRows}) get _statsView {
-    final data = _visibleSheets;
-    int totalRows = 0;
-    for (final m in data) {
-      totalRows += m.rows;
-    }
-    return (total: data.length, totalRows: totalRows);
   }
 
   // --------------------- Build ---------------------
@@ -4877,140 +4804,6 @@ enum _SummaryKind { today, scheduled, all, flagged, completed }
 
 enum _ListKind { root, folder, trash }
 
-class _TopPillActions extends StatelessWidget {
-  const _TopPillActions({
-    required this.colors,
-    required this.compact,
-    required this.enabledAdd,
-    required this.onSearch,
-    required this.onAdd,
-    required this.onExport,
-    required this.onImport,
-    required this.onHelp,
-    required this.onMore,
-  });
-
-  final _ApplePalette colors;
-  final bool compact;
-  final bool enabledAdd;
-  final VoidCallback onSearch;
-  final VoidCallback onAdd;
-  final VoidCallback onExport;
-  final VoidCallback onImport;
-  final VoidCallback onHelp;
-  final VoidCallback onMore;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg =
-        colors.isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
-    final border =
-        colors.separator.withValues(alpha: colors.isLight ? 0.35 : 0.22);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg.withValues(alpha: colors.isLight ? 0.85 : 0.72),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: colors.isLight ? 0.08 : 0.45),
-                blurRadius: 16,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PillIcon(
-                icon: CupertinoIcons.search,
-                color: colors.textPrimary,
-                onTap: onSearch,
-              ),
-              _PillDivider(color: border),
-              _PillIcon(
-                icon: CupertinoIcons.list_bullet_below_rectangle,
-                color: enabledAdd ? colors.textPrimary : colors.muted,
-                onTap: enabledAdd ? onAdd : null,
-              ),
-              if (!compact) ...[
-                _PillDivider(color: border),
-                _PillIcon(
-                  icon: CupertinoIcons.square_arrow_up,
-                  color: colors.textPrimary,
-                  onTap: onExport,
-                ),
-                _PillDivider(color: border),
-                _PillIcon(
-                  icon: CupertinoIcons.square_arrow_down,
-                  color: colors.textPrimary,
-                  onTap: onImport,
-                ),
-                _PillDivider(color: border),
-                _PillIcon(
-                  icon: CupertinoIcons.question_circle,
-                  color: colors.textPrimary,
-                  onTap: onHelp,
-                ),
-              ],
-              _PillDivider(color: border),
-              _PillIcon(
-                icon: CupertinoIcons.ellipsis,
-                color: colors.textPrimary,
-                onTap: onMore,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PillDivider extends StatelessWidget {
-  const _PillDivider({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      color: color,
-    );
-  }
-}
-
-class _PillIcon extends StatelessWidget {
-  const _PillIcon({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      pressedOpacity: 0.55,
-      onPressed: onTap,
-      child: Icon(icon, size: 20, color: color), minimumSize: Size(0, 0),
-    );
-  }
-}
-
 class _RemindersSummaryGrid extends StatelessWidget {
   const _RemindersSummaryGrid({
     required this.isLight,
@@ -5789,40 +5582,6 @@ class _AppleEmptyState extends StatelessWidget {
                 ),
               ],
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AppleOutlineButton extends StatelessWidget {
-  const _AppleOutlineButton({
-    required this.onPressed,
-    required this.colors,
-    required this.label,
-    required this.icon,
-  });
-
-  final VoidCallback? onPressed;
-  final _ApplePalette colors;
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      onPressed: onPressed,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(12),
-      pressedOpacity: 0.55,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: colors.accent),
-          const SizedBox(width: 8),
-          Text(label,
-              style: TextStyle(
-                  color: colors.textPrimary, fontWeight: FontWeight.w800)),
         ],
       ),
     );
