@@ -1,7 +1,5 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-
-import 'web_audio_recorder.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;import 'web_audio_recorder.dart';
 
 class WebAudioRecorderImpl implements WebAudioRecorder {
   static const List<String> _preferredMimeTypes = <String>[

@@ -1,8 +1,6 @@
 // ignore_for_file: avoid_web_libraries_in_flutter
 
-import 'dart:html' as html;
-
-double visualViewportKeyboardInset() {
+import 'package:bitacora_web/web/html_compat.dart' as html;double visualViewportKeyboardInset() {
   try {
     final vv = html.window.visualViewport;
     if (vv == null) return 0.0;

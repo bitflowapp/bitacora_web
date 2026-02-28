@@ -1,7 +1,5 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: uri_does_not_exist
-import 'dart:indexed_db' as idb;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 
 class OfflineQueueStore {
   static const String _dbName = 'bitflow_offline_queue_v1';
@@ -9,7 +7,7 @@ class OfflineQueueStore {
 
   const OfflineQueueStore();
 
-  static idb.Database? _db;
+  static dynamic _db;
   static final Map<String, String> _memoryFallback = <String, String>{};
 
   bool get isPersistent => true;
@@ -73,7 +71,7 @@ class OfflineQueueStore {
     } catch (_) {}
   }
 
-  Future<idb.Database?> _ensureDb() async {
+  Future<dynamic> _ensureDb() async {
     final existing = _db;
     if (existing != null) return existing;
     final indexedDb = html.window.indexedDB;
@@ -83,8 +81,8 @@ class OfflineQueueStore {
         _dbName,
         version: 1,
         onUpgradeNeeded: (event) {
-          final db = (event.target as idb.Request).result as idb.Database;
-          if (!db.objectStoreNames!.contains(_storeName)) {
+          final db = (event.target as dynamic).result;
+          if (!(db.objectStoreNames as List).contains(_storeName)) {
             db.createObjectStore(_storeName);
           }
         },

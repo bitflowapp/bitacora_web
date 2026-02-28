@@ -1,8 +1,7 @@
 /* ignore_for_file: avoid_web_libraries_in_flutter */
 import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
-import 'dart:html' as html;
-// ignore: uri_does_not_exist
-import 'dart:js_util' as jsu;
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'package:bitacora_web/web/js_interop_compat.dart' as jsu;
 
 class WebUser {
   final String sub, name, email, picture;
