@@ -16,31 +16,6 @@ void main() {
     return Uint8List.fromList(img.encodePng(tiny));
   }
 
-  String unescapeXml(String value) {
-    return value
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'");
-  }
-
-  List<String> readSharedStrings(Archive archive) {
-    final shared = archive.files
-        .where((f) => f.name.replaceAll('\\', '/') == 'xl/sharedStrings.xml')
-        .toList(growable: false);
-    if (shared.isEmpty) return const <String>[];
-
-    final xml = utf8.decode(shared.first.content as List<int>);
-    final out = <String>[];
-    final reg = RegExp(r'<t[^>]*>(.*?)</t>', dotAll: true);
-    for (final m in reg.allMatches(xml)) {
-      final raw = m.group(1) ?? '';
-      out.add(unescapeXml(raw));
-    }
-    return out;
-  }
-
   void expectNoLocalPathTokens(String xml) {
     expect(xml.contains('file:'), isFalse);
     expect(xml.contains('content://'), isFalse);

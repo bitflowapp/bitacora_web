@@ -5,7 +5,6 @@ part of 'editor_screen.dart';
 const int kDefaultCols = 15; // 14 + Fotos
 const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
-const double _kMobileQuickBarH = 62.0;
 const double _kMobileInlineCompactBarH = 68.0;
 const double _kMinMobileGridVisiblePx = 200.0;
 const int _kMaxPhotosPerCell = 6;

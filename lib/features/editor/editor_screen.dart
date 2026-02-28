@@ -58,7 +58,6 @@ import 'package:bitacora_web/services/photo_acquire_service.dart';
 import 'package:bitacora_web/services/photo_bytes_resolver.dart';
 import 'package:bitacora_web/services/photo_json_codec.dart';
 import 'package:bitacora_web/services/photo_mime_sniffer.dart';
-import 'package:bitacora_web/services/photo_storage_service.dart';
 import 'package:bitacora_web/services/sheet_store.dart';
 import 'package:bitacora_web/services/smart_table_paste.dart';
 import 'package:bitacora_web/services/speech_service.dart';
