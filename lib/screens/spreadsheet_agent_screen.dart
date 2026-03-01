@@ -255,6 +255,8 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         (field) => MapEntry<String, String>(field.key, field.label),
       ),
     ];
+    String query = '';
+    final searchController = TextEditingController();
     final picked = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -264,55 +266,92 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         final cs = theme.colorScheme;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Mapear "$header"',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (ctx, index) {
-                      final option = options[index];
-                      final selected = option.key == currentValue;
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: selected
-                                ? cs.primary.withValues(alpha: 0.55)
-                                : cs.outlineVariant,
-                          ),
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final normalized = query.trim().toLowerCase();
+            final filtered = options.where((option) {
+              if (normalized.isEmpty) return true;
+              return option.value.toLowerCase().contains(normalized) ||
+                  option.key.toLowerCase().contains(normalized);
+            }).toList(growable: false);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mapear "$header"',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (options.length > 8) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: searchController,
+                        onChanged: (value) =>
+                            setSheetState(() => query = value),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: 'Buscar campo...',
+                          prefixIcon: Icon(Icons.search_rounded),
                         ),
-                        tileColor: selected
-                            ? cs.primaryContainer.withValues(alpha: 0.55)
-                            : cs.surfaceContainerLow,
-                        title: Text(option.value),
-                        trailing: selected
-                            ? Icon(Icons.check_rounded, color: cs.primary)
-                            : null,
-                        onTap: () => Navigator.of(sheetContext).pop(option.key),
-                      );
-                    },
-                  ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Sin resultados para "$query".',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 6),
+                              itemBuilder: (ctx, index) {
+                                final option = filtered[index];
+                                final selected = option.key == currentValue;
+                                return ListTile(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: BorderSide(
+                                      color: selected
+                                          ? cs.primary.withValues(alpha: 0.55)
+                                          : cs.outlineVariant,
+                                    ),
+                                  ),
+                                  tileColor: selected
+                                      ? cs.primaryContainer
+                                          .withValues(alpha: 0.55)
+                                      : cs.surfaceContainerLow,
+                                  title: Text(option.value),
+                                  trailing: selected
+                                      ? Icon(Icons.check_rounded,
+                                          color: cs.primary)
+                                      : null,
+                                  onTap: () => Navigator.of(sheetContext)
+                                      .pop(option.key),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
+    searchController.dispose();
     if (picked == null) return;
     _setHeaderMapping(header, picked);
   }
