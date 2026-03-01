@@ -1,6 +1,10 @@
-﻿param(
+param(
   [string]$Flutter = "flutter",
   [string]$Branch = "gh-pages",
+  [string]$BaseHref = "",
+  [string]$ProCtaUrl = "",
+  [string]$SupportEmail = "",
+  [string]$SupportWhatsApp = "",
   [switch]$SkipBuild,
   [switch]$AllowDirty
 )
@@ -19,7 +23,7 @@ function Run-Git {
 
 try {
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    throw "git no está disponible en PATH."
+    throw "git no esta disponible en PATH."
   }
 
   if (-not $AllowDirty) {
@@ -30,13 +34,18 @@ try {
   }
 
   if (-not $SkipBuild) {
-    & "$PSScriptRoot\\release_web.ps1" -Flutter $Flutter
+    & "$PSScriptRoot\release_web.ps1" `
+      -Flutter $Flutter `
+      -BaseHref $BaseHref `
+      -ProCtaUrl $ProCtaUrl `
+      -SupportEmail $SupportEmail `
+      -SupportWhatsApp $SupportWhatsApp
     if ($LASTEXITCODE -ne 0) {
-      throw "release_web.ps1 falló."
+      throw "release_web.ps1 fallo."
     }
   }
 
-  $webOut = Join-Path $repoRoot "build\\web"
+  $webOut = Join-Path $repoRoot "build\web"
   if (-not (Test-Path $webOut)) {
     throw "No existe build/web. Ejecuta primero release_web.ps1."
   }
@@ -53,7 +62,8 @@ try {
 
   if ($remoteExists) {
     Run-Git -Args @("worktree", "add", "$tmp", "origin/$Branch")
-  } else {
+  }
+  else {
     Run-Git -Args @("worktree", "add", "-b", $Branch, "$tmp")
   }
 
