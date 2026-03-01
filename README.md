@@ -48,6 +48,7 @@ Ejemplo:
 
 ```powershell
 flutter build web --release `
+  --base-href=/bitacora_web/ `
   --dart-define=PRO_CTA_URL=https://tuempresa.com/bitflow-pro `
   --dart-define=SUPPORT_EMAIL=soporte@tuempresa.com `
   --dart-define=SUPPORT_WHATSAPP=+5491122334455
@@ -65,6 +66,8 @@ Notas de seguridad:
 - Android release (APK): `.github/workflows/android_release.yml`
 - Release web local (Windows, validaciones incluidas): `scripts/release_web.ps1`
 - Deploy opcional a `gh-pages`: `scripts/deploy_gh_pages.ps1`
+- URL live (Pages): `https://marcoluna-nqn.github.io/bitacora_web/`
+- Release estable: `https://github.com/marcoluna-nqn/bitacora_web/releases/tag/v1.3.0`
 
 Entrega tipica a cliente:
 
@@ -75,7 +78,11 @@ Entrega tipica a cliente:
 Release recomendado (PowerShell):
 
 ```powershell
-.\scripts\release_web.ps1
+.\scripts\release_web.ps1 `
+  -BaseHref "/bitacora_web/" `
+  -ProCtaUrl "https://tuempresa.com/bitflow-pro" `
+  -SupportEmail "soporte@tuempresa.com" `
+  -SupportWhatsApp "+5491122334455"
 ```
 
 Deploy opcional a GitHub Pages (branch `gh-pages`):
