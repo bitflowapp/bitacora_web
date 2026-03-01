@@ -1549,6 +1549,10 @@ class _SheetPalette {
     required this.accent,
     required this.statusBg,
     required this.statusFg,
+    Color? successBg,
+    Color? successFg,
+    Color? dangerBg,
+    Color? dangerFg,
     required this.hintBg,
     required this.headerCardBg,
     required this.headerCardBorder,
@@ -1565,7 +1569,13 @@ class _SheetPalette {
             (isLight
                 ? cellText.withValues(alpha: 0.08)
                 : cellText.withValues(alpha: 0.14)),
-        zebraBg = zebraBg ?? zebraB;
+        zebraBg = zebraBg ?? zebraB,
+        successBg = successBg ?? statusBg,
+        successFg = successFg ?? statusFg,
+        dangerBg = dangerBg ??
+            (isLight ? const Color(0xFFFFF1ED) : const Color(0xFF5C2A25)),
+        dangerFg = dangerFg ??
+            (isLight ? const Color(0xFF8A2E23) : const Color(0xFFFFD9D3));
 
   final bool isLight;
   final double hairline;
@@ -1608,6 +1618,10 @@ class _SheetPalette {
 
   final Color statusBg;
   final Color statusFg;
+  final Color successBg;
+  final Color successFg;
+  final Color dangerBg;
+  final Color dangerFg;
 
   final Color hintBg;
 
