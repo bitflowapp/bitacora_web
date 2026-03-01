@@ -14,10 +14,10 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 
 function Run-Git {
-  param([string[]]$Args)
-  & git @Args
+  param([string[]]$GitArgs)
+  & git @GitArgs
   if ($LASTEXITCODE -ne 0) {
-    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE)."
+    throw "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE)."
   }
 }
 
@@ -55,16 +55,16 @@ try {
     Remove-Item $tmp -Recurse -Force
   }
 
-  Run-Git -Args @("fetch", "origin", $Branch)
+  Run-Git -GitArgs @("fetch", "origin", $Branch)
 
   $remoteRef = "refs/remotes/origin/$Branch"
   $remoteExists = (git show-ref $remoteRef) -ne $null
 
   if ($remoteExists) {
-    Run-Git -Args @("worktree", "add", "$tmp", "origin/$Branch")
+    Run-Git -GitArgs @("worktree", "add", "$tmp", "origin/$Branch")
   }
   else {
-    Run-Git -Args @("worktree", "add", "-b", $Branch, "$tmp")
+    Run-Git -GitArgs @("worktree", "add", "-b", $Branch, "$tmp")
   }
 
   try {
@@ -75,7 +75,7 @@ try {
 
     New-Item -ItemType File -Path ".nojekyll" -Force | Out-Null
 
-    Run-Git -Args @("add", "-A")
+    Run-Git -GitArgs @("add", "-A")
 
     $hasChanges = git status --porcelain
     if (-not $hasChanges) {
@@ -84,14 +84,14 @@ try {
     }
 
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Run-Git -Args @("commit", "-m", "deploy: web release $stamp")
-    Run-Git -Args @("push", "origin", "HEAD:$Branch")
+    Run-Git -GitArgs @("commit", "-m", "deploy: web release $stamp")
+    Run-Git -GitArgs @("push", "origin", "HEAD:$Branch")
 
     Write-Host "Deploy completado a branch '$Branch'." -ForegroundColor Green
   }
   finally {
     Pop-Location
-    Run-Git -Args @("worktree", "remove", "$tmp", "--force")
+    Run-Git -GitArgs @("worktree", "remove", "$tmp", "--force")
     if (Test-Path $tmp) {
       Remove-Item $tmp -Recurse -Force
     }
