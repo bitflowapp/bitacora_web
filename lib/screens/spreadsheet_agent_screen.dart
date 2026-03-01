@@ -228,6 +228,156 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool _useBottomSheetMapping(BuildContext context) {
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
+    return shortestSide < 700;
+  }
+
+  void _setHeaderMapping(String header, String value) {
+    setState(() {
+      final clean = value.trim();
+      if (clean.isEmpty) {
+        _headerToField.remove(header);
+      } else {
+        _headerToField[header] = clean;
+      }
+    });
+    _runValidation();
+  }
+
+  Future<void> _pickHeaderMapping({
+    required String header,
+    required String currentValue,
+  }) async {
+    final options = <MapEntry<String, String>>[
+      const MapEntry<String, String>('', 'Ignorar'),
+      ..._template.fields.map(
+        (field) => MapEntry<String, String>(field.key, field.label),
+      ),
+    ];
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final cs = theme.colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Mapear "$header"',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (ctx, index) {
+                      final option = options[index];
+                      final selected = option.key == currentValue;
+                      return ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(
+                            color: selected
+                                ? cs.primary.withValues(alpha: 0.55)
+                                : cs.outlineVariant,
+                          ),
+                        ),
+                        tileColor: selected
+                            ? cs.primaryContainer.withValues(alpha: 0.55)
+                            : cs.surfaceContainerLow,
+                        title: Text(option.value),
+                        trailing: selected
+                            ? Icon(Icons.check_rounded, color: cs.primary)
+                            : null,
+                        onTap: () => Navigator.of(sheetContext).pop(option.key),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null) return;
+    _setHeaderMapping(header, picked);
+  }
+
+  Widget _buildMappingPicker({
+    required BuildContext context,
+    required String header,
+    required String currentValue,
+  }) {
+    if (!_useBottomSheetMapping(context)) {
+      return DropdownButtonFormField<String>(
+        initialValue: currentValue.isEmpty ? null : currentValue,
+        decoration: const InputDecoration(labelText: 'Campo destino'),
+        items: <DropdownMenuItem<String>>[
+          const DropdownMenuItem<String>(value: '', child: Text('Ignorar')),
+          ..._template.fields.map(
+            (field) => DropdownMenuItem<String>(
+              value: field.key,
+              child: Text(field.label),
+            ),
+          ),
+        ],
+        onChanged: (value) => _setHeaderMapping(header, value ?? ''),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    String selectedLabel = 'Ignorar';
+    if (currentValue.isNotEmpty) {
+      for (final field in _template.fields) {
+        if (field.key == currentValue) {
+          selectedLabel = field.label;
+          break;
+        }
+      }
+      if (selectedLabel == 'Ignorar') {
+        selectedLabel = currentValue;
+      }
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _pickHeaderMapping(
+          header: header,
+          currentValue: currentValue,
+        ),
+        child: InputDecorator(
+          decoration: const InputDecoration(
+            labelText: 'Campo destino',
+            suffixIcon: Icon(Icons.keyboard_arrow_down_rounded),
+          ),
+          child: Text(
+            selectedLabel,
+            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurface),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ingest = _ingest;
@@ -353,7 +503,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       ),
                       const SizedBox(height: 8),
                       ...ingest.headers.map((header) {
-                        final current = _headerToField[header];
+                        final current = (_headerToField[header] ?? '').trim();
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
@@ -367,34 +517,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: current,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Campo destino',
-                                  ),
-                                  items: <DropdownMenuItem<String>>[
-                                    const DropdownMenuItem<String>(
-                                      value: '',
-                                      child: Text('Ignorar'),
-                                    ),
-                                    ..._template.fields.map(
-                                      (field) => DropdownMenuItem<String>(
-                                        value: field.key,
-                                        child: Text(field.label),
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      final clean = (value ?? '').trim();
-                                      if (clean.isEmpty) {
-                                        _headerToField.remove(header);
-                                      } else {
-                                        _headerToField[header] = clean;
-                                      }
-                                    });
-                                    _runValidation();
-                                  },
+                                child: _buildMappingPicker(
+                                  context: context,
+                                  header: header,
+                                  currentValue: current,
                                 ),
                               ),
                             ],
