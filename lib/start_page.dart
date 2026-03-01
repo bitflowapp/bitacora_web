@@ -1,13 +1,13 @@
 // lib/start_page.dart
 // StartPage (BitFlow) - Home "100% Apple" (Cupertino-first), robusto y vendible.
 //
-// ✅ UPDATE (menú estilo Reminders iOS):
-// - Agrega “dashboard superior: tarjetas Hoy/Programados/Todos/Con indicador/Terminados.
-// - Agrega “Lista sugerida + “Mis listas (Raíz + Carpetas + Papelera).
+// UPDATE (menu estilo Reminders iOS):
+// - Agrega dashboard superior: tarjetas Hoy/Programados/Todos/Con indicador/Terminados.
+// - Agrega Lista sugerida + Mis listas (Raiz + Carpetas + Papelera).
 // - Barra superior en píldora (Buscar / Nuevo / Más) como Reminders.
 // - Botón flotante iOS (+) abajo a la derecha (NO Material FAB).
 //
-// ✅ FIX ENGINE (apunta al puerto):
+// FIX ENGINE (apunta al puerto):
 // - Default inteligente: usa el MISMO host donde abriste la web + :8001 (en desktop: localhost -> 8001; en iPhone/Android: IP LAN -> 8001).
 // - Normaliza lo que pegás: elimina /healthz, /docs, #/..., ?... y deja solo scheme://host:port.
 // - Acepta pegar "192.168.x.x:8001" sin http://
@@ -30,6 +30,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kDebugMode,
         defaultTargetPlatform,
         TargetPlatform,
         debugPrint,
@@ -38,6 +39,7 @@ import 'theme/app_theme.dart';
 import 'package:flutter/material.dart'
     show
         Colors,
+        ColorScheme,
         Border,
         BorderRadius,
         BoxDecoration,
@@ -55,6 +57,7 @@ import 'package:flutter/material.dart'
         InkWell,
         MaterialPageRoute,
         LicensePage,
+        ModalRoute,
         showModalBottomSheet,
         showDialog;
 import 'package:flutter_animate/flutter_animate.dart';
@@ -93,6 +96,10 @@ import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
 import 'services/runtime_flags.dart';
+
+const bool _kShowDebugBadge =
+    bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
+        bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
 
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -441,7 +448,7 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefDefaultEmail = 'bitflow.default_email';
   static const String _kPrefAutoSend = 'bitflow.auto_send';
 
-  // ✅ Engine URL (FastAPI / Python)
+  // Engine URL (FastAPI / Python)
   static const String _kPrefEngineBaseUrlLegacy = 'bitflow.engine_base_url';
   static const int _kDefaultEnginePort = 8001;
   static const String _kPrefOnboardingDone = 'bitflow.onboarding_done.v1';
@@ -878,7 +885,7 @@ class _StartPageState extends State<StartPage> {
 
   bool _looksLikeHttpUrl(String s) {
     var v = s.trim();
-    if (v.isEmpty) return true; // permitir “sin configurar
+    if (v.isEmpty) return true; // permitir sin configurar
 
     return EngineConfig.isValidBaseUrl(v);
   }
@@ -1029,7 +1036,7 @@ class _StartPageState extends State<StartPage> {
 
         purged++;
       } catch (_) {
-        // Se mantiene en papelera para no “revivir datos inconsistentes.
+        // Se mantiene en papelera para no revivir datos inconsistentes.
       }
     }
 
@@ -1065,8 +1072,12 @@ class _StartPageState extends State<StartPage> {
     required bool includeBlank,
   }) async {
     if (!mounted) return null;
-    final isLight = widget.isLight;
-    final pal = _ApplePalette(isLight: isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: theme.brightness == Brightness.light,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
     final border = pal.separator;
 
     return showModalBottomSheet<_CreateSheetChoice>(
@@ -1088,11 +1099,7 @@ class _StartPageState extends State<StartPage> {
             child: Ink(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: emphasized
-                    ? (isLight
-                        ? const Color(0xFFF2F2F7)
-                        : const Color(0xFF1F1F24))
-                    : pal.group,
+                color: emphasized ? pal.surface : pal.group,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: border),
               ),
@@ -1103,17 +1110,13 @@ class _StartPageState extends State<StartPage> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: isLight
-                          ? const Color(0xFF111114)
-                          : const Color(0xFFF4F4F6),
+                      color: pal.accent,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Icon(
                       icon,
                       size: 18,
-                      color: isLight
-                          ? const Color(0xFFFFFFFF)
-                          : const Color(0xFF0B0B0C),
+                      color: pal.colorScheme.onPrimary,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1236,7 +1239,12 @@ class _StartPageState extends State<StartPage> {
 
   Future<bool> _showTemplatePackPreview(_PackTemplateSpec template) async {
     if (!mounted) return false;
-    final pal = _ApplePalette(isLight: widget.isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: theme.brightness == Brightness.light,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
     return (await showAppModal<bool>(
           context: context,
           title: template.name,
@@ -1334,14 +1342,18 @@ class _StartPageState extends State<StartPage> {
 
   Future<_PackTemplateSpec?> _showTemplatePackGallery() async {
     if (!mounted) return null;
-    final pal = _ApplePalette(isLight: widget.isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: theme.brightness == Brightness.light,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
     return showModalBottomSheet<_PackTemplateSpec>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final border =
-            !pal.isLight ? const Color(0xFF3A3A3C) : const Color(0xFFD9D9DE);
+        final border = pal.separator;
         final grouped = <String, List<_PackTemplateSpec>>{};
         for (final template in _commercialTemplates) {
           grouped.putIfAbsent(template.pack, () => <_PackTemplateSpec>[]).add(
@@ -1375,17 +1387,13 @@ class _StartPageState extends State<StartPage> {
                       width: 34,
                       height: 34,
                       decoration: BoxDecoration(
-                        color: !pal.isLight
-                            ? const Color(0xFFF4F4F6)
-                            : const Color(0xFF111114),
+                        color: pal.accent,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Icon(
                         template.icon,
                         size: 17,
-                        color: !pal.isLight
-                            ? const Color(0xFF111114)
-                            : const Color(0xFFFFFFFF),
+                        color: pal.colorScheme.onPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -2601,7 +2609,7 @@ class _StartPageState extends State<StartPage> {
       _setBusyMessage(AppStrings.progressWritingFile);
 
       await ExportXlsxService.download(
-        fileName: name, // sin “.xlsx
+        fileName: name, // sin .xlsx
         headers: parsed.headers,
         rows: parsed.rows,
       );
@@ -2646,7 +2654,7 @@ class _StartPageState extends State<StartPage> {
     }
   }
 
-  // --------------------- Notes (“mensaje destacado) ---------------------
+  // --------------------- Notes (mensaje destacado) ---------------------
 
   Future<void> _editNote(SheetMeta m) async {
     final current = (_sheetNotes[m.id] ?? '').trim();
@@ -2654,7 +2662,7 @@ class _StartPageState extends State<StartPage> {
     final result = await _promptMultilineCupertino(
       title: 'Mensaje destacado',
       initialValue: current,
-      placeholder: 'Ej: “Enviar a cliente hoy 18:00 / “WP: revisar medición 3',
+      placeholder: 'Ej: Enviar a cliente hoy 18:00 / WP: revisar medición 3',
       okText: 'Guardar',
       extraAction: _PromptExtraAction(
         label: 'Limpiar',
@@ -2736,14 +2744,14 @@ class _StartPageState extends State<StartPage> {
                   _quick = _QuickFilter.none;
                 });
               },
-              child: const Text('Nueva carpeta…'),
+              child: const Text('Nueva carpeta'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _openFolderManagerPage();
               },
-              child: const Text('Gestionar carpetas…'),
+              child: const Text('Gestionar carpetas'),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -2780,7 +2788,7 @@ class _StartPageState extends State<StartPage> {
     final ok = await _confirmCupertino(
       ctx: ctx,
       title: 'Eliminar carpeta',
-      message: 'Las planillas vuelven a “Raíz. ¿Eliminar “${folder.name}?',
+      message: 'Las planillas vuelven a Raíz. Eliminar ${folder.name}?',
       okText: 'Eliminar',
       danger: true,
     );
@@ -2819,7 +2827,7 @@ class _StartPageState extends State<StartPage> {
       info: _PromptInfo(
         title: 'Carpetas por mes',
         message:
-            'Ejemplos: “$suggested, “Septiembre 2026, “Obra X. Un solo nivel, simple y ordenado.',
+            'Ejemplos: $suggested, Septiembre 2026, Obra X. Un solo nivel, simple y ordenado.',
       ),
     );
     if (!mounted || !ctx.mounted) return null;
@@ -2957,6 +2965,12 @@ class _StartPageState extends State<StartPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
+            final theme = Theme.of(ctx);
+            final pal = _ApplePalette(
+              isLight: theme.brightness == Brightness.light,
+              colorScheme: theme.colorScheme,
+              scaffold: theme.scaffoldBackgroundColor,
+            );
             final email = emailEC.text.trim();
             final emailOk = email.isEmpty || _looksLikeEmail(email);
 
@@ -2978,7 +2992,7 @@ class _StartPageState extends State<StartPage> {
                       message: kIsWeb
                           ? 'Modo Automático usa el tunel HTTPS. Si cambia el tunel, pasa a Manual y pega la nueva URL.'
                           : 'Modo Automático intenta LAN y cae al tunel. En movil fisico usa IP LAN o tunel en Manual.',
-                      isLight: widget.isLight,
+                      isLight: pal.isLight,
                     ),
                     const SizedBox(height: 10),
                     CupertinoSlidingSegmentedControl<String>(
@@ -3013,9 +3027,7 @@ class _StartPageState extends State<StartPage> {
                         child: Text(
                           'URL inválida (usa http/https + host)',
                           style: TextStyle(
-                            color: widget.isLight
-                                ? const Color(0xFF1B1B1F)
-                                : const Color(0xFFE7E7EC),
+                            color: pal.colorScheme.error,
                             fontSize: 12,
                           ),
                         ),
@@ -3026,9 +3038,7 @@ class _StartPageState extends State<StartPage> {
                       child: Text(
                         'Base resuelta: $resolvedLabel',
                         style: TextStyle(
-                          color: widget.isLight
-                              ? const Color(0x88000000)
-                              : const Color(0x99FFFFFF),
+                          color: pal.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -3055,12 +3065,15 @@ class _StartPageState extends State<StartPage> {
                               },
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
-                        color: widget.isLight
-                            ? const Color(0xFFF0F2F7)
-                            : const Color(0xFF1B1F2B),
+                        color: pal.group,
                         borderRadius: BorderRadius.circular(10),
-                        child:
-                            Text(testing ? 'Probando...' : 'Probar conexión'),
+                        child: Text(
+                          testing ? 'Probando...' : 'Probar conexión',
+                          style: TextStyle(
+                            color: pal.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -3069,7 +3082,7 @@ class _StartPageState extends State<StartPage> {
                       title: 'Correo destino',
                       message:
                           'Registrá un correo destino. Tu flujo de export (Editor/Backend/Service) puede usarlo para enviar planillas sin pasos extra.',
-                      isLight: widget.isLight,
+                      isLight: pal.isLight,
                     ),
                     const SizedBox(height: 10),
                     CupertinoTextField(
@@ -3091,9 +3104,7 @@ class _StartPageState extends State<StartPage> {
                         child: Text(
                           'Correo inválido',
                           style: TextStyle(
-                            color: widget.isLight
-                                ? const Color(0xFF1B1B1F)
-                                : const Color(0xFFE7E7EC),
+                            color: pal.colorScheme.error,
                             fontSize: 12,
                           ),
                         ),
@@ -3394,7 +3405,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openFolderPicker();
               },
-              child: const Text('Carpetas…'),
+              child: const Text('Carpetas'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3402,7 +3413,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openMailSettings();
               },
-              child: const Text('Ajustes (Correo/Motor)…'),
+              child: const Text('Ajustes (Correo/Motor)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3414,7 +3425,7 @@ class _StartPageState extends State<StartPage> {
                   ),
                 );
               },
-              child: const Text('Premium / Suscripción…'),
+              child: const Text('Premium / Suscripción'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3432,7 +3443,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openStaticPage(const SpreadsheetAgentScreen());
               },
-              child: const Text('Agente de planillas (MVP)…'),
+              child: const Text('Agente de planillas (MVP)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3442,10 +3453,10 @@ class _StartPageState extends State<StartPage> {
               },
               child: Text(
                 (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible…'
+                    ? 'Actualizacion disponible'
                     : (_updateChecking
                         ? 'Buscando actualizaciones...'
-                        : 'Buscar actualizaciones…'),
+                        : 'Buscar actualizaciones'),
               ),
             ),
             CupertinoActionSheetAction(
@@ -3454,7 +3465,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openStaticPage(const AboutScreen());
               },
-              child: const Text('Acerca de…'),
+              child: const Text('Acerca de'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3478,7 +3489,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openLicenses();
               },
-              child: const Text('Licencias…'),
+              child: const Text('Licencias'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3486,7 +3497,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openDiagnostics();
               },
-              child: const Text('Diagnóstico / Soporte…'),
+              child: const Text('Diagnóstico / Soporte'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3502,7 +3513,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _newTemplateSheet();
               },
-              child: const Text('Nueva plantilla…'),
+              child: const Text('Nueva plantilla'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3510,7 +3521,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _createSmokeTestSheet();
               },
-              child: const Text('Prueba rápida (GPS/Fotos/Audio)…'),
+              child: const Text('Prueba rápida (GPS/Fotos/Audio)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3518,7 +3529,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openSortSheet();
               },
-              child: const Text('Ordenar…'),
+              child: const Text('Ordenar'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -3526,7 +3537,7 @@ class _StartPageState extends State<StartPage> {
                 if (!mounted) return;
                 await _openViewSheet();
               },
-              child: const Text('Vista…'),
+              child: const Text('Vista'),
             ),
             CupertinoActionSheetAction(
               onPressed: () {
@@ -3676,7 +3687,7 @@ class _StartPageState extends State<StartPage> {
                 setState(() => _sort = _SortMode.titleAsc);
               },
               isDefaultAction: _sort == _SortMode.titleAsc,
-              child: const Text('Título (A–Z)'),
+              child: const Text('Título (A-Z)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () {
@@ -4177,8 +4188,13 @@ class _StartPageState extends State<StartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.isLight;
-    final colors = _ApplePalette(isLight: isLight);
+    final theme = Theme.of(context);
+    final colors = _ApplePalette(
+      isLight: theme.brightness == Brightness.light,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
+    final isLight = colors.isLight;
     final startupErrors = <String>[
       if ((_prefsLoadError ?? '').trim().isNotEmpty)
         'Preferencias: ${_prefsLoadError!.trim()}',
@@ -4199,6 +4215,11 @@ class _StartPageState extends State<StartPage> {
 
     final mq = MediaQuery.of(context);
     final bottomPad = mq.padding.bottom;
+    final keyboardVisible = mq.viewInsets.bottom > 0;
+    final route = ModalRoute.of(context);
+    final modalRouteActive = route != null && !route.isCurrent;
+    final hideFloatingActions = keyboardVisible || modalRouteActive;
+    final showDebugBadge = kDebugMode || _kShowDebugBadge;
     final buildStamp = _buildStamp;
 
     return CupertinoPageScaffold(
@@ -4754,7 +4775,7 @@ class _StartPageState extends State<StartPage> {
                                 _q = v;
                               }),
                               placeholder:
-                                  'Buscar por título o mensaje destacado…',
+                                  'Buscar por título o mensaje destacado',
                             ),
                             if (_tab == _HomeTab.sheets) ...[
                               const SizedBox(height: 10),
@@ -4785,7 +4806,7 @@ class _StartPageState extends State<StartPage> {
                                   ? 'Con indicador: ${data.length} planilla(s)'
                                   : (_searchAll
                                       ? 'Mostrando ${data.length} (buscando en todas)'
-                                      : 'Mostrando ${data.length} en “${_folderName(_selectedFolderId)}'),
+                                      : 'Mostrando ${data.length} en ${_folderName(_selectedFolderId)}'),
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 12,
@@ -4893,37 +4914,38 @@ class _StartPageState extends State<StartPage> {
               ],
             ),
 
-            Positioned(
-              left: 16,
-              bottom: 14 + bottomPad,
-              child: IgnorePointer(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.navBarBg.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    buildStamp,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+            if (showDebugBadge)
+              Positioned(
+                left: 16,
+                bottom: 14 + bottomPad,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors.navBarBg.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.separator),
+                    ),
+                    child: Text(
+                      buildStamp,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Botón flotante iOS (+) como Reminders (no Material FAB)
             if (_busy && _busyMessage.trim().isNotEmpty)
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.18),
+                    color: colors.textPrimary.withValues(alpha: 0.16),
                   ),
                   child: Center(
                     child: ConstrainedBox(
@@ -4939,7 +4961,7 @@ class _StartPageState extends State<StartPage> {
                   ),
                 ),
               ),
-            if (_tab == _HomeTab.sheets)
+            if (_tab == _HomeTab.sheets && !hideFloatingActions)
               Positioned(
                 right: 18,
                 bottom: 18 + bottomPad,
@@ -4963,7 +4985,7 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.root,
         title: 'Raíz',
         icon: CupertinoIcons.list_bullet,
-        iconBg: const Color(0xFF1B1B1F),
+        iconBg: colors.accent,
         count: _countSheetsInFolder(''),
         folderId: '',
         trailingBadge: null,
@@ -4980,7 +5002,7 @@ class _StartPageState extends State<StartPage> {
           kind: _ListKind.folder,
           title: f.name,
           icon: CupertinoIcons.folder,
-          iconBg: const Color(0xFF2D2D33),
+          iconBg: colors.accent.withValues(alpha: colors.isLight ? 0.82 : 0.74),
           count: _countSheetsInFolder(f.id),
           folderId: f.id,
           trailingBadge: null,
@@ -4995,10 +5017,10 @@ class _StartPageState extends State<StartPage> {
         kind: _ListKind.trash,
         title: 'Papelera',
         icon: CupertinoIcons.trash,
-        iconBg: const Color(0xFF4A4A52),
+        iconBg: colors.accent.withValues(alpha: colors.isLight ? 0.68 : 0.62),
         count: trashCount,
         folderId: '',
-        trailingBadge: trashCount > 0 ? '⚠' : null,
+        trailingBadge: trashCount > 0 ? '*' : null,
       ),
     );
 
@@ -5092,6 +5114,21 @@ class _RemindersSummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    final c = t.colors;
+    final Color neutralTop =
+        c.surfaceElevated.withValues(alpha: c.isLight ? 0.98 : 0.82);
+    final Color neutralBottom =
+        c.surfaceMuted.withValues(alpha: c.isLight ? 0.96 : 0.72);
+    final Color accentTop =
+        c.accentMuted.withValues(alpha: c.isLight ? 0.18 : 0.34);
+    final Color accentBottom =
+        c.surfaceElevated.withValues(alpha: c.isLight ? 0.94 : 0.78);
+    final Color warmTop =
+        c.surfaceMuted.withValues(alpha: c.isLight ? 0.94 : 0.70);
+    final Color warmBottom =
+        c.surface.withValues(alpha: c.isLight ? 0.96 : 0.76);
+
     return LayoutBuilder(
       builder: (ctx, cs) {
         final w = cs.maxWidth;
@@ -5109,11 +5146,12 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     title: 'Hoy',
                     count: today,
                     icon: CupertinoIcons.calendar,
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF2A2A2F), Color(0xFF17171B)],
+                      colors: [accentTop, accentBottom],
                     ),
+                    foreground: c.textPrimary,
                     onTap: onTapToday,
                   ),
                   SizedBox(height: gap),
@@ -5125,10 +5163,9 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: isLight
-                          ? const [Color(0xFF3A3A3C), Color(0xFF1C1C1E)]
-                          : const [Color(0xFF2C2C2E), Color(0xFF1C1C1E)],
+                      colors: [neutralTop, neutralBottom],
                     ),
+                    foreground: c.textPrimary,
                     onTap: onTapAll,
                   ),
                   SizedBox(height: gap),
@@ -5140,10 +5177,9 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: isLight
-                          ? const [Color(0xFFB5B5BA), Color(0xFF8E8E93)]
-                          : const [Color(0xFF8E8E93), Color(0xFF6B6B72)],
+                      colors: [warmTop, warmBottom],
                     ),
+                    foreground: c.textPrimary,
                     onTap: onTapCompleted,
                   ),
                 ],
@@ -5158,11 +5194,12 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     title: 'Programados',
                     count: scheduled,
                     icon: CupertinoIcons.calendar_badge_plus,
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF404047), Color(0xFF25252B)],
+                      colors: [neutralTop, accentBottom],
                     ),
+                    foreground: c.textPrimary,
                     onTap: onTapScheduled,
                   ),
                   SizedBox(height: gap),
@@ -5171,11 +5208,12 @@ class _RemindersSummaryGrid extends StatelessWidget {
                     title: 'Con indicador',
                     count: flagged,
                     icon: CupertinoIcons.flag,
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF4A4A53), Color(0xFF2B2B33)],
+                      colors: [warmTop, accentBottom],
                     ),
+                    foreground: c.textPrimary,
                     onTap: onTapFlagged,
                   ),
                   SizedBox(height: gap),
@@ -5197,6 +5235,7 @@ class _SummaryCard extends StatelessWidget {
     required this.count,
     required this.icon,
     required this.gradient,
+    required this.foreground,
     required this.onTap,
   });
 
@@ -5205,11 +5244,13 @@ class _SummaryCard extends StatelessWidget {
   final int count;
   final IconData icon;
   final Gradient gradient;
+  final Color foreground;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = AppTheme.of(context);
+    final iconBg = foreground.withValues(alpha: t.colors.isLight ? 0.14 : 0.24);
     return CupertinoButton(
       padding: EdgeInsets.zero,
       pressedOpacity: 0.7,
@@ -5221,12 +5262,13 @@ class _SummaryCard extends StatelessWidget {
           gradient: gradient,
           borderRadius: BorderRadius.circular(t.radii.lg),
           border: Border.all(
-              color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
+              color:
+                  foreground.withValues(alpha: t.colors.isLight ? 0.22 : 0.26),
               width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black
-                  .withValues(alpha: t.colors.isLight ? 0.22 : 0.45),
+              color: t.material.colorScheme.shadow
+                  .withValues(alpha: t.colors.isLight ? 0.12 : 0.34),
               blurRadius: 16,
               offset: const Offset(0, 10),
             ),
@@ -5241,21 +5283,22 @@ class _SummaryCard extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
+                  color: iconBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
+                      color: foreground.withValues(
+                          alpha: t.colors.isLight ? 0.24 : 0.28),
                       width: 1),
                 ),
-                child: Icon(icon, size: 18, color: const Color(0xFFFFFFFF)),
+                child: Icon(icon, size: 18, color: foreground),
               ),
             ),
             Align(
               alignment: Alignment.topRight,
               child: Text(
                 '$count',
-                style: const TextStyle(
-                  color: Color(0xFFFFFFFF),
+                style: TextStyle(
+                  color: foreground,
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
                   height: 1.0,
@@ -5267,8 +5310,8 @@ class _SummaryCard extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: Color(0xFFFFFFFF),
+                style: TextStyle(
+                  color: foreground,
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
                   height: 1.05,
@@ -5298,9 +5341,13 @@ class _SuggestedListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = colors.isLight ? colors.surface : const Color(0xFF1C1C1E);
+    final bg = colors.surface;
     final border =
         colors.separator.withValues(alpha: colors.isLight ? 0.35 : 0.22);
+    final iconBg =
+        colors.accent.withValues(alpha: colors.isLight ? 0.18 : 0.28);
+    final iconColor = colors.accent;
+    final addBg = colors.group;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
@@ -5317,11 +5364,10 @@ class _SuggestedListCard extends StatelessWidget {
             height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
+              color: iconBg,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Icon(CupertinoIcons.sparkles,
-                color: Color(0xFFFFFFFF), size: 18),
+            child: Icon(CupertinoIcons.sparkles, color: iconColor, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -5362,14 +5408,11 @@ class _SuggestedListCard extends StatelessWidget {
               height: 34,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: colors.isLight
-                    ? const Color(0xFFF2F2F7)
-                    : const Color(0xFF2C2C2E),
+                color: addBg,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: border),
               ),
-              child: const Icon(CupertinoIcons.add,
-                  color: Color(0xFF1A1A1E), size: 20),
+              child: Icon(CupertinoIcons.add, color: colors.accent, size: 20),
             ),
           ),
         ],
@@ -5438,6 +5481,8 @@ class _ListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconColor =
+        _isColorDark(item.iconBg) ? colors.surface : colors.textPrimary;
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       pressedOpacity: 0.55,
@@ -5452,7 +5497,7 @@ class _ListRow extends StatelessWidget {
               color: item.iconBg,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Icon(item.icon, color: const Color(0xFFFFFFFF), size: 18),
+            child: Icon(item.icon, color: iconColor, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -5509,7 +5554,10 @@ class _FloatingAddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final disabled = onTap == null;
+    final iconColor = _isColorDark(color) ? scheme.onPrimary : scheme.onSurface;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Opacity(
       opacity: disabled ? 0.55 : 1.0,
       child: CupertinoButton(
@@ -5523,59 +5571,61 @@ class _FloatingAddButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 22,
-                  offset: Offset(0, 12)),
+                color: scheme.shadow.withValues(alpha: isLight ? 0.22 : 0.34),
+                blurRadius: 22,
+                offset: const Offset(0, 12),
+              ),
             ],
           ),
-          child: const Icon(CupertinoIcons.add,
-              color: Color(0xFFFFFFFF), size: 28),
+          child: Icon(CupertinoIcons.add, color: iconColor, size: 28),
         ),
       ),
     );
   }
 }
 
+bool _isColorDark(Color color) => color.computeLuminance() < 0.45;
+
 // ------------------------- Apple UI primitives -------------------------
 
 class _ApplePalette {
-  _ApplePalette({required this.isLight});
+  _ApplePalette({
+    required this.isLight,
+    required this.colorScheme,
+    required this.scaffold,
+  });
 
   final bool isLight;
+  final ColorScheme colorScheme;
+  final Color scaffold;
 
-  Color get bg => isLight ? const Color(0xFFF5F5F7) : const Color(0xFF050509);
+  Color get bg => scaffold;
 
-  Color get surface =>
-      isLight ? const Color(0xFFFFFFFF) : const Color(0xFF0E0E12);
+  Color get surface => colorScheme.surface;
 
-  Color get group =>
-      isLight ? const Color(0xFFF2F2F7) : const Color(0xFF1C1C1E);
+  Color get group => colorScheme.surfaceContainerHighest
+      .withValues(alpha: isLight ? 0.72 : 0.56);
 
   Color get separator =>
-      isLight ? const Color(0x1F000000) : const Color(0x33FFFFFF);
+      colorScheme.outlineVariant.withValues(alpha: isLight ? 0.84 : 0.72);
 
-  Color get textPrimary =>
-      isLight ? const Color(0xFF0B0B0F) : const Color(0xFFF5F5F7);
+  Color get textPrimary => colorScheme.onSurface;
 
   Color get textSecondary =>
-      isLight ? const Color(0x990B0B0F) : const Color(0x99F5F5F7);
+      colorScheme.onSurfaceVariant.withValues(alpha: isLight ? 0.90 : 0.94);
 
-  Color get accent =>
-      isLight ? const Color(0xFF111114) : const Color(0xFFF4F4F6);
+  Color get accent => colorScheme.primary;
 
   Color get muted =>
-      isLight ? const Color(0x660B0B0F) : const Color(0x66F5F5F7);
+      colorScheme.onSurfaceVariant.withValues(alpha: isLight ? 0.72 : 0.78);
 
-  Color get navBarBg {
-    // iOS-like translucent bar
-    final base = isLight ? const Color(0xFFF9F9FB) : const Color(0xFF0B0B0D);
-    return base.withValues(alpha: 0.92);
-  }
+  Color get navBarBg =>
+      colorScheme.surface.withValues(alpha: isLight ? 0.92 : 0.86);
 
   BoxShadow get subtleShadow => BoxShadow(
-        color: isLight ? const Color(0x14000000) : const Color(0x22000000),
+        color: colorScheme.shadow.withValues(alpha: isLight ? 0.10 : 0.36),
         blurRadius: 16,
         offset: const Offset(0, 8),
       );
@@ -5665,8 +5715,9 @@ class _AppleToastState extends State<_AppleToast> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final bg =
-        widget.isLight ? const Color(0xEE111114) : const Color(0xEE0F0F12);
+        scheme.inverseSurface.withValues(alpha: widget.isLight ? 0.92 : 0.88);
     return AnimatedOpacity(
       opacity: _opacity,
       duration: const Duration(milliseconds: 160),
@@ -5674,9 +5725,10 @@ class _AppleToastState extends State<_AppleToast> {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-                color: Color(0x33000000),
+                color: scheme.shadow
+                    .withValues(alpha: widget.isLight ? 0.22 : 0.36),
                 blurRadius: 20,
                 offset: Offset(0, 10)),
           ],
@@ -5684,8 +5736,8 @@ class _AppleToastState extends State<_AppleToast> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Text(
           widget.message,
-          style: const TextStyle(
-              color: Color(0xFFF5F5F7), fontWeight: FontWeight.w600),
+          style: TextStyle(
+              color: scheme.onInverseSurface, fontWeight: FontWeight.w600),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
@@ -6172,7 +6224,12 @@ class _CupertinoToggleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = CupertinoTheme.of(context).brightness == Brightness.light;
-    final pal = _ApplePalette(isLight: isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: isLight,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -6227,7 +6284,12 @@ class _CupertinoInfoBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pal = _ApplePalette(isLight: isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: isLight,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
 
     return Container(
       width: double.infinity,
@@ -6735,7 +6797,12 @@ class _FolderManagerPage extends StatefulWidget {
 class _FolderManagerPageState extends State<_FolderManagerPage> {
   @override
   Widget build(BuildContext context) {
-    final pal = _ApplePalette(isLight: widget.isLight);
+    final theme = Theme.of(context);
+    final pal = _ApplePalette(
+      isLight: theme.brightness == Brightness.light,
+      colorScheme: theme.colorScheme,
+      scaffold: theme.scaffoldBackgroundColor,
+    );
     final folders = List<_Folder>.from(widget.folders)
       ..sort((a, b) => b.createdAtMs.compareTo(a.createdAtMs));
 

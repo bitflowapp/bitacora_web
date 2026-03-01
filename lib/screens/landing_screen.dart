@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,6 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/app_config.dart';
 import '../services/build_info.dart';
 import '../ui/ui.dart';
+
+const bool _kShowDebugBadge =
+    bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
+        bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
@@ -795,30 +800,30 @@ class _CtaBand extends StatelessWidget {
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final wide = constraints.maxWidth > 720;
+          final intro = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Listo para ordenar tu operacion?',
+                style: t.text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Instalacion local en minutos. Sin servidores, sin friccion.',
+                style: t.text.bodyMedium?.copyWith(
+                  color: t.colors.textSecondary,
+                ),
+              ),
+            ],
+          );
           return Flex(
             direction: wide ? Axis.horizontal : Axis.vertical,
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Listo para ordenar tu operacion?',
-                      style: t.text.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Instalacion local en minutos. Sin servidores, sin friccion.',
-                      style: t.text.bodyMedium?.copyWith(
-                        color: t.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              if (wide) Expanded(child: intro) else intro,
               const SizedBox(height: 14, width: 14),
               Wrap(
                 spacing: 12,
@@ -907,6 +912,7 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final showDebugBadge = kDebugMode || _kShowDebugBadge;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -925,10 +931,12 @@ class _Footer extends StatelessWidget {
               'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            Text(
-              BuildInfo.stamp,
-              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-            ),
+            if (showDebugBadge)
+              Text(
+                BuildInfo.stamp,
+                style:
+                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+              ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),
