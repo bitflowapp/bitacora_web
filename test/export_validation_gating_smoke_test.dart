@@ -39,6 +39,7 @@ void main() {
 
     expect(find.text('Hay errores de validacion'), findsOneWidget);
     expect(find.text('Exportar igual'), findsOneWidget);
-    expect(find.text('Ir a errores'), findsOneWidget);
+    expect(find.text('Copiar errores'), findsOneWidget);
+    expect(find.text('Ir a primera fila con error'), findsOneWidget);
   });
 }

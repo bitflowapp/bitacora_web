@@ -4768,30 +4768,30 @@ class _EditorScreenState extends State<EditorScreen>
 
   Color _smokeBg(_SheetPalette pal) {
     if (_smokeOk == true) {
-      return pal.isLight ? const Color(0xFFD1FAE5) : const Color(0xFF064E3B);
+      return pal.successBg;
     }
     if (_smokeOk == false) {
-      return pal.isLight ? const Color(0xFFFEE2E2) : const Color(0xFF7F1D1D);
+      return pal.dangerBg;
     }
     return pal.statusBg;
   }
 
   Color _smokeFg(_SheetPalette pal) {
     if (_smokeOk == true) {
-      return pal.isLight ? const Color(0xFF065F46) : const Color(0xFF6EE7B7);
+      return pal.successFg;
     }
     if (_smokeOk == false) {
-      return pal.isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
+      return pal.dangerFg;
     }
     return pal.statusFg;
   }
 
   Color _errorBg(_SheetPalette pal) {
-    return pal.isLight ? const Color(0xFFFEE2E2) : const Color(0xFF7F1D1D);
+    return pal.dangerBg;
   }
 
   Color _errorFg(_SheetPalette pal) {
-    return pal.isLight ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5);
+    return pal.dangerFg;
   }
 
   void _maybeShowMobileStatusSnack(
@@ -8800,9 +8800,7 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     final topInset = isDesktop ? 18.0 : 72.0;
     final width = isDesktop ? 340.0 : 318.0;
-    final bg = pal.isLight
-        ? Colors.white.withValues(alpha: 0.95)
-        : const Color(0xFF101114).withValues(alpha: 0.94);
+    final bg = pal.editorBg.withValues(alpha: pal.isLight ? 0.95 : 0.94);
 
     return Positioned(
       right: 12,
@@ -8819,7 +8817,9 @@ class _EditorScreenState extends State<EditorScreen>
                 border: Border.all(color: pal.borderStrong, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
+                    color: pal.borderStrong.withValues(
+                      alpha: pal.isLight ? 0.22 : 0.38,
+                    ),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
                   ),
@@ -9003,6 +9003,10 @@ class _EditorScreenState extends State<EditorScreen>
                     : desiredPanelH
                 : 0.0);
         final keyboardVisible = keyboardInset > 0.0;
+        final route = ModalRoute.of(ctx);
+        final modalRouteActive = route != null && !route.isCurrent;
+        final hideMobileFab =
+            _mobileEditorOpen || keyboardVisible || modalRouteActive;
         final mobileEditorBarH =
             keyboardVisible ? _kMobileInlineCompactBarH : panelH;
         final mobileEditorSafeBottom = keyboardVisible ? 0.0 : bottomSafe;
@@ -9160,14 +9164,14 @@ class _EditorScreenState extends State<EditorScreen>
                                           unawaited(_openBatchActionsSheet()),
                                       onGps: () =>
                                           unawaited(_runGpsForSelection()),
-                                      onPhoto: () => unawaited(
-                                          _runPhotoForSelection()),
-                                      onVideo: () => unawaited(
-                                          _runVideoForSelection()),
-                                      onAudio: () => unawaited(
-                                          _runAudioForSelection()),
-                                      onFile: () => unawaited(
-                                          _runFileForSelection()),
+                                      onPhoto: () =>
+                                          unawaited(_runPhotoForSelection()),
+                                      onVideo: () =>
+                                          unawaited(_runVideoForSelection()),
+                                      onAudio: () =>
+                                          unawaited(_runAudioForSelection()),
+                                      onFile: () =>
+                                          unawaited(_runFileForSelection()),
                                       onAttachments: () => unawaited(
                                         _runOpenAttachmentsForSelection(),
                                       ),
@@ -10276,15 +10280,15 @@ class _EditorScreenState extends State<EditorScreen>
                     if (!isDesktop)
                       _MobileExpandableFabMenu(
                         palette: pal,
-                        isOpen: !_mobileEditorOpen && _mobileFabMenuOpen,
-                        hidden: _mobileEditorOpen,
+                        isOpen: !hideMobileFab && _mobileFabMenuOpen,
+                        hidden: hideMobileFab,
                         forceReducedMotion: _fieldModeEnabled,
                         bottomOffset: _mobileEditorOpen
                             ? (panelH + keyboardInset + 10)
                             : (bottomSafe + 12),
                         onMainTap: () {
                           AppHaptics.light();
-                          if (_mobileEditorOpen) return;
+                          if (hideMobileFab) return;
                           setState(
                             () => _mobileFabMenuOpen = !_mobileFabMenuOpen,
                           );
@@ -10395,9 +10399,10 @@ class _EditorScreenState extends State<EditorScreen>
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 
-                              pal.isLight ? 0.18 : 0.34,
-                            ),
+                            color:
+                                Theme.of(context).colorScheme.scrim.withValues(
+                                      alpha: pal.isLight ? 0.18 : 0.34,
+                                    ),
                           ),
                           child: Center(
                             child: ConstrainedBox(
@@ -12260,20 +12265,20 @@ class _EditorScreenState extends State<EditorScreen>
                         padding: metrics.cellPadding,
                         decoration: BoxDecoration(
                           // Evita blur en tiempo real para no penalizar typing/caret.
-                          color: pal.isLight
-                              ? Colors.white.withValues(alpha: 0.96)
-                              : const Color(0xFF101114).withValues(alpha: 0.92),
+                          color: pal.editorBg.withValues(
+                            alpha: pal.isLight ? 0.96 : 0.92,
+                          ),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: pal.isLight
-                                ? Colors.black.withValues(alpha: 0.10)
-                                : Colors.white.withValues(alpha: 0.18),
+                            color: pal.borderStrong.withValues(
+                              alpha: pal.isLight ? 0.65 : 0.84,
+                            ),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(
-                                alpha: pal.isLight ? 0.08 : 0.30,
+                              color: pal.borderStrong.withValues(
+                                alpha: pal.isLight ? 0.22 : 0.42,
                               ),
                               blurRadius: 12,
                               offset: const Offset(0, 6),
@@ -16133,6 +16138,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<bool> _confirmExportWithValidationIfNeeded() async {
     if (_invalidCells.isEmpty) return true;
     if (!mounted) return false;
+    bool jumpToFirstError = false;
     final decision = await showAppModal<bool>(
       context: context,
       title: 'Hay errores de validacion',
@@ -16141,9 +16147,19 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       actions: [
         AppButton(
-          label: 'Ir a errores',
+          label: 'Copiar errores',
+          icon: Icons.copy_all_rounded,
           variant: AppButtonVariant.ghost,
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => unawaited(_copyValidationIssuesToClipboard()),
+        ),
+        AppButton(
+          label: 'Ir a primera fila con error',
+          icon: Icons.vertical_align_top_rounded,
+          variant: AppButtonVariant.ghost,
+          onPressed: () {
+            jumpToFirstError = true;
+            Navigator.of(context).pop(false);
+          },
         ),
         AppButton(
           label: 'Exportar igual',
@@ -16157,8 +16173,42 @@ class _EditorScreenState extends State<EditorScreen>
     );
     if (decision != true && mounted) {
       setState(() => _errorsPanelOpen = true);
+      if (jumpToFirstError) {
+        _jumpToFirstValidationIssue();
+      }
     }
     return decision == true;
+  }
+
+  Future<void> _copyValidationIssuesToClipboard() async {
+    final issues = _validationIssues();
+    if (issues.isEmpty) {
+      _showActionSnack(
+        'No hay errores de validacion.',
+        isError: false,
+        icon: Icons.task_alt_rounded,
+      );
+      return;
+    }
+    final lines = StringBuffer()
+      ..writeln('Errores de validacion (${issues.length})');
+    for (final issue in issues) {
+      lines.writeln('${issue.label}: ${issue.message}');
+    }
+    try {
+      await Clipboard.setData(ClipboardData(text: lines.toString().trim()));
+      _showActionSnack(
+        'Errores copiados al portapapeles.',
+        isError: false,
+        icon: Icons.copy_all_rounded,
+      );
+    } catch (_) {
+      _showActionSnack(
+        'No se pudieron copiar los errores.',
+        isError: true,
+        icon: Icons.error_outline_rounded,
+      );
+    }
   }
 
   // ------------------------------ GPS / Maps ------------------------------
@@ -17234,7 +17284,9 @@ class _EditorScreenState extends State<EditorScreen>
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         error!,
-                        style: const TextStyle(color: Colors.redAccent),
+                        style: TextStyle(
+                          color: Theme.of(ctx).colorScheme.error,
+                        ),
                       ),
                     ),
                 ],
