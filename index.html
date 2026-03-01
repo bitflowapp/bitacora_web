@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <base href="/bitacora_web/" />
+  <base href="/bitacora_web/">
 
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
@@ -9,19 +9,19 @@
   <!-- iOS: viewport correcto -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <title>BitFlow | Bitácora operativa premium</title>
+  <title>BitFlow | BitÃ¡cora operativa premium</title>
   <meta name="description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
   <meta name="robots" content="index,follow" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="BitFlow | Bitácora operativa premium" />
+  <meta property="og:title" content="BitFlow | BitÃ¡cora operativa premium" />
   <meta property="og:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
   <meta property="og:image" content="icons/Icon-512.png" />
   <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:title" content="BitFlow | Bitácora operativa premium" />
+  <meta property="twitter:title" content="BitFlow | BitÃ¡cora operativa premium" />
   <meta property="twitter:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
   <meta property="twitter:image" content="icons/Icon-512.png" />
 
-  <!-- BUILD ID fallback (si version.json no está disponible) -->
+  <!-- BUILD ID fallback (si version.json no estÃ¡ disponible) -->
   <meta name="bitflow-build" content="__BUILD_ID__" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -67,7 +67,7 @@
 
     * { -webkit-tap-highlight-color: transparent; }
 
-    /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
+    /* iOS Safari: evita zoom al enfocar input â€œinvisibleâ€ de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
     /* Build badge moved to Flutter widget (_BuildBadge). */
@@ -346,7 +346,7 @@
         var root = document.getElementById('update-banner');
         var msg = document.getElementById('update-banner-message');
         if (!root || !msg) return;
-        msg.textContent = message || 'Nueva versión disponible.';
+        msg.textContent = message || 'Nueva versiÃ³n disponible.';
         root.style.display = 'flex';
       }
 
@@ -406,7 +406,7 @@
 
       function onServiceWorkerWaiting(reg) {
         swWaitingRegistration = reg;
-        showUpdateBanner('Nueva versión disponible. Actualiza para aplicar cambios.');
+        showUpdateBanner('Nueva versiÃ³n disponible. Actualiza para aplicar cambios.');
       }
 
       function bindServiceWorkerRegistration(reg) {
@@ -551,7 +551,7 @@
         }
       }
 
-      // iOS Safari keyboard fix: “pega” los roots de Flutter al visualViewport
+      // iOS Safari keyboard fix: â€œpegaâ€ los roots de Flutter al visualViewport
       var raf = 0;
       var lastH = -1, lastTop = -1;
       var lastKick = 0;
@@ -586,7 +586,7 @@
           n.style.willChange = 'transform,height';
         }
 
-        // “patadita” a Flutter: fuerza recálculo cuando iOS se hace el distraído
+        // â€œpataditaâ€ a Flutter: fuerza recÃ¡lculo cuando iOS se hace el distraÃ­do
         try {
           var now = Date.now();
           if (now - lastKick > 120) {
@@ -710,7 +710,7 @@
   </div>
 
   <div id="update-banner" aria-live="polite">
-    <span id="update-banner-message">Nueva versión disponible.</span>
+    <span id="update-banner-message">Nueva versiÃ³n disponible.</span>
     <span class="actions">
       <button id="update-banner-refresh" class="primary" type="button">Actualizar</button>
       <button id="update-banner-dismiss" type="button">Luego</button>
@@ -728,6 +728,6 @@
     </div>
   </div>
   <button id="install-fab" type="button" aria-label="Instalar BitFlow">Instalar BitFlow</button>
-  <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
+  <!-- flutter_bootstrap.js se inyecta dinÃ¡micamente con buildId -->
 </body>
 </html>
