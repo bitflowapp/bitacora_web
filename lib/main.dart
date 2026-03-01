@@ -27,10 +27,10 @@ import 'ui/ui_theme.dart';
 
 const String kBuildBadgeId =
     String.fromEnvironment('BUILD_ID', defaultValue: '');
-const bool kShowBuildBadge = bool.fromEnvironment(
-  'SHOW_BUILD_BADGE',
-  defaultValue: false,
-);
+const bool kShowDebugBadge =
+    bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
+        bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
+bool _demoNoticeDismissedInSession = false;
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
@@ -291,7 +291,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode && kShowBuildBadge;
+    final shouldShowBadge = kDebugMode || kShowDebugBadge;
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -520,7 +520,7 @@ Widget buildRootPageForUri({
   );
 }
 
-class _AppHome extends StatelessWidget {
+class _AppHome extends StatefulWidget {
   const _AppHome({
     required this.isLight,
     required this.onToggleTheme,
@@ -529,39 +529,46 @@ class _AppHome extends StatelessWidget {
     this.initialSheetId,
     this.initialSheetName,
   });
-
   final bool isLight;
   final VoidCallback onToggleTheme;
   final bool firebaseOk;
   final DemoTemplateSpec? initialTemplate;
   final String? initialSheetId;
   final String? initialSheetName;
+  @override
+  State<_AppHome> createState() => _AppHomeState();
+}
+
+class _AppHomeState extends State<_AppHome> {
+  void _dismissDemoNotice() {
+    setState(() => _demoNoticeDismissedInSession = true);
+  }
 
   @override
   Widget build(BuildContext context) {
     Widget withOptionalAuth(Widget child) {
-      if (!firebaseOk || !RuntimeFlags.isAuthRequired) return child;
+      if (!widget.firebaseOk || !RuntimeFlags.isAuthRequired) return child;
       return AuthGate(child: child);
     }
 
     final home = () {
-      if (initialSheetId != null && initialSheetId!.trim().isNotEmpty) {
+      if (widget.initialSheetId != null &&
+          widget.initialSheetId!.trim().isNotEmpty) {
         return withOptionalAuth(
           EditorScreen(
-            isLight: isLight,
-            onToggleTheme: onToggleTheme,
-            sheetId: initialSheetId!.trim(),
-            initialName: initialSheetName,
+            isLight: widget.isLight,
+            onToggleTheme: widget.onToggleTheme,
+            sheetId: widget.initialSheetId!.trim(),
+            initialName: widget.initialSheetName,
           ),
         );
       }
-
-      if (initialTemplate != null) {
-        final template = initialTemplate!;
+      if (widget.initialTemplate != null) {
+        final template = widget.initialTemplate!;
         return withOptionalAuth(
           EditorScreen(
-            isLight: isLight,
-            onToggleTheme: onToggleTheme,
+            isLight: widget.isLight,
+            onToggleTheme: widget.onToggleTheme,
             sheetId:
                 'demo_${template.slug}_${DateTime.now().millisecondsSinceEpoch}',
             initialName: template.sheetName,
@@ -572,34 +579,68 @@ class _AppHome extends StatelessWidget {
       }
       return withOptionalAuth(
         StartPage(
-          isLight: isLight,
-          onToggleTheme: onToggleTheme,
+          isLight: widget.isLight,
+          onToggleTheme: widget.onToggleTheme,
         ),
       );
     }();
-
-    final body = AnimatedVideoBackground(
+    final notices = <_TopNoticeItem>[
+      if (!widget.firebaseOk)
+        const _TopNoticeItem(
+          message: 'Firebase no inicio. Modo offline habilitado.',
+        ),
+      if (!RuntimeFlags.isAuthRequired && !_demoNoticeDismissedInSession)
+        _TopNoticeItem(
+          message: 'Modo demo activo: login deshabilitado temporalmente.',
+          dismissible: true,
+          onDismiss: _dismissDemoNotice,
+        ),
+    ];
+    return AnimatedVideoBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: home,
+        body: Column(
+          children: [
+            if (notices.isNotEmpty)
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 860),
+                    child: Column(
+                      children: [
+                        for (final notice in notices)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _TopNotice(
+                              message: notice.message,
+                              dismissible: notice.dismissible,
+                              onDismiss: notice.onDismiss,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(child: home),
+          ],
+        ),
       ),
     );
-
-    final notices = <String>[
-      if (!firebaseOk) 'Firebase no inicio. Modo offline habilitado.',
-      if (!RuntimeFlags.isAuthRequired)
-        'Modo demo activo: login deshabilitado temporalmente.',
-    ];
-
-    if (notices.isEmpty) return body;
-
-    return Stack(
-      children: [
-        body,
-        _TopNotice(message: notices.join(' • ')),
-      ],
-    );
   }
+}
+
+class _TopNoticeItem {
+  const _TopNoticeItem({
+    required this.message,
+    this.dismissible = false,
+    this.onDismiss,
+  });
+  final String message;
+  final bool dismissible;
+  final VoidCallback? onDismiss;
 }
 
 class _BootSplash extends StatelessWidget {
@@ -819,52 +860,56 @@ class _PillButton extends StatelessWidget {
 }
 
 class _TopNotice extends StatelessWidget {
-  const _TopNotice({required this.message});
-
+  const _TopNotice({
+    required this.message,
+    this.dismissible = false,
+    this.onDismiss,
+  });
   final String message;
-
+  final bool dismissible;
+  final VoidCallback? onDismiss;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: cs.surface.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-                boxShadow: const [
-                  BoxShadow(
-                    blurRadius: 16,
-                    offset: Offset(0, 8),
-                    color: Color(0x22000000),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      message,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 16,
+            offset: Offset(0, 8),
+            color: Color(0x22000000),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
             ),
           ),
-        ),
+          if (dismissible && onDismiss != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              tooltip: 'Cerrar aviso',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+              splashRadius: 16,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -897,7 +942,8 @@ class _BuildBadge extends StatelessWidget {
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface.withValues(alpha: 0.74),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+                border: Border.all(
+                    color: theme.dividerColor.withValues(alpha: 0.35)),
               ),
               child: Padding(
                 padding:
