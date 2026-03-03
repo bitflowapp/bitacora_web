@@ -3617,188 +3617,235 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _openMoreSheet(_ApplePalette colors) async {
-    await showCupertinoModalPopup<void>(
+    final items = <_MoreSheetItem>[
+      _MoreSheetItem(
+        icon: CupertinoIcons.headphones,
+        title: 'Soporte',
+        subtitle: 'Abrir WhatsApp, email o canal de ayuda',
+        onSelected: _openSupportChannel,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.info_circle,
+        title: 'Acerca de BitFlow',
+        subtitle: 'Version, build y estado de la app',
+        onSelected: () => _openStaticPage(const AboutScreen()),
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.waveform_path_ecg,
+        title: 'Diagnostico',
+        subtitle: 'Verifica motor, adjuntos y conectividad',
+        onSelected: _openDiagnostics,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.arrow_down_doc,
+        title: 'Importar paquete ZIP',
+        subtitle: 'Restaurar planillas desde respaldo',
+        onSelected: _importBackupZip,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.arrow_up_doc,
+        title: 'Nueva plantilla',
+        subtitle: 'Crear desde una plantilla comercial',
+        onSelected: _newTemplateSheet,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.bolt,
+        title: 'Prueba rapida',
+        subtitle: 'Validar GPS, fotos y audio en una hoja ejemplo',
+        onSelected: _createSmokeTestSheet,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.settings,
+        title: 'Ajustes',
+        subtitle: 'Correo, motor y preferencias de trabajo',
+        onSelected: _openMailSettings,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.folder,
+        title: 'Carpetas',
+        subtitle: 'Organiza planillas por areas o clientes',
+        onSelected: _openFolderPicker,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.search_circle,
+        title: 'Quick Switcher',
+        subtitle: 'Cambiar rapido con Ctrl/Cmd+K',
+        onSelected: _openQuickSwitcher,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.refresh,
+        title: 'Buscar actualizaciones',
+        subtitle: (_updateSnapshot?.updateAvailable ?? false)
+            ? 'Hay una actualizacion lista para instalar'
+            : (_updateChecking
+                ? 'Buscando actualizaciones en este momento'
+                : 'Comprobar nuevas versiones ahora'),
+        onSelected: () => _checkForUpdates(silent: false),
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.cart,
+        title: 'Premium',
+        subtitle: 'Planes, alcance y activacion comercial',
+        onSelected: _openCommercialInfo,
+      ),
+      if (RuntimeFlags.demoMode)
+        _MoreSheetItem(
+          icon:
+              _demoModeEnabled ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+          title: _demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
+          subtitle: 'Controla la demo reversible para presentaciones',
+          onSelected: _toggleDemoMode,
+        ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.doc_text_search,
+        title: 'Agente de planillas',
+        subtitle: 'MVP asistido para crear planillas',
+        onSelected: () => _openStaticPage(const SpreadsheetAgentScreen()),
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.sort_down,
+        title: 'Ordenar',
+        subtitle: 'Recientes, titulo o cantidad de filas',
+        onSelected: _openSortSheet,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.square_grid_2x2,
+        title: 'Vista',
+        subtitle: 'Alterna entre lista y grilla',
+        onSelected: _openViewSheet,
+      ),
+      _MoreSheetItem(
+        icon: _tab == _HomeTab.sheets
+            ? CupertinoIcons.trash
+            : CupertinoIcons.doc_plaintext,
+        title: _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas',
+        subtitle: 'Cambiar entre contenido activo y eliminado',
+        onSelected: () async {
+          if (!mounted) return;
+          setState(() {
+            _tab = _tab == _HomeTab.sheets ? _HomeTab.trash : _HomeTab.sheets;
+            _quick = _QuickFilter.none;
+          });
+        },
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.lock_shield,
+        title: 'Privacidad',
+        subtitle: 'Politica de uso y tratamiento de datos',
+        onSelected: () => _openStaticPage(const PrivacyScreen()),
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.doc_text,
+        title: 'Terminos',
+        subtitle: 'Condiciones y responsabilidades de uso',
+        onSelected: () => _openStaticPage(const TermsScreen()),
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.book,
+        title: 'Licencias',
+        subtitle: 'Creditos de librerias de terceros',
+        onSelected: _openLicenses,
+      ),
+      if (RuntimeFlags.isAuthRequired)
+        _MoreSheetItem(
+          icon: CupertinoIcons.escape,
+          title: 'Cerrar sesion',
+          subtitle: 'Salir del usuario actual',
+          onSelected: _signOutCurrentUser,
+          destructive: true,
+        ),
+    ];
+
+    await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) {
-        return CupertinoActionSheet(
-          title: const Text('Opciones'),
-          actions: [
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                unawaited(_openQuickSwitcher());
-              },
-              child: const Text('Quick Switcher (Ctrl/Cmd+K)'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openFolderPicker();
-              },
-              child: const Text('Carpetas'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openMailSettings();
-              },
-              child: const Text('Ajustes (Correo/Motor)'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PremiumScreen(),
+        final bottomInset = MediaQuery.of(ctx).padding.bottom;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(10, 0, 10, 10 + bottomInset),
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: colors.separator),
+                boxShadow: [colors.subtleShadow],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.separator,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                );
-              },
-              child: const Text('Premium / Suscripción'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _toggleDemoMode();
-              },
-              child: Text(
-                _demoModeEnabled ? 'Desactivar modo demo' : 'Activar modo demo',
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Mas',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          borderRadius: BorderRadius.circular(999),
+                          color: colors.group,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Cerrar',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => Container(
+                        height: 1,
+                        color: colors.separator,
+                      ),
+                      itemBuilder: (_, index) {
+                        final item = items[index];
+                        return _MoreSheetRow(
+                          colors: colors,
+                          item: item,
+                          onTap: () async {
+                            Navigator.of(ctx).pop();
+                            await item.onSelected();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openStaticPage(const SpreadsheetAgentScreen());
-              },
-              child: const Text('Agente de planillas (MVP)'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _checkForUpdates(silent: false);
-              },
-              child: Text(
-                (_updateSnapshot?.updateAvailable ?? false)
-                    ? 'Actualizacion disponible'
-                    : (_updateChecking
-                        ? 'Buscando actualizaciones...'
-                        : 'Buscar actualizaciones'),
-              ),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openStaticPage(const AboutScreen());
-              },
-              child: const Text('Acerca de'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openStaticPage(const PrivacyScreen());
-              },
-              child: const Text('Privacidad'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openStaticPage(const TermsScreen());
-              },
-              child: const Text('Términos'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openLicenses();
-              },
-              child: const Text('Licencias'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openDiagnostics();
-              },
-              child: const Text('Diagnóstico / Soporte'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _importBackupZip();
-              },
-              child: const Text('Importar paquete ZIP...'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _newTemplateSheet();
-              },
-              child: const Text('Nueva plantilla'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _createSmokeTestSheet();
-              },
-              child: const Text('Prueba rápida (GPS/Fotos/Audio)'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openSortSheet();
-              },
-              child: const Text('Ordenar'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                await _openViewSheet();
-              },
-              child: const Text('Vista'),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                setState(() {
-                  _tab = _tab == _HomeTab.sheets
-                      ? _HomeTab.trash
-                      : _HomeTab.sheets;
-                  _quick = _QuickFilter.none;
-                });
-              },
-              child: Text(
-                  _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas'),
-            ),
-            if (RuntimeFlags.isAuthRequired)
-              CupertinoActionSheetAction(
-                onPressed: () async {
-                  Navigator.of(ctx).pop();
-                  if (!mounted) return;
-                  await _signOutCurrentUser();
-                },
-                isDestructiveAction: true,
-                child: const Text('Cerrar sesión'),
-              ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(ctx).pop(),
-            isDefaultAction: true,
-            child: const Text('Cancelar'),
           ),
         );
       },
@@ -6285,6 +6332,92 @@ class _NoticeArea extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoreSheetItem {
+  const _MoreSheetItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onSelected,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Future<void> Function() onSelected;
+  final bool destructive;
+}
+
+class _MoreSheetRow extends StatelessWidget {
+  const _MoreSheetRow({
+    required this.colors,
+    required this.item,
+    required this.onTap,
+  });
+
+  final _ApplePalette colors;
+  final _MoreSheetItem item;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor =
+        item.destructive ? CupertinoColors.systemRed : colors.textPrimary;
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      onPressed: () => unawaited(onTap()),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: colors.group,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: colors.separator),
+            ),
+            child: Icon(item.icon, color: titleColor, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: titleColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            CupertinoIcons.chevron_right,
+            color: colors.textSecondary,
+            size: 14,
           ),
         ],
       ),
