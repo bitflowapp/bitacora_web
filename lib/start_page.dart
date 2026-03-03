@@ -4790,22 +4790,25 @@ class _StartPageState extends State<StartPage> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: _DashboardQuickSections(
-                          colors: colors,
-                          recents: recentSheets,
-                          favorites: favoriteSheets,
-                          fmt: _fmt,
-                          selectedTab: _dailyFocusTab,
-                          onTabChanged: (_DailyFocusTab tab) {
-                            setState(() => _dailyFocusTab = tab);
-                          },
-                          openedAtBySheetId: _sheetLastOpenedAtMs,
-                          isFavorite: _isFavoriteSheet,
-                          onOpen: _open,
-                          onRename: _rename,
-                          onDuplicate: _duplicateSheet,
-                          onDelete: _moveToTrash,
-                          onToggleFavorite: _toggleFavorite,
+                        child: KeyedSubtree(
+                          key: const ValueKey('start-daily-zone'),
+                          child: _DashboardQuickSections(
+                            colors: colors,
+                            recents: recentSheets,
+                            favorites: favoriteSheets,
+                            fmt: _fmt,
+                            selectedTab: _dailyFocusTab,
+                            onTabChanged: (_DailyFocusTab tab) {
+                              setState(() => _dailyFocusTab = tab);
+                            },
+                            openedAtBySheetId: _sheetLastOpenedAtMs,
+                            isFavorite: _isFavoriteSheet,
+                            onOpen: _open,
+                            onRename: _rename,
+                            onDuplicate: _duplicateSheet,
+                            onDelete: _moveToTrash,
+                            onToggleFavorite: _toggleFavorite,
+                          ),
                         ),
                       ),
                     ),
