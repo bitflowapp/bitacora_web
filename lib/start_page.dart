@@ -3438,11 +3438,6 @@ class _StartPageState extends State<StartPage> {
     } catch (_) {}
   }
 
-  void _ackIosInstallHelper() {
-    if (!mounted) return;
-    setState(() => _iosInstallHelperHiddenSession = true);
-  }
-
   Future<void> _dismissIosInstallHelperForever() async {
     if (!mounted) return;
     setState(() {
@@ -3490,6 +3485,94 @@ class _StartPageState extends State<StartPage> {
     _toast(opened
         ? 'Abriendo pagina de release.'
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
+  }
+
+  _StartNotice? _buildPriorityNotice() {
+    if (_tab != _HomeTab.sheets) return null;
+
+    final update = _updateSnapshot;
+    if (!_hideUpdateBanner && update != null && update.updateAvailable) {
+      final remote = update.remoteVersion.trim();
+      return _StartNotice(
+        message: remote.isEmpty
+            ? 'Actualizacion disponible para BitFlow.'
+            : 'Actualizacion $remote disponible.',
+        actionLabel: kIsWeb ? 'Recargar' : 'Descargar',
+        detailsTitle: 'Actualizacion disponible',
+        detailsBody: remote.isEmpty
+            ? 'Hay una version nueva lista para instalar.'
+            : 'Version detectada: $remote.\nInstala para recibir mejoras y correcciones.',
+        onAction: _applyAvailableUpdate,
+      );
+    }
+
+    if (kIsWeb && WebCapabilities.isInAppBrowser) {
+      return _StartNotice(
+        message: 'Navegador embebido: permisos y guardado pueden fallar.',
+        actionLabel: 'Abrir navegador',
+        detailsTitle: 'Abrir en Safari o Chrome',
+        detailsBody:
+            'Los navegadores embebidos bloquean camara, microfono, GPS y guardado local. Abre BitFlow en Safari o Chrome para operar sin friccion.',
+        onAction: _openInExternalBrowser,
+      );
+    }
+
+    if (_shouldShowIosInstallHelper) {
+      return _StartNotice(
+        message: 'Instala BitFlow en Safari para acceso rapido.',
+        actionLabel: 'Entendido',
+        detailsTitle: 'Instalar en iPhone',
+        detailsBody:
+            'Desde Safari: Compartir -> Anadir a pantalla de inicio. Asi se abre como app y evita pasos extra.',
+        onAction: _dismissIosInstallHelperForever,
+      );
+    }
+
+    if (RuntimeFlags.demoMode && _demoModeEnabled) {
+      return _StartNotice(
+        message: 'Modo demo activo para pruebas reversibles.',
+        actionLabel: 'Cerrar',
+        detailsTitle: 'Modo demo',
+        detailsBody:
+            'La demo muestra valor rapido sin tocar datos reales. Puedes activarla de nuevo cuando quieras.',
+        onAction: _toggleDemoMode,
+      );
+    }
+
+    return null;
+  }
+
+  Future<void> _openInExternalBrowser() async {
+    if (!kIsWeb) return;
+    final opened =
+        await launchUrl(Uri.base, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!opened) {
+      _toast('No se pudo abrir en navegador externo.');
+    }
+  }
+
+  Future<void> _showNoticeDetails(_StartNotice notice) async {
+    if (!mounted) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return CupertinoAlertDialog(
+          title: Text(notice.detailsTitle),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(notice.detailsBody),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _openSupportChannel() async {
@@ -4498,6 +4581,7 @@ class _StartPageState extends State<StartPage> {
     final hideFloatingActions = keyboardVisible || modalRouteActive;
     final showDebugBadge = kDebugMode || _kShowDebugBadge;
     final buildStamp = _buildStamp;
+    final notice = _buildPriorityNotice();
 
     return Focus(
       focusNode: _homeKeyFocus,
@@ -4704,315 +4788,14 @@ class _StartPageState extends State<StartPage> {
                         ),
                       ),
                     ),
-                  if (RuntimeFlags.demoMode && _demoModeEnabled)
+                  if (notice != null)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: _AppleSectionCard(
+                        child: _NoticeArea(
                           colors: colors,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colors.group,
-                                      borderRadius: BorderRadius.circular(999),
-                                      border:
-                                          Border.all(color: colors.separator),
-                                    ),
-                                    child: Text(
-                                      'Demo local',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Prueba guiada sin tocar tus datos reales.',
-                                      style: TextStyle(
-                                        color: colors.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Demo reversible para mostrar valor en minutos.',
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Flujo sugerido: Cargar ejemplo -> revisar evidencia -> exportar ZIP.',
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: 13,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Puedes cargar y quitar el ejemplo cuando quieras. No altera tus datos actuales.',
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: 12,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 8,
-                                children: [
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    color: colors.textPrimary,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _busy ? null : _newSheet,
-                                    child: Text(
-                                      'Nueva planilla',
-                                      style: TextStyle(
-                                        color: colors.surface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _busy || data.isEmpty
-                                        ? null
-                                        : () => _open(data.first),
-                                    child: Text(
-                                      'Abrir última',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed:
-                                        _busy ? null : _loadDemoSampleSheet,
-                                    child: Text(
-                                      'Probar demo reversible',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 8,
-                                children: [
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    color: colors.textPrimary,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _openCommercialCta,
-                                    child: Text(
-                                      'Contactar',
-                                      style: TextStyle(
-                                        color: colors.surface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _openCommercialInfo,
-                                    child: Text(
-                                      'Solicitar versión completa',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_shouldShowIosInstallHelper)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: _AppleSectionCard(
-                          colors: colors,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Instalar en iPhone (Safari)',
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Instalar rapido: Compartir -> Anadir a inicio',
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: 13,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 8,
-                                children: [
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    color: colors.textPrimary,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _ackIosInstallHelper,
-                                    child: Text(
-                                      'Entendido',
-                                      style: TextStyle(
-                                        color: colors.surface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: () => unawaited(
-                                        _dismissIosInstallHelperForever()),
-                                    child: Text(
-                                      'No mostrar de nuevo',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (!_hideUpdateBanner &&
-                      (_updateSnapshot?.updateAvailable ?? false))
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: _AppleSectionCard(
-                          colors: colors,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Actualizacion disponible',
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _updateSnapshot!.remoteVersion.trim().isEmpty
-                                    ? 'Hay una nueva version lista para instalar.'
-                                    : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: 13,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 8,
-                                children: [
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    color: colors.textPrimary,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: _applyAvailableUpdate,
-                                    child: Text(
-                                      kIsWeb ? 'Actualizar ahora' : 'Descargar',
-                                      style: TextStyle(
-                                        color: colors.surface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(10),
-                                    onPressed: () {
-                                      setState(() => _hideUpdateBanner = true);
-                                    },
-                                    child: Text(
-                                      'Ocultar',
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                          notice: notice,
+                          onDetails: () => _showNoticeDetails(notice),
                         ),
                       ),
                     ),
@@ -6424,6 +6207,87 @@ class _AppleSectionCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(14),
       child: child,
+    );
+  }
+}
+
+class _StartNotice {
+  const _StartNotice({
+    required this.message,
+    required this.actionLabel,
+    required this.detailsTitle,
+    required this.detailsBody,
+    required this.onAction,
+  });
+
+  final String message;
+  final String actionLabel;
+  final String detailsTitle;
+  final String detailsBody;
+  final Future<void> Function() onAction;
+}
+
+class _NoticeArea extends StatelessWidget {
+  const _NoticeArea({
+    required this.colors,
+    required this.notice,
+    required this.onDetails,
+  });
+
+  final _ApplePalette colors;
+  final _StartNotice notice;
+  final VoidCallback onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppleSectionCard(
+      colors: colors,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              notice.message,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            minimumSize: const Size(0, 0),
+            borderRadius: BorderRadius.circular(999),
+            color: colors.textPrimary,
+            onPressed: () => unawaited(notice.onAction()),
+            child: Text(
+              notice.actionLabel,
+              style: TextStyle(
+                color: colors.surface,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            minimumSize: const Size(0, 0),
+            onPressed: onDetails,
+            child: Text(
+              'Detalles',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
