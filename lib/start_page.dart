@@ -124,6 +124,8 @@ enum _HomeTab { sheets, trash }
 
 enum _QuickFilter { none, today, flagged }
 
+enum _DailyFocusTab { recents, favorites }
+
 enum _CreateSheetChoice {
   blank,
   plantilla,
@@ -440,6 +442,7 @@ class _StartPageState extends State<StartPage> {
 
   // Dashboard UX
   _QuickFilter _quick = _QuickFilter.none;
+  _DailyFocusTab _dailyFocusTab = _DailyFocusTab.recents;
 
   // Carpeta seleccionada (solo aplica en _HomeTab.sheets)
   String _selectedFolderId = ''; // '' = Raíz
@@ -4270,9 +4273,11 @@ class _StartPageState extends State<StartPage> {
         .where((entry) => activeById.containsKey(entry.key))
         .toList(growable: false)
       ..sort((a, b) => b.value.compareTo(a.value));
-    return [
+    final recents = <SheetMeta>[
       for (final entry in entries) activeById[entry.key]!,
     ];
+    if (recents.isNotEmpty) return recents;
+    return _activeSheets;
   }
 
   List<SheetMeta> get _favoriteSheets {
@@ -4343,7 +4348,8 @@ class _StartPageState extends State<StartPage> {
     ];
 
     for (final sheet in _activeSheets) {
-      final title = sheet.title.trim().isEmpty ? 'Planilla sin titulo' : sheet.title;
+      final title =
+          sheet.title.trim().isEmpty ? 'Planilla sin titulo' : sheet.title;
       final suffix = _isFavoriteSheet(sheet.id) ? ' · Favorita' : '';
       actions.add(
         CommandAction(
@@ -4504,132 +4510,12 @@ class _StartPageState extends State<StartPage> {
           child: Stack(
             children: [
               CustomScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: AppTopBar(
-                      title: _tab == _HomeTab.trash ? 'Papelera' : 'BitFlow',
-                      subtitle: _tab == _HomeTab.trash
-                          ? 'Elementos eliminados recientemente'
-                          : '${data.length} planillas activas | ${BuildInfo.buildIdLabel}',
-                      leading: AppButton(
-                        label: isLight ? 'Noche' : 'Día',
-                        icon: isLight
-                            ? CupertinoIcons.moon_stars
-                            : CupertinoIcons.sun_max,
-                        variant: AppButtonVariant.ghost,
-                        size: AppButtonSize.sm,
-                        onPressed: widget.onToggleTheme,
-                      ),
-                      actions: [
-                        if (RuntimeFlags.isAuthRequired)
-                          AppButton(
-                            label: 'Cerrar sesión',
-                            icon: CupertinoIcons.escape,
-                            variant: AppButtonVariant.ghost,
-                            size: AppButtonSize.sm,
-                            onPressed: _signOutCurrentUser,
-                          ),
-                        AppButton(
-                          label: 'Quick',
-                          icon: CupertinoIcons.search,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: _openQuickSwitcher,
-                        ),
-                        AppButton(
-                          label: 'Crear',
-                          icon: CupertinoIcons.list_bullet_below_rectangle,
-                          variant: AppButtonVariant.secondary,
-                          size: AppButtonSize.sm,
-                          onPressed: !_busy && _tab != _HomeTab.trash
-                              ? _newSheet
-                              : null,
-                        ),
-                        AppButton(
-                          label: 'Soporte cliente',
-                          icon: CupertinoIcons.question_circle,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: _openSupportChannel,
-                        ),
-                        AppButton(
-                          label: 'Version',
-                          icon: CupertinoIcons.info_circle,
-                          variant: AppButtonVariant.ghost,
-                          size: AppButtonSize.sm,
-                          onPressed: () =>
-                              unawaited(_openStaticPage(const AboutScreen())),
-                        ),
-                        AppButton(
-                          label: 'Más',
-                          icon: CupertinoIcons.ellipsis,
-                          variant: AppButtonVariant.secondary,
-                          size: AppButtonSize.sm,
-                          onPressed: () => _openMoreSheet(colors),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (showInitialLoading)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: LoadingState(
-                        message: 'Preparando BitFlow para tu primer uso...',
-                      ),
-                    ),
-                  ),
-                if (startupErrors.isNotEmpty)
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: AppErrorState(
-                        compact: true,
-                        title: 'Algunas preferencias no se cargaron',
-                        message:
-                            'BitFlow continuo con configuracion segura para evitar bloquear el inicio.',
-                        details: startupErrors.join('\n'),
-                        actionLabel: 'Reintentar inicio',
-                        onAction: () {
-                          setState(() {
-                            _prefsLoaded = false;
-                            _orgLoaded = false;
-                            _prefsLoadError = null;
-                            _orgLoadError = null;
-                          });
-                          unawaited(_loadPrefs());
-                          unawaited(_loadOrg());
-                        },
-                      ),
-                    ),
-                  ),
-                if (_tab == _HomeTab.sheets)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _ProLicenseCard(
-                        colors: colors,
-                        busy: _busy,
-                        releaseVersion: _kReleaseVersion,
-                        supportChannelLabel: _supportChannelLabel,
-                        demoModeEnabled: _demoModeEnabled,
-                        demoSampleLoaded: _demoSampleLoaded,
-                        onPrimaryCta: _openCommercialCta,
-                        onSupport: _openSupportChannel,
-                        onLoadDemo: _loadDemoSampleSheet,
-                        onRemoveDemo: _removeDemoSample,
-                        onToggleDemoMode: _toggleDemoMode,
-                      ),
-                    ),
-                  ),
-                if (RuntimeFlags.demoMode && _demoModeEnabled)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                       child: _AppleSectionCard(
                         colors: colors,
                         child: Column(
@@ -4637,678 +4523,853 @@ class _StartPageState extends State<StartPage> {
                           children: [
                             Row(
                               children: [
-                                Container(
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _tab == _HomeTab.trash
+                                            ? 'Papelera'
+                                            : 'BitFlow',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.textPrimary,
+                                          fontSize: 30,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: -0.7,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _tab == _HomeTab.trash
+                                            ? 'Elementos eliminados recientemente.'
+                                            : 'Planillas rapidas para campo y oficina.',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  key: const ValueKey('start-theme-toggle'),
+                                  padding: const EdgeInsets.all(8),
+                                  minimumSize: const Size(36, 36),
+                                  borderRadius: BorderRadius.circular(999),
+                                  color: colors.group,
+                                  onPressed: widget.onToggleTheme,
+                                  child: Icon(
+                                    isLight
+                                        ? CupertinoIcons.moon_stars
+                                        : CupertinoIcons.sun_max,
+                                    size: 18,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                CupertinoButton(
+                                  key: const ValueKey('start-more-button'),
+                                  padding: const EdgeInsets.all(8),
+                                  minimumSize: const Size(36, 36),
+                                  borderRadius: BorderRadius.circular(999),
+                                  color: colors.group,
+                                  onPressed: () => _openMoreSheet(colors),
+                                  child: Icon(
+                                    CupertinoIcons.ellipsis,
+                                    size: 18,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_tab == _HomeTab.sheets) ...[
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  AppButton(
+                                    key: const ValueKey('start-primary-new'),
+                                    label: 'Nueva planilla',
+                                    icon: CupertinoIcons.add_circled_solid,
+                                    variant: AppButtonVariant.primary,
+                                    onPressed: _busy ? null : _newSheet,
+                                  ),
+                                  AppButton(
+                                    key: const ValueKey('start-primary-search'),
+                                    label: 'Buscar',
+                                    icon: CupertinoIcons.search,
+                                    variant: AppButtonVariant.secondary,
+                                    onPressed: _openQuickSwitcher,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Ctrl/Cmd+K para cambiar rapido',
+                                key: const ValueKey('start-quick-hint'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (showInitialLoading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: LoadingState(
+                          message: 'Preparando BitFlow para tu primer uso...',
+                        ),
+                      ),
+                    ),
+                  if (startupErrors.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: AppErrorState(
+                          compact: true,
+                          title: 'Algunas preferencias no se cargaron',
+                          message:
+                              'BitFlow continuo con configuracion segura para evitar bloquear el inicio.',
+                          details: startupErrors.join('\n'),
+                          actionLabel: 'Reintentar inicio',
+                          onAction: () {
+                            setState(() {
+                              _prefsLoaded = false;
+                              _orgLoaded = false;
+                              _prefsLoadError = null;
+                              _orgLoadError = null;
+                            });
+                            unawaited(_loadPrefs());
+                            unawaited(_loadOrg());
+                          },
+                        ),
+                      ),
+                    ),
+                  if (_tab == _HomeTab.sheets)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _DashboardQuickSections(
+                          colors: colors,
+                          recents: recentSheets,
+                          favorites: favoriteSheets,
+                          fmt: _fmt,
+                          selectedTab: _dailyFocusTab,
+                          onTabChanged: (_DailyFocusTab tab) {
+                            setState(() => _dailyFocusTab = tab);
+                          },
+                          openedAtBySheetId: _sheetLastOpenedAtMs,
+                          isFavorite: _isFavoriteSheet,
+                          onOpen: _open,
+                          onRename: _rename,
+                          onDuplicate: _duplicateSheet,
+                          onDelete: _moveToTrash,
+                          onToggleFavorite: _toggleFavorite,
+                        ),
+                      ),
+                    ),
+                  if (_tab == _HomeTab.sheets)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _ProLicenseCard(
+                          colors: colors,
+                          busy: _busy,
+                          releaseVersion: _kReleaseVersion,
+                          supportChannelLabel: _supportChannelLabel,
+                          demoModeEnabled: _demoModeEnabled,
+                          demoSampleLoaded: _demoSampleLoaded,
+                          onPrimaryCta: _openCommercialCta,
+                          onSupport: _openSupportChannel,
+                          onLoadDemo: _loadDemoSampleSheet,
+                          onRemoveDemo: _removeDemoSample,
+                          onToggleDemoMode: _toggleDemoMode,
+                        ),
+                      ),
+                    ),
+                  if (RuntimeFlags.demoMode && _demoModeEnabled)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _AppleSectionCard(
+                          colors: colors,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colors.group,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border:
+                                          Border.all(color: colors.separator),
+                                    ),
+                                    child: Text(
+                                      'Demo local',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Prueba guiada sin tocar tus datos reales.',
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Demo reversible para mostrar valor en minutos.',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Flujo sugerido: Cargar ejemplo -> revisar evidencia -> exportar ZIP.',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Puedes cargar y quitar el ejemplo cuando quieras. No altera tus datos actuales.',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 12,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.textPrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _busy ? null : _newSheet,
+                                    child: Text(
+                                      'Nueva planilla',
+                                      style: TextStyle(
+                                        color: colors.surface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _busy || data.isEmpty
+                                        ? null
+                                        : () => _open(data.first),
+                                    child: Text(
+                                      'Abrir última',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed:
+                                        _busy ? null : _loadDemoSampleSheet,
+                                    child: Text(
+                                      'Probar demo reversible',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.textPrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _openCommercialCta,
+                                    child: Text(
+                                      'Contactar',
+                                      style: TextStyle(
+                                        color: colors.surface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _openCommercialInfo,
+                                    child: Text(
+                                      'Solicitar versión completa',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_shouldShowIosInstallHelper)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _AppleSectionCard(
+                          colors: colors,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Instalar en iPhone (Safari)',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Instalar rapido: Compartir -> Anadir a inicio',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    color: colors.textPrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _ackIosInstallHelper,
+                                    child: Text(
+                                      'Entendido',
+                                      style: TextStyle(
+                                        color: colors.surface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () => unawaited(
+                                        _dismissIosInstallHelperForever()),
+                                    child: Text(
+                                      'No mostrar de nuevo',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (!_hideUpdateBanner &&
+                      (_updateSnapshot?.updateAvailable ?? false))
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: _AppleSectionCard(
+                          colors: colors,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Actualizacion disponible',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _updateSnapshot!.remoteVersion.trim().isEmpty
+                                    ? 'Hay una nueva version lista para instalar.'
+                                    : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    color: colors.textPrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: _applyAvailableUpdate,
+                                    child: Text(
+                                      kIsWeb ? 'Actualizar ahora' : 'Descargar',
+                                      style: TextStyle(
+                                        color: colors.surface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    color: colors.group,
+                                    borderRadius: BorderRadius.circular(10),
+                                    onPressed: () {
+                                      setState(() => _hideUpdateBanner = true);
+                                    },
+                                    child: Text(
+                                      'Ocultar',
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Pull to refresh (iOS)
+                  CupertinoSliverRefreshControl(
+                    onRefresh: () async => _reload(),
+                  ),
+
+                  // Dashboard (estilo Reminders)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                      child: _RemindersSummaryGrid(
+                        isLight: isLight,
+                        today: todayCount,
+                        scheduled: scheduledCount,
+                        all: allCount,
+                        flagged: flaggedCount,
+                        completed: completedCount,
+                        onTapToday: () => _applySummaryTap(_SummaryKind.today),
+                        onTapScheduled: () =>
+                            _applySummaryTap(_SummaryKind.scheduled),
+                        onTapAll: () => _applySummaryTap(_SummaryKind.all),
+                        onTapFlagged: () =>
+                            _applySummaryTap(_SummaryKind.flagged),
+                        onTapCompleted: () =>
+                            _applySummaryTap(_SummaryKind.completed),
+                      )
+                          .animate()
+                          .fadeIn(duration: 220.ms)
+                          .move(begin: const Offset(0, 6)),
+                    ),
+                  ),
+                  // Lista sugerida (como Reminders)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      child: _SuggestedListCard(
+                        colors: colors,
+                        title: 'Lista sugerida: Carpeta del mes',
+                        subtitle:
+                            'Organiza automáticamente las planillas nuevas.',
+                        onAdd: () async {
+                          final created = await _createFolderDialog(context);
+                          if (created == null) return;
+                          if (!mounted) return;
+                          setState(() {
+                            _tab = _HomeTab.sheets;
+                            _selectedFolderId = created.id;
+                            _quick = _QuickFilter.none;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Mis listas (Raíz + carpetas + Papelera)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mis listas',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              height: 1.05,
+                              letterSpacing: -0.6,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _ListsCard(
+                            colors: colors,
+                            items: _buildHomeLists(colors),
+                            onTap: (item) {
+                              switch (item.kind) {
+                                case _ListKind.root:
+                                  _applyListTap(_ListKind.root, folderId: '');
+                                  break;
+                                case _ListKind.folder:
+                                  _applyListTap(_ListKind.folder,
+                                      folderId: item.folderId);
+                                  break;
+                                case _ListKind.trash:
+                                  _applyListTap(_ListKind.trash);
+                                  break;
+                              }
+                            },
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 220.ms, delay: 40.ms),
+                    ),
+                  ),
+
+                  // Search + quick switcher
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _AppleSectionCard(
+                        colors: colors,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CupertinoSearchTextField(
+                              controller: _searchEC,
+                              onChanged: (v) => setState(() {
+                                _q = v;
+                              }),
+                              placeholder:
+                                  'Buscar planillas y plantillas (Ctrl/Cmd+K)',
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Quick Switcher: Ctrl/Cmd+K',
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                CupertinoButton(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
                                     vertical: 6,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: colors.group,
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: colors.separator),
-                                  ),
+                                  minimumSize: const Size(0, 30),
+                                  color: colors.group,
+                                  borderRadius: BorderRadius.circular(999),
+                                  onPressed: _openQuickSwitcher,
                                   child: Text(
-                                    'Demo local',
+                                    'Abrir',
                                     style: TextStyle(
                                       color: colors.textPrimary,
-                                      fontWeight: FontWeight.w700,
                                       fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Prueba guiada sin tocar tus datos reales.',
-                                    style: TextStyle(
-                                      color: colors.textSecondary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Demo reversible para mostrar valor en minutos.',
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Flujo sugerido: Cargar ejemplo -> revisar evidencia -> exportar ZIP.',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 13,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Puedes cargar y quitar el ejemplo cuando quieras. No altera tus datos actuales.',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 12,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 8,
-                              children: [
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  color: colors.textPrimary,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _busy ? null : _newSheet,
-                                  child: Text(
-                                    'Nueva planilla',
-                                    style: TextStyle(
-                                      color: colors.surface,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  color: colors.group,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _busy || data.isEmpty
-                                      ? null
-                                      : () => _open(data.first),
-                                  child: Text(
-                                    'Abrir última',
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  color: colors.group,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed:
-                                      _busy ? null : _loadDemoSampleSheet,
-                                  child: Text(
-                                    'Probar demo reversible',
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 8,
-                              children: [
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  color: colors.textPrimary,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _openCommercialCta,
-                                  child: Text(
-                                    'Contactar',
-                                    style: TextStyle(
-                                      color: colors.surface,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  color: colors.group,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _openCommercialInfo,
-                                  child: Text(
-                                    'Solicitar versión completa',
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_shouldShowIosInstallHelper)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _AppleSectionCard(
-                        colors: colors,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Instalar en iPhone (Safari)',
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Instalar rapido: Compartir -> Anadir a inicio',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 13,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 8,
-                              children: [
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  color: colors.textPrimary,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _ackIosInstallHelper,
-                                  child: Text(
-                                    'Entendido',
-                                    style: TextStyle(
-                                      color: colors.surface,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  color: colors.group,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: () => unawaited(
-                                      _dismissIosInstallHelperForever()),
-                                  child: Text(
-                                    'No mostrar de nuevo',
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                if (!_hideUpdateBanner &&
-                    (_updateSnapshot?.updateAvailable ?? false))
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _AppleSectionCard(
-                        colors: colors,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Actualizacion disponible',
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _updateSnapshot!.remoteVersion.trim().isEmpty
-                                  ? 'Hay una nueva version lista para instalar.'
-                                  : 'Nueva version: ${_updateSnapshot!.remoteVersion.trim()}',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 13,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 8,
-                              children: [
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  color: colors.textPrimary,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: _applyAvailableUpdate,
-                                  child: Text(
-                                    kIsWeb ? 'Actualizar ahora' : 'Descargar',
-                                    style: TextStyle(
-                                      color: colors.surface,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  color: colors.group,
-                                  borderRadius: BorderRadius.circular(10),
-                                  onPressed: () {
-                                    setState(() => _hideUpdateBanner = true);
-                                  },
-                                  child: Text(
-                                    'Ocultar',
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Pull to refresh (iOS)
-                CupertinoSliverRefreshControl(
-                  onRefresh: () async => _reload(),
-                ),
-
-                // Dashboard (estilo Reminders)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                    child: _RemindersSummaryGrid(
-                      isLight: isLight,
-                      today: todayCount,
-                      scheduled: scheduledCount,
-                      all: allCount,
-                      flagged: flaggedCount,
-                      completed: completedCount,
-                      onTapToday: () => _applySummaryTap(_SummaryKind.today),
-                      onTapScheduled: () =>
-                          _applySummaryTap(_SummaryKind.scheduled),
-                      onTapAll: () => _applySummaryTap(_SummaryKind.all),
-                      onTapFlagged: () =>
-                          _applySummaryTap(_SummaryKind.flagged),
-                      onTapCompleted: () =>
-                          _applySummaryTap(_SummaryKind.completed),
-                    )
-                        .animate()
-                        .fadeIn(duration: 220.ms)
-                        .move(begin: const Offset(0, 6)),
-                  ),
-                ),
-                if (_tab == _HomeTab.sheets)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                      child: _DashboardQuickSections(
-                        colors: colors,
-                        recents: recentSheets,
-                        favorites: favoriteSheets,
-                        fmt: _fmt,
-                        openedAtBySheetId: _sheetLastOpenedAtMs,
-                        isFavorite: _isFavoriteSheet,
-                        onOpen: _open,
-                        onRename: _rename,
-                        onDuplicate: _duplicateSheet,
-                        onDelete: _moveToTrash,
-                        onToggleFavorite: _toggleFavorite,
-                      ),
-                    ),
-                  ),
-
-                // Lista sugerida (como Reminders)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                    child: _SuggestedListCard(
-                      colors: colors,
-                      title: 'Lista sugerida: Carpeta del mes',
-                      subtitle:
-                          'Organiza automáticamente las planillas nuevas.',
-                      onAdd: () async {
-                        final created = await _createFolderDialog(context);
-                        if (created == null) return;
-                        if (!mounted) return;
-                        setState(() {
-                          _tab = _HomeTab.sheets;
-                          _selectedFolderId = created.id;
-                          _quick = _QuickFilter.none;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-
-                // Mis listas (Raíz + carpetas + Papelera)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mis listas',
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05,
-                            letterSpacing: -0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _ListsCard(
-                          colors: colors,
-                          items: _buildHomeLists(colors),
-                          onTap: (item) {
-                            switch (item.kind) {
-                              case _ListKind.root:
-                                _applyListTap(_ListKind.root, folderId: '');
-                                break;
-                              case _ListKind.folder:
-                                _applyListTap(_ListKind.folder,
-                                    folderId: item.folderId);
-                                break;
-                              case _ListKind.trash:
-                                _applyListTap(_ListKind.trash);
-                                break;
-                            }
-                          },
-                        ),
-                      ],
-                    ).animate().fadeIn(duration: 220.ms, delay: 40.ms),
-                  ),
-                ),
-
-                // Search + quick switcher
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                    child: _AppleSectionCard(
-                      colors: colors,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CupertinoSearchTextField(
-                            controller: _searchEC,
-                            onChanged: (v) => setState(() {
-                              _q = v;
-                            }),
-                            placeholder:
-                                'Buscar planillas y plantillas (Ctrl/Cmd+K)',
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Quick Switcher: Ctrl/Cmd+K',
-                                  style: TextStyle(
-                                    color: colors.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              CupertinoButton(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                minimumSize: const Size(0, 30),
-                                color: colors.group,
-                                borderRadius: BorderRadius.circular(999),
-                                onPressed: _openQuickSwitcher,
-                                child: Text(
-                                  'Abrir',
-                                  style: TextStyle(
-                                    color: colors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            if (_tab == _HomeTab.sheets) ...[
+                              const SizedBox(height: 10),
+                              _SegmentedScope(
+                                isLight: isLight,
+                                value: _searchAll,
+                                onChanged: (v) =>
+                                    setState(() => _searchAll = v),
+                                colors: colors,
                               ),
                             ],
-                          ),
-                          if (_tab == _HomeTab.sheets) ...[
-                            const SizedBox(height: 10),
-                            _SegmentedScope(
-                              isLight: isLight,
-                              value: _searchAll,
-                              onChanged: (v) =>
-                                  setState(() => _searchAll = v),
-                              colors: colors,
-                            ),
+                            if (_q.trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _TemplateSearchResults(
+                                colors: colors,
+                                templates: templateMatches
+                                    .take(3)
+                                    .toList(growable: false),
+                                onOpenTemplate: (template) => unawaited(
+                                    _createAndOpenPackTemplate(template)),
+                              ),
+                            ],
                           ],
-                          if (_q.trim().isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            _TemplateSearchResults(
-                              colors: colors,
-                              templates:
-                                  templateMatches.take(3).toList(growable: false),
-                              onOpenTemplate: (template) =>
-                                  unawaited(_createAndOpenPackTemplate(template)),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // Caption de vista
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                    child: Text(
-                      _tab == _HomeTab.trash
-                          ? 'Papelera: ${data.length} planilla(s)'
-                          : _quick == _QuickFilter.today
-                              ? 'Hoy: ${data.length} planilla(s)'
-                              : _quick == _QuickFilter.flagged
-                                  ? 'Con indicador: ${data.length} planilla(s)'
-                                  : (_searchAll
-                                      ? 'Mostrando ${data.length} (buscando en todas)'
-                                      : 'Mostrando ${data.length} en ${_folderName(_selectedFolderId)}'),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (data.isEmpty)
+                  // Caption de vista
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
-                      child: _AppleEmptyState(
-                        colors: colors,
-                        tab: _tab,
-                        onNew: _newSheet,
-                        onTemplate: _newTemplateSheet,
-                        onImport: _importBackupZip,
-                        onFolders: _openFolderPicker,
-                        isBusy: _busy,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Text(
+                        _tab == _HomeTab.trash
+                            ? 'Papelera: ${data.length} planilla(s)'
+                            : _quick == _QuickFilter.today
+                                ? 'Hoy: ${data.length} planilla(s)'
+                                : _quick == _QuickFilter.flagged
+                                    ? 'Con indicador: ${data.length} planilla(s)'
+                                    : (_searchAll
+                                        ? 'Mostrando ${data.length} (buscando en todas)'
+                                        : 'Mostrando ${data.length} en ${_folderName(_selectedFolderId)}'),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  )
-                else
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 180 + bottomPad),
-                    sliver: _view == _ViewMode.list
-                        ? SliverToBoxAdapter(
-                            child: _AppleInsetGroupedList(
-                              colors: colors,
-                              children: [
-                                for (int i = 0; i < data.length; i++)
-                                  _AppleSheetRow(
-                                    key: ValueKey('sheet_${data[i].id}'),
+                  ),
+
+                  if (data.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+                        child: _AppleEmptyState(
+                          colors: colors,
+                          tab: _tab,
+                          onNew: _newSheet,
+                          onTemplate: _newTemplateSheet,
+                          onImport: _importBackupZip,
+                          onFolders: _openFolderPicker,
+                          isBusy: _busy,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 180 + bottomPad),
+                      sliver: _view == _ViewMode.list
+                          ? SliverToBoxAdapter(
+                              child: _AppleInsetGroupedList(
+                                colors: colors,
+                                children: [
+                                  for (int i = 0; i < data.length; i++)
+                                    _AppleSheetRow(
+                                      key: ValueKey('sheet_${data[i].id}'),
+                                      colors: colors,
+                                      meta: data[i],
+                                      note: (_sheetNotes[data[i].id] ?? '')
+                                          .trim(),
+                                      folderName: _folderName(
+                                          _sheetFolder[data[i].id] ?? ''),
+                                      fmt: _fmt,
+                                      tab: _tab,
+                                      busy: _busy && _busySheetId == data[i].id,
+                                      daysLeftInTrash: _tab == _HomeTab.trash
+                                          ? _daysLeftInTrash(data[i].id)
+                                          : null,
+                                      onOpen: () => _open(data[i]),
+                                      onRename: () => _rename(data[i]),
+                                      onExport: () => _exportSheet(data[i]),
+                                      onEditNote: () => _editNote(data[i]),
+                                      onMoveFolder: () =>
+                                          _moveSheetToFolder(data[i]),
+                                      onMoveToTrash: () =>
+                                          _moveToTrash(data[i]),
+                                      onRestore: () =>
+                                          _restoreFromTrash(data[i].id),
+                                      onDeleteForever: () =>
+                                          _deleteForever(data[i]),
+                                    )
+                                        .animate(delay: (30 + i * 20).ms)
+                                        .fadeIn(duration: 180.ms)
+                                        .move(begin: const Offset(0, 4)),
+                                ],
+                              ),
+                            )
+                          : SliverGrid(
+                              delegate: SliverChildBuilderDelegate(
+                                (ctx, i) {
+                                  final m = data[i];
+                                  return _AppleSheetGridCard(
                                     colors: colors,
-                                    meta: data[i],
-                                    note:
-                                        (_sheetNotes[data[i].id] ?? '').trim(),
-                                    folderName: _folderName(
-                                        _sheetFolder[data[i].id] ?? ''),
-                                    fmt: _fmt,
+                                    meta: m,
+                                    note: (_sheetNotes[m.id] ?? '').trim(),
+                                    folderName:
+                                        _folderName(_sheetFolder[m.id] ?? ''),
                                     tab: _tab,
-                                    busy: _busy && _busySheetId == data[i].id,
+                                    busy: _busy && _busySheetId == m.id,
                                     daysLeftInTrash: _tab == _HomeTab.trash
-                                        ? _daysLeftInTrash(data[i].id)
+                                        ? _daysLeftInTrash(m.id)
                                         : null,
-                                    onOpen: () => _open(data[i]),
-                                    onRename: () => _rename(data[i]),
-                                    onExport: () => _exportSheet(data[i]),
-                                    onEditNote: () => _editNote(data[i]),
-                                    onMoveFolder: () =>
-                                        _moveSheetToFolder(data[i]),
-                                    onMoveToTrash: () => _moveToTrash(data[i]),
-                                    onRestore: () =>
-                                        _restoreFromTrash(data[i].id),
-                                    onDeleteForever: () =>
-                                        _deleteForever(data[i]),
+                                    fmt: _fmt,
+                                    onOpen: () => _open(m),
+                                    onRename: () => _rename(m),
+                                    onExport: () => _exportSheet(m),
+                                    onEditNote: () => _editNote(m),
+                                    onMoveFolder: () => _moveSheetToFolder(m),
+                                    onMoveToTrash: () => _moveToTrash(m),
+                                    onRestore: () => _restoreFromTrash(m.id),
+                                    onDeleteForever: () => _deleteForever(m),
                                   )
-                                      .animate(delay: (30 + i * 20).ms)
-                                      .fadeIn(duration: 180.ms)
-                                      .move(begin: const Offset(0, 4)),
-                              ],
+                                      .animate()
+                                      .fadeIn(duration: 200.ms, delay: 30.ms);
+                                },
+                                childCount: data.length,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                                childAspectRatio: 2.35,
+                              ),
                             ),
-                          )
-                        : SliverGrid(
-                            delegate: SliverChildBuilderDelegate(
-                              (ctx, i) {
-                                final m = data[i];
-                                return _AppleSheetGridCard(
-                                  colors: colors,
-                                  meta: m,
-                                  note: (_sheetNotes[m.id] ?? '').trim(),
-                                  folderName:
-                                      _folderName(_sheetFolder[m.id] ?? ''),
-                                  tab: _tab,
-                                  busy: _busy && _busySheetId == m.id,
-                                  daysLeftInTrash: _tab == _HomeTab.trash
-                                      ? _daysLeftInTrash(m.id)
-                                      : null,
-                                  fmt: _fmt,
-                                  onOpen: () => _open(m),
-                                  onRename: () => _rename(m),
-                                  onExport: () => _exportSheet(m),
-                                  onEditNote: () => _editNote(m),
-                                  onMoveFolder: () => _moveSheetToFolder(m),
-                                  onMoveToTrash: () => _moveToTrash(m),
-                                  onRestore: () => _restoreFromTrash(m.id),
-                                  onDeleteForever: () => _deleteForever(m),
-                                )
-                                    .animate()
-                                    .fadeIn(duration: 200.ms, delay: 30.ms);
-                              },
-                              childCount: data.length,
-                            ),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio: 2.35,
-                            ),
-                          ),
-                  ),
-              ],
-            ),
+                    ),
+                ],
+              ),
 
-            if (showDebugBadge)
-              Positioned(
-                left: 16,
-                bottom: 14 + bottomPad,
-                child: IgnorePointer(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              if (showDebugBadge)
+                Positioned(
+                  left: 16,
+                  bottom: 14 + bottomPad,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colors.navBarBg.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colors.separator),
+                      ),
+                      child: Text(
+                        buildStamp,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Botón flotante iOS (+) como Reminders (no Material FAB)
+              if (_busy && _busyMessage.trim().isNotEmpty)
+                Positioned.fill(
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: colors.navBarBg.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colors.separator),
+                      color: colors.textPrimary.withValues(alpha: 0.16),
                     ),
-                    child: Text(
-                      buildStamp,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: LoadingState(
+                          message: _busyMessage,
+                          onCancel: (_busyCanCancel && !_busyCancelRequested)
+                              ? _requestBusyCancel
+                              : null,
+                          cancelLabel: AppStrings.cancel,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-
-            // Botón flotante iOS (+) como Reminders (no Material FAB)
-            if (_busy && _busyMessage.trim().isNotEmpty)
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.textPrimary.withValues(alpha: 0.16),
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: LoadingState(
-                        message: _busyMessage,
-                        onCancel: (_busyCanCancel && !_busyCancelRequested)
-                            ? _requestBusyCancel
-                            : null,
-                        cancelLabel: AppStrings.cancel,
-                      ),
-                    ),
+              if (_tab == _HomeTab.sheets && !hideFloatingActions)
+                Positioned(
+                  right: 18,
+                  bottom: 18 + bottomPad,
+                  child: _FloatingAddButton(
+                    color: colors.accent,
+                    onTap: _busy ? null : _newSheet,
                   ),
                 ),
-              ),
-            if (_tab == _HomeTab.sheets && !hideFloatingActions)
-              Positioned(
-                right: 18,
-                bottom: 18 + bottomPad,
-                child: _FloatingAddButton(
-                  color: colors.accent,
-                  onTap: _busy ? null : _newSheet,
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -5764,6 +5825,8 @@ class _DashboardQuickSections extends StatelessWidget {
     required this.recents,
     required this.favorites,
     required this.fmt,
+    required this.selectedTab,
+    required this.onTabChanged,
     required this.openedAtBySheetId,
     required this.isFavorite,
     required this.onOpen,
@@ -5777,6 +5840,8 @@ class _DashboardQuickSections extends StatelessWidget {
   final List<SheetMeta> recents;
   final List<SheetMeta> favorites;
   final String Function(DateTime) fmt;
+  final _DailyFocusTab selectedTab;
+  final ValueChanged<_DailyFocusTab> onTabChanged;
   final Map<String, int> openedAtBySheetId;
   final bool Function(String sheetId) isFavorite;
   final ValueChanged<SheetMeta> onOpen;
@@ -5787,113 +5852,100 @@ class _DashboardQuickSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget section({
-      required String title,
-      required List<SheetMeta> items,
-      required bool showOpenedAt,
-    }) {
-      return _AppleSectionCard(
-        colors: colors,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (items.isEmpty)
-              Text(
-                title == 'Recientes'
-                    ? 'Todavia no abriste planillas en esta sesion.'
-                    : 'Marca una planilla con estrella para verla aca.',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
-              )
-            else
-              Column(
-                children: [
-                  for (int i = 0; i < items.length; i++) ...[
-                    _DashboardQuickRow(
-                      colors: colors,
-                      meta: items[i],
-                      subtitle: showOpenedAt
-                          ? _openedAtLabel(items[i].id)
-                          : 'Actualizada ${fmt(items[i].updatedAt)}',
-                      favorite: isFavorite(items[i].id),
-                      onOpen: () => onOpen(items[i]),
-                      onRename: () => onRename(items[i]),
-                      onDuplicate: () => onDuplicate(items[i]),
-                      onDelete: () => onDelete(items[i]),
-                      onToggleFavorite: () => onToggleFavorite(items[i]),
-                    ),
-                    if (i < items.length - 1)
-                      Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        height: 1,
-                        color: colors.separator.withValues(
-                          alpha: colors.isLight ? 0.8 : 0.4,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
-          ],
-        ),
-      );
-    }
+    final activeTab = selectedTab;
+    final visibleItems =
+        (activeTab == _DailyFocusTab.recents ? recents : favorites)
+            .take(3)
+            .toList(growable: false);
+    final emptyMessage = activeTab == _DailyFocusTab.recents
+        ? 'Todavia no abriste planillas. Crea una para empezar.'
+        : 'Marca planillas como favoritas para verlas aqui.';
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 860) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return _AppleSectionCard(
+      colors: colors,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recientes y favoritas',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Abre lo que usas todos los dias.',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: section(
-                  title: 'Recientes',
-                  items: recents,
-                  showOpenedAt: true,
-                ),
+              _DailyTabChip(
+                label: 'Recientes',
+                selected: activeTab == _DailyFocusTab.recents,
+                colors: colors,
+                onTap: () => onTabChanged(_DailyFocusTab.recents),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: section(
-                  title: 'Favoritas',
-                  items: favorites,
-                  showOpenedAt: false,
-                ),
+              _DailyTabChip(
+                label: 'Favoritas',
+                selected: activeTab == _DailyFocusTab.favorites,
+                colors: colors,
+                onTap: () => onTabChanged(_DailyFocusTab.favorites),
               ),
             ],
-          );
-        }
-        return Column(
-          children: [
-            section(
-              title: 'Recientes',
-              items: recents,
-              showOpenedAt: true,
+          ),
+          const SizedBox(height: 10),
+          if (visibleItems.isEmpty)
+            Text(
+              emptyMessage,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (int i = 0; i < visibleItems.length; i++) ...[
+                  _DashboardQuickRow(
+                    colors: colors,
+                    meta: visibleItems[i],
+                    subtitle: _openedAtLabel(visibleItems[i].id),
+                    favorite: isFavorite(visibleItems[i].id),
+                    onOpen: () => onOpen(visibleItems[i]),
+                    onRename: () => onRename(visibleItems[i]),
+                    onDuplicate: () => onDuplicate(visibleItems[i]),
+                    onDelete: () => onDelete(visibleItems[i]),
+                    onToggleFavorite: () => onToggleFavorite(visibleItems[i]),
+                  ),
+                  if (i < visibleItems.length - 1)
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      height: 1,
+                      color: colors.separator.withValues(
+                        alpha: colors.isLight ? 0.8 : 0.4,
+                      ),
+                    ),
+                ],
+              ],
             ),
-            const SizedBox(height: 10),
-            section(
-              title: 'Favoritas',
-              items: favorites,
-              showOpenedAt: false,
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -5901,6 +5953,39 @@ class _DashboardQuickSections extends StatelessWidget {
     final openedAtMs = openedAtBySheetId[sheetId];
     if (openedAtMs == null) return 'Abierta recientemente';
     return 'Abierta ${fmt(DateTime.fromMillisecondsSinceEpoch(openedAtMs))}';
+  }
+}
+
+class _DailyTabChip extends StatelessWidget {
+  const _DailyTabChip({
+    required this.label,
+    required this.selected,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final _ApplePalette colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      minimumSize: const Size(0, 0),
+      borderRadius: BorderRadius.circular(999),
+      color: selected ? colors.textPrimary : colors.group,
+      onPressed: onTap,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? colors.surface : colors.textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
@@ -5929,7 +6014,8 @@ class _DashboardQuickRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+    final title =
+        meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
       pressedOpacity: 0.55,
@@ -5962,16 +6048,6 @@ class _DashboardQuickRow extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-          CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            minimumSize: const Size(0, 0),
-            onPressed: onToggleFavorite,
-            child: Icon(
-              favorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-              color: favorite ? colors.accent : colors.textSecondary,
-              size: 18,
             ),
           ),
           CupertinoButton(
