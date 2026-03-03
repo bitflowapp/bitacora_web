@@ -110,6 +110,8 @@ enum _MobileEditPhase { closed, opening, open, switching, closing }
 
 enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
 
+enum _InlineSearchScope { allSheet, currentRow, currentColumn }
+
 class _CellTarget {
   const _CellTarget(this.row, this.col);
   final int row;
@@ -474,6 +476,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _errorsPanelOpen = false;
   final List<_ColumnTemplate> _columnTemplates = <_ColumnTemplate>[];
   bool _inlineSearchOpen = false;
+  _InlineSearchScope _inlineSearchScope = _InlineSearchScope.allSheet;
   final TextEditingController _inlineSearchEC = TextEditingController();
   final FocusNode _inlineSearchFocus = FocusNode(
     debugLabel: 'InlineSearchFocus',
@@ -9493,6 +9496,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       activeIndex: _searchMatchIndex < 0
                                           ? 0
                                           : _searchMatchIndex,
+                                      scope: _inlineSearchScope,
+                                      onScopeChanged: _setInlineSearchScope,
                                       onChanged: _onInlineSearchChanged,
                                       onPrev: () => _goToSearchHitDelta(-1),
                                       onNext: () => _goToSearchHitDelta(1),
@@ -15789,6 +15794,16 @@ class _EditorScreenState extends State<EditorScreen>
     ec.dispose();
   }
 
+  void _setInlineSearchScope(_InlineSearchScope scope) {
+    if (_inlineSearchScope == scope) return;
+    setState(() => _inlineSearchScope = scope);
+    _refreshSearchMatches(
+      _inlineSearchEC.text,
+      jumpToFirst: true,
+      announceEmpty: false,
+    );
+  }
+
   void _openInlineSearch() {
     if (!mounted) return;
     if (!_inlineSearchOpen) {
@@ -15863,11 +15878,46 @@ class _EditorScreenState extends State<EditorScreen>
 
     final needle = q.toLowerCase();
     final nextMatches = <_CellRef>[];
-    for (int r = 0; r < rows; r++) {
-      for (int c = 0; c < cols; c++) {
+    Iterable<int> rowIndexes() sync* {
+      switch (_inlineSearchScope) {
+        case _InlineSearchScope.allSheet:
+        case _InlineSearchScope.currentColumn:
+          for (int r = 0; r < rows; r++) {
+            yield r;
+          }
+          break;
+        case _InlineSearchScope.currentRow:
+          if (_selRow >= 0 && _selRow < rows) {
+            yield _selRow;
+          }
+          break;
+      }
+    }
+
+    Iterable<int> columnIndexes() sync* {
+      switch (_inlineSearchScope) {
+        case _InlineSearchScope.allSheet:
+        case _InlineSearchScope.currentRow:
+          for (int c = 0; c < cols; c++) {
+            yield c;
+          }
+          break;
+        case _InlineSearchScope.currentColumn:
+          if (_selCol >= 0 && _selCol < cols) {
+            yield _selCol;
+          }
+          break;
+      }
+    }
+
+    final candidateRows = rowIndexes().toList(growable: false);
+    final candidateCols = columnIndexes().toList(growable: false);
+    for (final r in candidateRows) {
+      for (final c in candidateCols) {
         final text = _effectiveCell(r, c).toLowerCase();
-        if (!text.contains(needle)) continue;
-        nextMatches.add(_CellRef(r, c));
+        if (text.contains(needle)) {
+          nextMatches.add(_CellRef(r, c));
+        }
       }
     }
 
