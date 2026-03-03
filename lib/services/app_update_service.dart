@@ -76,7 +76,7 @@ class AppUpdateService {
         remoteVersion: '',
         remoteBuildId: '',
         updateAvailable: false,
-        message: 'Sin conexion. No se pudo verificar actualizaciones.',
+        message: 'Sin conexión. No se pudo verificar actualizaciones.',
       );
     }
 
@@ -101,8 +101,8 @@ class AppUpdateService {
             continue;
           }
 
-          final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-          if (decoded is! Map) {
+          final decoded = _decodeJsonMap(response);
+          if (decoded == null) {
             lastError = const FormatException('Invalid version payload');
             continue;
           }
@@ -141,7 +141,7 @@ class AppUpdateService {
             remoteBuildId: remoteBuildId,
             updateAvailable: updateAvailable,
             message: updateAvailable
-                ? 'Actualizacion disponible.'
+                ? 'Actualización disponible.'
                 : 'Sin actualizaciones.',
           );
         } on TimeoutException catch (error) {
@@ -153,10 +153,10 @@ class AppUpdateService {
 
       final offlineDetected = _isOfflineError(lastError);
       final failureMessage = offlineDetected
-          ? 'Sin conexion. No se pudo verificar actualizaciones.'
+          ? 'Sin conexión. No se pudo verificar actualizaciones.'
           : (lastStatusCode != null
               ? 'No se pudo verificar actualizaciones (HTTP $lastStatusCode).'
-              : 'No se pudo consultar version remota.');
+              : 'No se pudo consultar versión remota.');
 
       return AppUpdateSnapshot(
         requestOk: false,
@@ -181,7 +181,7 @@ class AppUpdateService {
         remoteVersion: '',
         remoteBuildId: '',
         updateAvailable: false,
-        message: 'Sin conexion. No se pudo verificar actualizaciones.',
+        message: 'Sin conexión. No se pudo verificar actualizaciones.',
       );
     } catch (error) {
       return AppUpdateSnapshot(
@@ -195,14 +195,29 @@ class AppUpdateService {
         remoteBuildId: '',
         updateAvailable: false,
         message: _isOfflineError(error)
-            ? 'Sin conexion. No se pudo verificar actualizaciones.'
-            : 'No se pudo consultar version remota.',
+            ? 'Sin conexión. No se pudo verificar actualizaciones.'
+            : 'No se pudo consultar versión remota.',
       );
     } finally {
       if (_client == null) {
         client.close();
       }
     }
+  }
+
+  Map<String, dynamic>? _decodeJsonMap(http.Response response) {
+    final text = utf8.decode(response.bodyBytes, allowMalformed: true);
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+
+    final decoded = jsonDecode(trimmed);
+    if (decoded is Map<String, dynamic>) return decoded;
+    if (decoded is Map) {
+      return decoded.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+    }
+    return null;
   }
 
   List<Uri> _resolveVersionUris(String? sourceUrl) {
