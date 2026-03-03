@@ -535,6 +535,11 @@ class _StartPageState extends State<StartPage> {
   // --------------------- Controllers ---------------------
   late final TextEditingController _searchEC;
   final FocusNode _homeKeyFocus = FocusNode(debugLabel: 'StartPageHomeFocus');
+  final ScrollController _homeScrollController =
+      ScrollController(debugLabel: 'StartPageHomeScroll');
+
+  bool get _renderHeroBackdropArt =>
+      !(kIsWeb && defaultTargetPlatform == TargetPlatform.iOS);
 
   String get _buildStamp => BuildInfo.stamp;
   String get _proCtaUrl {
@@ -587,6 +592,7 @@ class _StartPageState extends State<StartPage> {
     _toastEntry?.remove();
     _searchEC.dispose();
     _homeKeyFocus.dispose();
+    _homeScrollController.dispose();
     super.dispose();
   }
 
@@ -4665,7 +4671,24 @@ class _StartPageState extends State<StartPage> {
           bottom: false,
           child: Stack(
             children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(color: colors.bg),
+                ),
+              ),
+              if (_renderHeroBackdropArt)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: ClipRect(
+                      child: _StartHeroBackdrop(
+                        colors: colors,
+                        scrollController: _homeScrollController,
+                      ),
+                    ),
+                  ),
+                ),
               CustomScrollView(
+                controller: _homeScrollController,
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
@@ -6318,6 +6341,101 @@ class _AppleSectionCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(14),
       child: child,
+    );
+  }
+}
+
+class _StartHeroBackdrop extends StatelessWidget {
+  const _StartHeroBackdrop({
+    required this.colors,
+    required this.scrollController,
+  });
+
+  final _ApplePalette colors;
+  final ScrollController scrollController;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseOpacity = colors.isLight ? 0.06 : 0.08;
+    final tint = colors.surface.withValues(alpha: colors.isLight ? 0.94 : 0.90);
+    final glowA =
+        colors.colorScheme.primary.withValues(alpha: colors.isLight ? 0.42 : 0.34);
+    final glowB = colors.colorScheme.tertiary
+        .withValues(alpha: colors.isLight ? 0.34 : 0.28);
+    final neutral = colors.colorScheme.onSurface
+        .withValues(alpha: colors.isLight ? 0.24 : 0.30);
+
+    return AnimatedBuilder(
+      animation: scrollController,
+      builder: (context, _) {
+        final offset =
+            scrollController.hasClients ? scrollController.offset : 0.0;
+        final fade = (1 - (offset / 160)).clamp(0.0, 1.0);
+        final opacity = (baseOpacity * fade).clamp(0.0, 0.10);
+        if (opacity <= 0.001) {
+          return const SizedBox.shrink();
+        }
+
+        return Opacity(
+          key: const ValueKey('start-hero-backdrop-opacity'),
+          opacity: opacity,
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(tint, BlendMode.srcATop),
+            child: Stack(
+              key: const ValueKey('start-hero-backdrop-art'),
+              fit: StackFit.expand,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        colors.surface,
+                        colors.surface.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0.90, -0.92),
+                      radius: 1.08,
+                      colors: [glowA, Colors.transparent],
+                    ),
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.72, -0.86),
+                      radius: 1.12,
+                      colors: [glowB, Colors.transparent],
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: const Alignment(0.0, -0.76),
+                  child: FractionallySizedBox(
+                    widthFactor: 1.25,
+                    heightFactor: 0.56,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [neutral, Colors.transparent],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
