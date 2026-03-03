@@ -43,6 +43,10 @@ void main() {
     expect(find.text('Activar Pro'), findsNothing);
     expect(find.byKey(const ValueKey('start-pro-benefits')), findsNothing);
 
+    final baseFill = tester
+        .widget<ColoredBox>(find.byKey(const ValueKey('start-base-fill')));
+    expect(baseFill.color.a, closeTo(1.0, 0.0001));
+
     final backdropOpacity =
         find.byKey(const ValueKey('start-hero-backdrop-opacity'));
     if (backdropOpacity.evaluate().isNotEmpty) {
