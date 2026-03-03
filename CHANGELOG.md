@@ -5,6 +5,7 @@
 Release
 - Daily driver + hardening + polish copy.
 - Fix StartPage hero backdrop artifact (web+iOS Safari).
+- Hotfix iOS web: eliminate StartPage background bleed/wallpaper.
 
 ## [1.3.0] - 2026-02-28
 
