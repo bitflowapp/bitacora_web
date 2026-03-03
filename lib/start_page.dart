@@ -5812,6 +5812,8 @@ class _DashboardQuickSections extends StatelessWidget {
                 title == 'Recientes'
                     ? 'Todavia no abriste planillas en esta sesion.'
                     : 'Marca una planilla con estrella para verla aca.',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: colors.textSecondary,
                   fontSize: 13,

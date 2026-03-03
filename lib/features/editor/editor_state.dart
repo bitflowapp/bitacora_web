@@ -16915,6 +16915,27 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  void debugOpenInlineSearch() {
+    _openInlineSearch();
+  }
+
+  @visibleForTesting
+  void debugSearchInSheet(String query) {
+    _openInlineSearch();
+    _refreshSearchMatches(
+      query,
+      jumpToFirst: true,
+      announceEmpty: false,
+    );
+  }
+
+  @visibleForTesting
+  int get debugSelectedRow => _selRow;
+
+  @visibleForTesting
+  int get debugSelectedCol => _selCol;
+
+  @visibleForTesting
   void debugOpenMobileEditorForCell(int r, int c) {
     assert(() {
       if (r < 0 || r >= _rows.length) return true;
