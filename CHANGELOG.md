@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.3.1] - 2026-03-03
+
+Release
+- Daily driver + hardening + polish copy.
+
 ## [1.3.0] - 2026-02-28
 
 Release
