@@ -470,6 +470,8 @@ class _StartPageState extends State<StartPage> {
   static const String _kPrefSheetFolder = 'bitflow.sheet_folder.v1';
   static const String _kPrefSheetCreatedAt = 'bitflow.sheet_created_at.v1';
   static const String _kPrefSheetNotes = 'bitflow.sheet_notes.v1';
+  static const String _kPrefFavoriteSheets = 'bitflow.favorite_sheets.v1';
+  static const String _kPrefSheetLastOpenedAt = 'bitflow.sheet_last_opened.v1';
   static const String _kPrefTrash = 'bitflow.trash.v1';
   static const String _kPrefDemoModeEnabled = 'bitflow.demo_mode_enabled.v1';
   static const String _kPrefDemoSampleSheetId =
@@ -507,6 +509,9 @@ class _StartPageState extends State<StartPage> {
       <String, String>{}; // sheetId -> folderId
   final Map<String, int> _sheetCreatedAtMs = <String, int>{}; // sheetId -> ms
   final Map<String, String> _sheetNotes = <String, String>{}; // sheetId -> note
+  final Set<String> _favoriteSheetIds = <String>{};
+  final Map<String, int> _sheetLastOpenedAtMs =
+      <String, int>{}; // sheetId -> openedAtMs
   final Map<String, int> _trashDeletedAtMs =
       <String, int>{}; // sheetId -> deletedAtMs
   bool _demoModeEnabled = true;
@@ -908,6 +913,8 @@ class _StartPageState extends State<StartPage> {
       final folderMapRaw = p.getString(_kPrefSheetFolder) ?? '{}';
       final createdRaw = p.getString(_kPrefSheetCreatedAt) ?? '{}';
       final notesRaw = p.getString(_kPrefSheetNotes) ?? '{}';
+      final favoritesRaw = p.getString(_kPrefFavoriteSheets) ?? '[]';
+      final openedRaw = p.getString(_kPrefSheetLastOpenedAt) ?? '{}';
       final trashRaw = p.getString(_kPrefTrash) ?? '{}';
       final demoModeEnabled = p.getBool(_kPrefDemoModeEnabled) ?? true;
       final demoSampleSheetId =
@@ -917,6 +924,8 @@ class _StartPageState extends State<StartPage> {
       final folderMapJson = _safeJsonDecodeMap(folderMapRaw);
       final createdJson = _safeJsonDecodeMap(createdRaw);
       final notesJson = _safeJsonDecodeMap(notesRaw);
+      final favoritesJson = _safeJsonDecodeList(favoritesRaw);
+      final openedJson = _safeJsonDecodeMap(openedRaw);
       final trashJson = _safeJsonDecodeMap(trashRaw);
 
       _folders
@@ -938,6 +947,18 @@ class _StartPageState extends State<StartPage> {
       _sheetNotes
         ..clear()
         ..addAll(_mapStringString(notesJson));
+
+      _favoriteSheetIds
+        ..clear()
+        ..addAll(
+          favoritesJson
+              .map((entry) => (entry['id'] ?? '').toString().trim())
+              .where((id) => id.isNotEmpty),
+        );
+
+      _sheetLastOpenedAtMs
+        ..clear()
+        ..addAll(_mapStringInt(openedJson));
 
       _trashDeletedAtMs
         ..clear()
@@ -970,12 +991,18 @@ class _StartPageState extends State<StartPage> {
     final folderMapJson = jsonEncode(_sheetFolder);
     final createdJson = jsonEncode(_sheetCreatedAtMs);
     final notesJson = jsonEncode(_sheetNotes);
+    final favoritesJson = jsonEncode([
+      for (final sheetId in _favoriteSheetIds) <String, dynamic>{'id': sheetId},
+    ]);
+    final openedJson = jsonEncode(_sheetLastOpenedAtMs);
     final trashJson = jsonEncode(_trashDeletedAtMs);
 
     await p.setString(_kPrefFolders, foldersJson);
     await p.setString(_kPrefSheetFolder, folderMapJson);
     await p.setString(_kPrefSheetCreatedAt, createdJson);
     await p.setString(_kPrefSheetNotes, notesJson);
+    await p.setString(_kPrefFavoriteSheets, favoritesJson);
+    await p.setString(_kPrefSheetLastOpenedAt, openedJson);
     await p.setString(_kPrefTrash, trashJson);
     await p.setBool(_kPrefDemoModeEnabled, _demoModeEnabled);
     await p.setString(_kPrefDemoSampleSheetId, _demoSampleSheetId.trim());
@@ -998,6 +1025,22 @@ class _StartPageState extends State<StartPage> {
         _sheetFolder.remove(m.id);
         changed = true;
       }
+    }
+
+    final knownIds = _items.map((m) => m.id).toSet();
+    final staleFavorites = _favoriteSheetIds.difference(knownIds);
+    if (staleFavorites.isNotEmpty) {
+      _favoriteSheetIds.removeAll(staleFavorites);
+      changed = true;
+    }
+    final staleOpened = _sheetLastOpenedAtMs.keys
+        .where((id) => !knownIds.contains(id))
+        .toList(growable: false);
+    if (staleOpened.isNotEmpty) {
+      for (final id in staleOpened) {
+        _sheetLastOpenedAtMs.remove(id);
+      }
+      changed = true;
     }
 
     if (changed) {
@@ -1033,6 +1076,8 @@ class _StartPageState extends State<StartPage> {
         _sheetNotes.remove(id);
         _sheetFolder.remove(id);
         _sheetCreatedAtMs.remove(id);
+        _favoriteSheetIds.remove(id);
+        _sheetLastOpenedAtMs.remove(id);
 
         purged++;
       } catch (_) {
@@ -1527,6 +1572,7 @@ class _StartPageState extends State<StartPage> {
     if (!mounted || _openEditorRouteInFlight) return;
     _openEditorRouteInFlight = true;
     try {
+      _markSheetOpened(sheetId);
       final encodedSheetId = Uri.encodeComponent(sheetId.trim());
       final cleanName = (initialName ?? '').trim();
       final route = cleanName.isEmpty
@@ -1561,6 +1607,13 @@ class _StartPageState extends State<StartPage> {
     } finally {
       _openEditorRouteInFlight = false;
     }
+  }
+
+  void _markSheetOpened(String sheetId) {
+    final trimmed = sheetId.trim();
+    if (trimmed.isEmpty) return;
+    _sheetLastOpenedAtMs[trimmed] = DateTime.now().millisecondsSinceEpoch;
+    unawaited(_saveOrg());
   }
 
   Future<void> _createAndOpenSheet({TemplateKind? template}) async {
@@ -1903,6 +1956,8 @@ class _StartPageState extends State<StartPage> {
       _sheetNotes.remove(id);
       _sheetFolder.remove(id);
       _sheetCreatedAtMs.remove(id);
+      _favoriteSheetIds.remove(id);
+      _sheetLastOpenedAtMs.remove(id);
       _demoSampleSheetId = '';
       await _saveOrg();
       _reload();
@@ -2523,6 +2578,93 @@ class _StartPageState extends State<StartPage> {
     }
   }
 
+  Future<void> _toggleFavorite(SheetMeta m) async {
+    if (_busy) return;
+    final isFavorite = _favoriteSheetIds.contains(m.id);
+    if (isFavorite) {
+      _favoriteSheetIds.remove(m.id);
+    } else {
+      _favoriteSheetIds.add(m.id);
+    }
+    await _saveOrg();
+    if (!mounted) return;
+    setState(() {});
+    _toast(isFavorite ? 'Quitada de favoritas.' : 'Marcada como favorita.');
+  }
+
+  String _buildDuplicateName(String baseName) {
+    final source = baseName.trim().isEmpty ? 'Planilla' : baseName.trim();
+    return '$source (copia)';
+  }
+
+  Future<void> _duplicateSheet(SheetMeta m) async {
+    if (_busy) return;
+    final raw = SheetStore.loadRaw(m.id);
+    if (raw == null || raw.trim().isEmpty) {
+      _toast('No se pudo duplicar: planilla sin datos.');
+      return;
+    }
+
+    String newId = '';
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        final model = decoded.cast<String, dynamic>();
+        model['name'] = _buildDuplicateName(m.title);
+        model['savedAt'] = DateTime.now().toIso8601String();
+        newId = SheetStore.createFromModel(model);
+      } else {
+        final table = SheetStore.load(m.id);
+        if (table == null) {
+          _toast('No se pudo duplicar esta planilla.');
+          return;
+        }
+        newId = SheetStore.createNew();
+        SheetStore.saveState(
+          newId,
+          TableState(
+            headers: table.headers,
+            rows: table.rows,
+            savedAt: DateTime.now(),
+          ),
+        );
+        SheetStore.rename(newId, _buildDuplicateName(m.title));
+      }
+    } catch (_) {
+      final table = SheetStore.load(m.id);
+      if (table == null) {
+        _toast('No se pudo duplicar esta planilla.');
+        return;
+      }
+      newId = SheetStore.createNew();
+      SheetStore.saveState(
+        newId,
+        TableState(
+          headers: table.headers,
+          rows: table.rows,
+          savedAt: DateTime.now(),
+        ),
+      );
+      SheetStore.rename(newId, _buildDuplicateName(m.title));
+    }
+
+    if (newId.isEmpty) {
+      _toast('No se pudo duplicar esta planilla.');
+      return;
+    }
+
+    final folderId = _sheetFolder[m.id] ?? '';
+    if (folderId.isNotEmpty) {
+      _sheetFolder[newId] = folderId;
+    }
+    _sheetCreatedAtMs[newId] = DateTime.now().millisecondsSinceEpoch;
+    _sheetLastOpenedAtMs[newId] = DateTime.now().millisecondsSinceEpoch;
+    await _saveOrg();
+    _reload();
+    if (!mounted) return;
+    _toast('Planilla duplicada.');
+  }
+
   Future<void> _moveToTrash(SheetMeta m) async {
     if (_busy) return;
 
@@ -2575,6 +2717,8 @@ class _StartPageState extends State<StartPage> {
     _sheetNotes.remove(m.id);
     _sheetFolder.remove(m.id);
     _sheetCreatedAtMs.remove(m.id);
+    _favoriteSheetIds.remove(m.id);
+    _sheetLastOpenedAtMs.remove(m.id);
     await _saveOrg();
 
     _reload();
@@ -4109,6 +4253,42 @@ class _StartPageState extends State<StartPage> {
 
   // ---------- Derivados UI (filtrado) ----------
 
+  List<SheetMeta> get _activeSheets {
+    final list = _items
+        .where((m) => !_trashDeletedAtMs.containsKey(m.id))
+        .toList(growable: false);
+    list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return list;
+  }
+
+  List<SheetMeta> get _recentSheets {
+    final activeById = <String, SheetMeta>{
+      for (final m in _activeSheets) m.id: m,
+    };
+    final entries = _sheetLastOpenedAtMs.entries
+        .where((entry) => activeById.containsKey(entry.key))
+        .toList(growable: false)
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [
+      for (final entry in entries) activeById[entry.key]!,
+    ];
+  }
+
+  List<SheetMeta> get _favoriteSheets {
+    final active = _activeSheets
+        .where((m) => _favoriteSheetIds.contains(m.id))
+        .toList(growable: false);
+    active.sort((a, b) {
+      final openedA = _sheetLastOpenedAtMs[a.id] ?? 0;
+      final openedB = _sheetLastOpenedAtMs[b.id] ?? 0;
+      if (openedA != openedB) return openedB.compareTo(openedA);
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+    return active;
+  }
+
+  bool _isFavoriteSheet(String sheetId) => _favoriteSheetIds.contains(sheetId);
+
   List<SheetMeta> get _visibleSheets {
     // Base: items del store
     var list = List<SheetMeta>.from(_items);
@@ -4204,6 +4384,8 @@ class _StartPageState extends State<StartPage> {
     final showInitialLoading = !_prefsLoaded || !_orgLoaded;
 
     final data = _visibleSheets;
+    final recentSheets = _recentSheets.take(6).toList(growable: false);
+    final favoriteSheets = _favoriteSheets.take(6).toList(growable: false);
     final sAll = _statsAll;
 
     final todayCount = sAll.today;
@@ -4694,6 +4876,25 @@ class _StartPageState extends State<StartPage> {
                         .move(begin: const Offset(0, 6)),
                   ),
                 ),
+                if (_tab == _HomeTab.sheets)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      child: _DashboardQuickSections(
+                        colors: colors,
+                        recents: recentSheets,
+                        favorites: favoriteSheets,
+                        fmt: _fmt,
+                        openedAtBySheetId: _sheetLastOpenedAtMs,
+                        isFavorite: _isFavoriteSheet,
+                        onOpen: _open,
+                        onRename: _rename,
+                        onDuplicate: _duplicateSheet,
+                        onDelete: _moveToTrash,
+                        onToggleFavorite: _toggleFavorite,
+                      ),
+                    ),
+                  ),
 
                 // Lista sugerida (como Reminders)
                 SliverToBoxAdapter(
@@ -5413,6 +5614,289 @@ class _SuggestedListCard extends StatelessWidget {
                 border: Border.all(color: border),
               ),
               child: Icon(CupertinoIcons.add, color: colors.accent, size: 20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardQuickSections extends StatelessWidget {
+  const _DashboardQuickSections({
+    required this.colors,
+    required this.recents,
+    required this.favorites,
+    required this.fmt,
+    required this.openedAtBySheetId,
+    required this.isFavorite,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDuplicate,
+    required this.onDelete,
+    required this.onToggleFavorite,
+  });
+
+  final _ApplePalette colors;
+  final List<SheetMeta> recents;
+  final List<SheetMeta> favorites;
+  final String Function(DateTime) fmt;
+  final Map<String, int> openedAtBySheetId;
+  final bool Function(String sheetId) isFavorite;
+  final ValueChanged<SheetMeta> onOpen;
+  final ValueChanged<SheetMeta> onRename;
+  final ValueChanged<SheetMeta> onDuplicate;
+  final ValueChanged<SheetMeta> onDelete;
+  final ValueChanged<SheetMeta> onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget section({
+      required String title,
+      required List<SheetMeta> items,
+      required bool showOpenedAt,
+    }) {
+      return _AppleSectionCard(
+        colors: colors,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (items.isEmpty)
+              Text(
+                title == 'Recientes'
+                    ? 'Todavia no abriste planillas en esta sesion.'
+                    : 'Marca una planilla con estrella para verla aca.',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (int i = 0; i < items.length; i++) ...[
+                    _DashboardQuickRow(
+                      colors: colors,
+                      meta: items[i],
+                      subtitle: showOpenedAt
+                          ? _openedAtLabel(items[i].id)
+                          : 'Actualizada ${fmt(items[i].updatedAt)}',
+                      favorite: isFavorite(items[i].id),
+                      onOpen: () => onOpen(items[i]),
+                      onRename: () => onRename(items[i]),
+                      onDuplicate: () => onDuplicate(items[i]),
+                      onDelete: () => onDelete(items[i]),
+                      onToggleFavorite: () => onToggleFavorite(items[i]),
+                    ),
+                    if (i < items.length - 1)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        height: 1,
+                        color: colors.separator.withValues(
+                          alpha: colors.isLight ? 0.8 : 0.4,
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+          ],
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 860) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: section(
+                  title: 'Recientes',
+                  items: recents,
+                  showOpenedAt: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: section(
+                  title: 'Favoritas',
+                  items: favorites,
+                  showOpenedAt: false,
+                ),
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            section(
+              title: 'Recientes',
+              items: recents,
+              showOpenedAt: true,
+            ),
+            const SizedBox(height: 10),
+            section(
+              title: 'Favoritas',
+              items: favorites,
+              showOpenedAt: false,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _openedAtLabel(String sheetId) {
+    final openedAtMs = openedAtBySheetId[sheetId];
+    if (openedAtMs == null) return 'Abierta recientemente';
+    return 'Abierta ${fmt(DateTime.fromMillisecondsSinceEpoch(openedAtMs))}';
+  }
+}
+
+class _DashboardQuickRow extends StatelessWidget {
+  const _DashboardQuickRow({
+    required this.colors,
+    required this.meta,
+    required this.subtitle,
+    required this.favorite,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDuplicate,
+    required this.onDelete,
+    required this.onToggleFavorite,
+  });
+
+  final _ApplePalette colors;
+  final SheetMeta meta;
+  final String subtitle;
+  final bool favorite;
+  final VoidCallback onOpen;
+  final VoidCallback onRename;
+  final VoidCallback onDuplicate;
+  final VoidCallback onDelete;
+  final VoidCallback onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
+      pressedOpacity: 0.55,
+      onPressed: onOpen,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            minimumSize: const Size(0, 0),
+            onPressed: onToggleFavorite,
+            child: Icon(
+              favorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+              color: favorite ? colors.accent : colors.textSecondary,
+              size: 18,
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            minimumSize: const Size(0, 0),
+            onPressed: () async {
+              await showCupertinoModalPopup<void>(
+                context: context,
+                builder: (ctx) => CupertinoActionSheet(
+                  actions: [
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onOpen();
+                      },
+                      child: const Text('Abrir'),
+                    ),
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onRename();
+                      },
+                      child: const Text('Renombrar'),
+                    ),
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onDuplicate();
+                      },
+                      child: const Text('Duplicar'),
+                    ),
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onToggleFavorite();
+                      },
+                      child: Text(
+                        favorite
+                            ? 'Quitar de favoritas'
+                            : 'Marcar como favorita',
+                      ),
+                    ),
+                    CupertinoActionSheetAction(
+                      isDestructiveAction: true,
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onDelete();
+                      },
+                      child: const Text('Eliminar'),
+                    ),
+                  ],
+                  cancelButton: CupertinoActionSheetAction(
+                    isDefaultAction: true,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+              );
+            },
+            child: Icon(
+              CupertinoIcons.ellipsis,
+              color: colors.textSecondary,
+              size: 19,
             ),
           ),
         ],
