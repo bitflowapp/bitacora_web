@@ -57,7 +57,7 @@ class _SaveStatusChip extends StatelessWidget {
       case EditorSaveState.saving:
         return 'Guardando...';
       case EditorSaveState.dirty:
-        return 'Sin guardar';
+        return 'Sin guardar...';
       case EditorSaveState.saved:
         final d = snap.savedAt;
         if (d == null) return 'Guardado';
@@ -308,3 +308,4 @@ class _StatusChipShell extends StatelessWidget {
     );
   }
 }
+

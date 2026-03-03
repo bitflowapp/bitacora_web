@@ -112,6 +112,8 @@ enum _GpsWriteMode { pasteActive, pickTarget, metadataOnly }
 
 enum _InlineSearchScope { allSheet, currentRow, currentColumn }
 
+enum _UnsavedExitAction { discard, save, cancel }
+
 class _CellTarget {
   const _CellTarget(this.row, this.col);
   final int row;
@@ -203,6 +205,7 @@ class _EditorScreenState extends State<EditorScreen>
   static const Duration _blinkDuration = Duration(milliseconds: 110);
   static const Duration _saveDebounce = Duration(milliseconds: 700);
   static const Duration _saveThrottle = Duration(milliseconds: 1500);
+  static const Duration _autosavePulse = Duration(seconds: 15);
   static const Duration _validationDebounce = Duration(milliseconds: 260);
   static const Duration _cellDraftSyncDebounce = Duration(milliseconds: 120);
   static const Duration _toastCoalesceWindow = Duration(milliseconds: 900);
@@ -360,9 +363,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   // Guardado
   Timer? _saveT;
+  Timer? _autosavePulseT;
   Timer? _validationDebounceT;
   bool _saving = false;
   bool _lastSaveSucceeded = true;
+  bool _allowPopOnce = false;
   _EditorLongOperationState? _longOperation;
   bool _saveHapticPending = false;
   final EditorAtomicSnapshotStore _atomicSnapshotStore =
@@ -626,6 +631,10 @@ class _EditorScreenState extends State<EditorScreen>
     _updateSaveStatus();
     _updateOfflineStatus();
     _lastOnlineState = true;
+    _autosavePulseT = Timer.periodic(
+      _autosavePulse,
+      (_) => unawaited(_tickAutosavePulse()),
+    );
     if (kDebugMode) {
       debugPrint(
         '[editor:init] sheet=${widget.sheetId} headers=${_headers.length} rows=${_rows.length} mounted=$mounted',
@@ -719,6 +728,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     WidgetsBinding.instance.removeObserver(this);
     _saveT?.cancel();
+    _autosavePulseT?.cancel();
     _validationDebounceT?.cancel();
     _nameDebounceT?.cancel();
     _inlineSearchDebounceT?.cancel();
@@ -1744,6 +1754,95 @@ class _EditorScreenState extends State<EditorScreen>
     _saveT = Timer(delay, () {
       unawaited(_saveLocalNow());
     });
+  }
+
+  Future<void> _tickAutosavePulse() async {
+    if (!mounted) return;
+    if (_saving) return;
+    if (_longOperation != null) return;
+    if (!_isDirty && !_savePending) return;
+    await _saveLocalNow();
+  }
+
+  Future<_UnsavedExitAction> _askUnsavedExitAction() async {
+    if (!mounted) return _UnsavedExitAction.cancel;
+    final result = await showDialog<_UnsavedExitAction>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cambios sin guardar'),
+          content: Text(
+            _saving
+                ? 'Hay un guardado en curso. ¿Qué querés hacer?'
+                : 'Tenés cambios sin guardar. ¿Qué querés hacer antes de salir?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(
+                _UnsavedExitAction.cancel,
+              ),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(
+                _UnsavedExitAction.discard,
+              ),
+              child: const Text('Descartar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(
+                _UnsavedExitAction.save,
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? _UnsavedExitAction.cancel;
+  }
+
+  Future<void> _allowSinglePopAndExit() async {
+    if (!mounted) return;
+    setState(() => _allowPopOnce = true);
+    await Navigator.of(context).maybePop();
+  }
+
+  Future<void> _handleEditorPopGuard({
+    required bool didPop,
+  }) async {
+    if (didPop) {
+      if (_allowPopOnce && mounted) {
+        setState(() => _allowPopOnce = false);
+      }
+      return;
+    }
+    if (_allowPopOnce) return;
+
+    final hasUnsaved = _isDirty || _savePending || _saving;
+    if (!hasUnsaved) {
+      await _allowSinglePopAndExit();
+      return;
+    }
+
+    final action = await _askUnsavedExitAction();
+    if (!mounted || action == _UnsavedExitAction.cancel) return;
+
+    if (action == _UnsavedExitAction.save) {
+      await _saveLocalNow();
+      if (!mounted) return;
+      final stillDirty = _isDirty || _savePending || _saving;
+      if (stillDirty || !_lastSaveSucceeded) {
+        _showActionSnack(
+          'No se pudo cerrar porque todavía hay cambios sin guardar.',
+          isError: true,
+          icon: Icons.warning_amber_rounded,
+        );
+        return;
+      }
+    }
+
+    await _allowSinglePopAndExit();
   }
 
   // ------------------------------ Undo / Redo -----------------------------
@@ -9094,7 +9193,12 @@ class _EditorScreenState extends State<EditorScreen>
           data: fixedMq,
           child: ScrollConfiguration(
             behavior: const _NoGlowScrollBehavior(),
-            child: AppScaffold(
+            child: PopScope<void>(
+              canPop: _allowPopOnce || (!_isDirty && !_savePending && !_saving),
+              onPopInvokedWithResult: (didPop, _) {
+                unawaited(_handleEditorPopGuard(didPop: didPop));
+              },
+              child: AppScaffold(
               resizeToAvoidBottomInset: false, // clave iOS Web
               backgroundColor: pal.bg,
               appBar: null,
@@ -10425,6 +10529,7 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                       ),
                   ],
+                ),
                 ),
               ),
             ),

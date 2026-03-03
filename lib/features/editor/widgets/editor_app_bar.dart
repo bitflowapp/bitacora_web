@@ -799,7 +799,7 @@ class _MobileCompactHeader extends StatelessWidget {
                 saveLabel = 'Guardando';
                 break;
               case EditorSaveState.dirty:
-                saveLabel = 'Sin guardar';
+                saveLabel = 'Sin guardar...';
                 break;
               case EditorSaveState.saved:
                 saveLabel = 'Guardado';
@@ -1311,3 +1311,4 @@ typedef _SelectCell = void Function(int r, int c);
 typedef _EditCell = void Function(int r, int c, double cellWidth);
 typedef _EditHeader = void Function(int c, double headerWidth);
 typedef _ContextMenu = void Function(Offset pos, int r, int c, bool isHeader);
+
