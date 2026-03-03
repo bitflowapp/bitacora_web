@@ -1819,7 +1819,8 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (_allowPopOnce) return;
 
-    final hasUnsaved = _isDirty || _savePending || _saving;
+    _syncActiveDrafts();
+    final hasUnsaved = _hasUnsavedWork;
     if (!hasUnsaved) {
       await _allowSinglePopAndExit();
       return;
@@ -1831,7 +1832,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (action == _UnsavedExitAction.save) {
       await _saveLocalNow();
       if (!mounted) return;
-      final stillDirty = _isDirty || _savePending || _saving;
+      final stillDirty = _hasUnsavedWork;
       if (stillDirty || !_lastSaveSucceeded) {
         _showActionSnack(
           'No se pudo cerrar porque todavía hay cambios sin guardar.',
@@ -4568,6 +4569,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _setDraftHeader(int c, String value) {
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
+    final hadPendingDrafts =
+        _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
 
     final existing = _draftHeaders[c];
     if (existing == value) return;
@@ -4575,18 +4578,24 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == _headers[c]) {
       if (_draftHeaders.remove(c) != null) {
         _bumpGridVersion();
+        _updateSaveStatus();
+        _refreshPopScopeOnDraftToggle(hadPendingDrafts);
       }
       return;
     }
 
     _draftHeaders[c] = value;
     _bumpGridVersion();
+    _updateSaveStatus();
+    _refreshPopScopeOnDraftToggle(hadPendingDrafts);
   }
 
   void _setDraftCell(int r, int c, String value) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
+    final hadPendingDrafts =
+        _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
 
     final rowId = _rows[r].id;
     final ref = _CellRef(r, c);
@@ -4597,6 +4606,8 @@ class _EditorScreenState extends State<EditorScreen>
       if (_draftCells.remove(ref) != null) {
         _trackDraftInputLatency(rowId);
         _bumpRowVersionById(rowId);
+        _updateSaveStatus();
+        _refreshPopScopeOnDraftToggle(hadPendingDrafts);
       }
       return;
     }
@@ -4604,6 +4615,8 @@ class _EditorScreenState extends State<EditorScreen>
     _draftCells[ref] = value;
     _trackDraftInputLatency(rowId);
     _bumpRowVersionById(rowId);
+    _updateSaveStatus();
+    _refreshPopScopeOnDraftToggle(hadPendingDrafts);
   }
 
   void _commitDraftHeader(int c) {
@@ -4615,6 +4628,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (next == _headers[c]) {
       if (_draftHeaders.remove(c) != null) {
         _bumpGridVersion();
+        _updateSaveStatus();
       }
       return;
     }
@@ -4637,6 +4651,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (next == _rows[r].cells[c]) {
       if (_draftCells.remove(ref) != null) {
         _bumpRowVersionById(rowId);
+        _updateSaveStatus();
       }
       return;
     }
@@ -4649,9 +4664,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _clearDrafts() {
     if (_draftCells.isEmpty && _draftHeaders.isEmpty) return;
+    final hadPendingDrafts = true;
     _draftCells.clear();
     _draftHeaders.clear();
     _bumpGridVersion();
+    _updateSaveStatus();
+    _refreshPopScopeOnDraftToggle(hadPendingDrafts);
   }
 
   void _resetDraftsAndEditors() {
@@ -4783,6 +4801,13 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  void _refreshPopScopeOnDraftToggle(bool hadPendingDrafts) {
+    final hasPendingDrafts = _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
+    if (hadPendingDrafts == hasPendingDrafts) return;
+    if (!mounted) return;
+    setState(() {});
+  }
+
   void _attachCellDraftListener() {
     if (_cellDraftListener != null) return;
     _cellDraftListener = () {
@@ -4835,10 +4860,59 @@ class _EditorScreenState extends State<EditorScreen>
     await _runSmokeTest();
   }
 
+  bool _hasActiveEditorDraft() {
+    if (_cellEditorEntry != null) {
+      final headerCol = _editingHeaderCol;
+      if (headerCol != null &&
+          headerCol >= 0 &&
+          headerCol < _headers.length - 1 &&
+          _cellEC.text != _headers[headerCol]) {
+        return true;
+      }
+      final cellRef = _editingCellRef;
+      if (cellRef != null &&
+          cellRef.r >= 0 &&
+          cellRef.r < _rows.length &&
+          cellRef.c >= 0 &&
+          cellRef.c < _headers.length - 1 &&
+          _cellEC.text != _rows[cellRef.r].cells[cellRef.c]) {
+        return true;
+      }
+    }
+
+    if (_mobileEditorOpen) {
+      if (_mobileEditingHeader) {
+        if (_mobileCol >= 0 &&
+            _mobileCol < _headers.length - 1 &&
+            _mobileEC.text != _headers[_mobileCol]) {
+          return true;
+        }
+      } else if (_mobileRow >= 0 &&
+          _mobileRow < _rows.length &&
+          _mobileCol >= 0 &&
+          _mobileCol < _headers.length - 1 &&
+          _mobileEC.text != _rows[_mobileRow].cells[_mobileCol]) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool get _hasPendingDraftChanges =>
+      _draftHeaders.isNotEmpty ||
+      _draftCells.isNotEmpty ||
+      _hasActiveEditorDraft();
+
+  bool get _hasUnsavedWork =>
+      _isDirty || _savePending || _saving || _hasPendingDraftChanges;
+
   void _updateSaveStatus() {
+    final hasUnsavedWork =
+        _isDirty || _savePending || _hasPendingDraftChanges;
     final state = _saving
         ? EditorSaveState.saving
-        : (_isDirty
+        : (hasUnsavedWork
             ? EditorSaveState.dirty
             : (_lastSavedAt != null
                 ? EditorSaveState.saved
@@ -9194,7 +9268,7 @@ class _EditorScreenState extends State<EditorScreen>
           child: ScrollConfiguration(
             behavior: const _NoGlowScrollBehavior(),
             child: PopScope<void>(
-              canPop: _allowPopOnce || (!_isDirty && !_savePending && !_saving),
+              canPop: _allowPopOnce || !_hasUnsavedWork,
               onPopInvokedWithResult: (didPop, _) {
                 unawaited(_handleEditorPopGuard(didPop: didPop));
               },
@@ -16928,6 +17002,19 @@ class _EditorScreenState extends State<EditorScreen>
       announceEmpty: false,
     );
   }
+
+  @visibleForTesting
+  void debugSearchNext() {
+    _goToSearchHitDelta(1);
+  }
+
+  @visibleForTesting
+  void debugSearchPrev() {
+    _goToSearchHitDelta(-1);
+  }
+
+  @visibleForTesting
+  int get debugSearchMatchCount => _searchMatches.length;
 
   @visibleForTesting
   int get debugSelectedRow => _selRow;

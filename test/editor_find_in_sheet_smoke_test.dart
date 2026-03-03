@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('find in sheet opens and selects a matching cell', (tester) async {
+  testWidgets('find in sheet opens and selects a matching cell',
+      (tester) async {
     tester.view.physicalSize = const Size(1700, 3000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -19,6 +20,7 @@ void main() {
           initialRows: <List<String>>[
             <String>['Inicio', '', ''],
             <String>['Objetivo encontrado', '', ''],
+            <String>['Otro objetivo', '', ''],
           ],
         ),
       ),
@@ -31,8 +33,20 @@ void main() {
     state.debugSearchInSheet('Objetivo');
     await tester.pumpAndSettle();
 
+    expect(state.debugSearchMatchCount, 2);
     expect(state.debugSelectedRow, 1);
     expect(state.debugSelectedCol, 0);
+
+    state.debugSearchNext();
+    await tester.pump();
+    expect(state.debugSelectedRow, 2);
+    expect(state.debugSelectedCol, 0);
+
+    state.debugSearchPrev();
+    await tester.pump();
+    expect(state.debugSelectedRow, 1);
+    expect(state.debugSelectedCol, 0);
+
     expect(tester.takeException(), isNull);
   });
 }

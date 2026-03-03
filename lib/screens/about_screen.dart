@@ -80,7 +80,7 @@ class _AboutScreenState extends State<AboutScreen> {
     }
 
     _showSnack(
-      'En iPhone/iPad usa Safari y selecciona Compartir -> Anadir a inicio.',
+      'En iPhone/iPad usa Safari y selecciona Compartir -> Añadir a inicio.',
     );
   }
 
@@ -136,9 +136,9 @@ class _AboutScreenState extends State<AboutScreen> {
     );
     try {
       await Clipboard.setData(ClipboardData(text: text));
-      _showSnack('Diagnostico copiado al portapapeles.');
+      _showSnack('Diagnóstico copiado al portapapeles.');
     } catch (_) {
-      _showSnack('No se pudo copiar el diagnostico.');
+      _showSnack('No se pudo copiar el diagnóstico.');
     }
   }
 
@@ -184,7 +184,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final remoteBuildId = _lastCheck?.remoteBuildId ?? '';
     final updateAvailable = _lastCheck?.updateAvailable ?? false;
     final diagnosticsRows = <_AboutValueRow>[
-      _AboutValueRow(label: 'Version', value: localVersion),
+      _AboutValueRow(label: 'Versión', value: localVersion),
       _AboutValueRow(label: 'Build', value: localBuild),
       _AboutValueRow(label: 'BuildId', value: localBuildId),
       _AboutValueRow(label: 'Stamp', value: BuildInfo.stamp),
@@ -217,7 +217,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Bitacoras tecnicas con foco en rapidez, claridad y confiabilidad.',
+            'Bitácoras técnicas con foco en rapidez, claridad y confiabilidad.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
             ),
@@ -228,10 +228,10 @@ class _AboutScreenState extends State<AboutScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SectionHeader(
-                  title: 'Version y estado',
+                  title: 'Versión y estado',
                   subtitle: updateAvailable
-                      ? 'Hay una actualizacion lista para instalar.'
-                      : 'Aplicacion al dia.',
+                      ? 'Hay una actualización lista para instalar.'
+                      : 'Aplicación al día.',
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -249,7 +249,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                     ),
                     child: Text(
-                      updateAvailable ? 'Update disponible' : 'OK',
+                      updateAvailable ? 'Actualización disponible' : 'OK',
                       style: tokens.text.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: tokens.colors.textPrimary,
@@ -293,7 +293,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       onPressed: updateAvailable ? _applyUpdate : null,
                     ),
                     AppButton(
-                      label: 'Copiar diagnostico',
+                      label: 'Copiar diagnóstico',
                       icon: Icons.content_copy_rounded,
                       variant: AppButtonVariant.ghost,
                       onPressed: _copyDiagnostics,
@@ -327,7 +327,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Terminos'),
+                  title: const Text('Términos'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
