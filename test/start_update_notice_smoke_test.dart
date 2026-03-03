@@ -26,7 +26,7 @@ void main() {
 
     await _pumpFrames(tester);
 
-    expect(find.text('Actualizacion 9.9.9 disponible.'), findsOneWidget);
+    expect(find.text('Actualización 9.9.9 disponible.'), findsOneWidget);
     expect(find.text('Descargar'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -47,7 +47,7 @@ class _FakeUpdateService extends AppUpdateService {
       remoteVersion: '9.9.9',
       remoteBuildId: 'build-remote',
       updateAvailable: true,
-      message: 'Actualizacion disponible.',
+      message: 'Actualización disponible.',
     );
   }
 }

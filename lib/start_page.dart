@@ -242,19 +242,19 @@ class _StartPageState extends State<StartPage> {
             type: 'status',
             enumValues: <String>['Pendiente', 'OK', 'No cumple', 'Urgente']),
         _PackColumnSpec(label: 'Evidencia', type: 'text'),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
+        _PackColumnSpec(label: 'Observación', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
     _PackTemplateSpec(
       id: 'campo_mantenimiento_rapido',
-      pack: 'Campo/Inspeccion',
-      name: 'Mantenimiento rapido',
-      description: 'Tareas de mantenimiento con proxima fecha.',
+      pack: 'Campo/Inspección',
+      name: 'Mantenimiento rápido',
+      description: 'Tareas de mantenimiento con próxima fecha.',
       icon: CupertinoIcons.wrench,
       tags: <String>['Mantenimiento', 'Equipo', 'Servicio'],
       columns: <_PackColumnSpec>[
@@ -266,12 +266,12 @@ class _StartPageState extends State<StartPage> {
           'Completado',
           'Urgente'
         ]),
-        _PackColumnSpec(label: 'Proxima fecha', type: 'date'),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
+        _PackColumnSpec(label: 'Próxima fecha', type: 'date'),
+        _PackColumnSpec(label: 'Observación', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -390,12 +390,12 @@ class _StartPageState extends State<StartPage> {
           'Completado',
           'Urgente'
         ]),
-        _PackColumnSpec(label: 'Observacion', type: 'text'),
+        _PackColumnSpec(label: 'Observación', type: 'text'),
         _PackColumnSpec(label: 'Referencia', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Revisar'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Revisar'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -1902,7 +1902,7 @@ class _StartPageState extends State<StartPage> {
       'Actividad',
       'Estado',
       'Responsable',
-      'Observacion',
+      'Observación',
       'Fotos',
     ];
     final rows = <List<String>>[
@@ -3487,7 +3487,7 @@ class _StartPageState extends State<StartPage> {
         await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
     if (!mounted) return;
     _toast(opened
-        ? 'Abriendo pagina de release.'
+        ? 'Abriendo página de release.'
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
   }
 
@@ -3499,13 +3499,13 @@ class _StartPageState extends State<StartPage> {
       final remote = update.remoteVersion.trim();
       return _StartNotice(
         message: remote.isEmpty
-            ? 'Actualizacion disponible para BitFlow.'
-            : 'Actualizacion $remote disponible.',
+            ? 'Actualización disponible para BitFlow.'
+            : 'Actualización $remote disponible.',
         actionLabel: kIsWeb ? 'Recargar' : 'Descargar',
-        detailsTitle: 'Actualizacion disponible',
+        detailsTitle: 'Actualización disponible',
         detailsBody: remote.isEmpty
-            ? 'Hay una version nueva lista para instalar.'
-            : 'Version detectada: $remote.\nInstala para recibir mejoras y correcciones.',
+            ? 'Hay una versión nueva lista para instalar.'
+            : 'Versión detectada: $remote.\nInstala para recibir mejoras y correcciones.',
         onAction: _applyAvailableUpdate,
       );
     }
@@ -3516,18 +3516,18 @@ class _StartPageState extends State<StartPage> {
         actionLabel: 'Abrir navegador',
         detailsTitle: 'Abrir en Safari o Chrome',
         detailsBody:
-            'Los navegadores embebidos bloquean camara, microfono, GPS y guardado local. Abre BitFlow en Safari o Chrome para operar sin friccion.',
+            'Los navegadores embebidos bloquean cámara, micrófono, GPS y guardado local. Abre BitFlow en Safari o Chrome para operar sin fricción.',
         onAction: _openInExternalBrowser,
       );
     }
 
     if (_shouldShowIosInstallHelper) {
       return _StartNotice(
-        message: 'Instala BitFlow en Safari para acceso rapido.',
+        message: 'Instala BitFlow en Safari para acceso rápido.',
         actionLabel: 'Entendido',
         detailsTitle: 'Instalar en iPhone',
         detailsBody:
-            'Desde Safari: Compartir -> Anadir a pantalla de inicio. Asi se abre como app y evita pasos extra.',
+            'Desde Safari: Compartir -> Añadir a pantalla de inicio. Así se abre como app y evita pasos extra.',
         onAction: _dismissIosInstallHelperForever,
       );
     }
@@ -3538,7 +3538,7 @@ class _StartPageState extends State<StartPage> {
         actionLabel: 'Cerrar',
         detailsTitle: 'Modo demo',
         detailsBody:
-            'La demo muestra valor rapido sin tocar datos reales. Puedes activarla de nuevo cuando quieras.',
+            'La demo muestra valor rápido sin tocar datos reales. Puedes activarla de nuevo cuando quieras.',
         onAction: _toggleDemoMode,
       );
     }
@@ -3616,7 +3616,7 @@ class _StartPageState extends State<StartPage> {
     final opened =
         await launchUrl(issues, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      _toast('No se pudo abrir soporte. Escribenos a $_supportEmailOrDefault.');
+      _toast('No se pudo abrir soporte. Escríbenos a $_supportEmailOrDefault.');
     }
   }
 
@@ -3631,12 +3631,12 @@ class _StartPageState extends State<StartPage> {
       _MoreSheetItem(
         icon: CupertinoIcons.info_circle,
         title: 'Acerca de BitFlow',
-        subtitle: 'Version, build y estado de la app',
+        subtitle: 'Versión, build y estado de la app',
         onSelected: () => _openStaticPage(const AboutScreen()),
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.waveform_path_ecg,
-        title: 'Diagnostico',
+        title: 'Diagnóstico',
         subtitle: 'Verifica motor, adjuntos y conectividad',
         onSelected: _openDiagnostics,
       ),
@@ -3661,20 +3661,20 @@ class _StartPageState extends State<StartPage> {
       _MoreSheetItem(
         icon: CupertinoIcons.folder,
         title: 'Carpetas',
-        subtitle: 'Organiza planillas por areas o clientes',
+        subtitle: 'Organiza planillas por áreas o clientes',
         onSelected: _openFolderPicker,
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.search_circle,
         title: 'Quick Switcher',
-        subtitle: 'Cambiar rapido con Ctrl/Cmd+K',
+        subtitle: 'Cambiar rápido con Ctrl/Cmd+K',
         onSelected: _openQuickSwitcher,
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.refresh,
         title: 'Buscar actualizaciones',
         subtitle: (_updateSnapshot?.updateAvailable ?? false)
-            ? 'Hay una actualizacion lista para instalar'
+            ? 'Hay una actualización lista para instalar'
             : (_updateChecking
                 ? 'Buscando actualizaciones en este momento'
                 : 'Comprobar nuevas versiones ahora'),
@@ -3683,7 +3683,7 @@ class _StartPageState extends State<StartPage> {
       _MoreSheetItem(
         icon: CupertinoIcons.sort_down,
         title: 'Ordenar',
-        subtitle: 'Recientes, titulo o cantidad de filas',
+        subtitle: 'Recientes, título o cantidad de filas',
         onSelected: _openSortSheet,
       ),
       _MoreSheetItem(
@@ -3695,7 +3695,7 @@ class _StartPageState extends State<StartPage> {
       _MoreSheetItem(
         icon: CupertinoIcons.cart,
         title: 'Premium',
-        subtitle: 'Planes, alcance y activacion comercial',
+        subtitle: 'Planes, alcance y activación comercial',
         onSelected: _openCommercialInfo,
       ),
       _MoreSheetItem(
@@ -3707,19 +3707,19 @@ class _StartPageState extends State<StartPage> {
       _MoreSheetItem(
         icon: CupertinoIcons.lock_shield,
         title: 'Privacidad',
-        subtitle: 'Politica de uso y tratamiento de datos',
+        subtitle: 'Política de uso y tratamiento de datos',
         onSelected: () => _openStaticPage(const PrivacyScreen()),
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.doc_text,
-        title: 'Terminos',
+        title: 'Términos',
         subtitle: 'Condiciones y responsabilidades de uso',
         onSelected: () => _openStaticPage(const TermsScreen()),
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.book,
         title: 'Licencias',
-        subtitle: 'Creditos de librerias de terceros',
+        subtitle: 'Créditos de librerías de terceros',
         onSelected: _openLicenses,
       ),
       _MoreSheetItem(
@@ -3754,7 +3754,7 @@ class _StartPageState extends State<StartPage> {
       if (RuntimeFlags.isAuthRequired)
         _MoreSheetItem(
           icon: CupertinoIcons.escape,
-          title: 'Cerrar sesion',
+          title: 'Cerrar sesión',
           subtitle: 'Salir del usuario actual',
           onSelected: _signOutCurrentUser,
           destructive: true,
@@ -3802,7 +3802,7 @@ class _StartPageState extends State<StartPage> {
                     child: Row(
                       children: [
                         Text(
-                          'Mas',
+                          'Más',
                           style: TextStyle(
                             color: colors.textPrimary,
                             fontSize: 18,
@@ -4487,7 +4487,7 @@ class _StartPageState extends State<StartPage> {
 
     for (final sheet in _activeSheets) {
       final title =
-          sheet.title.trim().isEmpty ? 'Planilla sin titulo' : sheet.title;
+          sheet.title.trim().isEmpty ? 'Planilla sin título' : sheet.title;
       final suffix = _isFavoriteSheet(sheet.id) ? ' · Favorita' : '';
       actions.add(
         CommandAction(
@@ -4506,14 +4506,14 @@ class _StartPageState extends State<StartPage> {
       CommandAction(
         id: 'quick_new_sheet',
         label: 'Nueva planilla',
-        subtitle: 'Crear planilla vacia',
+        subtitle: 'Crear planilla vacía',
         icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
         onSelected: () => unawaited(_newSheet()),
       ),
       CommandAction(
         id: 'quick_from_template',
         label: 'Desde plantilla',
-        subtitle: 'Abrir galeria de templates',
+        subtitle: 'Abrir galería de templates',
         icon: CupertinoIcons.square_grid_2x2_fill,
         onSelected: () => unawaited(_newTemplateSheet()),
       ),
@@ -4769,7 +4769,7 @@ class _StartPageState extends State<StartPage> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Ctrl/Cmd+K para cambiar rapido',
+                                'Ctrl/Cmd+K para cambiar rápido',
                                 key: const ValueKey('start-quick-hint'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -5734,8 +5734,8 @@ class _DashboardQuickSections extends StatelessWidget {
             .take(3)
             .toList(growable: false);
     final emptyMessage = activeTab == _DailyFocusTab.recents
-        ? 'Todavia no hay planillas recientes.'
-        : 'Todavia no hay planillas favoritas.';
+        ? 'Todavía no hay planillas recientes.'
+        : 'Todavía no hay planillas favoritas.';
 
     return _AppleSectionCard(
       colors: colors,
@@ -5909,7 +5909,7 @@ class _DashboardQuickRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title =
-        meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+        meta.title.trim().isEmpty ? 'Planilla sin título' : meta.title;
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
       pressedOpacity: 0.55,
@@ -6675,7 +6675,7 @@ class _ProLicenseCard extends StatelessWidget {
           _DisclosureRow(
             key: const ValueKey('start-pro-disclosure'),
             title: 'Pro',
-            subtitle: 'Version $releaseVersion',
+            subtitle: 'Versión $releaseVersion',
             expanded: proExpanded,
             colors: colors,
             onTap: onToggleProExpanded,
@@ -6683,7 +6683,7 @@ class _ProLicenseCard extends StatelessWidget {
           if (proExpanded) ...[
             const SizedBox(height: 8),
             Text(
-              'Entrega profesional con menos friccion operativa.',
+              'Entrega profesional con menos fricción operativa.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

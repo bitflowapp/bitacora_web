@@ -28,7 +28,7 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.text(AboutScreen.routeTitle), findsOneWidget);
-    expect(find.text('Version'), findsOneWidget);
+    expect(find.text('Versión'), findsOneWidget);
   });
 }
 
