@@ -24,7 +24,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
@@ -61,6 +60,7 @@ import 'package:flutter/material.dart'
         showModalBottomSheet,
         showDialog;
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
@@ -96,6 +96,7 @@ import 'screens/spreadsheet_agent_screen.dart';
 import 'screens/terms_screen.dart';
 import 'services/auth_service.dart';
 import 'services/runtime_flags.dart';
+import 'widgets/command_palette.dart';
 
 const bool _kShowDebugBadge =
     bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
@@ -438,7 +439,6 @@ class _StartPageState extends State<StartPage> {
   _HomeTab _tab = _HomeTab.sheets;
 
   // Dashboard UX
-  bool _showSearch = false;
   _QuickFilter _quick = _QuickFilter.none;
 
   // Carpeta seleccionada (solo aplica en _HomeTab.sheets)
@@ -526,6 +526,7 @@ class _StartPageState extends State<StartPage> {
 
   // --------------------- Controllers ---------------------
   late final TextEditingController _searchEC;
+  final FocusNode _homeKeyFocus = FocusNode(debugLabel: 'StartPageHomeFocus');
 
   String get _buildStamp => BuildInfo.stamp;
   String get _proCtaUrl {
@@ -588,6 +589,7 @@ class _StartPageState extends State<StartPage> {
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _searchEC.dispose();
+    _homeKeyFocus.dispose();
     super.dispose();
   }
 
@@ -3538,10 +3540,9 @@ class _StartPageState extends State<StartPage> {
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                if (!mounted) return;
-                setState(() => _showSearch = !_showSearch);
+                unawaited(_openQuickSwitcher());
               },
-              child: Text(_showSearch ? 'Ocultar búsqueda' : 'Buscar'),
+              child: const Text('Quick Switcher (Ctrl/Cmd+K)'),
             ),
             CupertinoActionSheetAction(
               onPressed: () async {
@@ -4289,6 +4290,93 @@ class _StartPageState extends State<StartPage> {
 
   bool _isFavoriteSheet(String sheetId) => _favoriteSheetIds.contains(sheetId);
 
+  List<_PackTemplateSpec> _templateMatchesForQuery(String rawQuery) {
+    final q = rawQuery.trim().toLowerCase();
+    if (q.isEmpty) return const <_PackTemplateSpec>[];
+    return _commercialTemplates.where((template) {
+      final name = template.name.toLowerCase();
+      final desc = template.description.toLowerCase();
+      final pack = template.pack.toLowerCase();
+      final tags = template.tags.join(' ').toLowerCase();
+      return name.contains(q) ||
+          desc.contains(q) ||
+          pack.contains(q) ||
+          tags.contains(q);
+    }).toList(growable: false);
+  }
+
+  bool _isTextInputFocused() {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null) return false;
+    return focus.context?.widget is EditableText;
+  }
+
+  KeyEventResult _onHomeKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_isTextInputFocused()) return KeyEventResult.ignored;
+    final isMod = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
+      unawaited(_openQuickSwitcher());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> _openQuickSwitcher() async {
+    if (!mounted) return;
+    final actions = <CommandAction>[
+      CommandAction(
+        id: 'quick_new_sheet',
+        label: 'Nueva planilla',
+        subtitle: 'Crear planilla vacia',
+        icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
+        onSelected: () => unawaited(_newSheet()),
+      ),
+      CommandAction(
+        id: 'quick_from_template',
+        label: 'Desde plantilla',
+        subtitle: 'Abrir galeria de templates',
+        icon: CupertinoIcons.square_grid_2x2_fill,
+        onSelected: () => unawaited(_newTemplateSheet()),
+      ),
+    ];
+
+    for (final sheet in _activeSheets) {
+      final title = sheet.title.trim().isEmpty ? 'Planilla sin titulo' : sheet.title;
+      final suffix = _isFavoriteSheet(sheet.id) ? ' · Favorita' : '';
+      actions.add(
+        CommandAction(
+          id: 'quick_sheet_${sheet.id}',
+          label: title,
+          subtitle: 'Planilla$suffix · ${_fmt(sheet.updatedAt)}',
+          icon: _isFavoriteSheet(sheet.id)
+              ? CupertinoIcons.star_fill
+              : CupertinoIcons.doc_text,
+          onSelected: () => unawaited(_open(sheet)),
+        ),
+      );
+    }
+
+    for (final template in _commercialTemplates) {
+      actions.add(
+        CommandAction(
+          id: 'quick_template_${template.id}',
+          label: template.name,
+          subtitle: 'Template · ${template.pack}',
+          icon: template.icon,
+          onSelected: () => unawaited(_createAndOpenPackTemplate(template)),
+        ),
+      );
+    }
+
+    await showCommandPalette(
+      context,
+      title: 'Quick Switcher',
+      actions: actions,
+    );
+  }
+
   List<SheetMeta> get _visibleSheets {
     // Base: items del store
     var list = List<SheetMeta>.from(_items);
@@ -4386,6 +4474,7 @@ class _StartPageState extends State<StartPage> {
     final data = _visibleSheets;
     final recentSheets = _recentSheets.take(6).toList(growable: false);
     final favoriteSheets = _favoriteSheets.take(6).toList(growable: false);
+    final templateMatches = _templateMatchesForQuery(_q);
     final sAll = _statsAll;
 
     final todayCount = sAll.today;
@@ -4404,13 +4493,17 @@ class _StartPageState extends State<StartPage> {
     final showDebugBadge = kDebugMode || _kShowDebugBadge;
     final buildStamp = _buildStamp;
 
-    return CupertinoPageScaffold(
-      backgroundColor: colors.bg,
-      child: SafeArea(
-        bottom: false,
-        child: Stack(
-          children: [
-            CustomScrollView(
+    return Focus(
+      focusNode: _homeKeyFocus,
+      autofocus: true,
+      onKeyEvent: _onHomeKeyEvent,
+      child: CupertinoPageScaffold(
+        backgroundColor: colors.bg,
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              CustomScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               slivers: [
                 SliverToBoxAdapter(
@@ -4440,12 +4533,11 @@ class _StartPageState extends State<StartPage> {
                             onPressed: _signOutCurrentUser,
                           ),
                         AppButton(
-                          label: 'Buscar',
+                          label: 'Quick',
                           icon: CupertinoIcons.search,
                           variant: AppButtonVariant.ghost,
                           size: AppButtonSize.sm,
-                          onPressed: () =>
-                              setState(() => _showSearch = !_showSearch),
+                          onPressed: _openQuickSwitcher,
                         ),
                         AppButton(
                           label: 'Crear',
@@ -4960,39 +5052,82 @@ class _StartPageState extends State<StartPage> {
                   ),
                 ),
 
-                // Search + scope (solo cuando se abre)
-                if (_showSearch)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _AppleSectionCard(
-                        colors: colors,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CupertinoSearchTextField(
-                              controller: _searchEC,
-                              onChanged: (v) => setState(() {
-                                _q = v;
-                              }),
-                              placeholder:
-                                  'Buscar por título o mensaje destacado',
-                            ),
-                            if (_tab == _HomeTab.sheets) ...[
-                              const SizedBox(height: 10),
-                              _SegmentedScope(
-                                isLight: isLight,
-                                value: _searchAll,
-                                onChanged: (v) =>
-                                    setState(() => _searchAll = v),
-                                colors: colors,
+                // Search + quick switcher
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: _AppleSectionCard(
+                      colors: colors,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CupertinoSearchTextField(
+                            controller: _searchEC,
+                            onChanged: (v) => setState(() {
+                              _q = v;
+                            }),
+                            placeholder:
+                                'Buscar planillas y plantillas (Ctrl/Cmd+K)',
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Quick Switcher: Ctrl/Cmd+K',
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              CupertinoButton(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                minimumSize: const Size(0, 30),
+                                color: colors.group,
+                                borderRadius: BorderRadius.circular(999),
+                                onPressed: _openQuickSwitcher,
+                                child: Text(
+                                  'Abrir',
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
                             ],
+                          ),
+                          if (_tab == _HomeTab.sheets) ...[
+                            const SizedBox(height: 10),
+                            _SegmentedScope(
+                              isLight: isLight,
+                              value: _searchAll,
+                              onChanged: (v) =>
+                                  setState(() => _searchAll = v),
+                              colors: colors,
+                            ),
                           ],
-                        ),
+                          if (_q.trim().isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            _TemplateSearchResults(
+                              colors: colors,
+                              templates:
+                                  templateMatches.take(3).toList(growable: false),
+                              onOpenTemplate: (template) =>
+                                  unawaited(_createAndOpenPackTemplate(template)),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
+                ),
 
                 // Caption de vista
                 SliverToBoxAdapter(
@@ -5173,6 +5308,7 @@ class _StartPageState extends State<StartPage> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -5901,6 +6037,81 @@ class _DashboardQuickRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TemplateSearchResults extends StatelessWidget {
+  const _TemplateSearchResults({
+    required this.colors,
+    required this.templates,
+    required this.onOpenTemplate,
+  });
+
+  final _ApplePalette colors;
+  final List<_PackTemplateSpec> templates;
+  final ValueChanged<_PackTemplateSpec> onOpenTemplate;
+
+  @override
+  Widget build(BuildContext context) {
+    if (templates.isEmpty) {
+      return Text(
+        'Sin plantillas para esta búsqueda.',
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Plantillas',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        for (int i = 0; i < templates.length; i++) ...[
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 5),
+            onPressed: () => onOpenTemplate(templates[i]),
+            child: Row(
+              children: [
+                Icon(
+                  templates[i].icon,
+                  color: colors.accent,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${templates[i].name} · ${templates[i].pack}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (i < templates.length - 1)
+            Container(
+              height: 1,
+              color: colors.separator.withValues(
+                alpha: colors.isLight ? 0.75 : 0.4,
+              ),
+            ),
+        ],
+      ],
     );
   }
 }
