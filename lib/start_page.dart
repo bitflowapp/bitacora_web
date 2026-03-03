@@ -443,6 +443,9 @@ class _StartPageState extends State<StartPage> {
   // Dashboard UX
   _QuickFilter _quick = _QuickFilter.none;
   _DailyFocusTab _dailyFocusTab = _DailyFocusTab.recents;
+  bool _proSectionExpanded = false;
+  bool _proBenefitsExpanded = false;
+  bool _demoSectionExpanded = false;
 
   // Carpeta seleccionada (solo aplica en _HomeTab.sheets)
   String _selectedFolderId = ''; // '' = Raíz
@@ -548,16 +551,6 @@ class _StartPageState extends State<StartPage> {
     final raw = _kSupportWhatsApp.trim();
     if (raw.isEmpty) return '';
     return raw.replaceAll(RegExp(r'[^0-9]'), '');
-  }
-
-  String get _supportChannelLabel {
-    if (_supportWhatsAppDigits.isNotEmpty) {
-      return 'Soporte por WhatsApp y email.';
-    }
-    if (_kSupportUrlLegacy.trim().isNotEmpty) {
-      return 'Soporte por canal dedicado y email.';
-    }
-    return 'Soporte por email.';
   }
 
   final AppUpdateService _appUpdateService = const AppUpdateService();
@@ -4824,11 +4817,25 @@ class _StartPageState extends State<StartPage> {
                           colors: colors,
                           busy: _busy,
                           releaseVersion: _kReleaseVersion,
-                          supportChannelLabel: _supportChannelLabel,
                           demoModeEnabled: _demoModeEnabled,
                           demoSampleLoaded: _demoSampleLoaded,
+                          proExpanded: _proSectionExpanded,
+                          proBenefitsExpanded: _proBenefitsExpanded,
+                          demoExpanded: _demoSectionExpanded,
+                          showDemoSection: RuntimeFlags.demoMode,
+                          onToggleProExpanded: () {
+                            setState(() =>
+                                _proSectionExpanded = !_proSectionExpanded);
+                          },
+                          onToggleBenefits: () {
+                            setState(() =>
+                                _proBenefitsExpanded = !_proBenefitsExpanded);
+                          },
+                          onToggleDemoExpanded: () {
+                            setState(() =>
+                                _demoSectionExpanded = !_demoSectionExpanded);
+                          },
                           onPrimaryCta: _openCommercialCta,
-                          onSupport: _openSupportChannel,
                           onLoadDemo: _loadDemoSampleSheet,
                           onRemoveDemo: _removeDemoSample,
                           onToggleDemoMode: _toggleDemoMode,
@@ -6559,11 +6566,16 @@ class _ProLicenseCard extends StatelessWidget {
     required this.colors,
     required this.busy,
     required this.releaseVersion,
-    required this.supportChannelLabel,
     required this.demoModeEnabled,
     required this.demoSampleLoaded,
+    required this.proExpanded,
+    required this.proBenefitsExpanded,
+    required this.demoExpanded,
+    required this.showDemoSection,
+    required this.onToggleProExpanded,
+    required this.onToggleBenefits,
+    required this.onToggleDemoExpanded,
     required this.onPrimaryCta,
-    required this.onSupport,
     required this.onLoadDemo,
     required this.onRemoveDemo,
     required this.onToggleDemoMode,
@@ -6572,288 +6584,241 @@ class _ProLicenseCard extends StatelessWidget {
   final _ApplePalette colors;
   final bool busy;
   final String releaseVersion;
-  final String supportChannelLabel;
   final bool demoModeEnabled;
   final bool demoSampleLoaded;
+  final bool proExpanded;
+  final bool proBenefitsExpanded;
+  final bool demoExpanded;
+  final bool showDemoSection;
+  final VoidCallback onToggleProExpanded;
+  final VoidCallback onToggleBenefits;
+  final VoidCallback onToggleDemoExpanded;
   final Future<void> Function() onPrimaryCta;
-  final Future<void> Function() onSupport;
   final Future<void> Function() onLoadDemo;
   final Future<void> Function({bool notify}) onRemoveDemo;
   final Future<void> Function() onToggleDemoMode;
 
   @override
   Widget build(BuildContext context) {
-    final includes = <String>[
-      'Exportaciones profesionales (XLSX, ZIP y PDF) listas para cliente.',
-      'Operacion offline con evidencia por registro y respaldo local.',
-      'Activacion comercial rapida sin migrar tus planillas actuales.',
-      'Acompanamiento de soporte para onboarding y puesta en marcha.',
+    final benefits = <String>[
+      'Exportaciones listas para cliente.',
+      'Operacion offline con evidencia.',
+      'Activacion comercial sin migraciones.',
     ];
 
-    final faq = <Map<String, String>>[
-      {
-        'q': 'Cuanto tarda activar BitFlow Pro?',
-        'a':
-            'Normalmente el mismo dia habil. Tu equipo sigue operando sin pausas.',
-      },
-      {
-        'q': 'Se puede probar sin riesgo?',
-        'a':
-            'Si. La demo reversible carga un ejemplo y puedes quitarlo en un clic.',
-      },
-      {
-        'q': 'Como me contacto si necesito ayuda?',
-        'a': supportChannelLabel,
-      },
-    ];
-
-    return AppCard(
-      radius: 18,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    return _AppleSectionCard(
+      colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  color: colors.group,
-                  border: Border.all(color: colors.separator),
-                ),
-                child: Text(
-                  'BitFlow Pro',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+          _DisclosureRow(
+            key: const ValueKey('start-pro-disclosure'),
+            title: 'Pro',
+            subtitle: 'Version $releaseVersion',
+            expanded: proExpanded,
+            colors: colors,
+            onTap: onToggleProExpanded,
+          ),
+          if (proExpanded) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Entrega profesional con menos friccion operativa.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
-              const Spacer(),
-              Text(
-                'Version $releaseVersion',
+            ),
+            const SizedBox(height: 10),
+            AppButton(
+              label: 'Activar Pro',
+              icon: CupertinoIcons.cart_fill_badge_plus,
+              variant: AppButtonVariant.primary,
+              onPressed: busy ? null : () => onPrimaryCta(),
+            ),
+            const SizedBox(height: 4),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
+              minimumSize: const Size(0, 0),
+              onPressed: onToggleBenefits,
+              child: Text(
+                proBenefitsExpanded ? 'Ocultar beneficios' : 'Ver beneficios',
                 style: TextStyle(
-                  color: colors.textSecondary,
+                  color: colors.accent,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Activa Pro y convierte BitFlow en una entrega cliente.',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.2,
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Menos friccion operativa, mas velocidad de cierre y soporte comercial visible.',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              AppButton(
-                label: 'Activar BitFlow Pro',
-                icon: CupertinoIcons.cart_fill_badge_plus,
-                variant: AppButtonVariant.primary,
-                onPressed: busy ? null : () => onPrimaryCta(),
-              ),
-              AppButton(
-                label: 'Soporte',
-                icon: CupertinoIcons.headphones,
-                variant: AppButtonVariant.secondary,
-                onPressed: () => onSupport(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Que incluye Pro',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final item in includes) _buildBullet(item),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.group.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.separator),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.sparkles,
-                      size: 16,
-                      color: colors.textPrimary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Demo reversible',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+            if (proBenefitsExpanded)
+              Column(
+                key: const ValueKey('start-pro-benefits'),
+                children: [
+                  for (final item in benefits)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            CupertinoIcons.check_mark_circled_solid,
+                            size: 14,
+                            color: colors.accent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
+                ],
+              ),
+          ],
+          if (showDemoSection) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: colors.group.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colors.separator),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DisclosureRow(
+                    key: const ValueKey('start-demo-disclosure'),
+                    title: 'Demo',
+                    subtitle: demoModeEnabled ? 'Activa' : 'Pausada',
+                    expanded: demoExpanded,
+                    colors: colors,
+                    onTap: onToggleDemoExpanded,
+                  ),
+                  if (demoExpanded) ...[
+                    const SizedBox(height: 6),
                     Text(
-                      demoModeEnabled ? 'Activa' : 'Pausada',
+                      'Prueba reversible para mostrar valor en minutos.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Carga una planilla ejemplo para mostrar el flujo completo y quitarla sin dejar residuos.',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    AppButton(
-                      label:
-                          demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
-                      icon: demoModeEnabled
-                          ? CupertinoIcons.eye_slash
-                          : CupertinoIcons.play_circle,
-                      variant: AppButtonVariant.ghost,
-                      onPressed: busy ? null : () => onToggleDemoMode(),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppButton(
+                          label: demoModeEnabled
+                              ? 'Desactivar demo'
+                              : 'Activar demo',
+                          icon: demoModeEnabled
+                              ? CupertinoIcons.eye_slash
+                              : CupertinoIcons.play_circle,
+                          variant: AppButtonVariant.ghost,
+                          onPressed: busy ? null : () => onToggleDemoMode(),
+                        ),
+                        if (demoModeEnabled)
+                          AppButton(
+                            label: demoSampleLoaded
+                                ? 'Quitar ejemplo'
+                                : 'Probar demo',
+                            icon: demoSampleLoaded
+                                ? CupertinoIcons.trash
+                                : CupertinoIcons.sparkles,
+                            variant: AppButtonVariant.ghost,
+                            onPressed: busy
+                                ? null
+                                : (demoSampleLoaded
+                                    ? () => onRemoveDemo(notify: true)
+                                    : () => onLoadDemo()),
+                          ),
+                      ],
                     ),
-                    if (demoModeEnabled)
-                      AppButton(
-                        label: demoSampleLoaded
-                            ? 'Quitar ejemplo reversible'
-                            : 'Probar demo reversible',
-                        icon: demoSampleLoaded
-                            ? CupertinoIcons.trash
-                            : CupertinoIcons.sparkles,
-                        variant: AppButtonVariant.ghost,
-                        onPressed: busy
-                            ? null
-                            : (demoSampleLoaded
-                                ? () => onRemoveDemo(notify: true)
-                                : () => onLoadDemo()),
-                      ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'FAQ rapida',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final item in faq) _buildFaqItem(item['q']!, item['a']!),
-          const SizedBox(height: 10),
-          Text(
-            'Confianza: Version $releaseVersion | Soporte disponible',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Privacidad: tu equipo controla que datos comparte al exportar o contactar soporte.',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 11,
-              height: 1.25,
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _buildBullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        '- $text',
-        style: TextStyle(
-          color: colors.textSecondary,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          height: 1.25,
-        ),
-      ),
-    );
-  }
+class _DisclosureRow extends StatelessWidget {
+  const _DisclosureRow({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.expanded,
+    required this.colors,
+    required this.onTap,
+  });
 
-  Widget _buildFaqItem(String q, String a) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.separator),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  final String title;
+  final String subtitle;
+  final bool expanded;
+  final _ApplePalette colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Row(
         children: [
-          Text(
-            q,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            a,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 12,
-              height: 1.25,
-            ),
+          const SizedBox(width: 8),
+          Icon(
+            expanded ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
+            size: 16,
+            color: colors.textSecondary,
           ),
         ],
       ),
