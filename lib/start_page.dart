@@ -3636,22 +3636,16 @@ class _StartPageState extends State<StartPage> {
         onSelected: _importBackupZip,
       ),
       _MoreSheetItem(
-        icon: CupertinoIcons.arrow_up_doc,
-        title: 'Nueva plantilla',
-        subtitle: 'Crear desde una plantilla comercial',
-        onSelected: _newTemplateSheet,
-      ),
-      _MoreSheetItem(
-        icon: CupertinoIcons.bolt,
-        title: 'Prueba rapida',
-        subtitle: 'Validar GPS, fotos y audio en una hoja ejemplo',
-        onSelected: _createSmokeTestSheet,
-      ),
-      _MoreSheetItem(
         icon: CupertinoIcons.settings,
         title: 'Ajustes',
         subtitle: 'Correo, motor y preferencias de trabajo',
         onSelected: _openMailSettings,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.arrow_up_doc,
+        title: 'Nueva plantilla',
+        subtitle: 'Crear desde una plantilla comercial',
+        onSelected: _newTemplateSheet,
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.folder,
@@ -3676,26 +3670,6 @@ class _StartPageState extends State<StartPage> {
         onSelected: () => _checkForUpdates(silent: false),
       ),
       _MoreSheetItem(
-        icon: CupertinoIcons.cart,
-        title: 'Premium',
-        subtitle: 'Planes, alcance y activacion comercial',
-        onSelected: _openCommercialInfo,
-      ),
-      if (RuntimeFlags.demoMode)
-        _MoreSheetItem(
-          icon:
-              _demoModeEnabled ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
-          title: _demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
-          subtitle: 'Controla la demo reversible para presentaciones',
-          onSelected: _toggleDemoMode,
-        ),
-      _MoreSheetItem(
-        icon: CupertinoIcons.doc_text_search,
-        title: 'Agente de planillas',
-        subtitle: 'MVP asistido para crear planillas',
-        onSelected: () => _openStaticPage(const SpreadsheetAgentScreen()),
-      ),
-      _MoreSheetItem(
         icon: CupertinoIcons.sort_down,
         title: 'Ordenar',
         subtitle: 'Recientes, titulo o cantidad de filas',
@@ -3708,18 +3682,16 @@ class _StartPageState extends State<StartPage> {
         onSelected: _openViewSheet,
       ),
       _MoreSheetItem(
-        icon: _tab == _HomeTab.sheets
-            ? CupertinoIcons.trash
-            : CupertinoIcons.doc_plaintext,
-        title: _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas',
-        subtitle: 'Cambiar entre contenido activo y eliminado',
-        onSelected: () async {
-          if (!mounted) return;
-          setState(() {
-            _tab = _tab == _HomeTab.sheets ? _HomeTab.trash : _HomeTab.sheets;
-            _quick = _QuickFilter.none;
-          });
-        },
+        icon: CupertinoIcons.cart,
+        title: 'Premium',
+        subtitle: 'Planes, alcance y activacion comercial',
+        onSelected: _openCommercialInfo,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.doc_text_search,
+        title: 'Agente de planillas',
+        subtitle: 'MVP asistido para crear planillas',
+        onSelected: () => _openStaticPage(const SpreadsheetAgentScreen()),
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.lock_shield,
@@ -3739,6 +3711,35 @@ class _StartPageState extends State<StartPage> {
         subtitle: 'Creditos de librerias de terceros',
         onSelected: _openLicenses,
       ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.bolt,
+        title: 'Prueba rapida',
+        subtitle: 'Validar GPS, fotos y audio en una hoja ejemplo',
+        onSelected: _createSmokeTestSheet,
+      ),
+      _MoreSheetItem(
+        icon: _tab == _HomeTab.sheets
+            ? CupertinoIcons.trash
+            : CupertinoIcons.doc_plaintext,
+        title: _tab == _HomeTab.sheets ? 'Ir a Papelera' : 'Ir a Planillas',
+        subtitle: 'Cambiar entre contenido activo y eliminado',
+        onSelected: () async {
+          if (!mounted) return;
+          setState(() {
+            _tab = _tab == _HomeTab.sheets ? _HomeTab.trash : _HomeTab.sheets;
+            _quick = _QuickFilter.none;
+          });
+        },
+      ),
+      if (RuntimeFlags.demoMode)
+        _MoreSheetItem(
+          icon:
+              _demoModeEnabled ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+          title: _demoModeEnabled ? 'Desactivar demo' : 'Activar demo',
+          subtitle: 'Controla la demo reversible para presentaciones',
+          onSelected: _toggleDemoMode,
+          destructive: _demoModeEnabled,
+        ),
       if (RuntimeFlags.isAuthRequired)
         _MoreSheetItem(
           icon: CupertinoIcons.escape,
@@ -3748,6 +3749,12 @@ class _StartPageState extends State<StartPage> {
           destructive: true,
         ),
     ];
+    final orderedItems = <_MoreSheetItem>[
+      ...items.where((item) => !item.destructive),
+      ...items.where((item) => item.destructive),
+    ];
+    final firstDangerousIndex =
+        orderedItems.indexWhere((item) => item.destructive);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -3818,13 +3825,25 @@ class _StartPageState extends State<StartPage> {
                     child: ListView.separated(
                       shrinkWrap: true,
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => Container(
-                        height: 1,
-                        color: colors.separator,
-                      ),
+                      itemCount: orderedItems.length,
+                      separatorBuilder: (_, index) {
+                        if (firstDangerousIndex > 0 &&
+                            index == firstDangerousIndex - 1) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Container(
+                              height: 1,
+                              color: colors.separator.withValues(alpha: 0.9),
+                            ),
+                          );
+                        }
+                        return Container(
+                          height: 1,
+                          color: colors.separator,
+                        );
+                      },
                       itemBuilder: (_, index) {
-                        final item = items[index];
+                        final item = orderedItems[index];
                         return _MoreSheetRow(
                           colors: colors,
                           item: item,
@@ -4730,7 +4749,7 @@ class _StartPageState extends State<StartPage> {
                                     key: const ValueKey('start-primary-search'),
                                     label: 'Buscar',
                                     icon: CupertinoIcons.search,
-                                    variant: AppButtonVariant.secondary,
+                                    variant: AppButtonVariant.ghost,
                                     onPressed: _openQuickSwitcher,
                                   ),
                                 ],
@@ -4797,6 +4816,8 @@ class _StartPageState extends State<StartPage> {
                             recents: recentSheets,
                             favorites: favoriteSheets,
                             fmt: _fmt,
+                            onCreateSheet:
+                                _busy ? null : () => unawaited(_newSheet()),
                             selectedTab: _dailyFocusTab,
                             onTabChanged: (_DailyFocusTab tab) {
                               setState(() => _dailyFocusTab = tab);
@@ -5665,6 +5686,7 @@ class _DashboardQuickSections extends StatelessWidget {
     required this.recents,
     required this.favorites,
     required this.fmt,
+    required this.onCreateSheet,
     required this.selectedTab,
     required this.onTabChanged,
     required this.openedAtBySheetId,
@@ -5680,6 +5702,7 @@ class _DashboardQuickSections extends StatelessWidget {
   final List<SheetMeta> recents;
   final List<SheetMeta> favorites;
   final String Function(DateTime) fmt;
+  final VoidCallback? onCreateSheet;
   final _DailyFocusTab selectedTab;
   final ValueChanged<_DailyFocusTab> onTabChanged;
   final Map<String, int> openedAtBySheetId;
@@ -5698,8 +5721,8 @@ class _DashboardQuickSections extends StatelessWidget {
             .take(3)
             .toList(growable: false);
     final emptyMessage = activeTab == _DailyFocusTab.recents
-        ? 'Todavia no abriste planillas. Crea una para empezar.'
-        : 'Marca planillas como favoritas para verlas aqui.';
+        ? 'Todavia no hay planillas recientes.'
+        : 'Todavia no hay planillas favoritas.';
 
     return _AppleSectionCard(
       colors: colors,
@@ -5747,16 +5770,34 @@ class _DashboardQuickSections extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (visibleItems.isEmpty)
-            Text(
-              emptyMessage,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  emptyMessage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AppButton(
+                  label: activeTab == _DailyFocusTab.recents
+                      ? 'Nueva planilla'
+                      : 'Ir a Recientes',
+                  variant: activeTab == _DailyFocusTab.recents
+                      ? AppButtonVariant.primary
+                      : AppButtonVariant.secondary,
+                  size: AppButtonSize.sm,
+                  onPressed: activeTab == _DailyFocusTab.recents
+                      ? onCreateSheet
+                      : () => onTabChanged(_DailyFocusTab.recents),
+                ),
+              ],
             )
           else
             Column(
@@ -6297,10 +6338,11 @@ class _NoticeArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const actionWidth = 104.0;
     return _AppleSectionCard(
       colors: colors,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(
@@ -6311,36 +6353,39 @@ class _NoticeArea extends StatelessWidget {
                 color: colors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
+                height: 1.1,
               ),
             ),
           ),
           const SizedBox(width: 8),
-          CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            minimumSize: const Size(0, 0),
-            borderRadius: BorderRadius.circular(999),
-            color: colors.textPrimary,
-            onPressed: () => unawaited(notice.onAction()),
-            child: Text(
-              notice.actionLabel,
-              style: TextStyle(
-                color: colors.surface,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+          SizedBox(
+            width: actionWidth,
+            child: CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: const Size(0, 0),
+              borderRadius: BorderRadius.circular(999),
+              color: colors.textPrimary,
+              onPressed: () => unawaited(notice.onAction()),
+              child: Text(
+                notice.actionLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.surface,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
           CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             minimumSize: const Size(0, 0),
             onPressed: onDetails,
-            child: Text(
-              'Detalles',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Icon(
+              CupertinoIcons.info_circle,
+              size: 16,
+              color: colors.textSecondary,
             ),
           ),
         ],
