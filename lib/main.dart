@@ -22,6 +22,7 @@ import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
 import 'services/runtime_flags.dart';
+import 'services/web_capabilities.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
@@ -292,6 +293,12 @@ class _AppState extends State<App> {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
     final shouldShowBadge = kDebugMode || kShowDebugBadge;
+    final disableAnimatedBackgroundForWebIos =
+        kIsWeb && WebCapabilities.isIosSafari;
+    final bootBackgroundColor = (_isLight
+            ? lightTheme.scaffoldBackgroundColor
+            : darkTheme.scaffoldBackgroundColor)
+        .withValues(alpha: 1);
 
     Widget wrapWithBuildBadge(Widget child) {
       if (!shouldShowBadge) return child;
@@ -315,12 +322,17 @@ class _AppState extends State<App> {
         builder: (context, child) {
           return wrapWithBuildBadge(child ?? const SizedBox.shrink());
         },
-        home: AnimatedVideoBackground(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: child,
-          ),
-        ),
+        home: disableAnimatedBackgroundForWebIos
+            ? Scaffold(
+                backgroundColor: bootBackgroundColor,
+                body: child,
+              )
+            : AnimatedVideoBackground(
+                child: Scaffold(
+                  backgroundColor: Colors.transparent,
+                  body: child,
+                ),
+              ),
       );
     }
 
@@ -596,37 +608,47 @@ class _AppHomeState extends State<_AppHome> {
           onDismiss: _dismissDemoNotice,
         ),
     ];
+    final disableAnimatedBackgroundForWebIos =
+        kIsWeb && WebCapabilities.isIosSafari;
+    final homeBody = Column(
+      children: [
+        if (notices.isNotEmpty)
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  children: [
+                    for (final notice in notices)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _TopNotice(
+                          message: notice.message,
+                          dismissible: notice.dismissible,
+                          onDismiss: notice.onDismiss,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Expanded(child: home),
+      ],
+    );
+    if (disableAnimatedBackgroundForWebIos) {
+      return Scaffold(
+        backgroundColor:
+            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 1),
+        body: homeBody,
+      );
+    }
     return AnimatedVideoBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Column(
-          children: [
-            if (notices.isNotEmpty)
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 860),
-                    child: Column(
-                      children: [
-                        for (final notice in notices)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: _TopNotice(
-                              message: notice.message,
-                              dismissible: notice.dismissible,
-                              onDismiss: notice.onDismiss,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            Expanded(child: home),
-          ],
-        ),
+        body: homeBody,
       ),
     );
   }

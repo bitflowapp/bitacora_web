@@ -538,8 +538,12 @@ class _StartPageState extends State<StartPage> {
   final ScrollController _homeScrollController =
       ScrollController(debugLabel: 'StartPageHomeScroll');
 
-  bool get _renderHeroBackdropArt =>
-      !(kIsWeb && defaultTargetPlatform == TargetPlatform.iOS);
+  bool get _isWebIos =>
+      kIsWeb &&
+      (WebCapabilities.isIosSafari ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  bool get _renderHeroBackdropArt => !_isWebIos;
 
   String get _buildStamp => BuildInfo.stamp;
   String get _proCtaUrl {
@@ -4629,6 +4633,7 @@ class _StartPageState extends State<StartPage> {
       colorScheme: theme.colorScheme,
       scaffold: theme.scaffoldBackgroundColor,
     );
+    final baseBackground = colors.bg.withValues(alpha: 1);
     final isLight = colors.isLight;
     final startupErrors = <String>[
       if ((_prefsLoadError ?? '').trim().isNotEmpty)
@@ -4666,14 +4671,17 @@ class _StartPageState extends State<StartPage> {
       autofocus: true,
       onKeyEvent: _onHomeKeyEvent,
       child: CupertinoPageScaffold(
-        backgroundColor: colors.bg,
+        backgroundColor: baseBackground,
         child: SafeArea(
           bottom: false,
           child: Stack(
             children: [
               Positioned.fill(
                 child: IgnorePointer(
-                  child: ColoredBox(color: colors.bg),
+                  child: ColoredBox(
+                    key: const ValueKey('start-base-fill'),
+                    color: baseBackground,
+                  ),
                 ),
               ),
               if (_renderHeroBackdropArt)
@@ -4697,6 +4705,7 @@ class _StartPageState extends State<StartPage> {
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                       child: _AppleSectionCard(
                         colors: colors,
+                        forceOpaqueBackground: true,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -6325,16 +6334,20 @@ class _AppleSectionCard extends StatelessWidget {
   const _AppleSectionCard({
     required this.colors,
     required this.child,
+    this.forceOpaqueBackground = false,
   });
 
   final _ApplePalette colors;
   final Widget child;
+  final bool forceOpaqueBackground;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: forceOpaqueBackground
+            ? colors.surface.withValues(alpha: 1)
+            : colors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colors.separator),
         boxShadow: [colors.subtleShadow],
