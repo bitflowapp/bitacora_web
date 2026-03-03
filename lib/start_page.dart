@@ -107,10 +107,12 @@ class StartPage extends StatefulWidget {
     super.key,
     required this.isLight,
     required this.onToggleTheme,
+    this.updateService = const AppUpdateService(),
   });
 
   final bool isLight;
   final VoidCallback onToggleTheme;
+  final AppUpdateService updateService;
 
   @override
   State<StartPage> createState() => _StartPageState();
@@ -553,7 +555,6 @@ class _StartPageState extends State<StartPage> {
     return raw.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
-  final AppUpdateService _appUpdateService = const AppUpdateService();
   AppUpdateSnapshot? _updateSnapshot;
   bool _updateChecking = false;
   bool _hideUpdateBanner = false;
@@ -1126,7 +1127,7 @@ class _StartPageState extends State<StartPage> {
     return showModalBottomSheet<_CreateSheetChoice>(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: false,
+      isScrollControlled: true,
       builder: (ctx) {
         Widget card({
           required _CreateSheetChoice value,
@@ -1194,85 +1195,95 @@ class _StartPageState extends State<StartPage> {
           );
         }
 
+        final maxHeight = MediaQuery.of(ctx).size.height * 0.82;
         return SafeArea(
           top: false,
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            decoration: BoxDecoration(
-              color: pal.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: border),
-              boxShadow: [pal.subtleShadow],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              decoration: BoxDecoration(
+                color: pal.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: border),
+                boxShadow: [pal.subtleShadow],
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      includeBlank ? 'Crear planilla' : 'Elegir plantilla',
-                      style: TextStyle(
-                        color: pal.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.2,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          includeBlank ? 'Crear planilla' : 'Elegir plantilla',
+                          style: TextStyle(
+                            color: pal.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: Icon(
+                            CupertinoIcons.xmark,
+                            color: pal.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon:
-                          Icon(CupertinoIcons.xmark, color: pal.textSecondary),
+                    const SizedBox(height: 8),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.2,
+                      children: [
+                        if (includeBlank)
+                          card(
+                            value: _CreateSheetChoice.blank,
+                            icon: CupertinoIcons.doc_text,
+                            title: 'Planilla vacía',
+                            subtitle:
+                                'Empieza desde cero con columnas editables.',
+                            emphasized: true,
+                          ),
+                        card(
+                          value: _CreateSheetChoice.plantilla,
+                          icon: CupertinoIcons.square_grid_2x2,
+                          title: 'Plantilla base',
+                          subtitle:
+                              'Actividad, Detalle, Estado, Responsable, Fecha.',
+                        ),
+                        card(
+                          value: _CreateSheetChoice.resistividades,
+                          icon: CupertinoIcons.waveform_path_ecg,
+                          title: 'Resistividades',
+                          subtitle:
+                              'Fecha, Progresiva, 1m, 3m, 5m, Observaciones.',
+                        ),
+                        card(
+                          value: _CreateSheetChoice.inventario,
+                          icon: CupertinoIcons.cube_box,
+                          title: 'Inventario',
+                          subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota.',
+                        ),
+                        card(
+                          value: _CreateSheetChoice.checklist,
+                          icon: CupertinoIcons.checkmark_alt_circle,
+                          title: 'Checklist diario',
+                          subtitle:
+                              'Tarea, Responsable, Estado, Fecha, Comentario.',
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.2,
-                  children: [
-                    if (includeBlank)
-                      card(
-                        value: _CreateSheetChoice.blank,
-                        icon: CupertinoIcons.doc_text,
-                        title: 'Planilla vacía',
-                        subtitle: 'Empieza desde cero con columnas editables.',
-                        emphasized: true,
-                      ),
-                    card(
-                      value: _CreateSheetChoice.plantilla,
-                      icon: CupertinoIcons.square_grid_2x2,
-                      title: 'Plantilla base',
-                      subtitle:
-                          'Actividad, Detalle, Estado, Responsable, Fecha.',
-                    ),
-                    card(
-                      value: _CreateSheetChoice.resistividades,
-                      icon: CupertinoIcons.waveform_path_ecg,
-                      title: 'Resistividades',
-                      subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones.',
-                    ),
-                    card(
-                      value: _CreateSheetChoice.inventario,
-                      icon: CupertinoIcons.cube_box,
-                      title: 'Inventario',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota.',
-                    ),
-                    card(
-                      value: _CreateSheetChoice.checklist,
-                      icon: CupertinoIcons.checkmark_alt_circle,
-                      title: 'Checklist diario',
-                      subtitle:
-                          'Tarea, Responsable, Estado, Fecha, Comentario.',
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
         );
@@ -3390,7 +3401,7 @@ class _StartPageState extends State<StartPage> {
       _updateChecking = true;
     }
 
-    final result = await _appUpdateService.checkForUpdates();
+    final result = await widget.updateService.checkForUpdates();
     if (!mounted) return;
 
     setState(() {
@@ -4472,22 +4483,7 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _openQuickSwitcher() async {
     if (!mounted) return;
-    final actions = <CommandAction>[
-      CommandAction(
-        id: 'quick_new_sheet',
-        label: 'Nueva planilla',
-        subtitle: 'Crear planilla vacia',
-        icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
-        onSelected: () => unawaited(_newSheet()),
-      ),
-      CommandAction(
-        id: 'quick_from_template',
-        label: 'Desde plantilla',
-        subtitle: 'Abrir galeria de templates',
-        icon: CupertinoIcons.square_grid_2x2_fill,
-        onSelected: () => unawaited(_newTemplateSheet()),
-      ),
-    ];
+    final actions = <CommandAction>[];
 
     for (final sheet in _activeSheets) {
       final title =
@@ -4505,6 +4501,23 @@ class _StartPageState extends State<StartPage> {
         ),
       );
     }
+
+    actions.addAll([
+      CommandAction(
+        id: 'quick_new_sheet',
+        label: 'Nueva planilla',
+        subtitle: 'Crear planilla vacia',
+        icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
+        onSelected: () => unawaited(_newSheet()),
+      ),
+      CommandAction(
+        id: 'quick_from_template',
+        label: 'Desde plantilla',
+        subtitle: 'Abrir galeria de templates',
+        icon: CupertinoIcons.square_grid_2x2_fill,
+        onSelected: () => unawaited(_newTemplateSheet()),
+      ),
+    ]);
 
     for (final template in _commercialTemplates) {
       actions.add(
