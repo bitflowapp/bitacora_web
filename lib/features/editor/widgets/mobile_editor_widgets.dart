@@ -368,6 +368,8 @@ class _InlineSearchBar extends StatelessWidget {
     required this.focusNode,
     required this.totalHits,
     required this.activeIndex,
+    required this.scope,
+    required this.onScopeChanged,
     required this.onChanged,
     required this.onPrev,
     required this.onNext,
@@ -379,6 +381,8 @@ class _InlineSearchBar extends StatelessWidget {
   final FocusNode focusNode;
   final int totalHits;
   final int activeIndex;
+  final _InlineSearchScope scope;
+  final ValueChanged<_InlineSearchScope> onScopeChanged;
   final ValueChanged<String> onChanged;
   final VoidCallback onPrev;
   final VoidCallback onNext;
@@ -398,77 +402,151 @@ class _InlineSearchBar extends StatelessWidget {
         ),
         borderColor: t.colors.borderStrong,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.search_rounded, size: 18, color: palette.fgMuted),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                autofocus: false,
-                onChanged: onChanged,
-                onSubmitted: (_) => onNext(),
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  hintText: 'Buscar en celdas...',
-                  hintStyle: TextStyle(color: palette.fgMuted),
+            Row(
+              children: [
+                Icon(Icons.search_rounded, size: 18, color: palette.fgMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    autofocus: false,
+                    onChanged: onChanged,
+                    onSubmitted: (_) => onNext(),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      hintText: 'Buscar en celdas...',
+                      hintStyle: TextStyle(color: palette.fgMuted),
+                    ),
+                    style: TextStyle(
+                      color: palette.fg,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      height: 1.1,
+                    ),
+                  ),
                 ),
-                style: TextStyle(
-                  color: palette.fg,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
-                  height: 1.1,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: palette.hintBg,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: palette.border,
+                      width: palette.hairline,
+                    ),
+                  ),
+                  child: Text(
+                    counterText,
+                    style: TextStyle(
+                      color: palette.fgMuted,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.5,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                color: palette.hintBg,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: palette.border,
-                  width: palette.hairline,
+                const SizedBox(width: 6),
+                _MobilePanelIconButton(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  tooltip: 'Anterior',
+                  onTap: onPrev,
+                  palette: palette,
+                  iconSize: 20,
+                  splashRadius: 17,
                 ),
-              ),
-              child: Text(
-                counterText,
-                style: TextStyle(
-                  color: palette.fgMuted,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11.5,
+                _MobilePanelIconButton(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  tooltip: 'Siguiente',
+                  onTap: onNext,
+                  palette: palette,
+                  iconSize: 20,
+                  splashRadius: 17,
                 ),
-              ),
+                _MobilePanelIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Cerrar busqueda',
+                  onTap: onClose,
+                  palette: palette,
+                  iconSize: 18,
+                  splashRadius: 17,
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            _MobilePanelIconButton(
-              icon: Icons.keyboard_arrow_up_rounded,
-              tooltip: 'Anterior',
-              onTap: onPrev,
-              palette: palette,
-              iconSize: 20,
-              splashRadius: 17,
-            ),
-            _MobilePanelIconButton(
-              icon: Icons.keyboard_arrow_down_rounded,
-              tooltip: 'Siguiente',
-              onTap: onNext,
-              palette: palette,
-              iconSize: 20,
-              splashRadius: 17,
-            ),
-            _MobilePanelIconButton(
-              icon: Icons.close_rounded,
-              tooltip: 'Cerrar busqueda',
-              onTap: onClose,
-              palette: palette,
-              iconSize: 18,
-              splashRadius: 17,
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _InlineSearchScopeChip(
+                  palette: palette,
+                  label: 'Todo',
+                  selected: scope == _InlineSearchScope.allSheet,
+                  onTap: () => onScopeChanged(_InlineSearchScope.allSheet),
+                ),
+                _InlineSearchScopeChip(
+                  palette: palette,
+                  label: 'Fila',
+                  selected: scope == _InlineSearchScope.currentRow,
+                  onTap: () => onScopeChanged(_InlineSearchScope.currentRow),
+                ),
+                _InlineSearchScopeChip(
+                  palette: palette,
+                  label: 'Columna',
+                  selected: scope == _InlineSearchScope.currentColumn,
+                  onTap: () => onScopeChanged(_InlineSearchScope.currentColumn),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineSearchScopeChip extends StatelessWidget {
+  const _InlineSearchScopeChip({
+    required this.palette,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? palette.selectionBorder : palette.fgMuted;
+    final bg = selected ? palette.selectionFill : palette.hintBg;
+    final border = selected
+        ? palette.selectionBorder.withValues(alpha: 0.4)
+        : palette.border;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border, width: palette.hairline),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: fg,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
