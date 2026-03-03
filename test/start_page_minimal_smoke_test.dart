@@ -42,6 +42,15 @@ void main() {
     expect(find.byKey(const ValueKey('start-pro-disclosure')), findsOneWidget);
     expect(find.text('Activar Pro'), findsNothing);
     expect(find.byKey(const ValueKey('start-pro-benefits')), findsNothing);
+
+    final backdropOpacity =
+        find.byKey(const ValueKey('start-hero-backdrop-opacity'));
+    if (backdropOpacity.evaluate().isNotEmpty) {
+      final widget = tester.widget<Opacity>(backdropOpacity.first);
+      expect(widget.opacity, lessThanOrEqualTo(0.10));
+    }
+
+    expect(tester.takeException(), isNull);
   });
 }
 
