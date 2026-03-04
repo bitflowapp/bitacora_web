@@ -310,6 +310,30 @@
         return isSafari && !excluded;
       }
 
+      async function cleanupIosSafariServiceWorkersOncePerSession() {
+        if (!isIosSafari()) return;
+
+        var sessionKey = 'bitflow_ios_sw_cleanup_done_v1';
+        try {
+          if (window.sessionStorage && sessionStorage.getItem(sessionKey) === '1') {
+            return;
+          }
+        } catch (_) {}
+
+        try {
+          var existing = await navigator.serviceWorker.getRegistrations();
+          for (var i = 0; i < existing.length; i++) {
+            try { await existing[i].unregister(); } catch (_) {}
+          }
+        } catch (_) {}
+
+        try {
+          if (window.sessionStorage) {
+            sessionStorage.setItem(sessionKey, '1');
+          }
+        } catch (_) {}
+      }
+
       async function clearCachesAndReload() {
         try {
           if ('serviceWorker' in navigator) {
@@ -387,12 +411,7 @@
         if (!('serviceWorker' in navigator)) return;
 
         if (isIosSafari()) {
-          try {
-            var existing = await navigator.serviceWorker.getRegistrations();
-            for (var i = 0; i < existing.length; i++) {
-              try { await existing[i].unregister(); } catch (_) {}
-            }
-          } catch (_) {}
+          await cleanupIosSafariServiceWorkersOncePerSession();
           return;
         }
 
