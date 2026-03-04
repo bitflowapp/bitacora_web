@@ -27,7 +27,7 @@ void main() {
     await SheetStore.init();
 
     tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 3.0;
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
@@ -57,7 +57,8 @@ void main() {
 
     final baseFill = tester
         .widget<ColoredBox>(find.byKey(const ValueKey('start-base-fill')));
-    expect(baseFill.color.alpha, equals(0xFF));
+    final alpha = (baseFill.color.a * 255.0).round() & 0xff;
+    expect(alpha, equals(0xFF));
     expect(tester.takeException(), isNull);
   });
 }
