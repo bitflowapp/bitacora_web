@@ -188,50 +188,6 @@
       border-color: var(--ink);
     }
 
-    #update-banner {
-      position: fixed;
-      left: 10px;
-      right: 10px;
-      top: 10px;
-      z-index: 2147483647;
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(223, 209, 189, 0.88);
-      background: rgba(44, 39, 33, 0.94);
-      color: #fff;
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
-      font-size: 13px;
-      line-height: 1.25;
-    }
-
-    #update-banner .actions {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    #update-banner button {
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 999px;
-      background: transparent;
-      color: #fff;
-      padding: 6px 10px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    #update-banner button.primary {
-      border-color: #fff;
-      background: #fff;
-      color: #111;
-    }
-
     #install-fab {
       position: fixed;
       left: 10px;
@@ -342,18 +298,16 @@
       var swWaitingRegistration = null;
       var swReloadOnControllerChange = false;
 
-      function showUpdateBanner(message) {
-        var root = document.getElementById('update-banner');
-        var msg = document.getElementById('update-banner-message');
-        if (!root || !msg) return;
-        msg.textContent = message || 'Nueva versión disponible.';
-        root.style.display = 'flex';
-      }
-
-      function hideUpdateBanner() {
-        var root = document.getElementById('update-banner');
-        if (!root) return;
-        root.style.display = 'none';
+      function isIosSafari() {
+        var ua = (navigator.userAgent || '').toLowerCase();
+        var isIos = /iphone|ipad|ipod/.test(ua);
+        if (!isIos) return false;
+        var isSafari = ua.indexOf('safari') >= 0;
+        var excluded = ua.indexOf('crios') >= 0 ||
+          ua.indexOf('fxios') >= 0 ||
+          ua.indexOf('edgios') >= 0 ||
+          ua.indexOf('opios') >= 0;
+        return isSafari && !excluded;
       }
 
       async function clearCachesAndReload() {
@@ -406,7 +360,9 @@
 
       function onServiceWorkerWaiting(reg) {
         swWaitingRegistration = reg;
-        showUpdateBanner('Nueva versión disponible. Actualiza para aplicar cambios.');
+        Promise.resolve().then(function () {
+          return applyWaitingServiceWorker();
+        }).catch(function () {});
       }
 
       function bindServiceWorkerRegistration(reg) {
@@ -429,6 +385,16 @@
 
       async function hardenServiceWorkerUpdates(build) {
         if (!('serviceWorker' in navigator)) return;
+
+        if (isIosSafari()) {
+          try {
+            var existing = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < existing.length; i++) {
+              try { await existing[i].unregister(); } catch (_) {}
+            }
+          } catch (_) {}
+          return;
+        }
 
         try {
           navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -681,20 +647,6 @@
             promptInstall();
           });
         }
-
-        var updateBtn = document.getElementById('update-banner-refresh');
-        if (updateBtn) {
-          updateBtn.addEventListener('click', function () {
-            applyWaitingServiceWorker();
-          });
-        }
-
-        var dismissBtn = document.getElementById('update-banner-dismiss');
-        if (dismissBtn) {
-          dismissBtn.addEventListener('click', function () {
-            hideUpdateBanner();
-          });
-        }
       });
     })();
   </script>
@@ -707,14 +659,6 @@
       <h1>BitFlow</h1>
       <p>Preparando tu espacio de trabajo operativo...</p>
     </div>
-  </div>
-
-  <div id="update-banner" aria-live="polite">
-    <span id="update-banner-message">Nueva versión disponible.</span>
-    <span class="actions">
-      <button id="update-banner-refresh" class="primary" type="button">Actualizar</button>
-      <button id="update-banner-dismiss" type="button">Luego</button>
-    </span>
   </div>
 
   <div id="boot-fallback" aria-live="polite">
