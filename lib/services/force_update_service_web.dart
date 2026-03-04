@@ -11,10 +11,12 @@ class ForceUpdateServiceImpl implements ForceUpdateService {
       final sw = html.window.navigator.serviceWorker;
       if (sw != null) {
         final regs = await sw.getRegistrations();
-        for (final reg in regs) {
-          await reg.unregister();
+        if (regs.isNotEmpty) {
+          await Future.wait(regs.map((reg) => reg.unregister()));
+          messages.add('Service Worker eliminado (${regs.length}).');
+        } else {
+          messages.add('Service Worker sin registros activos.');
         }
-        messages.add('Service Worker eliminado.');
       } else {
         messages.add('Service Worker no disponible.');
       }
@@ -26,10 +28,12 @@ class ForceUpdateServiceImpl implements ForceUpdateService {
       final caches = html.window.caches;
       if (caches != null) {
         final keys = await caches.keys();
-        for (final key in keys) {
-          await caches.delete(key);
+        if (keys.isNotEmpty) {
+          await Future.wait(keys.map((key) => caches.delete(key)));
+          messages.add('Caches limpiados (${keys.length}).');
+        } else {
+          messages.add('CacheStorage sin entradas activas.');
         }
-        messages.add('Caches limpiados.');
       } else {
         messages.add('CacheStorage no disponible.');
       }
@@ -37,12 +41,12 @@ class ForceUpdateServiceImpl implements ForceUpdateService {
       messages.add('Error limpiando caches: $e');
     }
 
-    // Forzar reload con cache-busting
+    // Forzar reload con cache-busting por pathname.
     try {
-      final uri = html.window.location;
-      final base = uri.href.split('#').first;
       final bust = DateTime.now().millisecondsSinceEpoch;
-      html.window.location.replace('$base?reload=$bust');
+      final pathname = html.window.location.pathname ?? '/';
+      html.window.location.href = '$pathname?v=$bust';
+      messages.add('Recarga solicitada.');
     } catch (_) {}
 
     return ForceUpdateResult(
