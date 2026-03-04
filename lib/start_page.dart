@@ -534,13 +534,6 @@ class _StartPageState extends State<StartPage> {
   final ScrollController _homeScrollController =
       ScrollController(debugLabel: 'StartPageHomeScroll');
 
-  bool get _isWebIos =>
-      kIsWeb &&
-      (WebCapabilities.isIosSafari ||
-          defaultTargetPlatform == TargetPlatform.iOS);
-
-  bool get _renderHeroBackdropArt => !_isWebIos;
-
   String get _buildStamp => BuildInfo.stamp;
   String get _proCtaUrl {
     final primary = _kProCtaUrl.trim();
@@ -4562,6 +4555,9 @@ class _StartPageState extends State<StartPage> {
     final completedCount = _countTrash();
 
     final mq = MediaQuery.of(context);
+    final isMobileWebUi =
+        WebCapabilities.isMobileWebUi(shortestSide: mq.size.shortestSide);
+    final renderHeroBackdropArt = !isMobileWebUi;
     final bottomPad = mq.padding.bottom;
     final keyboardVisible = mq.viewInsets.bottom > 0;
     final route = ModalRoute.of(context);
@@ -4570,6 +4566,12 @@ class _StartPageState extends State<StartPage> {
     final showDebugBadge = kDebugMode || _kShowDebugBadge;
     final buildStamp = _buildStamp;
     final notice = _buildPriorityNotice();
+    assert(() {
+      debugPrint(
+        '[start-bg] mobileWebUi=$isMobileWebUi heroBackdrop=$renderHeroBackdropArt',
+      );
+      return true;
+    }());
 
     return Focus(
       focusNode: _homeKeyFocus,
@@ -4589,7 +4591,7 @@ class _StartPageState extends State<StartPage> {
                   ),
                 ),
               ),
-              if (_renderHeroBackdropArt)
+              if (renderHeroBackdropArt)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: ClipRect(
@@ -6274,6 +6276,10 @@ class _StartHeroBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      debugPrint('[start-bg] _StartHeroBackdrop build');
+      return true;
+    }());
     final baseOpacity = colors.isLight ? 0.06 : 0.08;
     final tint = colors.surface.withValues(alpha: colors.isLight ? 0.94 : 0.90);
     final glowA =

@@ -24,7 +24,7 @@ import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
 import 'services/runtime_flags.dart';
 import 'services/web_capabilities.dart';
-import 'widgets/animated_video_background.dart';
+import 'widgets/app_background_shell.dart';
 import 'ui/ui_theme.dart';
 
 const String kBuildBadgeId =
@@ -306,8 +306,8 @@ class _AppState extends State<App> {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
     final shouldShowBadge = kDebugMode || kShowDebugBadge;
-    final disableAnimatedBackgroundForWebIos =
-        kIsWeb && WebCapabilities.isIosSafari;
+    final disableDecorativeBackgroundForMobileWeb =
+        WebCapabilities.isMobileWebUi();
     final bootBackgroundColor = (_isLight
             ? lightTheme.scaffoldBackgroundColor
             : darkTheme.scaffoldBackgroundColor)
@@ -335,17 +335,12 @@ class _AppState extends State<App> {
         builder: (context, child) {
           return wrapWithBuildBadge(child ?? const SizedBox.shrink());
         },
-        home: disableAnimatedBackgroundForWebIos
-            ? Scaffold(
-                backgroundColor: bootBackgroundColor,
-                body: child,
-              )
-            : AnimatedVideoBackground(
-                child: Scaffold(
-                  backgroundColor: Colors.transparent,
-                  body: child,
-                ),
-              ),
+        home: AppBackgroundShell(
+          disableDecorativeBackground: disableDecorativeBackgroundForMobileWeb,
+          backgroundColor: bootBackgroundColor,
+          debugLayerName: 'boot',
+          child: child,
+        ),
       );
     }
 
@@ -621,8 +616,9 @@ class _AppHomeState extends State<_AppHome> {
           onDismiss: _dismissDemoNotice,
         ),
     ];
-    final disableAnimatedBackgroundForWebIos =
-        kIsWeb && WebCapabilities.isIosSafari;
+    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
+    final disableDecorativeBackgroundForMobileWeb =
+        WebCapabilities.isMobileWebUi(shortestSide: shortestSide);
     final homeBody = Column(
       children: [
         if (notices.isNotEmpty)
@@ -651,18 +647,11 @@ class _AppHomeState extends State<_AppHome> {
         Expanded(child: home),
       ],
     );
-    if (disableAnimatedBackgroundForWebIos) {
-      return Scaffold(
-        backgroundColor:
-            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 1),
-        body: homeBody,
-      );
-    }
-    return AnimatedVideoBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: homeBody,
-      ),
+    return AppBackgroundShell(
+      disableDecorativeBackground: disableDecorativeBackgroundForMobileWeb,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      debugLayerName: 'home-shell',
+      child: homeBody,
     );
   }
 }

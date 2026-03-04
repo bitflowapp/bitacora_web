@@ -5,6 +5,25 @@ import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 class WebCapabilitiesImpl {
   static bool get isSecureContext => html.window.isSecureContext == true;
 
+  static bool isMobileWebUi({double? shortestSide}) {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    final uaMobile = ua.contains('iphone') ||
+        ua.contains('ipad') ||
+        ua.contains('ipod') ||
+        ua.contains('android');
+
+    double? shortest = shortestSide;
+    if (shortest == null || shortest <= 0) {
+      final width = html.window.innerWidth;
+      final height = html.window.innerHeight;
+      if (width != null && height != null && width > 0 && height > 0) {
+        shortest = (width < height ? width : height).toDouble();
+      }
+    }
+    final compactViewport = shortest != null && shortest > 0 && shortest < 600;
+    return uaMobile || compactViewport;
+  }
+
   static bool get isStandalone {
     try {
       final mediaQuery = html.window.matchMedia('(display-mode: standalone)');
