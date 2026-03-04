@@ -3,6 +3,7 @@ class WebCapabilitiesImpl {
   static bool get isStandalone => false;
   static bool get isIosSafari => false;
   static bool get isAndroidChrome => false;
+  static bool isMobileWebUi({double? shortestSide}) => false;
   static bool get isInAppBrowser => false;
   static bool get isOnline => true;
   static bool get geolocationAvailable => false;

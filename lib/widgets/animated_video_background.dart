@@ -46,6 +46,10 @@ class _AnimatedVideoBackgroundState extends State<AnimatedVideoBackground>
 
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      debugPrint('[bg-layer] AnimatedVideoBackground build');
+      return true;
+    }());
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -69,7 +73,8 @@ class _AnimatedVideoBackgroundState extends State<AnimatedVideoBackground>
         final centerA = Alignment(dx, dy);
         final centerB = Alignment(-dx * 0.85, -dy * 0.9);
 
-        final glowA = accent.withValues(alpha: isDark ? 0.18 : 0.10); // luz principal
+        final glowA =
+            accent.withValues(alpha: isDark ? 0.18 : 0.10); // luz principal
         final glowB = Color.lerp(accent, Colors.white, 0.35)!
             .withValues(alpha: isDark ? 0.10 : 0.06); // luz secundaria
 
