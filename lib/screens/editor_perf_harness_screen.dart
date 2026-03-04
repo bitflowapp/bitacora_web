@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:bitacora_web/core/i18n/app_strings.dart';
 import 'package:bitacora_web/features/editor/editor_screen.dart';
-import 'package:bitacora_web/widgets/animated_video_background.dart';
+import 'package:bitacora_web/services/app_decor_policy.dart';
+import 'package:bitacora_web/widgets/app_background_shell.dart';
 
 class EditorPerfHarnessScreen extends StatelessWidget {
   const EditorPerfHarnessScreen({
@@ -39,20 +40,20 @@ class EditorPerfHarnessScreen extends StatelessWidget {
       growable: false,
     );
 
-    return AnimatedVideoBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: EditorScreen(
-          sheetId: 'perf_harness_200x20',
-          initialName: 'Perf Harness 200x20',
-          initialHeaders: headers,
-          initialRows: rows,
-          initialSelectionRow: 0,
-          initialSelectionCol: 0,
-          perfHarnessEnabled: true,
-          isLight: isLight,
-          onToggleTheme: onToggleTheme,
-        ),
+    return AppBackgroundShell(
+      disableDecorativeBackground: AppDecorPolicy.disableDecorativeBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      debugLayerName: 'perf-harness',
+      child: EditorScreen(
+        sheetId: 'perf_harness_200x20',
+        initialName: 'Perf Harness 200x20',
+        initialHeaders: headers,
+        initialRows: rows,
+        initialSelectionRow: 0,
+        initialSelectionCol: 0,
+        perfHarnessEnabled: true,
+        isLight: isLight,
+        onToggleTheme: onToggleTheme,
       ),
     );
   }

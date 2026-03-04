@@ -23,7 +23,7 @@ import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
 import 'services/runtime_flags.dart';
-import 'services/web_capabilities.dart';
+import 'services/app_decor_policy.dart';
 import 'widgets/app_background_shell.dart';
 import 'ui/ui_theme.dart';
 
@@ -306,8 +306,8 @@ class _AppState extends State<App> {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
     final shouldShowBadge = kDebugMode || kShowDebugBadge;
-    final disableDecorativeBackgroundForMobileWeb =
-        WebCapabilities.isMobileWebUi();
+    final disableDecorativeBackground =
+        AppDecorPolicy.disableDecorativeBackground;
     final bootBackgroundColor = (_isLight
             ? lightTheme.scaffoldBackgroundColor
             : darkTheme.scaffoldBackgroundColor)
@@ -336,7 +336,7 @@ class _AppState extends State<App> {
           return wrapWithBuildBadge(child ?? const SizedBox.shrink());
         },
         home: AppBackgroundShell(
-          disableDecorativeBackground: disableDecorativeBackgroundForMobileWeb,
+          disableDecorativeBackground: disableDecorativeBackground,
           backgroundColor: bootBackgroundColor,
           debugLayerName: 'boot',
           child: child,
@@ -616,9 +616,8 @@ class _AppHomeState extends State<_AppHome> {
           onDismiss: _dismissDemoNotice,
         ),
     ];
-    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
-    final disableDecorativeBackgroundForMobileWeb =
-        WebCapabilities.isMobileWebUi(shortestSide: shortestSide);
+    final disableDecorativeBackground =
+        AppDecorPolicy.disableDecorativeBackground;
     final homeBody = Column(
       children: [
         if (notices.isNotEmpty)
@@ -648,7 +647,7 @@ class _AppHomeState extends State<_AppHome> {
       ],
     );
     return AppBackgroundShell(
-      disableDecorativeBackground: disableDecorativeBackgroundForMobileWeb,
+      disableDecorativeBackground: disableDecorativeBackground,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       debugLayerName: 'home-shell',
       child: homeBody,

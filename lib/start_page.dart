@@ -76,6 +76,7 @@ import 'services/engine_api.dart';
 import 'services/engine_config.dart';
 import 'services/export_flow_outcome.dart';
 import 'services/sheet_store.dart';
+import 'services/app_decor_policy.dart';
 import 'services/web_capabilities.dart';
 import 'models/cell_ref.dart';
 import 'models/cell_meta.dart';
@@ -4555,9 +4556,8 @@ class _StartPageState extends State<StartPage> {
     final completedCount = _countTrash();
 
     final mq = MediaQuery.of(context);
-    final isMobileWebUi =
-        WebCapabilities.isMobileWebUi(shortestSide: mq.size.shortestSide);
-    final renderHeroBackdropArt = !isMobileWebUi;
+    final decorEnabled = AppDecorPolicy.enableDecorativeBackground;
+    final renderHeroBackdropArt = decorEnabled;
     final bottomPad = mq.padding.bottom;
     final keyboardVisible = mq.viewInsets.bottom > 0;
     final route = ModalRoute.of(context);
@@ -4568,7 +4568,7 @@ class _StartPageState extends State<StartPage> {
     final notice = _buildPriorityNotice();
     assert(() {
       debugPrint(
-        '[start-bg] mobileWebUi=$isMobileWebUi heroBackdrop=$renderHeroBackdropArt',
+        '[start-bg] decorEnabled=$decorEnabled heroBackdrop=$renderHeroBackdropArt',
       );
       return true;
     }());
