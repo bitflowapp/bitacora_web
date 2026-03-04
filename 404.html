@@ -37,7 +37,7 @@
   <style>
     :root {
       --app-h: 100vh;
-      --bg: #f7f1e6;
+      --bg: #f2efe9;
       --surface: #fffaf2;
       --ink: #2c2721;
       --muted: #7d6f5f;
@@ -220,6 +220,98 @@
       }
     }
   </style>
+
+  <script>
+    (function () {
+      var hardKey = 'bitflow_boot_build';
+      var sessionKey = 'bitflow_boot_hard_done';
+
+      function withTimeout(promise, timeoutMs) {
+        return Promise.race([
+          promise,
+          new Promise(function (resolve) {
+            setTimeout(function () {
+              resolve(null);
+            }, timeoutMs);
+          })
+        ]);
+      }
+
+      async function hardRefreshGuard() {
+        try {
+          var current = new URL(window.location.href);
+          var currentHard = current.searchParams.get('hard') || '';
+          var sessionBuild = '';
+          try {
+            sessionBuild = sessionStorage.getItem(sessionKey) || '';
+          } catch (_) {}
+
+          var response = await withTimeout(
+            fetch('/bitacora_web/version.json?ts=' + Date.now(), {
+              cache: 'no-store'
+            }),
+            1500,
+          );
+          if (!response || !response.ok) return;
+
+          var payload = await response.json();
+          var remoteBuild = '';
+          if (payload && typeof payload === 'object') {
+            remoteBuild = (payload.buildId || payload.gitSha || '').toString().trim();
+          }
+          if (!remoteBuild) return;
+
+          var lastBuild = '';
+          try {
+            lastBuild = localStorage.getItem(hardKey) || '';
+          } catch (_) {}
+
+          if (lastBuild === remoteBuild) return;
+
+          try {
+            localStorage.setItem(hardKey, remoteBuild);
+          } catch (_) {}
+
+          if (currentHard === remoteBuild || sessionBuild === remoteBuild) {
+            return;
+          }
+
+          try {
+            sessionStorage.setItem(sessionKey, remoteBuild);
+          } catch (_) {}
+
+          try {
+            if ('serviceWorker' in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              for (var i = 0; i < regs.length; i++) {
+                try {
+                  await regs[i].unregister();
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          try {
+            if (window.caches && caches.keys) {
+              var cacheKeys = await caches.keys();
+              for (var c = 0; c < cacheKeys.length; c++) {
+                try {
+                  await caches.delete(cacheKeys[c]);
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          current.searchParams.set('hard', remoteBuild);
+          window.location.replace(current.pathname + current.search + current.hash);
+        } catch (_) {
+          // Silencioso: si falla el guard, sigue boot normal.
+        }
+      }
+
+      hardRefreshGuard();
+    })();
+  </script>
 
   <script>
     (function () {
