@@ -21,7 +21,7 @@ class AppBackgroundShell extends StatelessWidget {
     final opaqueBackground = backgroundColor.withValues(alpha: 1);
     assert(() {
       debugPrint(
-        '[bg-layer] $debugLayerName mobileWebUi=$disableDecorativeBackground',
+        '[bg-layer] $debugLayerName decorDisabled=$disableDecorativeBackground',
       );
       return true;
     }());
