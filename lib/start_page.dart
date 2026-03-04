@@ -3501,6 +3501,57 @@ class _StartPageState extends State<StartPage> {
         : 'En iOS: usa Safari y actualiza desde la web/PWA.');
   }
 
+  Future<void> _forceWebUpdateFromMenu() async {
+    if (!kIsWeb) {
+      _toast('Disponible solo en la versión web.');
+      return;
+    }
+    if (!mounted) return;
+
+    final dialogNavigator = Completer<NavigatorState>();
+    unawaited(
+      showCupertinoDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          if (!dialogNavigator.isCompleted) {
+            dialogNavigator.complete(Navigator.of(ctx));
+          }
+          return const CupertinoAlertDialog(
+            content: Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CupertinoActivityIndicator(),
+                  SizedBox(height: 12),
+                  Text('Actualizando...'),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    final result = await ForceUpdateService.I.forceUpdate();
+    if (!mounted) return;
+
+    if (dialogNavigator.isCompleted) {
+      final nav = await dialogNavigator.future;
+      if (nav.canPop()) {
+        nav.pop();
+      }
+    }
+
+    if (!result.reloaded) {
+      _toast(result.message.trim().isEmpty
+          ? 'No se pudo forzar la actualización.'
+          : result.message);
+    }
+  }
+
   _StartNotice? _buildPriorityNotice() {
     if (_tab != _HomeTab.sheets) return null;
 
@@ -3690,6 +3741,13 @@ class _StartPageState extends State<StartPage> {
                 : 'Comprobar nuevas versiones ahora'),
         onSelected: () => _checkForUpdates(silent: false),
       ),
+      if (kIsWeb)
+        _MoreSheetItem(
+          icon: CupertinoIcons.arrow_clockwise_circle,
+          title: 'Forzar actualización',
+          subtitle: 'Limpiar caché local y recargar BitFlow',
+          onSelected: _forceWebUpdateFromMenu,
+        ),
       _MoreSheetItem(
         icon: CupertinoIcons.sort_down,
         title: 'Ordenar',
