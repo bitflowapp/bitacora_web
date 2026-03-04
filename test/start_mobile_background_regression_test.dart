@@ -1,5 +1,5 @@
+import 'package:bitacora_web/services/app_decor_policy.dart';
 import 'package:bitacora_web/services/sheet_store.dart';
-import 'package:bitacora_web/services/web_capabilities.dart';
 import 'package:bitacora_web/start_page.dart';
 import 'package:bitacora_web/widgets/animated_video_background.dart';
 import 'package:bitacora_web/widgets/app_background_shell.dart';
@@ -11,14 +11,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    WebCapabilities.debugMobileWebUiOverride = null;
+    AppDecorPolicy.debugDecorativeBackgroundOverride = null;
   });
 
   tearDown(() {
-    WebCapabilities.debugMobileWebUiOverride = null;
+    AppDecorPolicy.debugDecorativeBackgroundOverride = null;
   });
 
-  testWidgets('mobile web mode disables decorative background layers',
+  testWidgets('web decor policy disables decorative background layers',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'bitflow.onboarding_done.v1': true,
@@ -33,16 +33,17 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    WebCapabilities.debugMobileWebUiOverride = true;
-    expect(WebCapabilities.isMobileWebUi(shortestSide: 390), isTrue);
+    AppDecorPolicy.debugDecorativeBackgroundOverride = false;
+    expect(AppDecorPolicy.enableDecorativeBackground, isFalse);
 
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: AppBackgroundShell(
-          disableDecorativeBackground: true,
-          backgroundColor: Color(0xFFF5EFE4),
+          disableDecorativeBackground:
+              AppDecorPolicy.disableDecorativeBackground,
+          backgroundColor: const Color(0xFFF5EFE4),
           debugLayerName: 'test-shell',
-          child: StartPage(
+          child: const StartPage(
             isLight: true,
             onToggleTheme: _noop,
           ),
