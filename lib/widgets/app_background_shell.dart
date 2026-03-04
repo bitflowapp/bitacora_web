@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'animated_video_background.dart';
@@ -25,6 +26,13 @@ class AppBackgroundShell extends StatelessWidget {
       );
       return true;
     }());
+
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: opaqueBackground,
+        body: child,
+      );
+    }
 
     if (disableDecorativeBackground) {
       assert(() {
