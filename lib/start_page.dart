@@ -71,7 +71,6 @@ import 'core/app_error.dart';
 import 'ui/ui.dart';
 import 'workers/json_worker.dart';
 import 'services/app_error_reporter.dart';
-import 'services/app_update_service.dart';
 import 'services/app_config.dart';
 import 'services/engine_api.dart';
 import 'services/engine_config.dart';
@@ -83,7 +82,6 @@ import 'models/cell_meta.dart';
 import 'models/table_state.dart';
 import 'services/export_xlsx_service.dart';
 import 'services/build_info.dart';
-import 'services/force_update_service.dart';
 import 'services/attachment_store.dart';
 import 'services/audio_storage_service.dart';
 import 'services/audio_service.dart';
@@ -107,12 +105,10 @@ class StartPage extends StatefulWidget {
     super.key,
     required this.isLight,
     required this.onToggleTheme,
-    this.updateService = const AppUpdateService(),
   });
 
   final bool isLight;
   final VoidCallback onToggleTheme;
-  final AppUpdateService updateService;
 
   @override
   State<StartPage> createState() => _StartPageState();
@@ -564,9 +560,6 @@ class _StartPageState extends State<StartPage> {
     return raw.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
-  AppUpdateSnapshot? _updateSnapshot;
-  bool _updateChecking = false;
-  bool _hideUpdateBanner = false;
   bool _iosInstallHelperHiddenSession = false;
   bool _iosInstallHelperHiddenPersistent = false;
   static const String _kPrefIosInstallHelperDismissed =
@@ -584,7 +577,6 @@ class _StartPageState extends State<StartPage> {
     unawaited(_loadPrefs());
     unawaited(_loadOrg());
     unawaited(_loadIosInstallHelperPref());
-    unawaited(_checkForUpdates(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowOnboarding());
     });
@@ -3403,30 +3395,6 @@ class _StartPageState extends State<StartPage> {
     return 'No se pudo conectar al engine. $text';
   }
 
-  Future<void> _checkForUpdates({bool silent = false}) async {
-    if (_updateChecking) return;
-    if (mounted) {
-      setState(() => _updateChecking = true);
-    } else {
-      _updateChecking = true;
-    }
-
-    final result = await widget.updateService.checkForUpdates();
-    if (!mounted) return;
-
-    setState(() {
-      _updateChecking = false;
-      _updateSnapshot = result;
-      if (result.updateAvailable) {
-        _hideUpdateBanner = false;
-      }
-    });
-
-    if (!silent) {
-      _toast(result.message);
-    }
-  }
-
   bool get _shouldShowIosInstallHelper {
     if (!kIsWeb) return false;
     if (_iosInstallHelperHiddenSession || _iosInstallHelperHiddenPersistent) {
@@ -3464,112 +3432,8 @@ class _StartPageState extends State<StartPage> {
     } catch (_) {}
   }
 
-  Future<void> _applyAvailableUpdate() async {
-    final current = _updateSnapshot;
-    if (current == null || !current.updateAvailable) {
-      _toast('No hay actualizaciones pendientes.');
-      return;
-    }
-
-    if (kIsWeb) {
-      final result = await ForceUpdateService.I.forceUpdate();
-      if (!mounted) return;
-      _toast(result.message.trim().isEmpty
-          ? 'Recargando version nueva...'
-          : result.message);
-      return;
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final url = Uri.parse(AppUpdateService.androidLatestApkUrl);
-      final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
-      if (!mounted) return;
-      _toast(opened
-          ? 'Abriendo descarga de Android...'
-          : 'No se pudo abrir la descarga.');
-      return;
-    }
-
-    final releaseUrl = Uri.parse(
-      'https://github.com/marcoluna-nqn/bitacora_web/releases/latest',
-    );
-    final opened =
-        await launchUrl(releaseUrl, mode: LaunchMode.externalApplication);
-    if (!mounted) return;
-    _toast(opened
-        ? 'Abriendo página de release.'
-        : 'En iOS: usa Safari y actualiza desde la web/PWA.');
-  }
-
-  Future<void> _forceWebUpdateFromMenu() async {
-    if (!kIsWeb) {
-      _toast('Disponible solo en la versión web.');
-      return;
-    }
-    if (!mounted) return;
-
-    final dialogNavigator = Completer<NavigatorState>();
-    unawaited(
-      showCupertinoDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) {
-          if (!dialogNavigator.isCompleted) {
-            dialogNavigator.complete(Navigator.of(ctx));
-          }
-          return const CupertinoAlertDialog(
-            content: Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CupertinoActivityIndicator(),
-                  SizedBox(height: 12),
-                  Text('Actualizando...'),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    final result = await ForceUpdateService.I.forceUpdate();
-    if (!mounted) return;
-
-    if (dialogNavigator.isCompleted) {
-      final nav = await dialogNavigator.future;
-      if (nav.canPop()) {
-        nav.pop();
-      }
-    }
-
-    if (!result.reloaded) {
-      _toast(result.message.trim().isEmpty
-          ? 'No se pudo forzar la actualización.'
-          : result.message);
-    }
-  }
-
   _StartNotice? _buildPriorityNotice() {
     if (_tab != _HomeTab.sheets) return null;
-
-    final update = _updateSnapshot;
-    if (!_hideUpdateBanner && update != null && update.updateAvailable) {
-      final remote = update.remoteVersion.trim();
-      return _StartNotice(
-        message: remote.isEmpty
-            ? 'Actualización disponible para BitFlow.'
-            : 'Actualización $remote disponible.',
-        actionLabel: kIsWeb ? 'Recargar' : 'Descargar',
-        detailsTitle: 'Actualización disponible',
-        detailsBody: remote.isEmpty
-            ? 'Hay una versión nueva lista para instalar.'
-            : 'Versión detectada: $remote.\nInstala para recibir mejoras y correcciones.',
-        onAction: _applyAvailableUpdate,
-      );
-    }
 
     if (kIsWeb && WebCapabilities.isInAppBrowser) {
       return _StartNotice(
@@ -3731,23 +3595,6 @@ class _StartPageState extends State<StartPage> {
         subtitle: 'Cambiar rápido con Ctrl/Cmd+K',
         onSelected: _openQuickSwitcher,
       ),
-      _MoreSheetItem(
-        icon: CupertinoIcons.refresh,
-        title: 'Buscar actualizaciones',
-        subtitle: (_updateSnapshot?.updateAvailable ?? false)
-            ? 'Hay una actualización lista para instalar'
-            : (_updateChecking
-                ? 'Buscando actualizaciones en este momento'
-                : 'Comprobar nuevas versiones ahora'),
-        onSelected: () => _checkForUpdates(silent: false),
-      ),
-      if (kIsWeb)
-        _MoreSheetItem(
-          icon: CupertinoIcons.arrow_clockwise_circle,
-          title: 'Forzar actualización',
-          subtitle: 'Limpiar caché local y recargar BitFlow',
-          onSelected: _forceWebUpdateFromMenu,
-        ),
       _MoreSheetItem(
         icon: CupertinoIcons.sort_down,
         title: 'Ordenar',

@@ -16,5 +16,9 @@ class ForceUpdateResult {
 abstract class ForceUpdateService {
   static ForceUpdateService get I => ForceUpdateServiceImpl();
 
-  Future<ForceUpdateResult> forceUpdate();
+  Future<ForceUpdateResult> forceUpdate({String? cacheBustValue});
+
+  Future<bool> hasWebCacheArtifacts();
+
+  Future<void> reloadWithCacheBust(String cacheBustValue);
 }

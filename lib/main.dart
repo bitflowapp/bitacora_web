@@ -16,6 +16,7 @@ import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
 import 'start_page.dart';
 import 'services/app_error_reporter.dart';
+import 'services/auto_update_service.dart';
 import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguis usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
@@ -72,6 +73,18 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
 Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    if (kIsWeb) {
+      try {
+        final autoUpdater = AutoUpdateService.I;
+        await autoUpdater.maybeAutoUpdateOnStartup(
+          timeout: const Duration(milliseconds: 1500),
+        );
+        if (autoUpdater.reloadTriggered) return;
+      } catch (_) {
+        // Silent by design: never block startup.
+      }
+    }
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
