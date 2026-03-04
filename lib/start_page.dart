@@ -4930,6 +4930,7 @@ class _StartPageState extends State<StartPage> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                       child: _AppleSectionCard(
                         colors: colors,
+                        forceOpaqueBackground: true,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -5678,6 +5679,7 @@ class _DashboardQuickSections extends StatelessWidget {
 
     return _AppleSectionCard(
       colors: colors,
+      forceOpaqueBackground: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -6396,6 +6398,7 @@ class _NoticeArea extends StatelessWidget {
     const actionWidth = 104.0;
     return _AppleSectionCard(
       colors: colors,
+      forceOpaqueBackground: true,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -6711,6 +6714,7 @@ class _ProLicenseCard extends StatelessWidget {
 
     return _AppleSectionCard(
       colors: colors,
+      forceOpaqueBackground: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
