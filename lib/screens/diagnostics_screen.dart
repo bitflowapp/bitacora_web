@@ -98,7 +98,10 @@ class DiagnosticsScreen extends StatefulWidget {
 
 class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   final Set<String> _expandedEventIds = <String>{};
+
   String? _feedback;
+  bool _actionInFlight = false;
+
   DiagnosticsAppInfo _appInfo = const DiagnosticsAppInfo(
     appName: 'BitFlow',
     packageName: 'unknown',
@@ -109,8 +112,16 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(widget.reporter.init());
+    unawaited(_initReporter());
     unawaited(_loadAppInfo());
+  }
+
+  Future<void> _initReporter() async {
+    try {
+      await widget.reporter.init();
+    } catch (error) {
+      debugPrint('DiagnosticsScreen._initReporter error: $error');
+    }
   }
 
   Future<void> _loadAppInfo() async {
@@ -126,6 +137,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   @override
   Widget build(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
+
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
         middle: Text(DiagnosticsScreen.routeTitle),
@@ -136,6 +148,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           builder: (context, _, __) {
             final events =
                 widget.reporter.recent(limit: widget.reporter.capacity);
+
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
               children: [
@@ -172,15 +185,23 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         Expanded(
                           child: CupertinoButton.filled(
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            onPressed: () => _copyReport(events),
-                            child: const Text(AppStrings.diagnosticsCopyReport),
+                            onPressed: _actionInFlight
+                                ? null
+                                : () => _copyReport(events),
+                            child: Text(
+                              _actionInFlight
+                                  ? 'Procesando...'
+                                  : AppStrings.diagnosticsCopyReport,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: CupertinoButton(
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            onPressed: () => _exportReport(events),
+                            onPressed: _actionInFlight
+                                ? null
+                                : () => _exportReport(events),
                             child:
                                 const Text(AppStrings.diagnosticsExportReport),
                           ),
@@ -193,7 +214,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         width: double.infinity,
                         child: CupertinoButton(
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          onPressed: _forceRefreshWebApp,
+                          onPressed:
+                              _actionInFlight ? null : _forceRefreshWebApp,
                           child: const Text('Actualizar app (limpiar cache)'),
                         ),
                       ),
@@ -249,8 +271,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
             AppStrings.diagnosticsFlowLabel,
             '${event.flow.name} / ${event.kind.name}',
           ),
-          _row(AppStrings.diagnosticsDateLabel,
-              DiagnosticsReportFormatter.formatDateTime(event.at)),
+          _row(
+            AppStrings.diagnosticsDateLabel,
+            DiagnosticsReportFormatter.formatDateTime(event.at),
+          ),
           if (canExpand) ...[
             const SizedBox(height: 2),
             CupertinoButton(
@@ -294,87 +318,103 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   }
 
   Future<void> _forceRefreshWebApp() async {
-    try {
-      final result = await ForceUpdateService.I.forceUpdate();
-      if (!mounted) return;
-      _setFeedback(
-        result.message.trim().isEmpty
-            ? 'Recargando app...'
-            : result.message.trim(),
-      );
-    } catch (error, stackTrace) {
-      _recordDiagnosticsFailure(
-        error,
-        operation: 'diagnostics_force_refresh',
-        fallbackMessage: 'No se pudo forzar la actualización web.',
-        stackTrace: stackTrace,
-      );
-      if (!mounted) return;
-      _setFeedback('No se pudo forzar la actualización web.');
-    }
+    await _runSingleAction(() async {
+      try {
+        final result = await ForceUpdateService.I.forceUpdate();
+        if (!mounted) return;
+
+        _setFeedback(
+          result.message.trim().isEmpty
+              ? 'Recargando app...'
+              : result.message.trim(),
+        );
+      } catch (error, stackTrace) {
+        _recordDiagnosticsFailure(
+          error,
+          operation: 'diagnostics_force_refresh',
+          fallbackMessage: 'No se pudo forzar la actualizaciÃ³n web.',
+          stackTrace: stackTrace,
+        );
+        if (!mounted) return;
+        _setFeedback('No se pudo forzar la actualizaciÃ³n web.');
+      }
+    });
   }
 
   Future<void> _copyReport(List<AppErrorEvent> events) async {
-    final now = widget.now();
-    final metadata = _buildMetadata(now);
-    final reasonCounts = DiagnosticsLog.I.attachmentReasonCounters.value;
-    final text = DiagnosticsReportFormatter.buildText(
-      metadata: metadata,
-      events: events,
-      attachmentReasonCounts: reasonCounts,
-    );
-    try {
-      await widget.copyReportText(text);
-      _setFeedback(AppStrings.diagnosticsReportCopied);
-    } catch (error, stackTrace) {
-      _recordDiagnosticsFailure(
-        error,
-        operation: 'diagnostics_copy_report',
-        fallbackMessage: AppStrings.diagnosticsReportCopyFailed,
-        stackTrace: stackTrace,
+    final snapshot = _captureViewSnapshot();
+
+    await _runSingleAction(() async {
+      final now = widget.now();
+      final metadata = _buildMetadata(
+        generatedAt: now,
+        snapshot: snapshot,
       );
-      _setFeedback(AppStrings.diagnosticsReportCopyFailed);
-    }
+      final reasonCounts = DiagnosticsLog.I.attachmentReasonCounters.value;
+      final text = DiagnosticsReportFormatter.buildText(
+        metadata: metadata,
+        events: events,
+        attachmentReasonCounts: reasonCounts,
+      );
+
+      try {
+        await widget.copyReportText(text);
+        _setFeedback(AppStrings.diagnosticsReportCopied);
+      } catch (error, stackTrace) {
+        _recordDiagnosticsFailure(
+          error,
+          operation: 'diagnostics_copy_report',
+          fallbackMessage: AppStrings.diagnosticsReportCopyFailed,
+          stackTrace: stackTrace,
+        );
+        _setFeedback(AppStrings.diagnosticsReportCopyFailed);
+      }
+    });
   }
 
   Future<void> _exportReport(List<AppErrorEvent> events) async {
-    if (!mounted) return;
+    final snapshot = _captureViewSnapshot();
 
-    final format = await showCupertinoModalPopup<_ReportFormat>(
-      context: context,
-      builder: (ctx) {
-        return CupertinoActionSheet(
-          title: const Text(AppStrings.diagnosticsExportSheetTitle),
-          actions: [
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(ctx).pop(_ReportFormat.txt),
-              child: const Text(AppStrings.diagnosticsExportTxtOption),
+    await _runSingleAction(() async {
+      final format = await showCupertinoModalPopup<_ReportFormat>(
+        context: context,
+        builder: (ctx) {
+          return CupertinoActionSheet(
+            title: const Text(AppStrings.diagnosticsExportSheetTitle),
+            actions: [
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.of(ctx).pop(_ReportFormat.txt),
+                child: const Text(AppStrings.diagnosticsExportTxtOption),
+              ),
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.of(ctx).pop(_ReportFormat.json),
+                child: const Text(AppStrings.diagnosticsExportJsonOption),
+              ),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              isDefaultAction: true,
+              child: const Text(AppStrings.cancel),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(ctx).pop(_ReportFormat.json),
-              child: const Text(AppStrings.diagnosticsExportJsonOption),
-            ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(ctx).pop(),
-            isDefaultAction: true,
-            child: const Text(AppStrings.cancel),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
 
-    if (format == null) return;
+      if (!mounted || format == null) return;
 
-    final generated = widget.now();
-    final metadata = _buildMetadata(generated);
-    final payload = _buildExportPayload(
-      metadata: metadata,
-      events: events,
-      format: format,
-    );
+      final generated = widget.now();
+      final metadata = _buildMetadata(
+        generatedAt: generated,
+        snapshot: snapshot,
+      );
+      final payload = _buildExportPayload(
+        metadata: metadata,
+        events: events,
+        format: format,
+      );
 
-    await _shareOrSaveReport(payload);
+      await _shareOrSaveReport(payload);
+    });
   }
 
   Future<void> _shareOrSaveReport(_DiagnosticsReportPayload payload) async {
@@ -459,17 +499,46 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     );
   }
 
-  DiagnosticsReportMetadata _buildMetadata(DateTime generatedAt) {
+  Future<void> _runSingleAction(Future<void> Function() action) async {
+    if (_actionInFlight || !mounted) return;
+
+    setState(() {
+      _actionInFlight = true;
+      _feedback = null;
+    });
+
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() => _actionInFlight = false);
+      }
+    }
+  }
+
+  DiagnosticsReportMetadata _buildMetadata({
+    required DateTime generatedAt,
+    required _DiagnosticsViewSnapshot snapshot,
+  }) {
     return DiagnosticsReportMetadata(
       generatedAt: generatedAt,
       buildStamp: BuildInfo.stamp,
       buildInfo: BuildInfo.toJson(),
       appInfo: _appInfo,
-      platform: _platformLabel(),
-      locale: _localeLabel(context),
+      platform: snapshot.platform,
+      locale: snapshot.locale,
       runtimeRelease: kReleaseMode,
       runtimeDebug: kDebugMode,
       runtimeProfile: kProfileMode,
+      textScale: snapshot.textScale,
+      errorStorage: snapshot.errorStorage,
+    );
+  }
+
+  _DiagnosticsViewSnapshot _captureViewSnapshot() {
+    return _DiagnosticsViewSnapshot(
+      locale: _localeLabel(context),
+      platform: _platformLabel(),
       textScale: MediaQuery.textScalerOf(context).scale(1),
       errorStorage: widget.reporter.isUsingMemoryFallback
           ? AppStrings.diagnosticsStorageMemoryFallback
@@ -500,11 +569,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                 'tech_detail': trace.techDetail,
             })
         .toList(growable: false);
+
     final text = DiagnosticsReportFormatter.buildText(
       metadata: metadata,
       events: events,
       attachmentReasonCounts: reasonCounts,
     );
+
     final jsonMap = DiagnosticsReportFormatter.buildJson(
       metadata: metadata,
       events: events,
@@ -523,6 +594,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         bytes: utf8.encode(text),
         textReport: text,
       );
+
       _recordDebugGeneratedReport(
         format: format,
         fileName: fileName,
@@ -539,6 +611,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       bytes: utf8.encode(jsonEncode(jsonMap)),
       textReport: text,
     );
+
     _recordDebugGeneratedReport(
       format: format,
       fileName: fileName,
@@ -657,6 +730,20 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       ),
     );
   }
+}
+
+class _DiagnosticsViewSnapshot {
+  const _DiagnosticsViewSnapshot({
+    required this.locale,
+    required this.platform,
+    required this.textScale,
+    required this.errorStorage,
+  });
+
+  final String locale;
+  final String platform;
+  final double textScale;
+  final String errorStorage;
 }
 
 enum DiagnosticsGeneratedReportFormat { json, text }

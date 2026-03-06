@@ -12,6 +12,7 @@ class SpreadsheetAgentScreen extends StatefulWidget {
 
 class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   final SpreadsheetAgentFacade _agent = SpreadsheetAgentFacade();
+
   final TextEditingController _clientController =
       TextEditingController(text: 'default');
   final TextEditingController _pasteController = TextEditingController();
@@ -22,12 +23,15 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   final TextEditingController _defaultObraController = TextEditingController();
 
   late String _templateId;
+
   SpreadsheetIngestResult? _ingest;
   Map<String, String> _headerToField = <String, String>{};
   List<Map<String, String>> _mappedRows = <Map<String, String>>[];
   SpreadsheetValidationReport? _report;
   List<SpreadsheetAuditEntry> _auditEntries = <SpreadsheetAuditEntry>[];
+
   bool _busy = false;
+  int _profileLoadToken = 0;
 
   SpreadsheetTemplate get _template => _agent.templateById(_templateId);
 
@@ -48,30 +52,6 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     super.dispose();
   }
 
-  Future<void> _loadProfileAndAudit() async {
-    final clientId = _currentClientId();
-    final profile = await _agent.loadProfile(
-      templateId: _templateId,
-      clientId: clientId,
-    );
-
-    if (!mounted) return;
-    setState(() {
-      if (profile != null) {
-        _headerToField = Map<String, String>.from(profile.headerToField);
-        _defaultCentroController.text =
-            profile.defaultValues['centro_costo'] ?? '';
-        _defaultProveedorController.text =
-            profile.defaultValues['proveedor'] ?? '';
-        _defaultObraController.text = profile.defaultValues['obra'] ?? '';
-      }
-    });
-
-    final audit = await _agent.recentAudit(limit: 10);
-    if (!mounted) return;
-    setState(() => _auditEntries = audit);
-  }
-
   String _currentClientId() {
     final raw = _clientController.text.trim();
     return raw.isEmpty ? 'default' : raw;
@@ -85,72 +65,206 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     }..removeWhere((key, value) => value.isEmpty);
   }
 
+  void _showSnack(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    final text = message.trim();
+    if (text.isEmpty) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _runBusy(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _loadProfileAndAudit() async {
+    final loadToken = ++_profileLoadToken;
+    final templateId = _templateId;
+    final clientId = _currentClientId();
+
+    final profileFuture = _agent.loadProfile(
+      templateId: templateId,
+      clientId: clientId,
+    );
+    final auditFuture = _agent.recentAudit(limit: 10);
+
+    SpreadsheetMappingProfile? profile;
+    List<SpreadsheetAuditEntry> audit = <SpreadsheetAuditEntry>[];
+
+    try {
+      profile = await profileFuture;
+      audit = await auditFuture;
+    } catch (_) {
+      if (!mounted || loadToken != _profileLoadToken) return;
+      setState(() {
+        _headerToField = <String, String>{};
+        _defaultCentroController.clear();
+        _defaultProveedorController.clear();
+        _defaultObraController.clear();
+        _auditEntries = <SpreadsheetAuditEntry>[];
+      });
+      _runValidation();
+      return;
+    }
+
+    if (!mounted || loadToken != _profileLoadToken) return;
+
+    setState(() {
+      if (profile != null) {
+        _headerToField = Map<String, String>.from(profile.headerToField);
+        _defaultCentroController.text =
+            profile.defaultValues['centro_costo'] ?? '';
+        _defaultProveedorController.text =
+            profile.defaultValues['proveedor'] ?? '';
+        _defaultObraController.text = profile.defaultValues['obra'] ?? '';
+      } else {
+        _headerToField = <String, String>{};
+        _defaultCentroController.clear();
+        _defaultProveedorController.clear();
+        _defaultObraController.clear();
+      }
+      _auditEntries = audit;
+    });
+
+    _runValidation();
+  }
+
+  Future<void> _addAuditSafe({
+    required String action,
+    required String detail,
+  }) async {
+    try {
+      await _agent.addAudit(
+        templateId: _template.id,
+        clientId: _currentClientId(),
+        action: action,
+        detail: detail,
+      );
+      await _refreshAuditOnly();
+    } catch (_) {
+      // No rompemos el flujo principal por el log local.
+    }
+  }
+
+  Future<void> _refreshAuditOnly() async {
+    final audit = await _agent.recentAudit(limit: 10);
+    if (!mounted) return;
+    setState(() => _auditEntries = audit);
+  }
+
   Future<void> _pickFile() async {
+    if (_busy) return;
+
+    final messenger = ScaffoldMessenger.of(context);
     final typeGroup = const XTypeGroup(
       label: 'Planillas',
       extensions: <String>['csv', 'xlsx'],
     );
-    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
-    if (file == null) return;
 
-    setState(() => _busy = true);
-    try {
-      final ingested = await _agent.ingestFile(file);
-      if (!mounted) return;
-      final auto = _agent.autoMap(
-        template: _template,
-        sourceHeaders: ingested.headers,
-        profileMap: _headerToField,
-      );
-      setState(() {
-        _ingest = ingested;
-        _headerToField = auto;
-      });
-      _runValidation();
-      await _agent.addAudit(
-        templateId: _template.id,
-        clientId: _currentClientId(),
-        action: 'ingest_file',
-        detail: '${ingested.rows.length} filas desde ${file.name}',
-      );
-      _snack('Importado ${ingested.rows.length} filas desde ${file.name}.');
-    } catch (e) {
-      _snack('No se pudo importar archivo: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    if (file == null || !mounted) return;
+
+    await _runBusy(() async {
+      try {
+        final ingested = await _agent.ingestFile(file);
+        if (!mounted) return;
+
+        final auto = _agent.autoMap(
+          template: _template,
+          sourceHeaders: ingested.headers,
+          profileMap: _headerToField,
+        );
+
+        setState(() {
+          _ingest = ingested;
+          _headerToField = auto;
+        });
+
+        _runValidation();
+
+        await _addAuditSafe(
+          action: 'ingest_file',
+          detail: '${ingested.rows.length} filas desde ${file.name}',
+        );
+
+        if (!mounted) return;
+        _showSnack(
+          messenger,
+          'Importado ${ingested.rows.length} filas desde ${file.name}.',
+        );
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(messenger,
+            'No se pudo importar el archivo. Revisa el formato e intenta nuevamente.');
+      }
+    });
   }
 
   Future<void> _ingestPaste() async {
+    if (_busy) return;
+
+    final messenger = ScaffoldMessenger.of(context);
     final text = _pasteController.text;
+
     if (text.trim().isEmpty) {
-      _snack('Pegá una tabla primero.');
+      _showSnack(messenger, 'PegÃ¡ una tabla primero.');
       return;
     }
 
-    final ingested = _agent.ingestPaste(text);
-    final auto = _agent.autoMap(
-      template: _template,
-      sourceHeaders: ingested.headers,
-      profileMap: _headerToField,
-    );
-    setState(() {
-      _ingest = ingested;
-      _headerToField = auto;
+    await _runBusy(() async {
+      try {
+        final ingested = _agent.ingestPaste(text);
+        final auto = _agent.autoMap(
+          template: _template,
+          sourceHeaders: ingested.headers,
+          profileMap: _headerToField,
+        );
+
+        if (!mounted) return;
+        setState(() {
+          _ingest = ingested;
+          _headerToField = auto;
+        });
+
+        _runValidation();
+
+        await _addAuditSafe(
+          action: 'ingest_paste',
+          detail: '${ingested.rows.length} filas desde pegado',
+        );
+
+        if (!mounted) return;
+        _showSnack(
+          messenger,
+          'Pegado procesado: ${ingested.rows.length} filas.',
+        );
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(messenger, 'No se pudo procesar el pegado: $e');
+      }
     });
-    _runValidation();
-    await _agent.addAudit(
-      templateId: _template.id,
-      clientId: _currentClientId(),
-      action: 'ingest_paste',
-      detail: '${ingested.rows.length} filas desde pegado',
-    );
-    _snack('Pegado procesado: ${ingested.rows.length} filas.');
   }
 
   void _runValidation() {
     final ingest = _ingest;
-    if (ingest == null) return;
+    if (ingest == null) {
+      setState(() {
+        _mappedRows = <Map<String, String>>[];
+        _report = null;
+      });
+      return;
+    }
 
     final mappedRows = _agent.transformRows(
       template: _template,
@@ -159,6 +273,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       headerToField: _headerToField,
       defaultValues: _defaultValues(),
     );
+
     final report = _agent.validate(
       template: _template,
       mappedRows: mappedRows,
@@ -172,60 +287,98 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
 
   Future<void> _saveProfile() async {
     if (_ingest == null) {
-      _snack('Importá o pegá datos antes de guardar perfil.');
+      _showSnack(
+        ScaffoldMessenger.of(context),
+        'ImportÃ¡ o pegÃ¡ datos antes de guardar perfil.',
+      );
       return;
     }
-    await _agent.saveProfile(
-      templateId: _templateId,
-      clientId: _currentClientId(),
-      headerToField: _headerToField,
-      defaultValues: _defaultValues(),
-    );
-    await _loadProfileAndAudit();
-    _snack('Perfil de mapeo guardado localmente.');
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    await _runBusy(() async {
+      try {
+        await _agent.saveProfile(
+          templateId: _templateId,
+          clientId: _currentClientId(),
+          headerToField: _headerToField,
+          defaultValues: _defaultValues(),
+        );
+        await _loadProfileAndAudit();
+
+        if (!mounted) return;
+        _showSnack(messenger, 'Perfil de mapeo guardado localmente.');
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(messenger, 'No se pudo guardar el perfil: $e');
+      }
+    });
   }
 
   Future<void> _exportXlsx() async {
+    final messenger = ScaffoldMessenger.of(context);
+
     if (_mappedRows.isEmpty) {
-      _snack('No hay filas transformadas para exportar.');
+      _showSnack(messenger, 'No hay filas transformadas para exportar.');
       return;
     }
     if (_report?.hasErrors ?? false) {
-      _snack('Corregí los errores de validación antes de exportar.');
+      _showSnack(
+        messenger,
+        'CorregÃ­ los errores de validaciÃ³n antes de exportar.',
+      );
       return;
     }
-    final artifact = await _agent.exportXlsx(
-      template: _template,
-      mappedRows: _mappedRows,
-      clientId: _currentClientId(),
-    );
-    await _loadProfileAndAudit();
-    _snack('XLSX exportado: ${artifact.location}');
+
+    await _runBusy(() async {
+      try {
+        final artifact = await _agent.exportXlsx(
+          template: _template,
+          mappedRows: _mappedRows,
+          clientId: _currentClientId(),
+        );
+        await _refreshAuditOnly();
+
+        if (!mounted) return;
+        _showSnack(messenger, 'XLSX exportado: ${artifact.location}');
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(messenger, 'No se pudo exportar XLSX: $e');
+      }
+    });
   }
 
   Future<void> _exportPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+
     if (_mappedRows.isEmpty) {
-      _snack('No hay filas transformadas para exportar.');
+      _showSnack(messenger, 'No hay filas transformadas para exportar.');
       return;
     }
     if (_report?.hasErrors ?? false) {
-      _snack('Corregí los errores de validación antes de exportar.');
+      _showSnack(
+        messenger,
+        'CorregÃ­ los errores de validaciÃ³n antes de exportar.',
+      );
       return;
     }
-    final artifact = await _agent.exportPdf(
-      template: _template,
-      mappedRows: _mappedRows,
-      clientId: _currentClientId(),
-    );
-    await _loadProfileAndAudit();
-    _snack('PDF exportado: ${artifact.location}');
-  }
 
-  void _snack(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    await _runBusy(() async {
+      try {
+        final artifact = await _agent.exportPdf(
+          template: _template,
+          mappedRows: _mappedRows,
+          clientId: _currentClientId(),
+        );
+        await _refreshAuditOnly();
+
+        if (!mounted) return;
+        _showSnack(messenger, 'PDF exportado: ${artifact.location}');
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(messenger, 'No se pudo exportar PDF: $e');
+      }
+    });
   }
 
   bool _useBottomSheetMapping(BuildContext context) {
@@ -245,6 +398,14 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     _runValidation();
   }
 
+  String _fieldLabelForKey(String key) {
+    if (key.trim().isEmpty) return 'Ignorar';
+    for (final field in _template.fields) {
+      if (field.key == key) return field.label;
+    }
+    return key;
+  }
+
   Future<void> _pickHeaderMapping({
     required String header,
     required String currentValue,
@@ -255,8 +416,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         (field) => MapEntry<String, String>(field.key, field.label),
       ),
     ];
+
     String query = '';
     final searchController = TextEditingController();
+
     final picked = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -266,6 +429,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         final cs = theme.colorScheme;
+
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final normalized = query.trim().toLowerCase();
@@ -274,6 +438,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
               return option.value.toLowerCase().contains(normalized) ||
                   option.key.toLowerCase().contains(normalized);
             }).toList(growable: false);
+
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -319,6 +484,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                               itemBuilder: (ctx, index) {
                                 final option = filtered[index];
                                 final selected = option.key == currentValue;
+
                                 return ListTile(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
@@ -334,8 +500,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                                       : cs.surfaceContainerLow,
                                   title: Text(option.value),
                                   trailing: selected
-                                      ? Icon(Icons.check_rounded,
-                                          color: cs.primary)
+                                      ? Icon(
+                                          Icons.check_rounded,
+                                          color: cs.primary,
+                                        )
                                       : null,
                                   onTap: () => Navigator.of(sheetContext)
                                       .pop(option.key),
@@ -351,7 +519,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         );
       },
     );
+
     searchController.dispose();
+
     if (picked == null) return;
     _setHeaderMapping(header, picked);
   }
@@ -361,12 +531,20 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     required String header,
     required String currentValue,
   }) {
+    final allowedKeys = <String>{'', ..._template.fields.map((f) => f.key)};
+    final selectedValue =
+        allowedKeys.contains(currentValue) ? currentValue : '';
+
     if (!_useBottomSheetMapping(context)) {
       return DropdownButtonFormField<String>(
-        initialValue: currentValue.isEmpty ? null : currentValue,
+        key: ValueKey<String>('$_templateId|$header|$selectedValue'),
+        initialValue: selectedValue,
         decoration: const InputDecoration(labelText: 'Campo destino'),
         items: <DropdownMenuItem<String>>[
-          const DropdownMenuItem<String>(value: '', child: Text('Ignorar')),
+          const DropdownMenuItem<String>(
+            value: '',
+            child: Text('Ignorar'),
+          ),
           ..._template.fields.map(
             (field) => DropdownMenuItem<String>(
               value: field.key,
@@ -380,18 +558,6 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    String selectedLabel = 'Ignorar';
-    if (currentValue.isNotEmpty) {
-      for (final field in _template.fields) {
-        if (field.key == currentValue) {
-          selectedLabel = field.label;
-          break;
-        }
-      }
-      if (selectedLabel == 'Ignorar') {
-        selectedLabel = currentValue;
-      }
-    }
 
     return Material(
       color: Colors.transparent,
@@ -399,7 +565,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         borderRadius: BorderRadius.circular(14),
         onTap: () => _pickHeaderMapping(
           header: header,
-          currentValue: currentValue,
+          currentValue: selectedValue,
         ),
         child: InputDecorator(
           decoration: const InputDecoration(
@@ -407,8 +573,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
             suffixIcon: Icon(Icons.keyboard_arrow_down_rounded),
           ),
           child: Text(
-            selectedLabel,
-            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurface),
+            _fieldLabelForKey(selectedValue),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurface,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -444,7 +612,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       initialValue: _templateId,
-                      decoration: const InputDecoration(labelText: 'Plantilla'),
+                      decoration: const InputDecoration(
+                        labelText: 'Plantilla',
+                      ),
                       items: _agent.templates
                           .map(
                             (template) => DropdownMenuItem<String>(
@@ -458,6 +628,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                         setState(() {
                           _templateId = value;
                           _headerToField = <String, String>{};
+                          _report = null;
                         });
                         _loadProfileAndAudit();
                         _runValidation();
@@ -515,13 +686,13 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         hintText:
-                            'Pegá acá tabla copiada de mail/WhatsApp/Excel',
+                            'PegÃ¡ acÃ¡ tabla copiada de mail/WhatsApp/Excel',
                       ),
                     ),
                     if (ingest != null) ...<Widget>[
                       const SizedBox(height: 8),
                       Text(
-                        'Fuente: ${ingest.sourceLabel}  •  Encabezados: ${ingest.headers.length}  •  Filas: ${ingest.rows.length}',
+                        'Fuente: ${ingest.sourceLabel}  â€¢  Encabezados: ${ingest.headers.length}  â€¢  Filas: ${ingest.rows.length}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -619,7 +790,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        '4) Resultado validación: ${report.errorCount} errores, ${report.warningCount} warnings',
+                        '4) Resultado validaciÃ³n: ${report.errorCount} errores, ${report.warningCount} warnings',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
@@ -627,7 +798,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                         const Text('Sin observaciones. Listo para exportar.'),
                       ...report.issues.take(12).map(
                             (issue) => Text(
-                              'Fila ${issue.row} • ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
+                              'Fila ${issue.row} â€¢ ${issue.field}: ${issue.message}${(issue.value ?? '').isEmpty ? '' : ' (${issue.value})'}',
                               style: TextStyle(
                                 color: issue.isWarning
                                     ? Colors.orange.shade700
@@ -708,7 +879,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       const SizedBox(height: 8),
                       ..._auditEntries.map(
                         (entry) => Text(
-                          '${entry.at.toLocal()} • ${entry.action} • ${entry.templateId}/${entry.clientId} • ${entry.detail}',
+                          '${entry.at.toLocal()} â€¢ ${entry.action} â€¢ ${entry.templateId}/${entry.clientId} â€¢ ${entry.detail}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),

@@ -18,13 +18,18 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passCtrl = TextEditingController();
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _passFocus = FocusNode();
 
   bool _busy = false;
   bool _showEmailForm = false;
   bool _biometricAvailable = false;
   bool _bioEnabled = false;
-  bool _hasLoggedOnceOnDevice = false;
+  bool _passwordObscured = true;
+  bool _isOfferingBiometrics = false;
   String _bioLabel = 'Biometria';
+
+  bool get _authEnabled => kAuthEnabled && RuntimeFlags.isAuthRequired;
 
   @override
   void initState() {
@@ -36,34 +41,49 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _emailFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
   }
 
   Future<void> _loadBiometricState() async {
-    if (!RuntimeFlags.isAuthRequired) return;
+    if (!_authEnabled) return;
 
-    final lastEmail = await SecureKv.I.readString(SecureKvKeys.lastEmail);
-    final hasLoginAt = (await SecureKv.I.readString(SecureKvKeys.lastLoginAt))
-        ?.trim()
-        .isNotEmpty;
+    try {
+      final lastEmail = await SecureKv.I.readString(SecureKvKeys.lastEmail);
 
-    await BiometricAuthService.I.init();
-    final available = BiometricAuthService.I.isSupportedPlatform &&
-        BiometricAuthService.I.canCheckBiometrics &&
-        BiometricAuthService.I.availableBiometrics.isNotEmpty;
-    final enabled =
-        await SecureKv.I.readBool(SecureKvKeys.bioEnabled, defaultValue: false);
+      await BiometricAuthService.I.init();
 
-    if (!mounted) return;
-    if ((lastEmail ?? '').trim().isNotEmpty) {
-      _emailCtrl.text = lastEmail!.trim();
+      final available = BiometricAuthService.I.isSupportedPlatform &&
+          BiometricAuthService.I.canCheckBiometrics &&
+          BiometricAuthService.I.availableBiometrics.isNotEmpty;
+
+      final enabled = await SecureKv.I.readBool(
+        SecureKvKeys.bioEnabled,
+        defaultValue: false,
+      );
+
+      if (!mounted) return;
+
+      final normalizedEmail = (lastEmail ?? '').trim();
+      if (normalizedEmail.isNotEmpty) {
+        _emailCtrl.text = normalizedEmail;
+      }
+
+      setState(() {
+        _biometricAvailable = available;
+        _bioEnabled = enabled;
+        _bioLabel = BiometricAuthService.I.getBiometricLabel();
+      });
+    } catch (error) {
+      debugPrint('LoginScreen._loadBiometricState error: $error');
+      if (!mounted) return;
+      setState(() {
+        _biometricAvailable = false;
+        _bioEnabled = false;
+        _bioLabel = 'Biometria';
+      });
     }
-    setState(() {
-      _biometricAvailable = available;
-      _bioEnabled = enabled;
-      _hasLoggedOnceOnDevice = hasLoginAt ?? false;
-      _bioLabel = BiometricAuthService.I.getBiometricLabel();
-    });
   }
 
   Future<void> _saveLastLoginMetadata(String email) async {
@@ -76,20 +96,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _continueWithGoogle() async {
     if (_busy) return;
+
     FocusScope.of(context).unfocus();
-    setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _busy = true);
+
     try {
       await AuthService.I.signInWithGoogle();
+
       final email = (AuthService.I.currentUser?.email ?? '').trim();
       if (email.isNotEmpty) {
         await _saveLastLoginMetadata(email);
       }
-      if (AuthService.I.currentUser != null &&
-          !_bioEnabled &&
-          _biometricAvailable) {
-        await _offerEnableBiometrics();
-      }
+
+      await _maybeOfferEnableBiometrics();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -102,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('No se pudo iniciar con Google: $e'),
+          content: Text('No se pudo iniciar con Google. Intenta nuevamente.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -115,10 +136,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submitEmailPassword() async {
     if (_busy) return;
+
     FocusScope.of(context).unfocus();
     final messenger = ScaffoldMessenger.of(context);
+
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;
+
     if (!_isValidEmail(email) || pass.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(
@@ -130,16 +154,18 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() => _busy = true);
+
     try {
       await AuthService.I.signInWithEmail(email: email, password: pass);
       await _saveLastLoginMetadata(email);
-      if (!_bioEnabled && _biometricAvailable) {
-        await _offerEnableBiometrics();
-      }
+      await _maybeOfferEnableBiometrics();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
+
       if (e.code == 'user-not-found') {
         final shouldCreate = await _confirmCreateUser(email);
+        if (!mounted) return;
+
         if (shouldCreate == true) {
           await _createAccount(email, pass);
         }
@@ -155,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('No se pudo iniciar sesion: $e'),
+          content: Text('No se pudo iniciar sesion. Intenta nuevamente.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -168,9 +194,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _createAccount(String email, String pass) async {
     final messenger = ScaffoldMessenger.of(context);
+
     try {
       await AuthService.I.createAccountWithEmail(email: email, password: pass);
       await _saveLastLoginMetadata(email);
+
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(
@@ -178,6 +206,8 @@ class _LoginScreenState extends State<LoginScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+
+      await _maybeOfferEnableBiometrics();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -190,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('No se pudo crear la cuenta: $e'),
+          content: Text('No se pudo crear la cuenta. Intenta nuevamente.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -200,19 +230,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<bool?> _confirmCreateUser(String email) {
     return showDialog<bool>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Cuenta no encontrada'),
           content: Text(
-            'No existe una cuenta para $email. Queres crearla ahora con esta contrasena?',
+            'No existe una cuenta para $email. Quieres crearla ahora con esta contrasena?',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Crear cuenta'),
             ),
           ],
@@ -221,115 +251,124 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _offerEnableBiometrics() async {
+  Future<void> _maybeOfferEnableBiometrics() async {
+    if (!_authEnabled) return;
+    if (_isOfferingBiometrics) return;
+    if (_bioEnabled || !_biometricAvailable) return;
+    if (AuthService.I.currentUser == null) return;
     if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    _isOfferingBiometrics = true;
 
     bool lockOnOpen = true;
-    final shouldEnable = await showModalBottomSheet<bool>(
-      context: context,
-      isDismissible: true,
-      enableDrag: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Activar acceso rapido',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+
+    try {
+      final savedLockOnOpen = await SecureKv.I.readBool(
+        SecureKvKeys.bioLockOnOpen,
+        defaultValue: true,
+      );
+      lockOnOpen = savedLockOnOpen;
+
+      if (!mounted) return;
+
+      final shouldEnable = await showModalBottomSheet<bool>(
+        context: context,
+        isDismissible: true,
+        enableDrag: true,
+        builder: (modalContext) {
+          return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              return SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Activar acceso rapido',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Usa $_bioLabel para entrar mas rapido y proteger la app.',
-                      style: const TextStyle(fontSize: 16, height: 1.35),
-                    ),
-                    const SizedBox(height: 12),
-                    SwitchListTile.adaptive(
-                      value: lockOnOpen,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Bloquear al abrir',
-                        style: TextStyle(fontSize: 16),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Usa $_bioLabel para proteger la app y desbloquear mas rapido.',
+                        style: const TextStyle(fontSize: 16, height: 1.35),
                       ),
-                      subtitle: const Text(
-                        'Pedir biometria al abrir o volver desde background.',
-                        style: TextStyle(fontSize: 16),
+                      const SizedBox(height: 12),
+                      SwitchListTile.adaptive(
+                        value: lockOnOpen,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Bloquear al abrir',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        subtitle: const Text(
+                          'Pedir biometria al abrir o al volver desde background.',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        onChanged: (value) {
+                          setModalState(() => lockOnOpen = value);
+                        },
                       ),
-                      onChanged: (value) {
-                        setModalState(() => lockOnOpen = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: () => Navigator.of(modalContext).pop(true),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('Activar'),
                       ),
-                      child: const Text('Activar'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(modalContext).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('Ahora no'),
                       ),
-                      child: const Text('Ahora no'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
 
-    if (shouldEnable != true) return;
-    await SecureKv.I.writeBool(SecureKvKeys.bioEnabled, true);
-    await SecureKv.I.writeBool(SecureKvKeys.bioLockOnOpen, lockOnOpen);
-    if (!mounted) return;
-    setState(() => _bioEnabled = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          lockOnOpen
-              ? 'Acceso rapido activado con bloqueo al abrir.'
-              : 'Acceso rapido activado.',
+      if (shouldEnable != true) return;
+
+      await SecureKv.I.writeBool(SecureKvKeys.bioEnabled, true);
+      await SecureKv.I.writeBool(SecureKvKeys.bioLockOnOpen, lockOnOpen);
+
+      if (!mounted) return;
+      setState(() => _bioEnabled = true);
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            lockOnOpen
+                ? 'Acceso rÃ¡pido activado con bloqueo al abrir.'
+                : 'Acceso rÃ¡pido activado.',
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _quickAccess() async {
-    if (!_biometricAvailable || _busy) return;
-    FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-
-    setState(() => _busy = true);
-    final ok = await BiometricAuthService.I.authenticate(
-      'Verifica tu identidad para acceso rapido',
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-
-    if (!ok) return;
-    if (AuthService.I.isSignedIn) return;
-
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Inicia sesion una vez para habilitar acceso rapido.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
+    } catch (error) {
+      debugPrint('LoginScreen._maybeOfferEnableBiometrics error: $error');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo configurar el acceso biomÃ©trico.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      _isOfferingBiometrics = false;
+    }
   }
 
   bool _isValidEmail(String email) {
@@ -343,7 +382,9 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'popup-closed-by-user':
         return 'Cerraste la ventana de Google antes de completar el login.';
       case 'popup-blocked':
-        return 'El navegador bloqueo la ventana emergente. Habilitala e intenta de nuevo.';
+        return 'El navegador bloqueÃ³ la ventana emergente. Habilitala e intentÃ¡ de nuevo.';
+      case 'network-request-failed':
+        return 'No hay conexiÃ³n suficiente para iniciar con Google.';
       default:
         return 'No se pudo iniciar con Google (${e.code}).';
     }
@@ -352,18 +393,20 @@ class _LoginScreenState extends State<LoginScreen> {
   String _emailPasswordErrorMessage(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
-        return 'El email no tiene un formato valido.';
+        return 'El email no tiene un formato vÃ¡lido.';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Email o contrasena incorrectos.';
+        return 'Email o contraseÃ±a incorrectos.';
       case 'too-many-requests':
-        return 'Demasiados intentos. Proba de nuevo en unos minutos.';
+        return 'Demasiados intentos. ProbÃ¡ de nuevo en unos minutos.';
       case 'weak-password':
-        return 'La contrasena es demasiado debil.';
+        return 'La contraseÃ±a es demasiado dÃ©bil.';
       case 'email-already-in-use':
-        return 'Ese email ya esta registrado.';
+        return 'Ese email ya estÃ¡ registrado.';
+      case 'network-request-failed':
+        return 'No hay conexiÃ³n suficiente para completar el login.';
       default:
-        return 'Error de autenticacion (${e.code}).';
+        return 'Error de autenticaciÃ³n (${e.code}).';
     }
   }
 
@@ -373,83 +416,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final cardBg = theme.brightness == Brightness.dark
         ? const Color(0xFF0B0D1A)
         : const Color(0xFFFFFFFF);
-    final authEnabled = RuntimeFlags.isAuthRequired;
-    final showQuickAccess = authEnabled &&
-        _bioEnabled &&
-        _biometricAvailable &&
-        _hasLoggedOnceOnDevice;
 
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(999),
     );
-
-    if (!kAuthEnabled) {
-      return Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Card(
-                  elevation: 10,
-                  color: cardBg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Icon(
-                          Icons.workspace_premium_rounded,
-                          size: 42,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Bitacora Web',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Modo local-first activo.',
-                          style:
-                              theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: () => context.go('/app'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          child: const Text('Empezar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       body: SafeArea(
@@ -469,166 +439,193 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(
-                        Icons.workspace_premium_rounded,
-                        size: 42,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Bitacora Web',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        authEnabled
-                            ? 'Continua con Google o usa correo y contrasena.'
-                            : 'Modo demo activo: el login está deshabilitado temporalmente.',
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (authEnabled) ...[
-                        const SizedBox(height: 18),
-                        FilledButton.icon(
-                          key: const Key('login-google'),
-                          onPressed: _busy ? null : _continueWithGoogle,
-                          icon: const _GoogleMark(),
-                          label: Text(
-                            _busy ? 'Procesando...' : 'Continuar con Google',
-                          ),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                  child: AutofillGroup(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Icon(
+                          Icons.workspace_premium_rounded,
+                          size: 42,
+                          color: theme.colorScheme.primary,
                         ),
                         const SizedBox(height: 10),
-                        OutlinedButton(
-                          key: const Key('login-email'),
-                          onPressed: _busy
-                              ? null
-                              : () {
-                                  setState(
-                                      () => _showEmailForm = !_showEmailForm);
-                                },
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        Text(
+                          'BitÃ¡cora Web',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
                           ),
-                          child: Text(
-                            _showEmailForm
-                                ? 'Ocultar correo'
-                                : 'Continuar con correo',
-                          ),
+                          textAlign: TextAlign.center,
                         ),
-                      ] else ...[
-                        const SizedBox(height: 18),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: theme.dividerColor.withValues(alpha: 0.5),
-                            ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _authEnabled
+                              ? 'ContinuÃ¡ con Google o usÃ¡ correo y contraseÃ±a.'
+                              : 'Modo local-first activo.',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontSize: 16,
                           ),
-                          child: const Text(
-                            'Accedé desde la portada o /app. Google y correo están ocultos en demo.',
-                            textAlign: TextAlign.center,
-                          ),
+                          textAlign: TextAlign.center,
                         ),
-                      ],
-                      AnimatedCrossFade(
-                        firstChild: const SizedBox(height: 0),
-                        secondChild: Column(
-                          children: [
-                            const SizedBox(height: 14),
-                            TextField(
-                              key: const Key('login-email-input'),
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              autofillHints: const [AutofillHints.username],
-                              enabled: !_busy,
-                              style: const TextStyle(fontSize: 16),
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
-                                hintText: 'nombre@empresa.com',
-                                border: OutlineInputBorder(),
+                        if (!_authEnabled) ...[
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: () => context.go('/app'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              shape: shape,
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              key: const Key('login-password-input'),
-                              controller: _passCtrl,
-                              enabled: !_busy,
-                              obscureText: true,
-                              autofillHints: const [AutofillHints.password],
-                              style: const TextStyle(fontSize: 16),
-                              decoration: const InputDecoration(
-                                labelText: 'Contrasena',
-                                border: OutlineInputBorder(),
+                            child: const Text('Empezar'),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 18),
+                          FilledButton.icon(
+                            key: const Key('login-google'),
+                            onPressed: _busy ? null : _continueWithGoogle,
+                            icon: const _GoogleMark(),
+                            label: Text(
+                              _busy ? 'Procesando...' : 'Continuar con Google',
+                            ),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              shape: shape,
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              key: const Key('login-submit'),
-                              onPressed: _busy ? null : _submitEmailPassword,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(48),
-                                shape: shape,
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            key: const Key('login-email'),
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _showEmailForm = !_showEmailForm;
+                                    });
+                                  },
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              shape: shape,
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            child: Text(
+                              _showEmailForm
+                                  ? 'Ocultar correo'
+                                  : 'Continuar con correo',
+                            ),
+                          ),
+                          AnimatedCrossFade(
+                            firstChild: const SizedBox.shrink(),
+                            secondChild: Column(
+                              children: [
+                                const SizedBox(height: 14),
+                                TextField(
+                                  key: const Key('login-email-input'),
+                                  controller: _emailCtrl,
+                                  focusNode: _emailFocus,
+                                  keyboardType: TextInputType.emailAddress,
+                                  textInputAction: TextInputAction.next,
+                                  autofillHints: const [AutofillHints.username],
+                                  enabled: !_busy,
+                                  style: const TextStyle(fontSize: 16),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Email',
+                                    hintText: 'nombre@empresa.com',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onSubmitted: (_) {
+                                    _passFocus.requestFocus();
+                                  },
                                 ),
-                              ),
-                              child: const Text('Entrar con correo'),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Si la cuenta no existe, te ofrecemos crearla en el momento.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.72,
+                                const SizedBox(height: 12),
+                                TextField(
+                                  key: const Key('login-password-input'),
+                                  controller: _passCtrl,
+                                  focusNode: _passFocus,
+                                  enabled: !_busy,
+                                  obscureText: _passwordObscured,
+                                  textInputAction: TextInputAction.done,
+                                  autofillHints: const [AutofillHints.password],
+                                  style: const TextStyle(fontSize: 16),
+                                  decoration: InputDecoration(
+                                    labelText: 'ContraseÃ±a',
+                                    border: const OutlineInputBorder(),
+                                    suffixIcon: IconButton(
+                                      tooltip: _passwordObscured
+                                          ? 'Mostrar contraseÃ±a'
+                                          : 'Ocultar contraseÃ±a',
+                                      onPressed: _busy
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _passwordObscured =
+                                                    !_passwordObscured;
+                                              });
+                                            },
+                                      icon: Icon(
+                                        _passwordObscured
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                      ),
+                                    ),
+                                  ),
+                                  onSubmitted: (_) => _submitEmailPassword(),
                                 ),
-                              ),
-                              textAlign: TextAlign.center,
+                                const SizedBox(height: 12),
+                                FilledButton(
+                                  key: const Key('login-submit'),
+                                  onPressed:
+                                      _busy ? null : _submitEmailPassword,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(48),
+                                    shape: shape,
+                                    textStyle: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  child: const Text('Entrar con correo'),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Si la cuenta no existe, te ofrecemos crearla en el momento.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.72),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                if (_biometricAvailable && !_bioEnabled) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'DespuÃ©s del primer ingreso podÃ©s activar $_bioLabel para proteger la app.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.72),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ],
                             ),
-                          ],
-                        ),
-                        crossFadeState: authEnabled && _showEmailForm
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 180),
-                      ),
-                      if (showQuickAccess) ...[
-                        const SizedBox(height: 14),
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _quickAccess,
-                          icon: const Icon(Icons.fingerprint_rounded),
-                          label: Text('Acceso rapido ($_bioLabel)'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                            shape: shape,
-                            textStyle: const TextStyle(fontSize: 16),
+                            crossFadeState: _showEmailForm
+                                ? CrossFadeState.showSecond
+                                : CrossFadeState.showFirst,
+                            duration: const Duration(milliseconds: 180),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -646,6 +643,7 @@ class _GoogleMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Container(
       width: 22,
       height: 22,

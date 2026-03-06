@@ -16,81 +16,177 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
-  Future<void> _openCheckout(String url) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final parsed = Uri.tryParse(url.trim());
-    if (parsed == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Link no configurado.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-    final opened =
-        await launchUrl(parsed, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir el link de pago.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+  late final Future<AppConfig> _appConfigFuture;
+
+  bool _checkoutInFlight = false;
+  bool _copyInFlight = false;
+  bool _paymentNoticeInFlight = false;
+  bool _signOutInFlight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _appConfigFuture = AppConfig.load();
   }
 
-  Future<void> _copyCbu(String cbu) async {
-    await Clipboard.setData(ClipboardData(text: cbu));
+  void _showSnack(String message) {
     if (!mounted) return;
+    final text = message.trim();
+    if (text.isEmpty) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('CBU copiado.'),
+      SnackBar(
+        content: Text(text),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
+  Future<bool> _openExternalUri(
+    Uri uri, {
+    required String errorMessage,
+  }) async {
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) {
+        _showSnack(errorMessage);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PremiumScreen._openExternalUri error: $e');
+      _showSnack(errorMessage);
+      return false;
+    }
+  }
+
+  Future<void> _openCheckout(String url) async {
+    if (_checkoutInFlight) return;
+
+    final raw = url.trim();
+    final parsed = Uri.tryParse(raw);
+    final isValid =
+        parsed != null && (parsed.scheme == 'https' || parsed.scheme == 'http');
+
+    if (!isValid) {
+      _showSnack('Link de pago no configurado.');
+      return;
+    }
+
+    setState(() => _checkoutInFlight = true);
+    try {
+      await _openExternalUri(
+        parsed,
+        errorMessage: 'No se pudo abrir el link de pago.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _checkoutInFlight = false);
+      }
+    }
+  }
+
+  Future<void> _copyCbu(String cbu) async {
+    if (_copyInFlight) return;
+
+    final normalized = cbu.replaceAll(RegExp(r'\s+'), '').trim();
+    if (normalized.isEmpty) {
+      _showSnack('CBU no configurado.');
+      return;
+    }
+
+    setState(() => _copyInFlight = true);
+    try {
+      await Clipboard.setData(ClipboardData(text: normalized));
+      _showSnack('CBU copiado.');
+    } catch (e) {
+      debugPrint('PremiumScreen._copyCbu error: $e');
+      _showSnack('No se pudo copiar el CBU.');
+    } finally {
+      if (mounted) {
+        setState(() => _copyInFlight = false);
+      }
+    }
+  }
+
   Future<Uri?> _buildPaymentNoticeUri() async {
-    final cfg = await AppConfig.load();
+    AppConfig cfg;
+    try {
+      cfg = await _appConfigFuture;
+    } catch (e) {
+      debugPrint('PremiumScreen._buildPaymentNoticeUri config error: $e');
+      cfg = AppConfig.defaults();
+    }
+
     final email = cfg.contactEmail.trim();
     final whatsapp = cfg.contactWhatsApp.trim();
+
     if (whatsapp.isNotEmpty) {
       final digits = whatsapp.replaceAll(RegExp(r'[^0-9]'), '');
       if (digits.isNotEmpty) {
         return Uri.parse(
-          'https://wa.me/$digits?text=${Uri.encodeComponent('Hola, realicé un pago por suscripción Premium y quiero reportarlo para acreditación manual.')}',
+          'https://wa.me/$digits?text=${Uri.encodeComponent('Hola, realice un pago por suscripcion Premium y quiero reportarlo para acreditacion manual.')}',
         );
       }
     }
+
     if (email.isNotEmpty) {
-      return Uri.parse(
-        'mailto:$email?subject=${Uri.encodeComponent('Aviso de pago Premium')}&body=${Uri.encodeComponent('Hola, realicé un pago por transferencia y necesito acreditación manual.')}',
+      return Uri(
+        scheme: 'mailto',
+        path: email,
+        queryParameters: <String, String>{
+          'subject': 'Aviso de pago Premium',
+          'body':
+              'Hola, realice un pago por transferencia y necesito acreditacion manual.',
+        },
       );
     }
+
     return null;
   }
 
   Future<void> _openPaymentNotice() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final uri = await _buildPaymentNoticeUri();
-    if (uri == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('No hay canal de aviso configurado.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+    if (_paymentNoticeInFlight) return;
+
+    setState(() => _paymentNoticeInFlight = true);
+    try {
+      final uri = await _buildPaymentNoticeUri();
+      if (uri == null) {
+        _showSnack('No hay canal de aviso configurado.');
+        return;
+      }
+
+      await _openExternalUri(
+        uri,
+        errorMessage: 'No se pudo abrir el canal de aviso de pago.',
       );
-      return;
+    } finally {
+      if (mounted) {
+        setState(() => _paymentNoticeInFlight = false);
+      }
     }
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir el canal de aviso de pago.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+  }
+
+  Future<void> _signOut() async {
+    if (_signOutInFlight) return;
+
+    final navigator = Navigator.of(context);
+
+    setState(() => _signOutInFlight = true);
+    try {
+      await AuthService.I.signOut();
+      if (!mounted) return;
+      await navigator.maybePop();
+    } catch (e) {
+      debugPrint('PremiumScreen._signOut error: $e');
+      _showSnack('No se pudo cerrar sesion.');
+    } finally {
+      if (mounted) {
+        setState(() => _signOutInFlight = false);
+      }
     }
   }
 
@@ -99,12 +195,171 @@ class _PremiumScreenState extends State<PremiumScreen> {
     if (digits.length == 22) {
       return '${digits.substring(0, 8)} ${digits.substring(8)}';
     }
-    return raw;
+    return raw.trim();
+  }
+
+  List<Widget> _buildPaymentOptions(ThemeData theme) {
+    return [
+      const _SectionTitle(text: 'Mercado Pago'),
+      const SizedBox(height: 10),
+      _PayButton(
+        label: 'Pro mensual',
+        url: PremiumConfig.proMonthlyUrl,
+        busy: _checkoutInFlight,
+        onTap: _openCheckout,
+      ),
+      const SizedBox(height: 10),
+      _PayButton(
+        label: 'Equipos mensual',
+        url: PremiumConfig.teamsMonthlyUrl,
+        busy: _checkoutInFlight,
+        onTap: _openCheckout,
+      ),
+      const SizedBox(height: 10),
+      _PayButton(
+        label: 'Pro anual',
+        url: PremiumConfig.proAnnualUrl,
+        busy: _checkoutInFlight,
+        onTap: _openCheckout,
+      ),
+      const SizedBox(height: 10),
+      _PayButton(
+        label: 'Equipos anual',
+        url: PremiumConfig.teamsAnnualUrl,
+        busy: _checkoutInFlight,
+        onTap: _openCheckout,
+      ),
+      if (PremiumConfig.hasTransferCbu) ...[
+        const SizedBox(height: 24),
+        const _SectionTitle(text: 'Transferencia'),
+        const SizedBox(height: 8),
+        Text(
+          'CBU: ${_formatCbu(PremiumConfig.transferCbu)}',
+          style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed:
+              _copyInFlight ? null : () => _copyCbu(PremiumConfig.transferCbu),
+          icon: const Icon(Icons.copy_rounded),
+          label: Text(_copyInFlight ? 'Copiando...' : 'Copiar CBU'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'AcreditaciÃ³n manual (no automÃ¡tica).',
+          style: theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: _paymentNoticeInFlight ? null : _openPaymentNotice,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
+          child: Text(
+            _paymentNoticeInFlight ? 'Abriendo...' : 'Avisar pago',
+          ),
+        ),
+      ],
+    ];
+  }
+
+  Widget _buildSignedInBody(
+    BuildContext context,
+    ThemeData theme,
+    PremiumState state,
+  ) {
+    final trialEndsAt = state.trialEndsAt?.toLocal();
+    final user = AuthService.I.currentUser;
+    final signedIn = user != null;
+
+    final String statusText;
+    if (!signedIn) {
+      statusText = 'IniciÃ¡ sesiÃ³n para ver tu estado Premium';
+    } else if (state.isPremium) {
+      statusText = 'Premium activo';
+    } else if (state.premiumActive) {
+      statusText = 'Te quedan ${state.remainingTrialDays} dÃ­a(s) de prueba';
+    } else {
+      statusText = 'Prueba finalizada';
+    }
+
+    final String secondaryText;
+    if (!signedIn) {
+      secondaryText =
+          'NecesitÃ¡s una sesiÃ³n activa para consultar tu prueba o suscripciÃ³n.';
+    } else if (trialEndsAt == null) {
+      secondaryText = 'No hay fecha de finalizaciÃ³n de prueba registrada.';
+    } else {
+      secondaryText =
+          'Fin de prueba: ${trialEndsAt.day.toString().padLeft(2, '0')}/${trialEndsAt.month.toString().padLeft(2, '0')}/${trialEndsAt.year}';
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          statusText,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          secondaryText,
+          style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 4),
+        if (signedIn)
+          Text(
+            'Usuario: ${user.email ?? user.id}',
+            style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+          ),
+        const SizedBox(height: 22),
+        ..._buildPaymentOptions(theme),
+        if (signedIn) ...[
+          const SizedBox(height: 18),
+          TextButton.icon(
+            onPressed: _signOutInFlight ? null : _signOut,
+            icon: const Icon(Icons.logout_rounded),
+            label: Text(
+              _signOutInFlight ? 'Cerrando sesiÃ³n...' : 'Cerrar sesiÃ³n',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDemoBody(ThemeData theme) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Modo demo',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'La autenticaciÃ³n estÃ¡ desactivada temporalmente. El estado Premium por usuario no se evalÃºa en este modo.',
+          style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 22),
+        ..._buildPaymentOptions(theme),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Premium'),
@@ -114,155 +369,35 @@ class _PremiumScreenState extends State<PremiumScreen> {
               stream: PremiumService.I.watchCurrentUserPremium(),
               builder: (context, snapshot) {
                 final state = snapshot.data ?? PremiumState.signedOut();
-                final trialEndsAt = state.trialEndsAt?.toLocal();
-                final statusText = state.premiumActive
-                    ? (state.isPremium
-                        ? 'Premium activo'
-                        : 'Te quedan ${state.remainingTrialDays} día(s) de prueba')
-                    : 'Prueba finalizada';
-                final user = AuthService.I.currentUser;
 
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      statusText,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 24,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      trialEndsAt == null
-                          ? 'No hay fecha de finalización de prueba registrada.'
-                          : 'Fin de prueba: ${trialEndsAt.day.toString().padLeft(2, '0')}/${trialEndsAt.month.toString().padLeft(2, '0')}/${trialEndsAt.year}',
-                      style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    if (user != null)
+                if (snapshot.hasError) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
                       Text(
-                        'Usuario: ${user.email ?? user.id}',
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
+                        'No se pudo cargar el estado Premium',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 24,
+                        ),
                       ),
-                    const SizedBox(height: 22),
-                    const _SectionTitle(text: 'Mercado Pago'),
-                    const SizedBox(height: 10),
-                    _PayButton(
-                      label: 'Pro mensual',
-                      url: PremiumConfig.proMonthlyUrl,
-                      onTap: _openCheckout,
-                    ),
-                    const SizedBox(height: 10),
-                    _PayButton(
-                      label: 'Equipos mensual',
-                      url: PremiumConfig.teamsMonthlyUrl,
-                      onTap: _openCheckout,
-                    ),
-                    const SizedBox(height: 10),
-                    _PayButton(
-                      label: 'Pro anual',
-                      url: PremiumConfig.proAnnualUrl,
-                      onTap: _openCheckout,
-                    ),
-                    const SizedBox(height: 10),
-                    _PayButton(
-                      label: 'Equipos anual',
-                      url: PremiumConfig.teamsAnnualUrl,
-                      onTap: _openCheckout,
-                    ),
-                    if (PremiumConfig.hasTransferCbu) ...[
-                      const SizedBox(height: 24),
-                      const _SectionTitle(text: 'Transferencia'),
                       const SizedBox(height: 8),
                       Text(
-                        'CBU: ${_formatCbu(PremiumConfig.transferCbu)}',
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => _copyCbu(PremiumConfig.transferCbu),
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('Copiar CBU'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
+                        'Aun asÃ­ podÃ©s usar los enlaces de pago o avisar una transferencia manual.',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontSize: 16,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Acreditación manual (no automática).',
-                        style:
-                            theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
-                      ),
-                      const SizedBox(height: 10),
-                      FilledButton(
-                        onPressed: _openPaymentNotice,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: const Text('Avisar pago'),
-                      ),
+                      const SizedBox(height: 22),
+                      ..._buildPaymentOptions(theme),
                     ],
-                    const SizedBox(height: 18),
-                    TextButton.icon(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        await AuthService.I.signOut();
-                        if (!mounted) return;
-                        navigator.maybePop();
-                      },
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Cerrar sesión'),
-                    ),
-                  ],
-                );
+                  );
+                }
+
+                return _buildSignedInBody(context, theme, state);
               },
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  'Modo demo',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 24,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'La autenticación está desactivada temporalmente. El estado Premium por usuario no se evalúa en este modo.',
-                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                ),
-                const SizedBox(height: 22),
-                const _SectionTitle(text: 'Mercado Pago'),
-                const SizedBox(height: 10),
-                _PayButton(
-                  label: 'Pro mensual',
-                  url: PremiumConfig.proMonthlyUrl,
-                  onTap: _openCheckout,
-                ),
-                const SizedBox(height: 10),
-                _PayButton(
-                  label: 'Equipos mensual',
-                  url: PremiumConfig.teamsMonthlyUrl,
-                  onTap: _openCheckout,
-                ),
-                const SizedBox(height: 10),
-                _PayButton(
-                  label: 'Pro anual',
-                  url: PremiumConfig.proAnnualUrl,
-                  onTap: _openCheckout,
-                ),
-                const SizedBox(height: 10),
-                _PayButton(
-                  label: 'Equipos anual',
-                  url: PremiumConfig.teamsAnnualUrl,
-                  onTap: _openCheckout,
-                ),
-              ],
-            ),
+          : _buildDemoBody(theme),
     );
   }
 }
@@ -272,20 +407,29 @@ class _PayButton extends StatelessWidget {
     required this.label,
     required this.url,
     required this.onTap,
+    this.busy = false,
   });
 
   final String label;
   final String url;
   final Future<void> Function(String) onTap;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final hasUrl = url.trim().isNotEmpty;
+
     return FilledButton(
-      onPressed: hasUrl ? () => onTap(url) : null,
-      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      onPressed: hasUrl && !busy ? () => onTap(url) : null,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(48),
+      ),
       child: Text(
-        hasUrl ? 'Pagar $label' : '$label - Link no configurado',
+        !hasUrl
+            ? '$label Â· Link no configurado'
+            : busy
+                ? 'Abriendo...'
+                : 'Pagar $label',
         style: const TextStyle(fontSize: 16),
       ),
     );
@@ -301,12 +445,10 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: Theme.of(
-        context,
-      )
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w700, fontSize: 19),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 19,
+          ),
     );
   }
 }
