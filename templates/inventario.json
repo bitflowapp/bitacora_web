@@ -1,0 +1,12 @@
+﻿{
+  "slug": "inventario",
+  "name": "Inventario",
+  "sheetName": "Inventario Operativo",
+  "headers": ["SKU", "Item", "Cantidad", "Minimo", "Unidad", "Ubicacion", "Estado"],
+  "rows": [
+    ["MAT-001", "Cemento", "35", "20", "bolsas", "Deposito A", "=IF(C1<D1, \"CHECK\", \"OK\")"],
+    ["MAT-014", "Hierro 8mm", "120", "80", "u", "Deposito B", "=IF(C2<D2, \"CHECK\", \"OK\")"],
+    ["MAT-032", "Arena", "18", "10", "m3", "Patio", "=IF(C3<D3, \"CHECK\", \"OK\")"],
+    ["EPP-010", "Cascos", "24", "30", "u", "Oficina", "=IF(C4<D4, \"CHECK\", \"OK\")"]
+  ]
+}

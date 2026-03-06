@@ -226,6 +226,17 @@ class _EditorScreenState extends State<EditorScreen>
   List<int> _displayColumnsCache = const <int>[];
   Map<int, int> _displayIndexByActualCache = const <int, int>{};
   late List<_RowModel> _rows;
+  final FormulaEngine _formulaEngine = const FormulaEngine();
+  final Map<_CellRef, String> _formulaDisplayValues = <_CellRef, String>{};
+  final Map<_CellRef, ParsedFormula> _formulaParsedByCell =
+      <_CellRef, ParsedFormula>{};
+  final Set<_CellRef> _invalidFormulaCells = <_CellRef>{};
+  final Map<_CellRef, Set<_CellRef>> _formulaDependenciesByCell =
+      <_CellRef, Set<_CellRef>>{};
+  final Map<_CellRef, Set<_CellRef>> _formulaDependentsByCell =
+      <_CellRef, Set<_CellRef>>{};
+  final Set<_CellRef> _pendingFormulaSeeds = <_CellRef>{};
+  bool _formulaGraphDirty = true;
 
   bool _isLight = true;
   bool _isDirty = false;
@@ -567,6 +578,8 @@ class _EditorScreenState extends State<EditorScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _mobileFocus.addListener(_handleMobileFocusChange);
+    BitFlowProductService.I.features.entitlement
+        .addListener(_handleEntitlementChanged);
     _kbController.attach();
     _kbController.kbInsetDp.addListener(_handleKbInsetChanged);
     if (kIsWeb) {
@@ -616,6 +629,7 @@ class _EditorScreenState extends State<EditorScreen>
       ..clear()
       ..add(_selRow);
     _rowSelectionAnchor = _selRow;
+    _refreshFormulaCaches();
     _syncRowVersionNotifiers();
     _resetMobileRowCaches();
     _scheduleValidationRecompute(immediate: true);
@@ -698,7 +712,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
     if (webCaps?.privateModeLikely == true) {
       _showActionSnack(
-        'Modo temporal detectado: al recargar o cerrar la pestaña podrías perder adjuntos. Exportá ZIP para conservar.',
+        'Modo temporal detectado: al recargar o cerrar la pestaÃ±a podrÃ­as perder adjuntos. ExportÃ¡ ZIP para conservar.',
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -727,6 +741,8 @@ class _EditorScreenState extends State<EditorScreen>
     _isDisposing = true;
 
     WidgetsBinding.instance.removeObserver(this);
+    BitFlowProductService.I.features.entitlement
+        .removeListener(_handleEntitlementChanged);
     _saveT?.cancel();
     _autosavePulseT?.cancel();
     _validationDebounceT?.cancel();
@@ -799,6 +815,13 @@ class _EditorScreenState extends State<EditorScreen>
     if (_mobileEditingHeader || _mobileRow >= 0) {
       _debouncedEnsureRowVisible(targetRow);
     }
+  }
+
+  void _handleEntitlementChanged() {
+    if (!mounted || _isDisposing) return;
+    setState(() {
+      _refreshFormulaCaches(notifyRows: true);
+    });
   }
 
   void _setMobileTopBarCollapsed(bool collapsed) {
@@ -1487,6 +1510,8 @@ class _EditorScreenState extends State<EditorScreen>
       _lastSavedRev = 0;
       _savePending = false;
     });
+    _pendingFormulaSeeds.clear();
+    _refreshFormulaCaches();
     _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
@@ -1699,6 +1724,7 @@ class _EditorScreenState extends State<EditorScreen>
         _isDirty = _rev != _lastSavedRev;
       });
       _updateSaveStatus();
+      unawaited(BitFlowProductService.I.handleLocalSheetSaved(widget.sheetId));
       await _clearSavedEditPending();
       if (_saveHapticPending) {
         AppHaptics.success();
@@ -1719,7 +1745,7 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.save,
         operation: 'save_local',
         fallbackMessage:
-            'No pudimos guardar los cambios. Revisá tu conexión o almacenamiento local e intentá otra vez.',
+            'No pudimos guardar los cambios. RevisÃ¡ tu conexiÃ³n o almacenamiento local e intentÃ¡ otra vez.',
         stackTrace: st,
         icon: Icons.save_outlined,
       );
@@ -1773,8 +1799,8 @@ class _EditorScreenState extends State<EditorScreen>
           title: const Text('Cambios sin guardar'),
           content: Text(
             _saving
-                ? 'Hay un guardado en curso. ¿Qué querés hacer?'
-                : 'Tenés cambios sin guardar. ¿Qué querés hacer antes de salir?',
+                ? 'Hay un guardado en curso. Â¿QuÃ© querÃ©s hacer?'
+                : 'TenÃ©s cambios sin guardar. Â¿QuÃ© querÃ©s hacer antes de salir?',
           ),
           actions: [
             TextButton(
@@ -1835,7 +1861,7 @@ class _EditorScreenState extends State<EditorScreen>
       final stillDirty = _hasUnsavedWork;
       if (stillDirty || !_lastSaveSucceeded) {
         _showActionSnack(
-          'No se pudo cerrar porque todavía hay cambios sin guardar.',
+          'No se pudo cerrar porque todavÃ­a hay cambios sin guardar.',
           isError: true,
           icon: Icons.warning_amber_rounded,
         );
@@ -1884,6 +1910,11 @@ class _EditorScreenState extends State<EditorScreen>
       );
 
   void _pushUndoSnapshot() {
+    final seeds = _pendingFormulaSeeds.isEmpty
+        ? null
+        : Set<_CellRef>.from(_pendingFormulaSeeds);
+    _refreshFormulaCaches(changedSeeds: seeds);
+    _pendingFormulaSeeds.clear();
     _undo.add(_snapshot());
     if (_undo.length > kMaxUndo) _undo.removeAt(0);
     _redo.clear();
@@ -1930,6 +1961,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+    _refreshFormulaCaches(notifyRows: true);
     _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
@@ -1984,6 +2016,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty = true;
       _rev++;
     });
+    _refreshFormulaCaches(notifyRows: true);
     _syncRowVersionNotifiers();
     _updateSaveStatus();
     _syncSelectionController();
@@ -3237,7 +3270,7 @@ class _EditorScreenState extends State<EditorScreen>
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Nombre',
-                  hintText: 'Ej: Revisión urgente',
+                  hintText: 'Ej: RevisiÃ³n urgente',
                 ),
               ),
               const SizedBox(height: 10),
@@ -4141,7 +4174,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == '1' ||
         value == 'true' ||
         value == 'si' ||
-        value == 'sí' ||
+        value == 'sÃ­' ||
         value == 'ok' ||
         value == 'x') {
       return true;
@@ -4155,6 +4188,7 @@ class _EditorScreenState extends State<EditorScreen>
   String _normalizeCellValueForColumn(int c, String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return trimmed;
+    if (_isFormulaText(trimmed)) return trimmed;
     final type = _colType(c);
     switch (type) {
       case _ColType.status:
@@ -4226,6 +4260,10 @@ class _EditorScreenState extends State<EditorScreen>
     required String rawValue,
   }) {
     if (col < 0 || col >= _headers.length - 1) return null;
+    if (_isFormulaText(rawValue)) {
+      final parsed = _formulaEngine.tryParse(rawValue);
+      return parsed == null ? 'Formula invalida' : null;
+    }
     if (_colType(col) == _ColType.checkbox) {
       final value = rawValue.trim();
       if (value.isEmpty && _isRequired(col)) return 'Campo requerido';
@@ -4566,11 +4604,318 @@ class _EditorScreenState extends State<EditorScreen>
     return _draftCells[_CellRef(r, c)] ?? _rows[r].cells[c];
   }
 
+  bool _isFormulaText(String raw) => FormulaEngine.isFormula(raw);
+
+  String _displayCellValue(int r, int c) {
+    if (r < 0 || r >= _rows.length) return '';
+    if (c < 0 || c >= _headers.length) return '';
+    final ref = _CellRef(r, c);
+    if (_draftCells.containsKey(ref)) {
+      return _draftCells[ref] ?? '';
+    }
+    final raw = _rows[r].cells[c];
+    if (!_isFormulaText(raw)) return raw;
+    return _formulaDisplayValues[ref] ?? FormulaEngine.errorValue;
+  }
+
+  bool _isEditableCellAddress(FormulaCellAddress cell) {
+    if (cell.row < 0 || cell.row >= _rows.length) return false;
+    if (cell.col < 0 || cell.col >= _headers.length - 1) return false;
+    return true;
+  }
+
+  bool _isEditableFormulaCellRef(_CellRef ref) {
+    if (ref.r < 0 || ref.r >= _rows.length) return false;
+    if (ref.c < 0 || ref.c >= _headers.length - 1) return false;
+    return true;
+  }
+
+  bool _isTrackedFormulaCell(_CellRef ref) =>
+      _formulaParsedByCell.containsKey(ref) ||
+      _invalidFormulaCells.contains(ref);
+
+  void _markFormulaGraphDirty() {
+    _formulaGraphDirty = true;
+  }
+
+  void _rebuildFormulaGraph() {
+    _formulaParsedByCell.clear();
+    _invalidFormulaCells.clear();
+    _formulaDependenciesByCell.clear();
+    _formulaDependentsByCell.clear();
+
+    for (int r = 0; r < _rows.length; r++) {
+      for (int c = 0; c < _headers.length - 1; c++) {
+        final ref = _CellRef(r, c);
+        _syncFormulaGraphForCell(ref);
+      }
+    }
+    _formulaGraphDirty = false;
+  }
+
+  void _syncFormulaGraphForSeeds(Set<_CellRef> changedSeeds) {
+    for (final ref in changedSeeds) {
+      _syncFormulaGraphForCell(ref);
+    }
+  }
+
+  void _syncFormulaGraphForCell(_CellRef ref) {
+    _removeFormulaNode(ref);
+    if (!_isEditableFormulaCellRef(ref)) return;
+
+    final raw = _rows[ref.r].cells[ref.c];
+    if (!_isFormulaText(raw)) return;
+
+    final parsed = _formulaEngine.tryParse(raw);
+    if (parsed == null) {
+      _invalidFormulaCells.add(ref);
+      return;
+    }
+
+    _formulaParsedByCell[ref] = parsed;
+    final dependencies = <_CellRef>{};
+    for (final dependency in parsed.references) {
+      if (!_isEditableCellAddress(dependency)) continue;
+      final depRef = _CellRef(dependency.row, dependency.col);
+      dependencies.add(depRef);
+      _formulaDependentsByCell.putIfAbsent(depRef, () => <_CellRef>{}).add(ref);
+    }
+    _formulaDependenciesByCell[ref] = dependencies;
+  }
+
+  void _removeFormulaNode(_CellRef ref) {
+    final previousDependencies = _formulaDependenciesByCell.remove(ref);
+    if (previousDependencies != null) {
+      for (final dependency in previousDependencies) {
+        final dependents = _formulaDependentsByCell[dependency];
+        if (dependents == null) continue;
+        dependents.remove(ref);
+        if (dependents.isEmpty) {
+          _formulaDependentsByCell.remove(dependency);
+        }
+      }
+    }
+    _formulaParsedByCell.remove(ref);
+    _invalidFormulaCells.remove(ref);
+  }
+
+  Set<_CellRef> _collectAffectedFormulaCells(Set<_CellRef>? changedSeeds) {
+    final allFormulaCells = <_CellRef>{
+      ..._formulaParsedByCell.keys,
+      ..._invalidFormulaCells,
+    };
+    if (changedSeeds == null || changedSeeds.isEmpty) {
+      return allFormulaCells;
+    }
+
+    final affected = <_CellRef>{};
+    final queue = Queue<_CellRef>();
+    final visited = <_CellRef>{};
+    for (final seed in changedSeeds) {
+      queue.add(seed);
+      visited.add(seed);
+    }
+
+    while (queue.isNotEmpty) {
+      final current = queue.removeFirst();
+      if (_isTrackedFormulaCell(current)) {
+        affected.add(current);
+      }
+      final dependents = _formulaDependentsByCell[current];
+      if (dependents == null || dependents.isEmpty) continue;
+      for (final dependent in dependents) {
+        affected.add(dependent);
+        if (visited.add(dependent)) {
+          queue.add(dependent);
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  ({List<_CellRef> ordered, Set<_CellRef> cycles}) _formulaEvaluationOrder(
+    Set<_CellRef> formulaCells,
+  ) {
+    if (formulaCells.isEmpty) {
+      return (ordered: const <_CellRef>[], cycles: const <_CellRef>{});
+    }
+
+    final orderedCells = formulaCells.toList(growable: false)
+      ..sort((a, b) {
+        final byRow = a.r.compareTo(b.r);
+        if (byRow != 0) return byRow;
+        return a.c.compareTo(b.c);
+      });
+
+    final indegree = <_CellRef, int>{
+      for (final ref in orderedCells) ref: 0,
+    };
+    for (final ref in orderedCells) {
+      if (_invalidFormulaCells.contains(ref)) continue;
+      final dependencies =
+          _formulaDependenciesByCell[ref] ?? const <_CellRef>{};
+      for (final dependency in dependencies) {
+        if (!formulaCells.contains(dependency)) continue;
+        if (!_isTrackedFormulaCell(dependency)) continue;
+        indegree[ref] = (indegree[ref] ?? 0) + 1;
+      }
+    }
+
+    final queue = Queue<_CellRef>();
+    for (final ref in orderedCells) {
+      if ((indegree[ref] ?? 0) == 0) {
+        queue.add(ref);
+      }
+    }
+
+    final ordered = <_CellRef>[];
+    final processed = <_CellRef>{};
+    while (queue.isNotEmpty) {
+      final current = queue.removeFirst();
+      if (!processed.add(current)) continue;
+      ordered.add(current);
+
+      final dependents = _formulaDependentsByCell[current];
+      if (dependents == null || dependents.isEmpty) continue;
+      final sortedDependents = dependents.toList(growable: false)
+        ..sort((a, b) {
+          final byRow = a.r.compareTo(b.r);
+          if (byRow != 0) return byRow;
+          return a.c.compareTo(b.c);
+        });
+      for (final dependent in sortedDependents) {
+        if (!formulaCells.contains(dependent)) continue;
+        final nextInDegree = (indegree[dependent] ?? 0) - 1;
+        indegree[dependent] = nextInDegree;
+        if (nextInDegree == 0) {
+          queue.add(dependent);
+        }
+      }
+    }
+
+    final cycles = formulaCells.difference(processed);
+    return (ordered: ordered, cycles: cycles);
+  }
+
+  void _refreshFormulaCaches({
+    Set<_CellRef>? changedSeeds,
+    bool notifyRows = false,
+  }) {
+    final previousValues = Map<_CellRef, String>.from(_formulaDisplayValues);
+    final requiresFullRefresh =
+        _formulaGraphDirty || changedSeeds == null || changedSeeds.isEmpty;
+    if (requiresFullRefresh) {
+      _rebuildFormulaGraph();
+      changedSeeds = null;
+    } else {
+      _syncFormulaGraphForSeeds(changedSeeds);
+    }
+
+    final allFormulaCells = <_CellRef>{
+      ..._formulaParsedByCell.keys,
+      ..._invalidFormulaCells,
+    };
+    final targetFormulaCells = _collectAffectedFormulaCells(changedSeeds);
+
+    final nextValues = <_CellRef, String>{};
+    for (final entry in previousValues.entries) {
+      if (allFormulaCells.contains(entry.key)) {
+        nextValues[entry.key] = entry.value;
+      }
+    }
+
+    final evaluationOrder = _formulaEvaluationOrder(targetFormulaCells);
+    final resolvedValues = <_CellRef, String>{};
+    for (final cycle in evaluationOrder.cycles) {
+      resolvedValues[cycle] = FormulaErrors.cycle;
+    }
+
+    for (final formulaCell in evaluationOrder.ordered) {
+      if (_invalidFormulaCells.contains(formulaCell)) {
+        resolvedValues[formulaCell] = FormulaEngine.errorValue;
+        continue;
+      }
+
+      final parsed = _formulaParsedByCell[formulaCell];
+      if (parsed == null) {
+        resolvedValues[formulaCell] = FormulaEngine.errorValue;
+        continue;
+      }
+
+      if (!BitFlowProductService.I.features.isFormulaAllowed(parsed.source)) {
+        resolvedValues[formulaCell] = FormulaErrors.pro;
+        continue;
+      }
+
+      final result = _formulaEngine.evaluateParsed(
+        parsed,
+        readCell: (cell) {
+          if (!_isEditableCellAddress(cell)) return FormulaErrors.ref;
+          final dependencyRef = _CellRef(cell.row, cell.col);
+          final resolved = resolvedValues[dependencyRef];
+          if (resolved != null) return resolved;
+          if (_isTrackedFormulaCell(dependencyRef)) {
+            return _formulaDisplayValues[dependencyRef] ??
+                FormulaEngine.errorValue;
+          }
+          return _rows[cell.row].cells[cell.col];
+        },
+        isCellAvailable: _isEditableCellAddress,
+      );
+      resolvedValues[formulaCell] = result.hasError
+          ? (result.error ?? FormulaEngine.errorValue)
+          : _formulaEngine.formatValue(result.value);
+    }
+
+    for (final entry in resolvedValues.entries) {
+      nextValues[entry.key] = entry.value;
+    }
+
+    _formulaDisplayValues
+      ..clear()
+      ..addAll(nextValues);
+
+    if (!notifyRows) return;
+
+    final changedRows = <String>{};
+    final keys = <_CellRef>{
+      ...previousValues.keys,
+      ..._formulaDisplayValues.keys,
+    };
+    for (final key in keys) {
+      if (previousValues[key] == _formulaDisplayValues[key]) continue;
+      if (key.r < 0 || key.r >= _rows.length) continue;
+      changedRows.add(_rows[key.r].id);
+    }
+    for (final rowId in changedRows) {
+      _bumpRowVersionById(rowId);
+    }
+  }
+
+  List<FormulaAutocompleteSuggestion> _formulaAutocompleteSuggestions(
+    String raw,
+  ) {
+    return _formulaEngine.suggestFunctions(raw, limit: 8);
+  }
+
+  void _applyFormulaSuggestion(
+    TextEditingController controller,
+    FormulaAutocompleteSuggestion suggestion,
+  ) {
+    final nextText = suggestion.apply(controller.text);
+    final offset = suggestion.selectionOffset.clamp(0, nextText.length);
+    controller.value = controller.value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: offset),
+      composing: TextRange.empty,
+    );
+  }
+
   void _setDraftHeader(int c, String value) {
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
-    final hadPendingDrafts =
-        _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
+    final hadPendingDrafts = _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
 
     final existing = _draftHeaders[c];
     if (existing == value) return;
@@ -4594,8 +4939,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
     if (c == _headers.length - 1) return;
-    final hadPendingDrafts =
-        _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
+    final hadPendingDrafts = _draftHeaders.isNotEmpty || _draftCells.isNotEmpty;
 
     final rowId = _rows[r].id;
     final ref = _CellRef(r, c);
@@ -4658,6 +5002,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _rows[r].cells[c] = next;
     _draftCells.remove(ref);
+    _pendingFormulaSeeds.add(ref);
     _markDirty(snapshot: true);
     _bumpRowVersionById(rowId);
   }
@@ -4908,8 +5253,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isDirty || _savePending || _saving || _hasPendingDraftChanges;
 
   void _updateSaveStatus() {
-    final hasUnsavedWork =
-        _isDirty || _savePending || _hasPendingDraftChanges;
+    final hasUnsavedWork = _isDirty || _savePending || _hasPendingDraftChanges;
     final state = _saving
         ? EditorSaveState.saving
         : (hasUnsavedWork
@@ -6820,7 +7164,7 @@ class _EditorScreenState extends State<EditorScreen>
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             return AlertDialog(
-              title: const Text('Ir a…'),
+              title: const Text('Ir aâ€¦'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -8437,7 +8781,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (inserted == null) return;
     _addHistoryEvent(
       type: 'quick_capture',
-      message: 'Captura rápida en fila ${inserted.rowIndex + 1}',
+      message: 'Captura rÃ¡pida en fila ${inserted.rowIndex + 1}',
       origin: 'quick_capture',
       row: inserted.rowIndex,
     );
@@ -8504,7 +8848,7 @@ class _EditorScreenState extends State<EditorScreen>
     final current = _longOperation;
     if (current != null && !current.cancelRequested) {
       _showActionSnack(
-        'Ya hay una operación en curso. Esperá a que termine o cancelala.',
+        'Ya hay una operaciÃ³n en curso. EsperÃ¡ a que termine o cancelala.',
         isError: false,
         icon: Icons.hourglass_top_rounded,
       );
@@ -8875,20 +9219,20 @@ class _EditorScreenState extends State<EditorScreen>
     }
     final storageMessage = switch (mapping.storageVariant) {
       'quota_exceeded' => 'Espacio local del navegador agotado',
-      'storage_session_only' => 'Modo temporal/incógnito del navegador',
+      'storage_session_only' => 'Modo temporal/incÃ³gnito del navegador',
       'storage_blocked' => 'Guardado local bloqueado por el navegador',
       'unknown_storage_error' => 'Guardado local temporal',
       _ => 'Modo temporal del navegador',
     };
     final snackMessage = switch (mapping.snackVariant) {
       'quota_exceeded' =>
-        'Espacio local agotado para $kindLabel. Exportá ZIP y liberá almacenamiento del sitio antes de seguir.',
+        'Espacio local agotado para $kindLabel. ExportÃ¡ ZIP y liberÃ¡ almacenamiento del sitio antes de seguir.',
       'storage_session_only' =>
-        'Guardado temporal para $kindLabel: el navegador está en modo temporal/incógnito. Exportá ZIP antes de cerrar.',
+        'Guardado temporal para $kindLabel: el navegador estÃ¡ en modo temporal/incÃ³gnito. ExportÃ¡ ZIP antes de cerrar.',
       'storage_blocked' =>
-        'Guardado local bloqueado para $kindLabel. Revisá permisos del sitio o exportá ZIP para conservar.',
+        'Guardado local bloqueado para $kindLabel. RevisÃ¡ permisos del sitio o exportÃ¡ ZIP para conservar.',
       _ =>
-        'Guardado temporal para $kindLabel: si cerrás o recargás podrías perder adjuntos. Exportá ZIP para conservar.',
+        'Guardado temporal para $kindLabel: si cerrÃ¡s o recargÃ¡s podrÃ­as perder adjuntos. ExportÃ¡ ZIP para conservar.',
     };
     if (mounted) {
       setState(() {
@@ -9273,1337 +9617,1359 @@ class _EditorScreenState extends State<EditorScreen>
                 unawaited(_handleEditorPopGuard(didPop: didPop));
               },
               child: AppScaffold(
-              resizeToAvoidBottomInset: false, // clave iOS Web
-              backgroundColor: pal.bg,
-              appBar: null,
-              body: SafeArea(
-                bottom: false,
-                child: Stack(
-                  children: [
-                    if (pal.isLight)
-                      Positioned.fill(child: _WarmBackdrop(palette: pal)),
-                    Padding(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        children: [
-                          if (isDesktop)
-                            (_zenModeEnabled
-                                ? const SizedBox.shrink()
-                                : RepaintBoundary(
-                                    child: _PremiumAppleHeader(
-                                      palette: pal,
-                                      titleController: _nameEC,
-                                      titleFocus: _nameFocus,
-                                      controller: _controller,
-                                      onTitleChanged: _onTitleChangedDebounced,
-                                      onToggleTheme: _toggleTheme,
-                                      onUndo: _undoOnce,
-                                      onRedo: _redoOnce,
-                                      onAddRow: () => unawaited(
-                                        _createNewRecordAction(
-                                          origin: 'toolbar',
+                resizeToAvoidBottomInset: false, // clave iOS Web
+                backgroundColor: pal.bg,
+                appBar: null,
+                body: SafeArea(
+                  bottom: false,
+                  child: Stack(
+                    children: [
+                      if (pal.isLight)
+                        Positioned.fill(child: _WarmBackdrop(palette: pal)),
+                      Padding(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            if (isDesktop)
+                              (_zenModeEnabled
+                                  ? const SizedBox.shrink()
+                                  : RepaintBoundary(
+                                      child: _PremiumAppleHeader(
+                                        palette: pal,
+                                        titleController: _nameEC,
+                                        titleFocus: _nameFocus,
+                                        controller: _controller,
+                                        onTitleChanged:
+                                            _onTitleChangedDebounced,
+                                        onToggleTheme: _toggleTheme,
+                                        onUndo: _undoOnce,
+                                        onRedo: _redoOnce,
+                                        onAddRow: () => unawaited(
+                                          _createNewRecordAction(
+                                            origin: 'toolbar',
+                                          ),
                                         ),
-                                      ),
-                                      onQuickCapture: () =>
-                                          unawaited(_startQuickCaptureFlow()),
-                                      onForm: () => unawaited(
-                                        _openRowFormMode(
-                                          rowIndex: _selRow,
-                                          createNew: false,
+                                        onQuickCapture: () =>
+                                            unawaited(_startQuickCaptureFlow()),
+                                        onForm: () => unawaited(
+                                          _openRowFormMode(
+                                            rowIndex: _selRow,
+                                            createNew: false,
+                                          ),
                                         ),
+                                        onSearch: () =>
+                                            unawaited(_openSearchDialog()),
+                                        onSearchEverywhere: () => unawaited(
+                                            _openSearchEverywhereDialog()),
+                                        onJumpTo: () =>
+                                            unawaited(_openJumpToDialog()),
+                                        onColumns: () =>
+                                            unawaited(_openColumnPanel()),
+                                        onHistory: () =>
+                                            unawaited(_openHistoryPanel()),
+                                        onSaveView: () =>
+                                            unawaited(_openSaveViewDialog()),
+                                        onSelectView: (viewId) =>
+                                            unawaited(_applySavedView(viewId)),
+                                        onManageViews: () =>
+                                            unawaited(_openSavedViewsManager()),
+                                        onMarkReviewed: () => unawaited(
+                                            _markSelectedRowsReviewed()),
+                                        onTogglePendingReviewView:
+                                            _togglePendingReviewView,
+                                        onSave: () =>
+                                            unawaited(_saveNowFromUserAction()),
+                                        onExport: () =>
+                                            unawaited(_openExportMenu()),
+                                        onSmokeTest: () => unawaited(
+                                            _runAttachmentSmokeTest()),
+                                        onCompute: _engineBusy
+                                            ? null
+                                            : () => unawaited(_computeEngine()),
+                                        onBatch: () =>
+                                            unawaited(_openBatchActionsSheet()),
+                                        onGps: () =>
+                                            unawaited(_runGpsForSelection()),
+                                        onPhoto: () =>
+                                            unawaited(_runPhotoForSelection()),
+                                        onVideo: () =>
+                                            unawaited(_runVideoForSelection()),
+                                        onAudio: () =>
+                                            unawaited(_runAudioForSelection()),
+                                        onFile: () =>
+                                            unawaited(_runFileForSelection()),
+                                        onAttachments: () => unawaited(
+                                          _runOpenAttachmentsForSelection(),
+                                        ),
+                                        onShare: () => unawaited(
+                                            _exportZipBundle(share: true)),
+                                        onCollaborate: () => unawaited(
+                                            _openCollaborateFlowDialog()),
+                                        onPalette: () =>
+                                            unawaited(_openCommandPalette()),
+                                        onGpsMode: () =>
+                                            unawaited(_showGpsModePicker()),
+                                        onDensity: () =>
+                                            unawaited(_showDensityPicker()),
+                                        onOpenOfflineQueue:
+                                            _openOfflineQueueDialog,
+                                        lastLocalSavedAt: _lastSavedAt,
+                                        sensorsEnabled: sensorsEnabled,
+                                        selectedRow: _selRow,
+                                        selectedCol: _selCol,
+                                        selectedRowsCount: _selectedRows.length,
+                                        pendingOfflineCount:
+                                            _pendingOfflineCount,
+                                        outboxPendingCount: _outboxQueuedCount,
+                                        outboxErrorCount: _outboxErrorCount,
+                                        errorsCount: _invalidCells.length,
+                                        savedViews: _savedViews,
+                                        activeViewId: _activeSavedViewId,
+                                        pendingReviewViewActive:
+                                            _reviewFilterMode ==
+                                                _ReviewFilterMode.pending,
                                       ),
-                                      onSearch: () =>
-                                          unawaited(_openSearchDialog()),
-                                      onSearchEverywhere: () => unawaited(
-                                          _openSearchEverywhereDialog()),
-                                      onJumpTo: () =>
-                                          unawaited(_openJumpToDialog()),
-                                      onColumns: () =>
-                                          unawaited(_openColumnPanel()),
-                                      onHistory: () =>
-                                          unawaited(_openHistoryPanel()),
-                                      onSaveView: () =>
-                                          unawaited(_openSaveViewDialog()),
-                                      onSelectView: (viewId) =>
-                                          unawaited(_applySavedView(viewId)),
-                                      onManageViews: () =>
-                                          unawaited(_openSavedViewsManager()),
-                                      onMarkReviewed: () => unawaited(
-                                          _markSelectedRowsReviewed()),
-                                      onTogglePendingReviewView:
-                                          _togglePendingReviewView,
-                                      onSave: () =>
-                                          unawaited(_saveNowFromUserAction()),
-                                      onExport: () =>
-                                          unawaited(_openExportMenu()),
-                                      onSmokeTest: () =>
-                                          unawaited(_runAttachmentSmokeTest()),
-                                      onCompute: _engineBusy
-                                          ? null
-                                          : () => unawaited(_computeEngine()),
-                                      onBatch: () =>
-                                          unawaited(_openBatchActionsSheet()),
-                                      onGps: () =>
-                                          unawaited(_runGpsForSelection()),
-                                      onPhoto: () =>
-                                          unawaited(_runPhotoForSelection()),
-                                      onVideo: () =>
-                                          unawaited(_runVideoForSelection()),
-                                      onAudio: () =>
-                                          unawaited(_runAudioForSelection()),
-                                      onFile: () =>
-                                          unawaited(_runFileForSelection()),
-                                      onAttachments: () => unawaited(
-                                        _runOpenAttachmentsForSelection(),
-                                      ),
-                                      onShare: () => unawaited(
-                                          _exportZipBundle(share: true)),
-                                      onCollaborate: () => unawaited(
-                                          _openCollaborateFlowDialog()),
-                                      onPalette: () =>
-                                          unawaited(_openCommandPalette()),
-                                      onGpsMode: () =>
-                                          unawaited(_showGpsModePicker()),
-                                      onDensity: () =>
-                                          unawaited(_showDensityPicker()),
-                                      onOpenOfflineQueue:
-                                          _openOfflineQueueDialog,
-                                      lastLocalSavedAt: _lastSavedAt,
-                                      sensorsEnabled: sensorsEnabled,
-                                      selectedRow: _selRow,
-                                      selectedCol: _selCol,
-                                      selectedRowsCount: _selectedRows.length,
-                                      pendingOfflineCount: _pendingOfflineCount,
-                                      outboxPendingCount: _outboxQueuedCount,
-                                      outboxErrorCount: _outboxErrorCount,
-                                      errorsCount: _invalidCells.length,
-                                      savedViews: _savedViews,
-                                      activeViewId: _activeSavedViewId,
-                                      pendingReviewViewActive:
-                                          _reviewFilterMode ==
-                                              _ReviewFilterMode.pending,
-                                    ),
-                                  ))
-                          else
-                            AnimatedCrossFade(
-                              duration: AppMotion.quick,
-                              firstCurve: AppMotion.standardOut,
-                              secondCurve: AppMotion.standardIn,
-                              sizeCurve: AppMotion.standardOut,
-                              crossFadeState: _zenModeEnabled ||
-                                      autoCollapsedTopChrome ||
-                                      (_mobileCompactModeEnabled &&
-                                          _mobileTopBarCollapsed)
-                                  ? CrossFadeState.showSecond
-                                  : CrossFadeState.showFirst,
-                              firstChild: RepaintBoundary(
-                                child: _MobileCompactHeader(
-                                  palette: pal,
-                                  title: _sheetName,
-                                  controller: _controller,
-                                  pendingRequired: _invalidCells.length,
-                                  pendingOfflineCount: _pendingOfflineCount,
-                                  outboxPendingCount: _outboxQueuedCount,
-                                  outboxErrorCount: _outboxErrorCount,
-                                  selectedRow: _selRow,
-                                  selectedCol: _selCol,
-                                  onSave: () =>
-                                      unawaited(_saveNowFromUserAction()),
-                                  onExport: () => unawaited(_openExportMenu()),
-                                  onMenu: () =>
-                                      _openMobileHeaderMenu(context, pal),
-                                  onOpenOfflineQueue: _openOfflineQueueDialog,
-                                  lastLocalSavedAt: _lastSavedAt,
+                                    ))
+                            else
+                              AnimatedCrossFade(
+                                duration: AppMotion.quick,
+                                firstCurve: AppMotion.standardOut,
+                                secondCurve: AppMotion.standardIn,
+                                sizeCurve: AppMotion.standardOut,
+                                crossFadeState: _zenModeEnabled ||
+                                        autoCollapsedTopChrome ||
+                                        (_mobileCompactModeEnabled &&
+                                            _mobileTopBarCollapsed)
+                                    ? CrossFadeState.showSecond
+                                    : CrossFadeState.showFirst,
+                                firstChild: RepaintBoundary(
+                                  child: _MobileCompactHeader(
+                                    palette: pal,
+                                    title: _sheetName,
+                                    controller: _controller,
+                                    pendingRequired: _invalidCells.length,
+                                    pendingOfflineCount: _pendingOfflineCount,
+                                    outboxPendingCount: _outboxQueuedCount,
+                                    outboxErrorCount: _outboxErrorCount,
+                                    selectedRow: _selRow,
+                                    selectedCol: _selCol,
+                                    onSave: () =>
+                                        unawaited(_saveNowFromUserAction()),
+                                    onExport: () =>
+                                        unawaited(_openExportMenu()),
+                                    onMenu: () =>
+                                        _openMobileHeaderMenu(context, pal),
+                                    onOpenOfflineQueue: _openOfflineQueueDialog,
+                                    lastLocalSavedAt: _lastSavedAt,
+                                  ),
+                                ),
+                                secondChild: RepaintBoundary(
+                                  child: _MobileHeaderCollapsedPill(
+                                    palette: pal,
+                                    title: _sheetName,
+                                    selectedRow: _selRow,
+                                    selectedCol: _selCol,
+                                    onMenu: () =>
+                                        _openMobileHeaderMenu(context, pal),
+                                  ),
                                 ),
                               ),
-                              secondChild: RepaintBoundary(
-                                child: _MobileHeaderCollapsedPill(
-                                  palette: pal,
-                                  title: _sheetName,
-                                  selectedRow: _selRow,
-                                  selectedCol: _selCol,
-                                  onMenu: () =>
-                                      _openMobileHeaderMenu(context, pal),
+                            if (!collapseNonCriticalTopChrome &&
+                                _zenModeEnabled)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _InlineMetaChip(
+                                    palette: pal,
+                                    icon: Icons.visibility_rounded,
+                                    label: 'Modo Zen activo | Mostrar barra',
+                                    onTap: () => unawaited(_setZenMode(false)),
+                                  ),
                                 ),
                               ),
-                            ),
-                          if (!collapseNonCriticalTopChrome && _zenModeEnabled)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: _InlineMetaChip(
-                                  palette: pal,
-                                  icon: Icons.visibility_rounded,
-                                  label: 'Modo Zen activo | Mostrar barra',
-                                  onTap: () => unawaited(_setZenMode(false)),
+                            if (!collapseNonCriticalTopChrome &&
+                                _isInAppBrowser)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
+                                icon: Icons.open_in_new_rounded,
+                              ),
+                            if (!collapseNonCriticalTopChrome &&
+                                !_isSecureContext)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
+                                icon: Icons.lock_outline_rounded,
+                              ),
+                            if (!collapseNonCriticalTopChrome &&
+                                _storageOk == false)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    "Guardado temporal de adjuntos: ${_storageMessage ?? 'sin persistencia'}. ExportÃ¡ ZIP para no perder evidencias.",
+                                icon: Icons.warning_amber_rounded,
+                                actionLabel: 'Exportar ZIP',
+                                onAction: () =>
+                                    unawaited(_exportZipBundle(share: false)),
+                              ),
+                            if (!collapseNonCriticalTopChrome &&
+                                _recoveryBannerVisible &&
+                                _recoveryStagingRaw != null)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    'Se detecto una sesion previa sin flush completo. Puedes restaurar el estado local anterior.',
+                                icon: Icons.history_rounded,
+                                actionLabel: 'Restaurar',
+                                onAction: () =>
+                                    unawaited(_restoreStagingRecovery()),
+                                onDismiss: () => unawaited(
+                                  _dismissRecoveryBanner(dropCandidate: false),
                                 ),
                               ),
-                            ),
-                          if (!collapseNonCriticalTopChrome && _isInAppBrowser)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
-                              icon: Icons.open_in_new_rounded,
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              !_isSecureContext)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
-                              icon: Icons.lock_outline_rounded,
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _storageOk == false)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  "Guardado temporal de adjuntos: ${_storageMessage ?? 'sin persistencia'}. Exportá ZIP para no perder evidencias.",
-                              icon: Icons.warning_amber_rounded,
-                              actionLabel: 'Exportar ZIP',
-                              onAction: () =>
-                                  unawaited(_exportZipBundle(share: false)),
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _recoveryBannerVisible &&
-                              _recoveryStagingRaw != null)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  'Se detecto una sesion previa sin flush completo. Puedes restaurar el estado local anterior.',
-                              icon: Icons.history_rounded,
-                              actionLabel: 'Restaurar',
-                              onAction: () =>
-                                  unawaited(_restoreStagingRecovery()),
-                              onDismiss: () => unawaited(
-                                _dismissRecoveryBanner(dropCandidate: false),
+                            if (!collapseNonCriticalTopChrome &&
+                                _shouldShowAndroidInstallHelper)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    'Instalar en Android/Chrome: menu del navegador -> Instalar aplicacion o Agregar a pantalla principal.',
+                                icon: Icons.download_for_offline_rounded,
+                                actionLabel: 'No mostrar mas',
+                                onAction: () => unawaited(
+                                  _dismissAndroidInstallHelperForever(),
+                                ),
+                                onDismiss: _ackAndroidInstallHelper,
                               ),
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _shouldShowAndroidInstallHelper)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  'Instalar en Android/Chrome: menu del navegador -> Instalar aplicacion o Agregar a pantalla principal.',
-                              icon: Icons.download_for_offline_rounded,
-                              actionLabel: 'No mostrar mas',
-                              onAction: () => unawaited(
-                                _dismissAndroidInstallHelperForever(),
+                            if (!collapseNonCriticalTopChrome &&
+                                _pendingOfflineCount > 0)
+                              _warningBanner(
+                                pal,
+                                text: _isNetworkOnline()
+                                    ? 'Pendiente de sync: $_pendingOfflineCount item(s).'
+                                    : 'Pendiente de sync: $_pendingOfflineCount item(s) (sin conexion).',
+                                icon: _isNetworkOnline()
+                                    ? Icons.cloud_upload_outlined
+                                    : Icons.cloud_off_outlined,
+                                actionLabel:
+                                    _isNetworkOnline() ? 'Sincronizar' : 'Cola',
+                                onAction: _isNetworkOnline()
+                                    ? () => unawaited(
+                                          _syncQuickCaptureQueue(notify: true),
+                                        )
+                                    : _openOfflineQueueDialog,
                               ),
-                              onDismiss: _ackAndroidInstallHelper,
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _pendingOfflineCount > 0)
-                            _warningBanner(
-                              pal,
-                              text: _isNetworkOnline()
-                                  ? 'Pendiente de sync: $_pendingOfflineCount item(s).'
-                                  : 'Pendiente de sync: $_pendingOfflineCount item(s) (sin conexion).',
-                              icon: _isNetworkOnline()
-                                  ? Icons.cloud_upload_outlined
-                                  : Icons.cloud_off_outlined,
-                              actionLabel:
-                                  _isNetworkOnline() ? 'Sincronizar' : 'Cola',
-                              onAction: _isNetworkOnline()
-                                  ? () => unawaited(
-                                        _syncQuickCaptureQueue(notify: true),
-                                      )
-                                  : _openOfflineQueueDialog,
-                            ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _invalidCells.isNotEmpty)
-                            _warningBanner(
-                              pal,
-                              text:
-                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
-                              icon: Icons.rule_rounded,
-                              actionLabel: _errorsPanelOpen
-                                  ? 'Ocultar errores'
-                                  : 'Ver errores',
-                              onAction: () {
-                                setState(
-                                  () => _errorsPanelOpen = !_errorsPanelOpen,
+                            if (!collapseNonCriticalTopChrome &&
+                                _invalidCells.isNotEmpty)
+                              _warningBanner(
+                                pal,
+                                text:
+                                    'Validacion: ${_invalidCells.length} celda(s) con error.',
+                                icon: Icons.rule_rounded,
+                                actionLabel: _errorsPanelOpen
+                                    ? 'Ocultar errores'
+                                    : 'Ver errores',
+                                onAction: () {
+                                  setState(
+                                    () => _errorsPanelOpen = !_errorsPanelOpen,
+                                  );
+                                },
+                              ),
+                            AnimatedSwitcher(
+                              duration: AppMotion.medium,
+                              switchInCurve: AppMotion.springOut,
+                              switchOutCurve: AppMotion.standardIn,
+                              transitionBuilder: (child, animation) {
+                                return AppMotion.fadeSlide(
+                                  animation: animation,
+                                  begin: const Offset(0, -0.03),
+                                  child: child,
                                 );
                               },
+                              child: canShowEditorTour
+                                  ? KeyedSubtree(
+                                      key: const ValueKey('editor-tour-open'),
+                                      child: _EditorFirstRunTourBanner(
+                                        palette: pal,
+                                        onAcknowledge: () => unawaited(
+                                          _closeEditorTour(
+                                              dontShowAgain: false),
+                                        ),
+                                        onDismissForever: () => unawaited(
+                                          _closeEditorTour(dontShowAgain: true),
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('editor-tour-closed'),
+                                    ),
                             ),
-                          AnimatedSwitcher(
-                            duration: AppMotion.medium,
-                            switchInCurve: AppMotion.springOut,
-                            switchOutCurve: AppMotion.standardIn,
-                            transitionBuilder: (child, animation) {
-                              return AppMotion.fadeSlide(
-                                animation: animation,
-                                begin: const Offset(0, -0.03),
-                                child: child,
-                              );
-                            },
-                            child: canShowEditorTour
-                                ? KeyedSubtree(
-                                    key: const ValueKey('editor-tour-open'),
-                                    child: _EditorFirstRunTourBanner(
-                                      palette: pal,
-                                      onAcknowledge: () => unawaited(
-                                        _closeEditorTour(dontShowAgain: false),
+                            AnimatedSwitcher(
+                              duration: AppMotion.quick,
+                              switchInCurve: AppMotion.springOut,
+                              switchOutCurve: AppMotion.standardIn,
+                              transitionBuilder: (child, animation) {
+                                return AppMotion.fadeSlide(
+                                  animation: animation,
+                                  begin: const Offset(0, -0.03),
+                                  child: child,
+                                );
+                              },
+                              child: (!collapseNonCriticalTopChrome &&
+                                      _errorsPanelOpen &&
+                                      _invalidCells.isNotEmpty)
+                                  ? KeyedSubtree(
+                                      key: const ValueKey(
+                                        'validation-errors-open',
                                       ),
-                                      onDismissForever: () => unawaited(
-                                        _closeEditorTour(dontShowAgain: true),
+                                      child: _ValidationErrorsPanel(
+                                        palette: pal,
+                                        issues: _validationIssues(),
+                                        onJump: _jumpToValidationIssue,
+                                        onClose: () {
+                                          setState(
+                                            () => _errorsPanelOpen = false,
+                                          );
+                                        },
                                       ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('validation-errors-closed'),
                                     ),
-                                  )
-                                : const SizedBox.shrink(
-                                    key: ValueKey('editor-tour-closed'),
-                                  ),
-                          ),
-                          AnimatedSwitcher(
-                            duration: AppMotion.quick,
-                            switchInCurve: AppMotion.springOut,
-                            switchOutCurve: AppMotion.standardIn,
-                            transitionBuilder: (child, animation) {
-                              return AppMotion.fadeSlide(
-                                animation: animation,
-                                begin: const Offset(0, -0.03),
-                                child: child,
-                              );
-                            },
-                            child: (!collapseNonCriticalTopChrome &&
-                                    _errorsPanelOpen &&
-                                    _invalidCells.isNotEmpty)
-                                ? KeyedSubtree(
-                                    key: const ValueKey(
-                                      'validation-errors-open',
-                                    ),
-                                    child: _ValidationErrorsPanel(
-                                      palette: pal,
-                                      issues: _validationIssues(),
-                                      onJump: _jumpToValidationIssue,
-                                      onClose: () {
-                                        setState(
-                                          () => _errorsPanelOpen = false,
-                                        );
-                                      },
-                                    ),
-                                  )
-                                : const SizedBox.shrink(
-                                    key: ValueKey('validation-errors-closed'),
-                                  ),
-                          ),
-                          if (!collapseNonCriticalTopChrome &&
-                              _photoFlowStatus != null)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: pal.statusBg,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: pal.border,
-                                  width: pal.hairline,
+                            ),
+                            if (!collapseNonCriticalTopChrome &&
+                                _photoFlowStatus != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: pal.border.withValues(alpha: 0.22),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
+                                decoration: BoxDecoration(
+                                  color: pal.statusBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: pal.border,
+                                    width: pal.hairline,
                                   ),
-                                ],
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: pal.border.withValues(alpha: 0.22),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _photoFlowStatus!,
+                                        style: TextStyle(
+                                          color: pal.statusFg,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (_photoFlowTarget != null)
+                                      TextButton(
+                                        onPressed: _photoFlowActive
+                                            ? null
+                                            : () async {
+                                                final picked =
+                                                    await _pickPhotoTargetDialog();
+                                                if (!mounted) return;
+                                                if (picked == null) return;
+                                                final ref = _cellRefAt(
+                                                  picked.row,
+                                                  picked.col,
+                                                );
+                                                if (ref == null) return;
+                                                _setSelectionAndRefreshGrid(
+                                                  picked.row,
+                                                  picked.col,
+                                                );
+                                                _updatePhotoFlowStatus(
+                                                  'Destino ${_cellLabelForRef(ref)} - listo',
+                                                  target: ref,
+                                                );
+                                              },
+                                        child: const Text('Cambiar'),
+                                      ),
+                                  ],
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _photoFlowStatus!,
-                                      style: TextStyle(
-                                        color: pal.statusFg,
-                                        fontWeight: FontWeight.w700,
+                            AnimatedSwitcher(
+                              duration: AppMotion.quick,
+                              switchInCurve: AppMotion.springOut,
+                              switchOutCurve: AppMotion.standardIn,
+                              transitionBuilder: (child, animation) {
+                                return AppMotion.fadeSlide(
+                                  animation: animation,
+                                  begin: const Offset(0, 0.08),
+                                  curve: AppMotion.springOut,
+                                  child: child,
+                                );
+                              },
+                              child: _inlineSearchOpen
+                                  ? KeyedSubtree(
+                                      key: const ValueKey('inline-search-open'),
+                                      child: _InlineSearchBar(
+                                        palette: pal,
+                                        controller: _inlineSearchEC,
+                                        focusNode: _inlineSearchFocus,
+                                        totalHits: _searchMatches.length,
+                                        activeIndex: _searchMatchIndex < 0
+                                            ? 0
+                                            : _searchMatchIndex,
+                                        scope: _inlineSearchScope,
+                                        onScopeChanged: _setInlineSearchScope,
+                                        onChanged: _onInlineSearchChanged,
+                                        onPrev: () => _goToSearchHitDelta(-1),
+                                        onNext: () => _goToSearchHitDelta(1),
+                                        onClose: () => _closeInlineSearch(),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('inline-search-closed'),
+                                    ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: AppMotion.quick,
+                              switchInCurve: AppMotion.springOut,
+                              switchOutCurve: AppMotion.standardIn,
+                              transitionBuilder: (child, animation) {
+                                return AppMotion.fadeSlide(
+                                  animation: animation,
+                                  begin: const Offset(0, 0.08),
+                                  curve: AppMotion.springOut,
+                                  child: child,
+                                );
+                              },
+                              child: showSelectionQuickActions
+                                  ? KeyedSubtree(
+                                      key: const ValueKey(
+                                        'selection-quick-actions-open',
+                                      ),
+                                      child: _SelectionQuickActionsBar(
+                                        palette: pal,
+                                        selectionLabel:
+                                            _selectionLabelForQuickActions(),
+                                        selectedRowsCount:
+                                            _batchTargetRows().length,
+                                        canMarkStatus: canMarkSelectionStatus,
+                                        onApplyValue: () =>
+                                            unawaited(_promptBatchApplyValue()),
+                                        onFillDown: () => unawaited(
+                                          _promptFillDown(
+                                            context,
+                                            _selRow,
+                                            _selCol,
+                                          ),
+                                        ),
+                                        onDuplicateRows: _duplicateSelectedRows,
+                                        onAttachPhoto: () => unawaited(
+                                          _startPhotoFlowForCell(
+                                            _selRow,
+                                            _selCol,
+                                          ),
+                                        ),
+                                        onAttachGps: () => unawaited(
+                                          _requestGpsForCell(
+                                            _selRow,
+                                            _selCol,
+                                            forceWriteText: true,
+                                          ),
+                                        ),
+                                        onJumpTo: () =>
+                                            unawaited(_openJumpToDialog()),
+                                        onMarkStatus: (value) => unawaited(
+                                          _applyStatusToSelectedRows(value),
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey(
+                                        'selection-quick-actions-closed',
                                       ),
                                     ),
-                                  ),
-                                  if (_photoFlowTarget != null)
-                                    TextButton(
-                                      onPressed: _photoFlowActive
-                                          ? null
-                                          : () async {
-                                              final picked =
-                                                  await _pickPhotoTargetDialog();
-                                              if (!mounted) return;
-                                              if (picked == null) return;
-                                              final ref = _cellRefAt(
-                                                picked.row,
-                                                picked.col,
-                                              );
-                                              if (ref == null) return;
-                                              _setSelectionAndRefreshGrid(
-                                                picked.row,
-                                                picked.col,
-                                              );
-                                              _updatePhotoFlowStatus(
-                                                'Destino ${_cellLabelForRef(ref)} - listo',
-                                                target: ref,
-                                              );
-                                            },
-                                      child: const Text('Cambiar'),
-                                    ),
-                                ],
+                            ),
+                            if (isDesktop && _smokeStatus != null)
+                              _StatusBar(
+                                text: _smokeStatus!,
+                                bg: _smokeBg(pal),
+                                fg: _smokeFg(pal),
                               ),
-                            ),
-                          AnimatedSwitcher(
-                            duration: AppMotion.quick,
-                            switchInCurve: AppMotion.springOut,
-                            switchOutCurve: AppMotion.standardIn,
-                            transitionBuilder: (child, animation) {
-                              return AppMotion.fadeSlide(
-                                animation: animation,
-                                begin: const Offset(0, 0.08),
-                                curve: AppMotion.springOut,
-                                child: child,
-                              );
-                            },
-                            child: _inlineSearchOpen
-                                ? KeyedSubtree(
-                                    key: const ValueKey('inline-search-open'),
-                                    child: _InlineSearchBar(
-                                      palette: pal,
-                                      controller: _inlineSearchEC,
-                                      focusNode: _inlineSearchFocus,
-                                      totalHits: _searchMatches.length,
-                                      activeIndex: _searchMatchIndex < 0
-                                          ? 0
-                                          : _searchMatchIndex,
-                                      scope: _inlineSearchScope,
-                                      onScopeChanged: _setInlineSearchScope,
-                                      onChanged: _onInlineSearchChanged,
-                                      onPrev: () => _goToSearchHitDelta(-1),
-                                      onNext: () => _goToSearchHitDelta(1),
-                                      onClose: () => _closeInlineSearch(),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(
-                                    key: ValueKey('inline-search-closed'),
-                                  ),
-                          ),
-                          AnimatedSwitcher(
-                            duration: AppMotion.quick,
-                            switchInCurve: AppMotion.springOut,
-                            switchOutCurve: AppMotion.standardIn,
-                            transitionBuilder: (child, animation) {
-                              return AppMotion.fadeSlide(
-                                animation: animation,
-                                begin: const Offset(0, 0.08),
-                                curve: AppMotion.springOut,
-                                child: child,
-                              );
-                            },
-                            child: showSelectionQuickActions
-                                ? KeyedSubtree(
-                                    key: const ValueKey(
-                                      'selection-quick-actions-open',
-                                    ),
-                                    child: _SelectionQuickActionsBar(
-                                      palette: pal,
-                                      selectionLabel:
-                                          _selectionLabelForQuickActions(),
-                                      selectedRowsCount:
-                                          _batchTargetRows().length,
-                                      canMarkStatus: canMarkSelectionStatus,
-                                      onApplyValue: () =>
-                                          unawaited(_promptBatchApplyValue()),
-                                      onFillDown: () => unawaited(
-                                        _promptFillDown(
-                                          context,
-                                          _selRow,
-                                          _selCol,
-                                        ),
+                            if (isDesktop &&
+                                !_suppressEngineUnavailableUx &&
+                                _engineStatus != null)
+                              _StatusBar(
+                                text: _engineStatus!,
+                                bg: _engineStatusIsError
+                                    ? _errorBg(pal)
+                                    : pal.statusBg,
+                                fg: _engineStatusIsError
+                                    ? _errorFg(pal)
+                                    : pal.statusFg,
+                                actionLabel: _engineFallbackMode
+                                    ? (_engineHealthCheckInFlight
+                                        ? 'Verificando...'
+                                        : 'Reintentar')
+                                    : null,
+                                onAction: _engineFallbackMode &&
+                                        !_engineHealthCheckInFlight
+                                    ? () => unawaited(_retryEngineConnection())
+                                    : null,
+                              ),
+                            Expanded(
+                              child: showPremiumEmptyState
+                                  ? Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        0,
+                                        12,
+                                        8,
                                       ),
-                                      onDuplicateRows: _duplicateSelectedRows,
-                                      onAttachPhoto: () => unawaited(
-                                        _startPhotoFlowForCell(
-                                          _selRow,
-                                          _selCol,
-                                        ),
-                                      ),
-                                      onAttachGps: () => unawaited(
-                                        _requestGpsForCell(
-                                          _selRow,
-                                          _selCol,
-                                          forceWriteText: true,
-                                        ),
-                                      ),
-                                      onJumpTo: () =>
-                                          unawaited(_openJumpToDialog()),
-                                      onMarkStatus: (value) => unawaited(
-                                        _applyStatusToSelectedRows(value),
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(
-                                    key: ValueKey(
-                                      'selection-quick-actions-closed',
-                                    ),
-                                  ),
-                          ),
-                          if (isDesktop && _smokeStatus != null)
-                            _StatusBar(
-                              text: _smokeStatus!,
-                              bg: _smokeBg(pal),
-                              fg: _smokeFg(pal),
-                            ),
-                          if (isDesktop &&
-                              !_suppressEngineUnavailableUx &&
-                              _engineStatus != null)
-                            _StatusBar(
-                              text: _engineStatus!,
-                              bg: _engineStatusIsError
-                                  ? _errorBg(pal)
-                                  : pal.statusBg,
-                              fg: _engineStatusIsError
-                                  ? _errorFg(pal)
-                                  : pal.statusFg,
-                              actionLabel: _engineFallbackMode
-                                  ? (_engineHealthCheckInFlight
-                                      ? 'Verificando...'
-                                      : 'Reintentar')
-                                  : null,
-                              onAction: _engineFallbackMode &&
-                                      !_engineHealthCheckInFlight
-                                  ? () => unawaited(_retryEngineConnection())
-                                  : null,
-                            ),
-                          Expanded(
-                            child: showPremiumEmptyState
-                                ? Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      12,
-                                      0,
-                                      12,
-                                      8,
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.topCenter,
-                                      child: SingleChildScrollView(
-                                        child: _EditorPremiumEmptyStatePanel(
-                                          palette: pal,
-                                          onNewRecord: () => unawaited(
-                                            _createNewRecordAction(
-                                              origin: 'empty_state',
-                                            ),
-                                          ),
-                                          onSmartPaste: () => unawaited(
-                                            _pasteTableSmartFromClipboard(
-                                              emitFeedback: true,
-                                              interactivePreview: true,
-                                            ),
-                                          ),
-                                          onUseTemplate: () => unawaited(
-                                              _openDemoTemplateSheet()),
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : isDesktop
-                                    ? Focus(
-                                        autofocus: true,
-                                        onKeyEvent: _onKeyEvent,
-                                        child: FocusTraversalOrder(
-                                          order: const NumericFocusOrder(2.0),
-                                          child: Semantics(
-                                            key: const ValueKey(
-                                              'editor-grid-root',
-                                            ),
-                                            container: true,
-                                            label: 'Grilla de planilla',
-                                            child: RepaintBoundary(
-                                              child:
-                                                  ValueListenableBuilder<int>(
-                                                valueListenable: _gridVersion,
-                                                builder: (ctx, _, __) {
-                                                  _trackGridHostBuild(
-                                                      'desktop');
-                                                  return _GridView(
-                                                    palette: pal,
-                                                    metrics: metrics,
-                                                    headers: displayHeaders,
-                                                    rowModels: visibleRowModels,
-                                                    cellTextAt: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _effectiveCell(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellHasGps: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellHasGps(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellHasAudios: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellHasAudios(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellPhotoThumb: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellPhotoThumb(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellPhotoCount: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellPhotoCount(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellInlinePreviewAt:
-                                                        (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellInlinePreviewAt(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnWrapLines: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colWrapLines(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnTextAlign: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colTextAlign(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnVerticalAlign: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colVerticalAlign(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    isAttachmentProcessing:
-                                                        (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellIsAttachmentProcessing(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    decodeThumb:
-                                                        _decodeThumbCached,
-                                                    isInvalid: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _invalidCells
-                                                          .contains(
-                                                        _CellRef(
-                                                          actualRow,
-                                                          actualCol,
-                                                        ),
-                                                      );
-                                                    },
-                                                    isSearchHit: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _isSearchHit(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    vScroll: _vScroll,
-                                                    hScroll: _hScroll,
-                                                    selRow: selectedDisplayRow,
-                                                    selCol: selectedDisplayCol,
-                                                    selectedRows:
-                                                        selectedDisplayRows,
-                                                    blink: _blinkCell,
-                                                    editorLink: _editorLink,
-                                                    overlayTargetCell:
-                                                        _overlayTargetCell ==
-                                                                null
-                                                            ? null
-                                                            : _CellRef(
-                                                                _overlayTargetCell!
-                                                                    .r,
-                                                                _displayColumnIndexForActual(
-                                                                  _overlayTargetCell!
-                                                                      .c,
-                                                                  displayColumns,
-                                                                ),
-                                                              ),
-                                                    overlayTargetHeaderCol:
-                                                        _overlayTargetHeaderCol ==
-                                                                null
-                                                            ? null
-                                                            : _displayColumnIndexForActual(
-                                                                _overlayTargetHeaderCol!,
-                                                                displayColumns,
-                                                              ),
-                                                    onSelect: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      _setSelectionAndRefreshGrid(
-                                                        actualRow,
-                                                        actualCol,
-                                                        blink: true,
-                                                      );
-                                                    },
-                                                    onRowIndexTap: (r) =>
-                                                        _handleRowIndexTap(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                    ),
-                                                    onEditRequested: (r, c, w) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _beginEditCell(
-                                                        context,
-                                                        pal,
-                                                        actualRow,
-                                                        actualCol,
-                                                        w,
-                                                      );
-                                                    },
-                                                    onHeaderEditRequested:
-                                                        (c, w) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _beginEditHeader(
-                                                        context,
-                                                        pal,
-                                                        actualCol,
-                                                        w,
-                                                      );
-                                                    },
-                                                    onContextMenu:
-                                                        (pos, r, c, isHeader) {
-                                                      final actualRow = isHeader
-                                                          ? r
-                                                          : _actualRowFromDisplay(
-                                                              r,
-                                                              visibleRows,
-                                                            );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      unawaited(
-                                                        _openContextMenu(
-                                                          context,
-                                                          pal,
-                                                          pos,
-                                                          actualRow,
-                                                          actualCol,
-                                                          isHeader,
-                                                        ),
-                                                      );
-                                                    },
-                                                    onDeleteRow: (r) =>
-                                                        _deleteRow(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                    ),
-                                                    onPickPhoto: (r) =>
-                                                        _startPhotoFlowForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _headers.length - 1,
-                                                    ),
-                                                    onOpenAttachments: (r, c) =>
-                                                        _openAttachmentPanelForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      ),
-                                                    ),
-                                                    rowVersionListenable:
-                                                        _rowVersionListenable,
-                                                    onRowBuild:
-                                                        _trackGridRowBuild,
-                                                    onCellBuild:
-                                                        _trackGridCellBuild,
-                                                  );
-                                                },
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: SingleChildScrollView(
+                                          child: _EditorPremiumEmptyStatePanel(
+                                            palette: pal,
+                                            onNewRecord: () => unawaited(
+                                              _createNewRecordAction(
+                                                origin: 'empty_state',
                                               ),
                                             ),
+                                            onSmartPaste: () => unawaited(
+                                              _pasteTableSmartFromClipboard(
+                                                emitFeedback: true,
+                                                interactivePreview: true,
+                                              ),
+                                            ),
+                                            onUseTemplate: () => unawaited(
+                                                _openDemoTemplateSheet()),
                                           ),
                                         ),
-                                      )
-                                    : RepaintBoundary(
-                                        child: KeyedSubtree(
-                                          key: const ValueKey(
-                                            'editor-grid-root',
-                                          ),
-                                          child: ValueListenableBuilder<int>(
-                                            valueListenable: _gridVersion,
-                                            builder: (ctx, _, __) {
-                                              _ensureMobileRowCachesLength();
-                                              final cardW =
-                                                  _mobileCardWidthForScreen(
-                                                MediaQuery.of(ctx).size.width,
-                                              );
-                                              _trackGridHostBuild('mobile');
-                                              return _MobileNotesGrid(
-                                                palette: pal,
-                                                density: _gridDensity,
-                                                headers: displayHeaders,
-                                                rowModels: visibleRowModels,
-                                                cellTextAt: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _effectiveCell(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellHasGps: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellHasGps(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellHasAudios: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellHasAudios(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellPhotoThumb: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellPhotoThumb(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellPhotoCount: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellPhotoCount(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                cellInlinePreviewAt: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellInlinePreviewAt(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                columnWrapLines: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colWrapLines(
-                                                      actualCol);
-                                                },
-                                                columnTextAlign: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colTextAlign(
-                                                      actualCol);
-                                                },
-                                                columnVerticalAlign: (c) {
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _colVerticalAlign(
-                                                      actualCol);
-                                                },
-                                                isAttachmentProcessing: (r, c) {
-                                                  final actualRow =
-                                                      _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  );
-                                                  final actualCol =
-                                                      _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  );
-                                                  return _cellIsAttachmentProcessing(
-                                                    actualRow,
-                                                    actualCol,
-                                                  );
-                                                },
-                                                decodeThumb: _decodeThumbCached,
-                                                verticalController: _vScroll,
-                                                headerScrollController:
-                                                    _mobileHeaderScroll,
-                                                rowScrollControllerFor:
-                                                    _mobileRowScrollAt,
-                                                headerKey: _mobileHeaderKey,
-                                                rowKeyFor: _mobileRowKeyAt,
-                                                selectedRow: selectedDisplayRow,
-                                                selectedCol: selectedDisplayCol,
-                                                activeRow: _mobileEditorOpen &&
-                                                        !_mobileEditingHeader
-                                                    ? _displayRowForActual(
-                                                        _mobileRow,
-                                                        visibleRows,
-                                                      )
-                                                    : -1,
-                                                activeCol: _mobileEditorOpen
-                                                    ? _displayColumnIndexForActual(
-                                                        _mobileCol,
-                                                        displayColumns,
-                                                      )
-                                                    : -1,
-                                                activeIsHeader:
-                                                    _mobileEditorOpen &&
-                                                        _mobileEditingHeader,
-                                                activeController: _mobileEC,
-                                                overlayBottomInset:
-                                                    mobileGridBottomInset,
-                                                onHorizontalScroll:
-                                                    _syncMobileHorizontal,
-                                                onCellTap: (cellCtx, r, c) =>
-                                                    _beginEditCell(
-                                                  cellCtx,
-                                                  pal,
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
-                                                  ),
-                                                  _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  ),
-                                                  cardW,
-                                                ),
-                                                onHeaderTap: (cellCtx, c) =>
-                                                    _beginEditHeader(
-                                                  cellCtx,
-                                                  pal,
-                                                  _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  ),
-                                                  cardW,
-                                                ),
-                                                onContextMenu:
-                                                    (pos, r, c, isHeader) =>
-                                                        _openContextMenu(
-                                                  ctx,
-                                                  pal,
-                                                  pos,
-                                                  isHeader
-                                                      ? r
-                                                      : _actualRowFromDisplay(
+                                      ),
+                                    )
+                                  : isDesktop
+                                      ? Focus(
+                                          autofocus: true,
+                                          onKeyEvent: _onKeyEvent,
+                                          child: FocusTraversalOrder(
+                                            order: const NumericFocusOrder(2.0),
+                                            child: Semantics(
+                                              key: const ValueKey(
+                                                'editor-grid-root',
+                                              ),
+                                              container: true,
+                                              label: 'Grilla de planilla',
+                                              child: RepaintBoundary(
+                                                child:
+                                                    ValueListenableBuilder<int>(
+                                                  valueListenable: _gridVersion,
+                                                  builder: (ctx, _, __) {
+                                                    _trackGridHostBuild(
+                                                        'desktop');
+                                                    return _GridView(
+                                                      palette: pal,
+                                                      metrics: metrics,
+                                                      headers: displayHeaders,
+                                                      rowModels:
+                                                          visibleRowModels,
+                                                      cellTextAt: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _displayCellValue(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      cellHasGps: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellHasGps(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      cellHasAudios: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellHasAudios(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      cellPhotoThumb: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellPhotoThumb(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      cellPhotoCount: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellPhotoCount(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      cellInlinePreviewAt:
+                                                          (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellInlinePreviewAt(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      columnWrapLines: (c) {
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _colWrapLines(
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      columnTextAlign: (c) {
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _colTextAlign(
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      columnVerticalAlign: (c) {
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _colVerticalAlign(
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      isAttachmentProcessing:
+                                                          (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _cellIsAttachmentProcessing(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      decodeThumb:
+                                                          _decodeThumbCached,
+                                                      isInvalid: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _invalidCells
+                                                            .contains(
+                                                          _CellRef(
+                                                            actualRow,
+                                                            actualCol,
+                                                          ),
+                                                        );
+                                                      },
+                                                      isSearchHit: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _isSearchHit(
+                                                          actualRow,
+                                                          actualCol,
+                                                        );
+                                                      },
+                                                      vScroll: _vScroll,
+                                                      hScroll: _hScroll,
+                                                      selRow:
+                                                          selectedDisplayRow,
+                                                      selCol:
+                                                          selectedDisplayCol,
+                                                      selectedRows:
+                                                          selectedDisplayRows,
+                                                      blink: _blinkCell,
+                                                      editorLink: _editorLink,
+                                                      overlayTargetCell:
+                                                          _overlayTargetCell ==
+                                                                  null
+                                                              ? null
+                                                              : _CellRef(
+                                                                  _overlayTargetCell!
+                                                                      .r,
+                                                                  _displayColumnIndexForActual(
+                                                                    _overlayTargetCell!
+                                                                        .c,
+                                                                    displayColumns,
+                                                                  ),
+                                                                ),
+                                                      overlayTargetHeaderCol:
+                                                          _overlayTargetHeaderCol ==
+                                                                  null
+                                                              ? null
+                                                              : _displayColumnIndexForActual(
+                                                                  _overlayTargetHeaderCol!,
+                                                                  displayColumns,
+                                                                ),
+                                                      onSelect: (r, c) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        _setSelectionAndRefreshGrid(
+                                                          actualRow,
+                                                          actualCol,
+                                                          blink: true,
+                                                        );
+                                                      },
+                                                      onRowIndexTap: (r) =>
+                                                          _handleRowIndexTap(
+                                                        _actualRowFromDisplay(
                                                           r,
                                                           visibleRows,
                                                         ),
-                                                  _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
-                                                  ),
-                                                  isHeader,
+                                                      ),
+                                                      onEditRequested:
+                                                          (r, c, w) {
+                                                        final actualRow =
+                                                            _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _beginEditCell(
+                                                          context,
+                                                          pal,
+                                                          actualRow,
+                                                          actualCol,
+                                                          w,
+                                                        );
+                                                      },
+                                                      onHeaderEditRequested:
+                                                          (c, w) {
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        return _beginEditHeader(
+                                                          context,
+                                                          pal,
+                                                          actualCol,
+                                                          w,
+                                                        );
+                                                      },
+                                                      onContextMenu: (pos, r, c,
+                                                          isHeader) {
+                                                        final actualRow = isHeader
+                                                            ? r
+                                                            : _actualRowFromDisplay(
+                                                                r,
+                                                                visibleRows,
+                                                              );
+                                                        final actualCol =
+                                                            _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        );
+                                                        unawaited(
+                                                          _openContextMenu(
+                                                            context,
+                                                            pal,
+                                                            pos,
+                                                            actualRow,
+                                                            actualCol,
+                                                            isHeader,
+                                                          ),
+                                                        );
+                                                      },
+                                                      onDeleteRow: (r) =>
+                                                          _deleteRow(
+                                                        _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        ),
+                                                      ),
+                                                      onPickPhoto: (r) =>
+                                                          _startPhotoFlowForCell(
+                                                        _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        ),
+                                                        _headers.length - 1,
+                                                      ),
+                                                      onOpenAttachments: (r,
+                                                              c) =>
+                                                          _openAttachmentPanelForCell(
+                                                        _actualRowFromDisplay(
+                                                          r,
+                                                          visibleRows,
+                                                        ),
+                                                        _actualColumnFromDisplay(
+                                                          c,
+                                                          displayColumns,
+                                                        ),
+                                                      ),
+                                                      rowVersionListenable:
+                                                          _rowVersionListenable,
+                                                      onRowBuild:
+                                                          _trackGridRowBuild,
+                                                      onCellBuild:
+                                                          _trackGridCellBuild,
+                                                    );
+                                                  },
                                                 ),
-                                                onDeleteRow: (r) => _deleteRow(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : RepaintBoundary(
+                                          child: KeyedSubtree(
+                                            key: const ValueKey(
+                                              'editor-grid-root',
+                                            ),
+                                            child: ValueListenableBuilder<int>(
+                                              valueListenable: _gridVersion,
+                                              builder: (ctx, _, __) {
+                                                _ensureMobileRowCachesLength();
+                                                final cardW =
+                                                    _mobileCardWidthForScreen(
+                                                  MediaQuery.of(ctx).size.width,
+                                                );
+                                                _trackGridHostBuild('mobile');
+                                                return _MobileNotesGrid(
+                                                  palette: pal,
+                                                  density: _gridDensity,
+                                                  headers: displayHeaders,
+                                                  rowModels: visibleRowModels,
+                                                  cellTextAt: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _displayCellValue(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  cellHasGps: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellHasGps(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  cellHasAudios: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellHasAudios(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  cellPhotoThumb: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellPhotoThumb(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  cellPhotoCount: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellPhotoCount(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  cellInlinePreviewAt: (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellInlinePreviewAt(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  columnWrapLines: (c) {
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _colWrapLines(
+                                                        actualCol);
+                                                  },
+                                                  columnTextAlign: (c) {
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _colTextAlign(
+                                                        actualCol);
+                                                  },
+                                                  columnVerticalAlign: (c) {
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _colVerticalAlign(
+                                                        actualCol);
+                                                  },
+                                                  isAttachmentProcessing:
+                                                      (r, c) {
+                                                    final actualRow =
+                                                        _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    );
+                                                    final actualCol =
+                                                        _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    );
+                                                    return _cellIsAttachmentProcessing(
+                                                      actualRow,
+                                                      actualCol,
+                                                    );
+                                                  },
+                                                  decodeThumb:
+                                                      _decodeThumbCached,
+                                                  verticalController: _vScroll,
+                                                  headerScrollController:
+                                                      _mobileHeaderScroll,
+                                                  rowScrollControllerFor:
+                                                      _mobileRowScrollAt,
+                                                  headerKey: _mobileHeaderKey,
+                                                  rowKeyFor: _mobileRowKeyAt,
+                                                  selectedRow:
+                                                      selectedDisplayRow,
+                                                  selectedCol:
+                                                      selectedDisplayCol,
+                                                  activeRow: _mobileEditorOpen &&
+                                                          !_mobileEditingHeader
+                                                      ? _displayRowForActual(
+                                                          _mobileRow,
+                                                          visibleRows,
+                                                        )
+                                                      : -1,
+                                                  activeCol: _mobileEditorOpen
+                                                      ? _displayColumnIndexForActual(
+                                                          _mobileCol,
+                                                          displayColumns,
+                                                        )
+                                                      : -1,
+                                                  activeIsHeader:
+                                                      _mobileEditorOpen &&
+                                                          _mobileEditingHeader,
+                                                  activeController: _mobileEC,
+                                                  overlayBottomInset:
+                                                      mobileGridBottomInset,
+                                                  onHorizontalScroll:
+                                                      _syncMobileHorizontal,
+                                                  onCellTap: (cellCtx, r, c) =>
+                                                      _beginEditCell(
+                                                    cellCtx,
+                                                    pal,
+                                                    _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    ),
+                                                    _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    ),
+                                                    cardW,
                                                   ),
-                                                ),
-                                                onPickPhoto: (r) =>
-                                                    _startPhotoFlowForCell(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
+                                                  onHeaderTap: (cellCtx, c) =>
+                                                      _beginEditHeader(
+                                                    cellCtx,
+                                                    pal,
+                                                    _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    ),
+                                                    cardW,
                                                   ),
-                                                  _headers.length - 1,
-                                                ),
-                                                onOpenAttachments: (r, c) =>
-                                                    _openAttachmentPanelForCell(
-                                                  _actualRowFromDisplay(
-                                                    r,
-                                                    visibleRows,
+                                                  onContextMenu:
+                                                      (pos, r, c, isHeader) =>
+                                                          _openContextMenu(
+                                                    ctx,
+                                                    pal,
+                                                    pos,
+                                                    isHeader
+                                                        ? r
+                                                        : _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          ),
+                                                    _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    ),
+                                                    isHeader,
                                                   ),
-                                                  _actualColumnFromDisplay(
-                                                    c,
-                                                    displayColumns,
+                                                  onDeleteRow: (r) =>
+                                                      _deleteRow(
+                                                    _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    ),
                                                   ),
-                                                ),
-                                                onVerticalUserScroll:
-                                                    _handleMobileGridScrollDirection,
-                                                onRowBuild: _trackGridRowBuild,
-                                                onCellBuild:
-                                                    _trackGridCellBuild,
-                                              );
-                                            },
+                                                  onPickPhoto: (r) =>
+                                                      _startPhotoFlowForCell(
+                                                    _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    ),
+                                                    _headers.length - 1,
+                                                  ),
+                                                  onOpenAttachments: (r, c) =>
+                                                      _openAttachmentPanelForCell(
+                                                    _actualRowFromDisplay(
+                                                      r,
+                                                      visibleRows,
+                                                    ),
+                                                    _actualColumnFromDisplay(
+                                                      c,
+                                                      displayColumns,
+                                                    ),
+                                                  ),
+                                                  onVerticalUserScroll:
+                                                      _handleMobileGridScrollDirection,
+                                                  onRowBuild:
+                                                      _trackGridRowBuild,
+                                                  onCellBuild:
+                                                      _trackGridCellBuild,
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ),
-                                      ),
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
-                    if (!isDesktop)
-                      _MobileInlineEditorBar(
-                        palette: pal,
-                        density: _gridDensity,
-                        barKey: _mobileBarKey,
-                        fieldKey: _mobileFieldKey,
-                        keyboardInset: keyboardInset,
-                        bottomAnimationDuration: mobileBarBottomAnim,
-                        isOpen: _mobileEditorOpen,
-                        title: _mobileTitle,
-                        validationHint: _mobileValidationHint,
-                        controller: _mobileEC,
-                        focusNode: _mobileFocus,
-                        actions: _mobileActions,
-                        panelHeight: panelH,
-                        isExpanded: _mobileEditorExpanded,
-                        canCopyPaste:
-                            _mobileEditorOpen && !_mobileEditingHeader,
-                        onGpsRow: _canMobileGps
-                            ? () => unawaited(_captureGpsForRow(_mobileRow))
-                            : null,
-                        onPrev: _canMobileNav ? _mobileMovePrev : null,
-                        onNext: _canMobileNav ? _mobileMoveNext : null,
-                        onCopy: _copyActiveMobileCell,
-                        onPaste: _pasteIntoActiveMobileCell,
-                        onOverflow: _openMobileOverflowSheet,
-                        onToggleExpanded: _toggleMobileEditorExpanded,
-                        onCancel: _cancelMobileEdit,
-                        onDone: _commitMobileEdit,
-                      ),
-                    if (!isDesktop)
-                      _MobileExpandableFabMenu(
-                        palette: pal,
-                        isOpen: !hideMobileFab && _mobileFabMenuOpen,
-                        hidden: hideMobileFab,
-                        forceReducedMotion: _fieldModeEnabled,
-                        bottomOffset: _mobileEditorOpen
-                            ? (panelH + keyboardInset + 10)
-                            : (bottomSafe + 12),
-                        onMainTap: () {
-                          AppHaptics.light();
-                          if (hideMobileFab) return;
-                          setState(
-                            () => _mobileFabMenuOpen = !_mobileFabMenuOpen,
-                          );
-                        },
-                        onDismiss: () {
-                          if (!_mobileFabMenuOpen) return;
-                          setState(() => _mobileFabMenuOpen = false);
-                        },
-                        actions: _fieldModeEnabled
-                            ? [
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-new-record'),
-                                  icon: Icons.add_box_outlined,
-                                  label: 'Nuevo registro',
-                                  onTap: () => unawaited(
-                                    _createNewRecordAction(
-                                        origin: 'mobile_fab'),
-                                  ),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-flowbot'),
-                                  icon: Icons.auto_awesome_rounded,
-                                  label: 'FlowBot',
-                                  onTap: () => unawaited(_openFlowBotSheet()),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-smart-paste'),
-                                  icon: Icons.table_chart_rounded,
-                                  label: 'Pegar tabla',
-                                  onTap: () => unawaited(
-                                    _pasteTableSmartFromClipboard(
-                                      emitFeedback: true,
-                                      interactivePreview: true,
+                      // ??? SIEMPRE montado (iPhone estable). Solo se anima/inhabilita.
+                      if (!isDesktop)
+                        _MobileInlineEditorBar(
+                          palette: pal,
+                          density: _gridDensity,
+                          barKey: _mobileBarKey,
+                          fieldKey: _mobileFieldKey,
+                          keyboardInset: keyboardInset,
+                          bottomAnimationDuration: mobileBarBottomAnim,
+                          isOpen: _mobileEditorOpen,
+                          title: _mobileTitle,
+                          validationHint: _mobileValidationHint,
+                          controller: _mobileEC,
+                          focusNode: _mobileFocus,
+                          actions: _mobileActions,
+                          panelHeight: panelH,
+                          isExpanded: _mobileEditorExpanded,
+                          canCopyPaste:
+                              _mobileEditorOpen && !_mobileEditingHeader,
+                          onGpsRow: _canMobileGps
+                              ? () => unawaited(_captureGpsForRow(_mobileRow))
+                              : null,
+                          onPrev: _canMobileNav ? _mobileMovePrev : null,
+                          onNext: _canMobileNav ? _mobileMoveNext : null,
+                          onCopy: _copyActiveMobileCell,
+                          onPaste: _pasteIntoActiveMobileCell,
+                          onOverflow: _openMobileOverflowSheet,
+                          onToggleExpanded: _toggleMobileEditorExpanded,
+                          onCancel: _cancelMobileEdit,
+                          onDone: _commitMobileEdit,
+                        ),
+                      if (!isDesktop)
+                        _MobileExpandableFabMenu(
+                          palette: pal,
+                          isOpen: !hideMobileFab && _mobileFabMenuOpen,
+                          hidden: hideMobileFab,
+                          forceReducedMotion: _fieldModeEnabled,
+                          bottomOffset: _mobileEditorOpen
+                              ? (panelH + keyboardInset + 10)
+                              : (bottomSafe + 12),
+                          onMainTap: () {
+                            AppHaptics.light();
+                            if (hideMobileFab) return;
+                            setState(
+                              () => _mobileFabMenuOpen = !_mobileFabMenuOpen,
+                            );
+                          },
+                          onDismiss: () {
+                            if (!_mobileFabMenuOpen) return;
+                            setState(() => _mobileFabMenuOpen = false);
+                          },
+                          actions: _fieldModeEnabled
+                              ? [
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-new-record'),
+                                    icon: Icons.add_box_outlined,
+                                    label: 'Nuevo registro',
+                                    onTap: () => unawaited(
+                                      _createNewRecordAction(
+                                          origin: 'mobile_fab'),
                                     ),
                                   ),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-field-mode'),
-                                  icon: Icons.terrain_rounded,
-                                  label: 'Salir modo campo',
-                                  onTap: () => unawaited(_toggleFieldMode()),
-                                ),
-                              ]
-                            : [
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-new-record'),
-                                  icon: Icons.add_box_outlined,
-                                  label: 'Nuevo registro',
-                                  onTap: () => unawaited(
-                                    _createNewRecordAction(
-                                        origin: 'mobile_fab'),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-flowbot'),
+                                    icon: Icons.auto_awesome_rounded,
+                                    label: 'FlowBot',
+                                    onTap: () => unawaited(_openFlowBotSheet()),
                                   ),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                    'mobile-fab-action-smart-paste',
-                                  ),
-                                  icon: Icons.table_chart_rounded,
-                                  label: 'Pegar tabla',
-                                  onTap: () => unawaited(
-                                    _pasteTableSmartFromClipboard(
-                                      emitFeedback: true,
-                                      interactivePreview: true,
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-smart-paste'),
+                                    icon: Icons.table_chart_rounded,
+                                    label: 'Pegar tabla',
+                                    onTap: () => unawaited(
+                                      _pasteTableSmartFromClipboard(
+                                        emitFeedback: true,
+                                        interactivePreview: true,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-export'),
-                                  icon: Icons.ios_share_rounded,
-                                  label: 'Exportar',
-                                  onTap: () => unawaited(_openExportMenu()),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-templates'),
-                                  icon: Icons.grid_view_rounded,
-                                  label: 'Plantillas',
-                                  onTap: () =>
-                                      unawaited(_openDemoTemplateSheet()),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey('mobile-fab-action-undo'),
-                                  icon: Icons.undo_rounded,
-                                  label: 'Undo',
-                                  onTap: _undoOnce,
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-field-mode'),
-                                  icon: Icons.landscape_rounded,
-                                  label: 'Modo campo',
-                                  onTap: () => unawaited(_toggleFieldMode()),
-                                ),
-                              ],
-                      ),
-                    if (_perfHarnessRequested && kDebugMode)
-                      _buildPerfOverlay(
-                        pal,
-                        isDesktop: isDesktop,
-                      ),
-                    if (_longOperation != null)
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.scrim.withValues(
-                                      alpha: pal.isLight ? 0.18 : 0.34,
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-field-mode'),
+                                    icon: Icons.terrain_rounded,
+                                    label: 'Salir modo campo',
+                                    onTap: () => unawaited(_toggleFieldMode()),
+                                  ),
+                                ]
+                              : [
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-new-record'),
+                                    icon: Icons.add_box_outlined,
+                                    label: 'Nuevo registro',
+                                    onTap: () => unawaited(
+                                      _createNewRecordAction(
+                                          origin: 'mobile_fab'),
                                     ),
-                          ),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: LoadingState(
-                                message: _longOperation!.message,
-                                onCancel: (_longOperation!.cancellable &&
-                                        !_longOperation!.cancelRequested)
-                                    ? _requestLongOperationCancel
-                                    : null,
-                                cancelLabel: AppStrings.cancel,
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                      'mobile-fab-action-smart-paste',
+                                    ),
+                                    icon: Icons.table_chart_rounded,
+                                    label: 'Pegar tabla',
+                                    onTap: () => unawaited(
+                                      _pasteTableSmartFromClipboard(
+                                        emitFeedback: true,
+                                        interactivePreview: true,
+                                      ),
+                                    ),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-export'),
+                                    icon: Icons.ios_share_rounded,
+                                    label: 'Exportar',
+                                    onTap: () => unawaited(_openExportMenu()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-templates'),
+                                    icon: Icons.grid_view_rounded,
+                                    label: 'Plantillas',
+                                    onTap: () =>
+                                        unawaited(_openDemoTemplateSheet()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-undo'),
+                                    icon: Icons.undo_rounded,
+                                    label: 'Undo',
+                                    onTap: _undoOnce,
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-field-mode'),
+                                    icon: Icons.landscape_rounded,
+                                    label: 'Modo campo',
+                                    onTap: () => unawaited(_toggleFieldMode()),
+                                  ),
+                                ],
+                        ),
+                      if (_perfHarnessRequested && kDebugMode)
+                        _buildPerfOverlay(
+                          pal,
+                          isDesktop: isDesktop,
+                        ),
+                      if (_longOperation != null)
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .scrim
+                                  .withValues(
+                                    alpha: pal.isLight ? 0.18 : 0.34,
+                                  ),
+                            ),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 360),
+                                child: LoadingState(
+                                  message: _longOperation!.message,
+                                  onCancel: (_longOperation!.cancellable &&
+                                          !_longOperation!.cancelRequested)
+                                      ? _requestLongOperationCancel
+                                      : null,
+                                  cancelLabel: AppStrings.cancel,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -11477,6 +11843,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_rows[r].cells[c] == next) return;
 
     _rows[r].cells[c] = next;
+    _pendingFormulaSeeds.add(_CellRef(r, c));
     _bumpRowVersionById(_rows[r].id);
     _rememberValueForColumn(c, next);
     _markDirty(snapshot: true);
@@ -12344,7 +12711,7 @@ class _EditorScreenState extends State<EditorScreen>
     final activeCol = _overlayTargetCell?.c ?? _overlayTargetHeaderCol;
     final hintText =
         activeCol == null ? 'Escribir' : 'Editar ${_headerLabel(activeCol)}';
-    final suggestions = activeCol == null
+    final valueSuggestions = activeCol == null
         ? const <String>[]
         : _recentValuesForColumn(
             activeCol,
@@ -12545,39 +12912,79 @@ class _EditorScreenState extends State<EditorScreen>
                                   );
                                 },
                               ),
-                            if (suggestions.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    for (final suggestion in suggestions) ...[
-                                      ActionChip(
-                                        label: Text(
-                                          suggestion,
-                                          style: TextStyle(
-                                            color: pal.fg,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          _cellEC.value =
-                                              _cellEC.value.copyWith(
-                                            text: suggestion,
-                                            selection: TextSelection.collapsed(
-                                              offset: suggestion.length,
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _cellEC,
+                              builder: (context, value, _) {
+                                final formulaSuggestions =
+                                    _formulaAutocompleteSuggestions(value.text);
+                                final showFormulaSuggestions =
+                                    formulaSuggestions.isNotEmpty;
+                                final showValueSuggestions =
+                                    !showFormulaSuggestions &&
+                                        valueSuggestions.isNotEmpty;
+                                if (!showFormulaSuggestions &&
+                                    !showValueSuggestions) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        if (showFormulaSuggestions)
+                                          for (final suggestion
+                                              in formulaSuggestions) ...[
+                                            ActionChip(
+                                              label: Text(
+                                                suggestion.name,
+                                                style: TextStyle(
+                                                  color: pal.fg,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              onPressed: () {
+                                                _applyFormulaSuggestion(
+                                                  _cellEC,
+                                                  suggestion,
+                                                );
+                                                _cellFocus.requestFocus();
+                                              },
                                             ),
-                                            composing: TextRange.empty,
-                                          );
-                                          _cellFocus.requestFocus();
-                                        },
-                                      ),
-                                      const SizedBox(width: 6),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
+                                            const SizedBox(width: 6),
+                                          ],
+                                        if (showValueSuggestions)
+                                          for (final suggestion
+                                              in valueSuggestions) ...[
+                                            ActionChip(
+                                              label: Text(
+                                                suggestion,
+                                                style: TextStyle(
+                                                  color: pal.fg,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              onPressed: () {
+                                                _cellEC.value =
+                                                    _cellEC.value.copyWith(
+                                                  text: suggestion,
+                                                  selection:
+                                                      TextSelection.collapsed(
+                                                    offset: suggestion.length,
+                                                  ),
+                                                  composing: TextRange.empty,
+                                                );
+                                                _cellFocus.requestFocus();
+                                              },
+                                            ),
+                                            const SizedBox(width: 6),
+                                          ],
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -13932,6 +14339,267 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  String _a1ColumnLabel(int col) {
+    if (col < 0) return 'A';
+    var n = col;
+    final out = StringBuffer();
+    while (n >= 0) {
+      out.writeCharCode(65 + (n % 26));
+      n = (n ~/ 26) - 1;
+    }
+    return out.toString().split('').reversed.join();
+  }
+
+  String _buildColumnSumFormula({
+    required int col,
+    required int startRowInclusive,
+    required int endRowInclusive,
+  }) {
+    final letter = _a1ColumnLabel(col);
+    final start = math.max(1, startRowInclusive + 1);
+    final end = math.max(1, endRowInclusive + 1);
+    return '=SUM($letter$start:$letter$end)';
+  }
+
+  String _buildSafeColumnAggregateFormula({
+    required String functionName,
+    required int col,
+    required int excludingRow,
+  }) {
+    if (_rows.isEmpty) return '=$functionName(0)';
+    var start = 1;
+    var end = _rows.length;
+    final selfRow = excludingRow + 1;
+    if (_rows.length > 1 && selfRow >= start && selfRow <= end) {
+      if (selfRow == end) {
+        end -= 1;
+      } else {
+        start += 1;
+      }
+    }
+    if (end < start) return '=$functionName(0)';
+    final letter = _a1ColumnLabel(col);
+    return '=$functionName($letter$start:$letter$end)';
+  }
+
+  Future<void> _suggestFormulaForSelection() async {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para sugerir formulas.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+
+    final col = _selCol.clamp(0, _headers.length - 2);
+    final refRow = _selRow > 0 ? _selRow - 1 : _selRow;
+    final refA1 = '${_a1ColumnLabel(col)}${refRow + 1}';
+    final options = <({String label, String subtitle, String formula})>[
+      (
+        label: 'SUM columna',
+        subtitle: 'Suma rapida para la columna activa',
+        formula: _buildSafeColumnAggregateFormula(
+          functionName: 'SUM',
+          col: col,
+          excludingRow: _selRow,
+        ),
+      ),
+      (
+        label: 'AVERAGE columna',
+        subtitle: 'Promedio de la columna activa',
+        formula: _buildSafeColumnAggregateFormula(
+          functionName: 'AVERAGE',
+          col: col,
+          excludingRow: _selRow,
+        ),
+      ),
+      (
+        label: 'MAX columna',
+        subtitle: 'Maximo en la columna activa',
+        formula: _buildSafeColumnAggregateFormula(
+          functionName: 'MAX',
+          col: col,
+          excludingRow: _selRow,
+        ),
+      ),
+      (
+        label: 'IF estado',
+        subtitle: 'Chequeo rapido con umbral',
+        formula: '=IF($refA1 > 10, "OK", "CHECK")',
+      ),
+      (
+        label: 'ROUND',
+        subtitle: 'Redondeo a 2 decimales',
+        formula: '=ROUND($refA1, 2)',
+      ),
+      (
+        label: 'NOW',
+        subtitle: 'Timestamp de actualizacion',
+        formula: '=NOW()',
+      ),
+    ];
+
+    final picked = await showAppModal<String>(
+      context: context,
+      title: 'Sugerir funciones',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Aplica una formula lista para la celda activa.',
+            style: TextStyle(color: _palette(context).fgMuted),
+          ),
+          const SizedBox(height: 10),
+          for (final item in options)
+            ListTile(
+              leading: const Icon(Icons.functions_rounded),
+              title: Text(item.label),
+              subtitle: Text('${item.subtitle}\n${item.formula}'),
+              isThreeLine: true,
+              onTap: () => Navigator.of(context).pop(item.formula),
+            ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    if (picked == null || picked.trim().isEmpty) return;
+
+    _setCell(_selRow, _selCol, picked);
+    _emitActionResult(
+      const _ActionResult(
+        ok: true,
+        message: 'Formula sugerida aplicada.',
+        applied: 1,
+        undoToken: 'suggest_formula',
+      ),
+      successIcon: Icons.lightbulb_outline_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
+  void _applyAutoSumForSelection() {
+    if (!_hasActiveEditableCell(
+      reason: 'Selecciona una celda editable para autosuma.',
+    )) {
+      return;
+    }
+    if (_selRow <= 0) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'Autosuma requiere al menos una fila previa.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    final formula = _buildColumnSumFormula(
+      col: _selCol,
+      startRowInclusive: 0,
+      endRowInclusive: _selRow - 1,
+    );
+    _setCell(_selRow, _selCol, formula);
+    _emitActionResult(
+      const _ActionResult(
+        ok: true,
+        message: 'Autosuma aplicada en celda activa.',
+        applied: 1,
+        undoToken: 'auto_sum',
+      ),
+      successIcon: Icons.calculate_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
+  void _insertTotalsRowAutomation() {
+    if (_headers.length <= 1) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No hay columnas editables para generar totales.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    final dataCols = _headers.length - 1;
+    final numericCols = <int>[];
+    for (int c = 0; c < dataCols; c++) {
+      final typedNumber = _colType(c) == _ColType.number;
+      final hasNumericData = _rows.any(
+        (row) =>
+            c < row.cells.length && _parseNumberCellValue(row.cells[c]) != null,
+      );
+      if (typedNumber || hasNumericData) {
+        numericCols.add(c);
+      }
+    }
+
+    if (numericCols.isEmpty) {
+      _emitActionResult(
+        const _ActionResult(
+          ok: false,
+          message: 'No se detectaron columnas numericas para totalizar.',
+        ),
+        failureIcon: Icons.info_outline_rounded,
+      );
+      return;
+    }
+
+    final sourceRows = _rows.length;
+    final row = _RowModel.empty(_headers.length, id: _genStableId('r_'));
+    var labelCol = 0;
+    for (int c = 0; c < dataCols; c++) {
+      if (_colType(c) != _ColType.number) {
+        labelCol = c;
+        break;
+      }
+    }
+    row.cells[labelCol] = 'TOTAL';
+    for (final col in numericCols) {
+      if (sourceRows <= 0) continue;
+      row.cells[col] = _buildColumnSumFormula(
+        col: col,
+        startRowInclusive: 0,
+        endRowInclusive: sourceRows - 1,
+      );
+    }
+
+    final insertAt = _rows.length;
+    _rows.add(row);
+    _insertMobileRowCache(insertAt);
+    _markFormulaGraphDirty();
+    for (final col in numericCols) {
+      _pendingFormulaSeeds.add(_CellRef(insertAt, col));
+    }
+    _markDirty(snapshot: true);
+    _setSelectionAndRefreshGrid(
+      insertAt,
+      labelCol,
+      preserveRowSelection: false,
+    );
+    _emitActionResult(
+      _ActionResult(
+        ok: true,
+        message: 'Fila de totales creada (${numericCols.length} formulas).',
+        applied: numericCols.length,
+        undoToken: 'totals_row',
+      ),
+      successIcon: Icons.functions_rounded,
+      onUndo: _undoOnce,
+    );
+  }
+
   String _formatNumber(num v) {
     if (v is int) return v.toString();
     final s = v.toStringAsFixed(6);
@@ -14060,7 +14728,7 @@ class _EditorScreenState extends State<EditorScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Elige una plantilla demo para iniciar en segundos.',
+            'Elige una plantilla profesional para iniciar en segundos.',
             style: TextStyle(color: _palette(context).fgMuted),
           ),
           const SizedBox(height: 10),
@@ -14447,13 +15115,13 @@ class _EditorScreenState extends State<EditorScreen>
     final lower = raw.trim().toLowerCase();
     if (lower.isEmpty) return '';
     final map = <String, String>{
-      'á': 'a',
-      'é': 'e',
-      'í': 'i',
-      'ó': 'o',
-      'ú': 'u',
-      'ü': 'u',
-      'ñ': 'n',
+      'Ã¡': 'a',
+      'Ã©': 'e',
+      'Ã­': 'i',
+      'Ã³': 'o',
+      'Ãº': 'u',
+      'Ã¼': 'u',
+      'Ã±': 'n',
     };
     final sb = StringBuffer();
     for (final rune in lower.runes) {
@@ -16843,9 +17511,20 @@ class _EditorScreenState extends State<EditorScreen>
   String debugCellText(int r, int c) => _getCellText(r, c);
 
   @visibleForTesting
+  String debugDisplayedCellText(int r, int c) => _displayCellValue(r, c);
+
+  @visibleForTesting
   void debugSetCellDraft(int r, int c, String value) {
     assert(() {
       _setDraftCell(r, c, value);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSetCellValue(int r, int c, String value) {
+    assert(() {
+      _setCell(r, c, value);
       return true;
     }());
   }
@@ -17434,7 +18113,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda válida para abrir en mapa.',
+          message: 'Selecciona una celda vÃ¡lida para abrir en mapa.',
         ),
         failureIcon: Icons.map_outlined,
       );
@@ -17803,8 +18482,8 @@ class _EditorScreenState extends State<EditorScreen>
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_xlsx' : 'export_xlsx',
           fallbackMessage: share
-              ? 'Compartir XLSX no está disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar XLSX no está disponible en este dispositivo.',
+              ? 'Compartir XLSX no estÃ¡ disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar XLSX no estÃ¡ disponible en este dispositivo.',
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
@@ -17815,8 +18494,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
         fallbackMessage: share
-            ? 'No pudimos compartir el XLSX. Podés exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el XLSX. Intentá nuevamente en unos segundos.',
+            ? 'No pudimos compartir el XLSX. PodÃ©s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el XLSX. IntentÃ¡ nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
@@ -17868,7 +18547,7 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage:
-            share ? 'PDF listo para compartir.' : 'PDF exportado con éxito.',
+            share ? 'PDF listo para compartir.' : 'PDF exportado con Ã©xito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -17906,8 +18585,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
         fallbackMessage: share
-            ? 'No pudimos compartir el PDF. Podés exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el PDF. Intentá nuevamente en unos segundos.',
+            ? 'No pudimos compartir el PDF. PodÃ©s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el PDF. IntentÃ¡ nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
@@ -17988,7 +18667,7 @@ class _EditorScreenState extends State<EditorScreen>
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
             ? 'Paquete ZIP listo para compartir.'
-            : 'Paquete ZIP exportado con éxito.',
+            : 'Paquete ZIP exportado con Ã©xito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -18026,8 +18705,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
         fallbackMessage: share
-            ? 'No pudimos compartir el paquete ZIP. Podés exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el paquete ZIP. Intentá nuevamente en unos segundos.',
+            ? 'No pudimos compartir el paquete ZIP. PodÃ©s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el paquete ZIP. IntentÃ¡ nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -20330,7 +21009,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: [xf],
-            subject: 'Exportación de Bit Flow',
+            subject: 'ExportaciÃ³n de Bit Flow',
           ),
         );
         if (share) {
@@ -20381,7 +21060,7 @@ class _EditorScreenState extends State<EditorScreen>
       await SharePlus.instance.share(
         ShareParams(
           files: [file],
-          subject: 'Exportación de Bit Flow',
+          subject: 'ExportaciÃ³n de Bit Flow',
         ),
       );
       return true;
@@ -20408,7 +21087,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: <XFile>[XFile(path, mimeType: mime, name: name)],
-            subject: 'Exportación de Bit Flow',
+            subject: 'ExportaciÃ³n de Bit Flow',
             text: shareText,
           ),
         );
@@ -20424,7 +21103,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: <XFile>[XFile(path, name: name)],
-            subject: 'Exportación de Bit Flow',
+            subject: 'ExportaciÃ³n de Bit Flow',
             text: shareText,
           ),
         );
@@ -20438,7 +21117,7 @@ class _EditorScreenState extends State<EditorScreen>
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
-          subject: 'Exportación de Bit Flow',
+          subject: 'ExportaciÃ³n de Bit Flow',
           body: shareText,
           attachmentPaths: <String>[path],
           isHTML: false,
@@ -20452,7 +21131,7 @@ class _EditorScreenState extends State<EditorScreen>
         final mailto = Uri(
           scheme: 'mailto',
           queryParameters: <String, String>{
-            'subject': 'Exportación de Bit Flow',
+            'subject': 'ExportaciÃ³n de Bit Flow',
             'body': '$shareText\n\nRuta local del archivo:\n$path',
           },
         );
@@ -20468,7 +21147,7 @@ class _EditorScreenState extends State<EditorScreen>
       await SharePlus.instance.share(
         ShareParams(
           files: <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
-          subject: 'Exportación de Bit Flow',
+          subject: 'ExportaciÃ³n de Bit Flow',
           text: shareText,
         ),
       );

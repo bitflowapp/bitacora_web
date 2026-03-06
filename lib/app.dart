@@ -15,7 +15,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-/// Scroll “Apple-like”:
+/// Scroll Ã¢â‚¬Å“Apple-likeÃ¢â‚¬Â:
 /// - sin glow de Android
 /// - drag con mouse/trackpad/stylus (web/desktop)
 class _AppleScrollBehavior extends MaterialScrollBehavior {
@@ -52,7 +52,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.system;
   bool _prefsReady = false;
 
-  // Controller (por si lo usás en widgets legacy; mantiene API compatible).
+  // Controller (por si lo usÃƒÂ¡s en widgets legacy; mantiene API compatible).
   final GridnoteThemeController _controller =
       GridnoteThemeController(light: true);
 
@@ -76,7 +76,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangePlatformBrightness() {
-    // Si estás en system, el OS cambió: reconstruimos para reflejarlo.
+    // Si estÃƒÂ¡s en system, el OS cambiÃƒÂ³: reconstruimos para reflejarlo.
     if (_themeMode == ThemeMode.system && mounted) setState(() {});
   }
 
@@ -132,12 +132,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       };
       await sp.setInt(_kThemeModeKey, v);
     } catch (_) {
-      // No es crítico; no bloqueamos UX.
+      // No es crÃƒÂ­tico; no bloqueamos UX.
     }
   }
 
   void _toggleTheme() {
-    // Apple premium: si el usuario está en "system", el primer toggle “fija”
+    // Apple premium: si el usuario estÃƒÂ¡ en "system", el primer toggle Ã¢â‚¬Å“fijaÃ¢â‚¬Â
     // el modo opuesto al actual. Luego alterna light/dark normalmente.
     final effectiveLight = _effectiveIsLight(_themeMode);
 
@@ -153,7 +153,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Evita el “flash” al arrancar (web/desktop) mostrando fondo correcto.
+    // Evita el Ã¢â‚¬Å“flashÃ¢â‚¬Â al arrancar (web/desktop) mostrando fondo correcto.
     final effectiveLight = _effectiveIsLight(_themeMode);
     final g = GridnoteTheme.build(effectiveLight);
 
@@ -162,7 +162,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       child: AnimatedBuilder(
         animation: _controller,
         builder: (_, __) {
-          // Preferimos ThemeMode real para que system sea “premium”.
+          // Preferimos ThemeMode real para que system sea Ã¢â‚¬Å“premiumÃ¢â‚¬Â.
           final mode = _prefsReady ? _themeMode : ThemeMode.system;
           final isLight = _effectiveIsLight(mode);
 
@@ -177,11 +177,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             darkTheme: _darkTheme,
             themeMode: mode,
 
-            // Cambio de tema con sensación premium.
+            // Cambio de tema con sensaciÃƒÂ³n premium.
             themeAnimationDuration: const Duration(milliseconds: 220),
             themeAnimationCurve: Curves.easeOutCubic,
 
-            // Fondo correcto durante el build (reduce “pantallazo blanco”).
+            // Fondo correcto durante el build (reduce Ã¢â‚¬Å“pantallazo blancoÃ¢â‚¬Â).
             builder: (context, child) {
               final c = child ?? const SizedBox.shrink();
               return ColoredBox(color: gg.scaffold, child: c);
@@ -199,3 +199,5 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
+
+

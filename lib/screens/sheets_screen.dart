@@ -1,4 +1,4 @@
-// lib/screens/sheets_screen.dart
+﻿// lib/screens/sheets_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,7 +12,7 @@ import 'editor_screen.dart';
 import 'privacy_screen.dart';
 import 'terms_screen.dart';
 
-enum _SheetAction { open, pinToggle, rename, delete }
+enum _SheetAction { open, pinToggle, rename, duplicate, delete }
 
 class _FocusSearchIntent extends Intent {
   const _FocusSearchIntent();
@@ -145,13 +145,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
     list.sort(
-        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // más reciente arriba
+        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // mÃ¡s reciente arriba
     setState(() {
       _items = list;
       _loading = false;
     });
 
-    // Limpieza: si borraron planillas, eliminamos pins huérfanos.
+    // Limpieza: si borraron planillas, eliminamos pins huÃ©rfanos.
     if (_pinsLoaded) {
       final ids = list.map((e) => e.id).toSet();
       final orphan = _pinnedIds.where((id) => !ids.contains(id)).toList();
@@ -245,7 +245,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('Diagnóstico / Soporte'),
+                title: const Text('DiagnÃ³stico / Soporte'),
                 onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
               ListTile(
@@ -353,58 +353,83 @@ class _SheetsScreenState extends State<SheetsScreen> {
           );
         }
 
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Row(
-                children: [
-                  Text(
-                    'Galeria de templates',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.18,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                tile(
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'Plantilla base',
-                  subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
-                  value: TemplateKind.plantilla,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Galeria de templates',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                tile(
-                  icon: Icons.table_rows,
-                  title: 'Relevamiento resistividades',
-                  subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
-                  value: TemplateKind.resistividades,
-                ),
-                tile(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Inventario simple',
-                  subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota',
-                  value: TemplateKind.inventario,
-                ),
-                tile(
-                  icon: Icons.check_circle_outline,
-                  title: 'Checklist diario',
-                  subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
-                  value: TemplateKind.checklist,
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.18,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                  children: [
+                    tile(
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'Plantilla base',
+                      subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                      value: TemplateKind.plantilla,
+                    ),
+                    tile(
+                      icon: Icons.table_rows,
+                      title: 'Relevamiento resistividades',
+                      subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                      value: TemplateKind.resistividades,
+                    ),
+                    tile(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Inventario simple',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                      value: TemplateKind.inventario,
+                    ),
+                    tile(
+                      icon: Icons.check_circle_outline,
+                      title: 'Checklist diario',
+                      subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
+                      value: TemplateKind.checklist,
+                    ),
+                    tile(
+                      icon: Icons.payments_outlined,
+                      title: 'Control de gastos',
+                      subtitle: 'Fecha, Categoria, Descripcion, Monto, Metodo',
+                      value: TemplateKind.controlGastos,
+                    ),
+                    tile(
+                      icon: Icons.account_tree_outlined,
+                      title: 'Seguimiento de proyectos',
+                      subtitle: 'Proyecto, Responsable, inicio/fin, avance y estado',
+                      value: TemplateKind.seguimientoProyectos,
+                    ),
+                    tile(
+                      icon: Icons.straighten_rounded,
+                      title: 'Mediciones tecnicas',
+                      subtitle: 'Punto, parametro, lectura, tolerancia y estado',
+                      value: TemplateKind.medicionesTecnicas,
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -452,6 +477,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
     SheetStore.rename(it.id, newTitle);
     _loadSheets();
     _hapticSelect();
+  }
+
+  Future<void> _duplicateSheet(SheetMeta it) async {
+    final duplicatedId = SheetStore.duplicate(it.id);
+    _loadSheets();
+    _hapticSelect();
+    await _open(duplicatedId);
   }
 
   Future<void> _deleteWithConfirm(SheetMeta it) async {
@@ -539,6 +571,12 @@ class _SheetsScreenState extends State<SheetsScreen> {
             ),
             Divider(height: 1, thickness: 0.8, color: divider),
             actionTile(
+              icon: Icons.copy_all_rounded,
+              label: 'Duplicar',
+              value: _SheetAction.duplicate,
+            ),
+            Divider(height: 1, thickness: 0.8, color: divider),
+            actionTile(
               icon: Icons.delete_outline,
               label: AppStrings.delete,
               value: _SheetAction.delete,
@@ -578,6 +616,10 @@ class _SheetsScreenState extends State<SheetsScreen> {
         ),
         const PopupMenuItem(
             value: _SheetAction.rename, child: Text(AppStrings.rename)),
+        const PopupMenuItem(
+          value: _SheetAction.duplicate,
+          child: Text('Duplicar'),
+        ),
         const PopupMenuDivider(),
         const PopupMenuItem(
             value: _SheetAction.delete, child: Text(AppStrings.delete)),
@@ -598,6 +640,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
         break;
       case _SheetAction.rename:
         await _renameSheet(it);
+        break;
+      case _SheetAction.duplicate:
+        await _duplicateSheet(it);
         break;
       case _SheetAction.delete:
         await _deleteWithConfirm(it);
@@ -627,14 +672,14 @@ class _SheetsScreenState extends State<SheetsScreen> {
     if (_items.isEmpty) return 'Sin planillas guardadas todavia';
 
     final last = _lastUpdatedSheet;
-    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '—';
+    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : 'â€”';
     final pins = _pinnedIds.length;
 
     // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas | $pins fijadas | Última: $lastLabel';
+      return '${_items.length} planillas | $pins fijadas | Ãšltima: $lastLabel';
     }
-    return '${_items.length} planillas | Última: $lastLabel';
+    return '${_items.length} planillas | Ãšltima: $lastLabel';
   }
 
   @override
@@ -962,7 +1007,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'Día',
+                  label: isLight ? 'Noche' : 'DÃ­a',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,
@@ -1474,3 +1519,4 @@ class _NoResults extends StatelessWidget {
     );
   }
 }
+

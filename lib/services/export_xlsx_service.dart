@@ -13,6 +13,7 @@
 import 'dart:typed_data';
 
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:bitacora_web/services/formula_engine.dart';
 
 import 'mail_report_service.dart';
 import 'export_xlsx_with_photos.dart';
@@ -259,7 +260,7 @@ class ExportXlsxService {
     for (int r = 0; r < saneRows.length; r++) {
       final row = saneRows[r];
       for (int c = 0; c < colCount; c++) {
-        sheet.getRangeByIndex(r + 2, c + 1).setText(row[c]);
+        _setPlanillaCellValue(sheet, r + 2, c + 1, row[c]);
       }
     }
 
@@ -496,6 +497,31 @@ class ExportXlsxService {
       }
       return row;
     }).toList();
+  }
+
+  static void _setPlanillaCellValue(
+    xlsio.Worksheet sheet,
+    int row,
+    int col,
+    String raw,
+  ) {
+    final trimmed = raw.trim();
+    final cell = sheet.getRangeByIndex(row, col);
+    if (FormulaEngine.isFormula(trimmed)) {
+      cell.setFormula(trimmed);
+      return;
+    }
+    final number = double.tryParse(trimmed.replaceAll(',', '.'));
+    if (number != null && RegExp(r'^-?\d+(?:[.,]\d+)?$').hasMatch(trimmed)) {
+      cell.setNumber(number);
+      return;
+    }
+    final date = DateTime.tryParse(trimmed);
+    if (date != null) {
+      cell.setDateTime(date);
+      return;
+    }
+    cell.setText(raw);
   }
 }
 
