@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('StartPage renders control center quick actions and work buckets',
+  testWidgets('StartPage renders productivity control center sections',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'bitflow.onboarding_done.v1': true,
@@ -40,6 +40,21 @@ void main() {
     expect(
         find.byKey(const ValueKey('start-primary-automate')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-more-button')), findsOneWidget);
+    expect(find.text('Acciones principales'), findsOneWidget);
+    expect(find.text('Nueva planilla'), findsOneWidget);
+    expect(find.text('Abrir reciente'), findsOneWidget);
+    expect(find.text('Buscar archivos'), findsOneWidget);
+    expect(find.text('Plantillas'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('start-continue-work')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Trabajo reciente'), findsOneWidget);
+    expect(find.text('Smoke Sheet A'), findsWidgets);
 
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('start-automation-zone')),
@@ -48,10 +63,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Continuar trabajo'), findsOneWidget);
     expect(find.byKey(const ValueKey('start-automation-zone')), findsOneWidget);
-    expect(find.text('Automatizaciones'), findsOneWidget);
-    expect(find.text('Smoke Sheet A'), findsWidgets);
+    expect(find.text('Sugerencias'), findsOneWidget);
     expect(find.byKey(const ValueKey('start-pro-disclosure')), findsNothing);
 
     final baseFill = tester

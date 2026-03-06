@@ -8,7 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('primary new action opens editor without overflow on compact viewport',
+  testWidgets(
+      'primary new action opens editor without overflow on compact viewport',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'bitflow.onboarding_done.v1': true,
@@ -32,6 +33,7 @@ void main() {
     );
 
     await _pumpFrames(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('start-primary-new')));
     await tester.tap(find.byKey(const ValueKey('start-primary-new')));
     await tester.pumpAndSettle();
 

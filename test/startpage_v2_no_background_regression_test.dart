@@ -19,9 +19,10 @@ void main() {
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
 
+    final theme = ThemeData.light();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData.light(),
+        theme: theme,
         home: const StartPage(
           isLight: true,
           onToggleTheme: _noop,
@@ -34,6 +35,10 @@ void main() {
     expect(find.byKey(const ValueKey('start-hero-backdrop-art')), findsNothing);
     expect(find.byType(BackdropFilter), findsNothing);
 
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    // ignore: deprecated_member_use
+    expect(scaffold.backgroundColor, theme.colorScheme.background);
+
     final fill = tester.widget<ColoredBox>(
       find.byKey(const ValueKey('start-base-fill')),
     );
@@ -42,5 +47,3 @@ void main() {
 }
 
 void _noop() {}
-
-

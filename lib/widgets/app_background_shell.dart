@@ -1,7 +1,4 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
-import 'animated_video_background.dart';
 
 class AppBackgroundShell extends StatelessWidget {
   const AppBackgroundShell({
@@ -22,38 +19,14 @@ class AppBackgroundShell extends StatelessWidget {
     final opaqueBackground = backgroundColor.withValues(alpha: 1);
     assert(() {
       debugPrint(
-        '[bg-layer] $debugLayerName decorDisabled=$disableDecorativeBackground',
+        '[bg-layer] $debugLayerName => solid scaffold only '
+        '(decorDisabled=$disableDecorativeBackground)',
       );
       return true;
     }());
-
-    if (kIsWeb) {
-      return Scaffold(
-        backgroundColor: opaqueBackground,
-        body: child,
-      );
-    }
-
-    if (disableDecorativeBackground) {
-      assert(() {
-        debugPrint('[bg-layer] $debugLayerName => opaque background only');
-        return true;
-      }());
-      return Scaffold(
-        backgroundColor: opaqueBackground,
-        body: child,
-      );
-    }
-
-    assert(() {
-      debugPrint('[bg-layer] $debugLayerName => AnimatedVideoBackground ON');
-      return true;
-    }());
-    return AnimatedVideoBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: child,
-      ),
+    return Scaffold(
+      backgroundColor: opaqueBackground,
+      body: child,
     );
   }
 }

@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('quick switcher opens with ctrl/cmd+k and closes with esc',
+  testWidgets('command palette opens with ctrl/cmd+k and closes with esc',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'bitflow.onboarding_done.v1': true,
@@ -36,7 +36,13 @@ void main() {
 
     expect(
         find.byKey(const ValueKey('command_palette_dialog')), findsOneWidget);
-    expect(find.text('Quick Switcher'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('command_palette_dialog')),
+        matching: find.text('Paleta de comandos'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
