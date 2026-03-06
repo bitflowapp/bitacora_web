@@ -92,10 +92,12 @@ part 'attachments/attachments_view.dart';
 part 'attachments/attachment_tile.dart';
 part 'attachments/attachment_preview_modal.dart';
 part 'dialogs/editor_dialogs.dart';
+part 'dialogs/editor_unsaved_exit_dialog.dart';
 part 'dialogs/export_dialogs.dart';
 part 'dialogs/import_dialogs.dart';
 part 'dialogs/confirm_dialogs.dart';
 part 'actions/editor_actions.dart';
+part 'actions/editor_export_share_helpers.dart';
 part 'actions/editor_shortcuts.dart';
 part 'widgets/editor_app_bar.dart';
 part 'widgets/save_status_chip.dart';
@@ -103,4 +105,3 @@ part 'widgets/grid_host.dart';
 part 'widgets/mobile_editor_widgets.dart';
 part 'widgets/editor_backdrop.dart';
 part '../../widgets/mobile_notes_grid.dart';
-

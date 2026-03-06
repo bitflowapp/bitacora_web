@@ -1,13 +1,18 @@
 part of 'editor_screen.dart';
 
-enum EditorSaveState { idle, saving, dirty, saved }
+enum EditorSaveState { idle, saving, dirty, saved, error }
 
 @immutable
 class EditorSaveSnapshot {
-  const EditorSaveSnapshot({required this.state, this.savedAt});
+  const EditorSaveSnapshot({
+    required this.state,
+    this.savedAt,
+    this.errorMessage,
+  });
 
   final EditorSaveState state;
   final DateTime? savedAt;
+  final String? errorMessage;
 }
 
 enum OfflineSyncState {

@@ -4,7 +4,8 @@ extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    var format = _lastExportPreset == 'xlsx' ? 'xlsx' : 'pdf';
+    var format =
+        _isValidExportPreset(_lastExportPreset) ? _lastExportPreset : 'pdf';
     var includeAttachments = true;
 
     await showAppModal<void>(
@@ -12,7 +13,10 @@ extension _EditorExportDialogs on _EditorScreenState {
       title: 'Exportar',
       child: StatefulBuilder(
         builder: (context, setModalState) {
-          final fileName = _buildCommercialExportFileName(format);
+          final exportBusy = _longOperation != null || _saving;
+          final fileName = format == 'zip'
+              ? buildBitFlowBundleExportFileName(sheetName: _sheetName)
+              : _buildCommercialExportFileName(format);
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -31,15 +35,23 @@ extension _EditorExportDialogs on _EditorScreenState {
                   ChoiceChip(
                     label: const Text('XLSX'),
                     selected: format == 'xlsx',
-                    onSelected: (_) => setModalState(() {
+                    onSelected: exportBusy ? null : (_) => setModalState(() {
                       format = 'xlsx';
                     }),
                   ),
                   ChoiceChip(
                     label: const Text('PDF'),
                     selected: format == 'pdf',
-                    onSelected: (_) => setModalState(() {
+                    onSelected: exportBusy ? null : (_) => setModalState(() {
                       format = 'pdf';
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: const Text('ZIP'),
+                    selected: format == 'zip',
+                    onSelected: exportBusy ? null : (_) => setModalState(() {
+                      format = 'zip';
+                      includeAttachments = true;
                     }),
                   ),
                 ],
@@ -48,23 +60,55 @@ extension _EditorExportDialogs on _EditorScreenState {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Incluir adjuntos'),
-                subtitle: const Text('Fotos, audio y GPS en el export.'),
-                value: includeAttachments,
-                onChanged: (value) {
-                  setModalState(() => includeAttachments = value);
-                },
+                subtitle: Text(
+                  format == 'zip'
+                      ? 'ZIP incluye planilla y adjuntos para compartir o backup.'
+                      : 'Fotos, audio y GPS en el export.',
+                ),
+                value: format == 'zip' ? true : includeAttachments,
+                onChanged: exportBusy || format == 'zip'
+                    ? null
+                    : (value) {
+                        setModalState(() => includeAttachments = value);
+                      },
               ),
               const SizedBox(height: 6),
               Text(
                 'Archivo: $fileName',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              const SizedBox(height: 6),
+              Text(
+                format == 'zip'
+                    ? 'Recomendado para compartir una copia completa con adjuntos.'
+                    : 'Exporta una version lista para guardar, descargar o enviar.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (_rows.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'La planilla no tiene filas. Exportaremos la estructura actual.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              if (exportBusy) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _saving
+                      ? 'Hay un guardado en curso. Espera a que termine para exportar.'
+                      : 'Ya hay una operacion en curso. Espera a que termine para exportar o compartir.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               const SizedBox(height: 12),
               AppButton(
-                label: 'Descargar',
+                key: const ValueKey('editor-export-submit'),
+                label: 'Exportar',
                 icon: Icons.download_rounded,
                 variant: AppButtonVariant.primary,
-                onPressed: () {
+                onPressed: exportBusy
+                    ? null
+                    : () {
                   Navigator.of(context).pop();
                   unawaited(_setExportPresetPref(format));
                   _triggerSheetExport(
@@ -76,10 +120,13 @@ extension _EditorExportDialogs on _EditorScreenState {
               ),
               const SizedBox(height: 8),
               AppButton(
+                key: const ValueKey('editor-export-share'),
                 label: 'Compartir',
                 icon: Icons.ios_share_rounded,
                 variant: AppButtonVariant.secondary,
-                onPressed: () {
+                onPressed: exportBusy
+                    ? null
+                    : () {
                   Navigator.of(context).pop();
                   unawaited(_setExportPresetPref(format));
                   _triggerSheetExport(
@@ -110,7 +157,11 @@ extension _EditorExportDialogs on _EditorScreenState {
     required bool includeAttachments,
     required bool share,
   }) {
-    unawaited(_setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx'));
+    unawaited(_setExportPresetPref(format));
+    if (format == 'zip') {
+      unawaited(_exportZipBundle(share: share));
+      return;
+    }
     if (format == 'pdf') {
       unawaited(
         _exportPdf(

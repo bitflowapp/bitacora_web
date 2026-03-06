@@ -15,4 +15,12 @@ void main() {
     );
     expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.xlsx');
   });
+
+  test('buildBitFlowBundleExportFileName uses commercial bundle pattern', () {
+    final fileName = buildBitFlowBundleExportFileName(
+      sheetName: '  Mi Hoja * QA ',
+      now: DateTime(2026, 2, 13, 10, 12),
+    );
+    expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.bitflow.zip');
+  });
 }

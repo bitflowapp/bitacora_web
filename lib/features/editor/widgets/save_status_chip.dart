@@ -25,15 +25,18 @@ class _SaveStatusChip extends StatelessWidget {
           switchInCurve: AppMotion.springOut,
           switchOutCurve: AppMotion.standardIn,
           transitionBuilder: _chipTransition,
-          child: _StatusChipShell(
-            key: ValueKey(key),
-            palette: palette,
-            bg: colors.$1,
-            border: colors.$2,
-            fg: colors.$3,
-            label: label,
-            icon: _iconFor(snap.state),
-            busy: busy,
+          child: Tooltip(
+            message: (snap.errorMessage ?? label).trim(),
+            child: _StatusChipShell(
+              key: ValueKey(key),
+              palette: palette,
+              bg: colors.$1,
+              border: colors.$2,
+              fg: colors.$3,
+              label: label,
+              icon: _iconFor(snap.state),
+              busy: busy,
+            ),
           ),
         );
       },
@@ -64,6 +67,8 @@ class _SaveStatusChip extends StatelessWidget {
         final hh = d.hour.toString().padLeft(2, '0');
         final mm = d.minute.toString().padLeft(2, '0');
         return 'Guardado $hh:$mm';
+      case EditorSaveState.error:
+        return 'Error al guardar';
       case EditorSaveState.idle:
         return 'Listo';
     }
@@ -77,6 +82,8 @@ class _SaveStatusChip extends StatelessWidget {
         return Icons.edit_rounded;
       case EditorSaveState.saved:
         return Icons.check_circle_outline_rounded;
+      case EditorSaveState.error:
+        return Icons.error_outline_rounded;
       case EditorSaveState.idle:
         return Icons.check_rounded;
     }
@@ -102,6 +109,12 @@ class _SaveStatusChip extends StatelessWidget {
           palette.accent.withValues(alpha: light ? 0.08 : 0.14),
           palette.accent.withValues(alpha: 0.25),
           palette.accent,
+        );
+      case EditorSaveState.error:
+        return (
+          palette.dangerBg,
+          palette.dangerFg.withValues(alpha: 0.24),
+          palette.dangerFg,
         );
       case EditorSaveState.idle:
         return (
@@ -308,4 +321,3 @@ class _StatusChipShell extends StatelessWidget {
     );
   }
 }
-

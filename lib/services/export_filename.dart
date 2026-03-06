@@ -26,3 +26,14 @@ String buildBitFlowExportFileName({
   final dd = at.day.toString().padLeft(2, '0');
   return 'BitFlow_$yyyy-$mm-${dd}_$safeSheet.$ext';
 }
+
+String buildBitFlowBundleExportFileName({
+  required String sheetName,
+  DateTime? now,
+}) {
+  return buildBitFlowExportFileName(
+    sheetName: sheetName,
+    extension: 'zip',
+    now: now,
+  ).replaceFirst(RegExp(r'\.zip$', caseSensitive: false), '.bitflow.zip');
+}
