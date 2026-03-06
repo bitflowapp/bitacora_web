@@ -1,4 +1,4 @@
-import 'package:bitacora_web/start_page_v2.dart';
+import 'package:bitacora_web/start_page.dart';
 import 'package:bitacora_web/widgets/animated_video_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +11,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('StartPageV2 keeps opaque base and no decorative background',
+  testWidgets('StartPage keeps opaque base and no decorative background',
       (tester) async {
     final view = tester.view;
     view.physicalSize = const Size(390, 844);
@@ -22,7 +22,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.light(),
-        home: const StartPageV2(
+        home: const StartPage(
           isLight: true,
           onToggleTheme: _noop,
         ),
@@ -32,6 +32,7 @@ void main() {
 
     expect(find.byType(AnimatedVideoBackground), findsNothing);
     expect(find.byKey(const ValueKey('start-hero-backdrop-art')), findsNothing);
+    expect(find.byType(BackdropFilter), findsNothing);
 
     final fill = tester.widget<ColoredBox>(
       find.byKey(const ValueKey('start-base-fill')),
@@ -41,3 +42,5 @@ void main() {
 }
 
 void _noop() {}
+
+

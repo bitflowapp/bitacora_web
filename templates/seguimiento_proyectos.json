@@ -1,0 +1,12 @@
+﻿{
+  "slug": "seguimiento-proyectos",
+  "name": "Seguimiento de proyectos",
+  "sheetName": "Seguimiento de Proyectos",
+  "headers": ["Proyecto", "Responsable", "Inicio", "Fin objetivo", "% Avance", "Estado", "Riesgo"],
+  "rows": [
+    ["Pipeline Norte", "Ana", "2026-02-10", "2026-04-30", "45", "OK", "Bajo"],
+    ["SCADA Planta", "Luis", "2026-01-20", "2026-05-15", "62", "Obs", "Medio"],
+    ["Relevamiento RTU", "Marta", "2026-03-01", "2026-03-25", "30", "Urgente", "Alto"],
+    ["Backlog interno", "PMO", "2026-02-01", "2026-03-31", "=ROUND(AVERAGE(E1:E3),0)", "", ""]
+  ]
+}

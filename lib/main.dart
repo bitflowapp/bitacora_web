@@ -14,6 +14,7 @@ import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
+import 'screens/shared_sheet_screen.dart';
 import 'start_page.dart';
 import 'services/app_error_reporter.dart';
 import 'services/auto_update_service.dart';
@@ -23,6 +24,8 @@ import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
 import 'services/runtime_flags.dart';
+import 'services/bitflow_product_service.dart';
+import 'services/bitflow_payment_service.dart';
 import 'services/app_decor_policy.dart';
 import 'widgets/app_background_shell.dart';
 import 'ui/ui_theme.dart';
@@ -272,6 +275,31 @@ class _AppState extends State<App> {
     try {
       await AppErrorReporter.I.init().timeout(const Duration(seconds: 2));
     } catch (_) {}
+
+    try {
+      await BitFlowProductService.I
+          .ensureInitialized(
+            firebaseAvailable: firebaseOk,
+            enforcePaidFeatures: true,
+          )
+          .timeout(const Duration(seconds: 4));
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[boot] Product layer init failed: ');
+      }
+    }
+
+    if (firebaseOk) {
+      try {
+        await BitFlowPaymentService.I
+            .handleCheckoutReturn(Uri.base)
+            .timeout(const Duration(seconds: 3));
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[boot] Payment return hook failed: $e');
+        }
+      }
+    }
     // EngineConfig en background: no bloquea primera pintura.
     unawaited(_initEngineConfigNonBlocking());
 
@@ -483,6 +511,14 @@ class _AppState extends State<App> {
               child: home,
             );
           },
+        ),
+        GoRoute(
+          path: '/shared/:shareId',
+          builder: (context, state) => SharedSheetScreen(
+            shareId: (state.pathParameters['shareId'] ?? '').trim(),
+            isLight: _isLight,
+            onToggleTheme: _toggleTheme,
+          ),
         ),
         GoRoute(
           path: '/perf',

@@ -1,5 +1,6 @@
 // lib/features/editor/editor_screen.dart
 import 'dart:async' hide unawaited;
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
@@ -41,6 +42,8 @@ import 'package:bitacora_web/services/engine_api.dart';
 import 'package:bitacora_web/services/engine_config.dart';
 import 'package:bitacora_web/services/editor_quick_automation.dart';
 import 'package:bitacora_web/services/expression_eval.dart';
+import 'package:bitacora_web/services/formula_engine.dart';
+import 'package:bitacora_web/services/bitflow_product_service.dart';
 import 'package:bitacora_web/services/export_filename.dart';
 import 'package:bitacora_web/services/export_flow_outcome.dart';
 import 'package:bitacora_web/services/export_share_helper.dart';
@@ -100,3 +103,4 @@ part 'widgets/grid_host.dart';
 part 'widgets/mobile_editor_widgets.dart';
 part 'widgets/editor_backdrop.dart';
 part '../../widgets/mobile_notes_grid.dart';
+

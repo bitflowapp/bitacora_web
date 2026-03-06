@@ -7,3 +7,4 @@ class StartPage extends StartPageV2 {
     required super.onToggleTheme,
   });
 }
+

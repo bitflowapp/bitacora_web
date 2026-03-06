@@ -93,4 +93,41 @@ void main() {
         SheetStore.list().map((s) => s.id).toList(growable: false);
     expect(listedIds, ['demo_1']);
   });
+
+  test('duplicate creates a copy preserving data and formulas', () {
+    final sourceId = SheetStore.createFromModel(<String, dynamic>{
+      'name': 'Budget Marzo',
+      'savedAt': DateTime(2026, 3, 5, 9, 0).toIso8601String(),
+      'headers': const <String>['Concepto', 'Monto', 'Total', 'Fotos'],
+      'rows': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'r1',
+          'cells': const <String>['Combustible', '1200', '=SUM(B1:B1)', ''],
+        },
+      ],
+    });
+
+    final copyId = SheetStore.duplicate(sourceId);
+
+    expect(copyId, isNot(equals(sourceId)));
+
+    final all = SheetStore.list();
+    expect(all.length, 2);
+    expect(all.any((meta) => meta.id == copyId), isTrue);
+    expect(
+      all.any(
+        (meta) =>
+            meta.id == copyId && meta.title.toLowerCase().contains('copia de'),
+      ),
+      isTrue,
+    );
+
+    final raw = SheetStore.loadRaw(copyId);
+    expect(raw, isNotNull);
+    final decoded = jsonDecode(raw!) as Map<String, dynamic>;
+    final rows = decoded['rows'] as List<dynamic>;
+    final firstRow = rows.first as Map<String, dynamic>;
+    final cells = firstRow['cells'] as List<dynamic>;
+    expect(cells[2], '=SUM(B1:B1)');
+  });
 }
