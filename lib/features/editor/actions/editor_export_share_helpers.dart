@@ -15,21 +15,21 @@ extension _EditorExportShareHelpers on _EditorScreenState {
   String _exportShareText(String name) =>
       'Archivo exportado desde BitFlow: $name';
 
-  String _fileReadyMessage(String label) => 'Archivo listo: $label';
+  String _fileReadyMessage(String label) => 'Archivo guardado: $label';
 
   String _downloadStartedMessage(String name) => 'Descarga iniciada: $name';
 
-  String _shareOpenedMessage(String name) => 'Compartir abierto: $name';
+  String _shareOpenedMessage(String name) => 'Listo para compartir: $name';
 
   String _exportSheetOpenedMessage(String name) =>
-      'Archivo listo: $name. Compartir abierto para guardarlo o enviarlo.';
+      'Archivo listo para guardar o enviar: $name. El sistema abri\u00f3 las opciones para compartir.';
 
   String _shareFallbackSavedMessage({
     required String name,
     String? location,
   }) {
     final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir compartir. Archivo listo: $target';
+    return 'No pudimos abrir compartir. El archivo ya qued\u00f3 listo para guardar o enviar: $target';
   }
 
   Future<void> _shareExportParams(ShareParams params) async {
@@ -124,8 +124,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         if (!mounted) return;
         _showActionSnack(
           _isIosWeb
-              ? 'Safari iOS limita compartir archivos. ${_downloadStartedMessage(name)}'
-              : 'Compartir web no compatible. ${_downloadStartedMessage(name)}',
+              ? 'Safari en iPhone limita compartir archivos desde esta pantalla. ${_downloadStartedMessage(name)} Abrilo desde Descargas y usa Compartir.'
+              : 'Este navegador no permite compartir archivos directamente. ${_downloadStartedMessage(name)}',
           isError: false,
           icon: Icons.download_rounded,
         );

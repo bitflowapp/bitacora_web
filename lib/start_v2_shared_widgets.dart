@@ -68,7 +68,7 @@ class _StartSectionShell extends StatelessWidget {
         border: Border.all(color: colors.separator),
         boxShadow: [colors.subtleShadow],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       child: child,
     );
   }
@@ -215,10 +215,12 @@ class _StartQuickActionTile extends StatefulWidget {
   const _StartQuickActionTile({
     required this.action,
     required this.colors,
+    this.prominent = false,
   });
 
   final _StartQuickActionSpec action;
   final _ApplePalette colors;
+  final bool prominent;
 
   @override
   State<_StartQuickActionTile> createState() => _StartQuickActionTileState();
@@ -231,10 +233,16 @@ class _StartQuickActionTileState extends State<_StartQuickActionTile> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
     final compact = MediaQuery.of(context).size.height < 760;
-    final tilePadding = compact ? 14.0 : 16.0;
-    final iconBox = compact ? 38.0 : 42.0;
-    final titleFont = compact ? 15.0 : 17.0;
-    final subtitleFont = compact ? 11.0 : 12.0;
+    final tilePadding =
+        widget.prominent ? (compact ? 18.0 : 20.0) : (compact ? 14.0 : 16.0);
+    final iconBox =
+        widget.prominent ? (compact ? 44.0 : 48.0) : (compact ? 38.0 : 42.0);
+    final titleFont = widget.prominent ? 18.0 : (compact ? 15.0 : 17.0);
+    final subtitleFont = widget.prominent ? 12.5 : (compact ? 11.0 : 12.0);
+    final accentBorder = colors.accent.withValues(alpha: 0.16);
+    final tileColor = widget.prominent
+        ? colors.accent.withValues(alpha: colors.isLight ? 0.10 : 0.18)
+        : (_hovering ? colors.group : colors.surface);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -252,10 +260,14 @@ class _StartQuickActionTileState extends State<_StartQuickActionTile> {
             curve: Curves.easeOutCubic,
             padding: EdgeInsets.all(tilePadding),
             decoration: BoxDecoration(
-              color: _hovering ? colors.group : colors.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: colors.separator),
-              boxShadow: _hovering ? [colors.subtleShadow] : const [],
+              color: tileColor,
+              borderRadius: BorderRadius.circular(widget.prominent ? 26 : 22),
+              border: Border.all(
+                color: widget.prominent ? accentBorder : colors.separator,
+              ),
+              boxShadow: (_hovering || widget.prominent)
+                  ? [colors.subtleShadow]
+                  : const [],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,10 +276,14 @@ class _StartQuickActionTileState extends State<_StartQuickActionTile> {
                   width: iconBox,
                   height: iconBox,
                   decoration: BoxDecoration(
-                    color: colors.accent.withValues(alpha: 0.10),
+                    color: colors.accent.withValues(
+                      alpha: widget.prominent ? 0.14 : 0.10,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: colors.accent.withValues(alpha: 0.14),
+                      color: colors.accent.withValues(
+                        alpha: widget.prominent ? 0.20 : 0.14,
+                      ),
                     ),
                   ),
                   alignment: Alignment.center,
@@ -287,6 +303,7 @@ class _StartQuickActionTileState extends State<_StartQuickActionTile> {
                     fontSize: titleFont,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.3,
+                    height: 1.05,
                   ),
                 ),
                 SizedBox(height: compact ? 4 : 6),
@@ -298,26 +315,46 @@ class _StartQuickActionTileState extends State<_StartQuickActionTile> {
                     color: colors.textSecondary,
                     fontSize: subtitleFont,
                     fontWeight: FontWeight.w600,
-                    height: 1.35,
+                    height: widget.prominent ? 1.4 : 1.35,
                   ),
                 ),
                 SizedBox(height: compact ? 10 : 14),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: colors.group,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: colors.separator),
-                  ),
-                  child: Text(
-                    widget.action.shortcut,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: widget.prominent
+                            ? colors.surface.withValues(alpha: 0.74)
+                            : colors.group,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: widget.prominent
+                              ? accentBorder
+                              : colors.separator,
+                        ),
+                      ),
+                      child: Text(
+                        widget.action.shortcut,
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (widget.prominent) ...[
+                      const Spacer(),
+                      Icon(
+                        CupertinoIcons.arrow_up_right,
+                        color: colors.textSecondary,
+                        size: 16,
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -456,7 +493,7 @@ class _StartFileItemTile extends StatelessWidget {
 
   String get _title {
     final title = sheet.title.trim();
-    return title.isEmpty ? 'Planilla sin titulo' : title;
+    return title.isEmpty ? 'Planilla sin t\u00edtulo' : title;
   }
 
   @override
@@ -510,6 +547,14 @@ class _StartFileItemTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   _StartTinyIconButton(
+                    icon: favorite
+                        ? CupertinoIcons.star_fill
+                        : CupertinoIcons.star,
+                    colors: colors,
+                    onPressed: () => unawaited(onToggleFavorite()),
+                  ),
+                  const SizedBox(height: 6),
+                  _StartTinyIconButton(
                     buttonKey: ValueKey('start-sheet-more-${sheet.id}'),
                     icon: CupertinoIcons.ellipsis,
                     colors: colors,
@@ -551,12 +596,6 @@ class _StartFileItemTile extends StatelessWidget {
                 colors: colors,
                 onPressed: () => unawaited(onRename()),
               ),
-              _StartFileActionChip(
-                icon: favorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                label: 'Favorita',
-                colors: colors,
-                onPressed: () => unawaited(onToggleFavorite()),
-              ),
             ],
           ),
         ],
@@ -582,8 +621,8 @@ class _StartTinyIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoButton(
       key: buttonKey,
-      padding: EdgeInsets.zero,
-      minimumSize: Size.zero,
+      padding: const EdgeInsets.all(4),
+      minimumSize: const Size(44, 44),
       onPressed: onPressed,
       child: Container(
         width: 28,
@@ -621,31 +660,37 @@ class _StartFileActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fillColor = emphasis ? colors.group : colors.surface;
+    final fillColor = emphasis
+        ? colors.accent.withValues(alpha: colors.isLight ? 0.10 : 0.18)
+        : colors.surface;
     return CupertinoButton(
       padding: EdgeInsets.zero,
-      minimumSize: Size.zero,
+      minimumSize: const Size(44, 36),
       onPressed: onPressed,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: fillColor,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: colors.separator),
+          border: Border.all(
+            color: emphasis
+                ? colors.accent.withValues(alpha: 0.18)
+                : colors.separator,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              color: colors.textPrimary,
+              color: emphasis ? colors.accent : colors.textPrimary,
               size: 14,
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: colors.textPrimary,
+                color: emphasis ? colors.accent : colors.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),

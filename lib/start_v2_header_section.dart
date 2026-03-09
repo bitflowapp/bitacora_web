@@ -26,7 +26,7 @@ class _StartHeaderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       child: Container(
         key: const ValueKey('start-header-card'),
         decoration: BoxDecoration(
@@ -36,10 +36,10 @@ class _StartHeaderSection extends StatelessWidget {
           boxShadow: [colors.subtleShadow],
         ),
         padding: EdgeInsets.fromLTRB(
-          20,
-          isShortViewport ? 14 : 18,
-          20,
+          22,
           isShortViewport ? 16 : 20,
+          22,
+          isShortViewport ? 18 : 22,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +81,7 @@ class _StartHeaderSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Productivity hub',
+                        'Centro de productividad',
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: 12,
@@ -98,7 +98,7 @@ class _StartHeaderSection extends StatelessWidget {
                   icon: colors.isLight
                       ? CupertinoIcons.moon_stars
                       : CupertinoIcons.sun_max,
-                  label: 'Toggle theme',
+                  label: 'Cambiar tema',
                   colors: colors,
                   onPressed: onToggleTheme,
                 ),
@@ -106,13 +106,13 @@ class _StartHeaderSection extends StatelessWidget {
                 _StartCircleIconButton(
                   key: const ValueKey('start-more-button'),
                   icon: CupertinoIcons.ellipsis,
-                  label: 'More',
+                  label: 'M\u00e1s opciones',
                   colors: colors,
                   onPressed: onOpenMore,
                 ),
               ],
             ),
-            SizedBox(height: isShortViewport ? 14 : 18),
+            SizedBox(height: isShortViewport ? 16 : 20),
             Text(
               headerTitle,
               style: TextStyle(
@@ -133,12 +133,12 @@ class _StartHeaderSection extends StatelessWidget {
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: isShortViewport
-                  ? headerMetrics.take(3).toList(growable: false)
+                  ? headerMetrics.take(2).toList(growable: false)
                   : headerMetrics,
             ),
           ],

@@ -11,6 +11,10 @@ class _StartPrimaryActionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final heroAction = quickActions.isNotEmpty ? quickActions.first : null;
+    final secondaryActions = quickActions.length > 1
+        ? quickActions.sublist(1)
+        : const <_StartQuickActionSpec>[];
     return _StartSectionShell(
       colors: colors,
       child: Column(
@@ -27,38 +31,48 @@ class _StartPrimaryActionsSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Solo las cuatro acciones mas utiles para empezar, abrir y avanzar rapido.',
+            'Una acci\u00f3n principal para empezar y accesos directos claros para retomar sin ruido.',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 760;
-              final columns = compact ? 2 : 4;
-              const gap = 12.0;
-              final totalGap = gap * (columns - 1);
-              final tileWidth = (constraints.maxWidth - totalGap) / columns;
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final action in quickActions)
-                    SizedBox(
-                      width: tileWidth,
-                      child: _StartQuickActionTile(
-                        action: action,
-                        colors: colors,
+          const SizedBox(height: 18),
+          if (heroAction != null) ...[
+            _StartQuickActionTile(
+              action: heroAction,
+              colors: colors,
+              prominent: true,
+            ),
+            if (secondaryActions.isNotEmpty) const SizedBox(height: 14),
+          ],
+          if (secondaryActions.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth < 520
+                    ? 1
+                    : (constraints.maxWidth < 920 ? 2 : 3);
+                const gap = 12.0;
+                final totalGap = gap * (columns - 1);
+                final tileWidth = (constraints.maxWidth - totalGap) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final action in secondaryActions)
+                      SizedBox(
+                        width: tileWidth,
+                        child: _StartQuickActionTile(
+                          action: action,
+                          colors: colors,
+                        ),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
+          const SizedBox(height: 14),
           const Wrap(
             spacing: 8,
             runSpacing: 8,

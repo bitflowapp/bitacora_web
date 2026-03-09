@@ -55,7 +55,8 @@ void main() {
 
     expect(
       state.debugLastToastMessage(),
-      contains('No pudimos abrir compartir. Archivo listo:'),
+      contains(
+          'No pudimos abrir compartir. El archivo ya qued\u00f3 listo para guardar o enviar:'),
     );
     expect(tester.takeException(), isNull);
   });
