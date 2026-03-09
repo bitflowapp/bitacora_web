@@ -321,6 +321,29 @@
       var bootReady = false;
       var installPromptEvent = null;
       var startInvoked = false;
+      var bootStage = 'idle';
+      var bootDetail = '';
+
+      function setBootStage(stage, detail) {
+        bootStage = stage || bootStage;
+        bootDetail = detail || bootDetail;
+        try {
+          document.documentElement.setAttribute('data-bitflow-boot', bootStage);
+        } catch (_) {}
+        try {
+          if (window.console && console.info) {
+            console.info('[bitflow boot]', bootStage, detail || '');
+          }
+        } catch (_) {}
+      }
+
+      function describeBootState(reason) {
+        var parts = [];
+        if (reason) parts.push(reason);
+        if (bootStage) parts.push('Estado: ' + bootStage + '.');
+        if (bootDetail) parts.push(bootDetail);
+        return parts.join(' ');
+      }
 
       function showBootFallback(reason) {
         try {
@@ -330,7 +353,7 @@
           if (root.style.display === 'flex') return;
           root.style.display = 'flex';
           var msg = root.querySelector('[data-role=\"message\"]');
-          if (msg && reason) msg.textContent = reason;
+          if (msg) msg.textContent = describeBootState(reason);
         } catch (_) {}
       }
 
@@ -356,6 +379,7 @@
       function markBootReady() {
         if (bootReady) return;
         bootReady = true;
+        setBootStage('flutter-mounted');
         if (bootGuardTimer) {
           clearTimeout(bootGuardTimer);
           bootGuardTimer = 0;
@@ -389,46 +413,8 @@
         }
       }
 
-      var swWaitingRegistration = null;
-      var swReloadOnControllerChange = false;
-
-      function isIosSafari() {
-        var ua = (navigator.userAgent || '').toLowerCase();
-        var isIos = /iphone|ipad|ipod/.test(ua);
-        if (!isIos) return false;
-        var isSafari = ua.indexOf('safari') >= 0;
-        var excluded = ua.indexOf('crios') >= 0 ||
-          ua.indexOf('fxios') >= 0 ||
-          ua.indexOf('edgios') >= 0 ||
-          ua.indexOf('opios') >= 0;
-        return isSafari && !excluded;
-      }
-
-      async function cleanupIosSafariServiceWorkersOncePerSession() {
-        if (!isIosSafari()) return;
-
-        var sessionKey = 'bitflow_ios_sw_cleanup_done_v1';
-        try {
-          if (window.sessionStorage && sessionStorage.getItem(sessionKey) === '1') {
-            return;
-          }
-        } catch (_) {}
-
-        try {
-          var existing = await navigator.serviceWorker.getRegistrations();
-          for (var i = 0; i < existing.length; i++) {
-            try { await existing[i].unregister(); } catch (_) {}
-          }
-        } catch (_) {}
-
-        try {
-          if (window.sessionStorage) {
-            sessionStorage.setItem(sessionKey, '1');
-          }
-        } catch (_) {}
-      }
-
       async function clearCachesAndReload() {
+        setBootStage('clean-retry');
         try {
           if ('serviceWorker' in navigator) {
             var regs = await navigator.serviceWorker.getRegistrations();
@@ -452,88 +438,19 @@
         } catch (_) {}
       }
 
-      async function applyWaitingServiceWorker() {
-        var reg = swWaitingRegistration;
-        if (!reg) {
-          await clearCachesAndReload();
-          return;
-        }
-        swReloadOnControllerChange = true;
-        try {
-          if (reg.waiting) {
-            reg.waiting.postMessage('skipWaiting');
-          } else {
-            await reg.update();
-          }
-        } catch (_) {
-          await clearCachesAndReload();
-          return;
-        }
+      window.__bitflowBootRetry = function () {
+        return clearCachesAndReload();
+      };
 
-        setTimeout(function () {
-          if (!swReloadOnControllerChange) return;
-          clearCachesAndReload();
-        }, 1500);
+      function isResolvedBuildId(build) {
+        var value = (build || '').toString().trim();
+        return value && value !== '__BUILD_ID__' && value.indexOf('dev-') !== 0;
       }
 
-      function onServiceWorkerWaiting(reg) {
-        swWaitingRegistration = reg;
-        Promise.resolve().then(function () {
-          return applyWaitingServiceWorker();
-        }).catch(function () {});
-      }
-
-      function bindServiceWorkerRegistration(reg) {
-        if (!reg) return;
-
-        if (reg.waiting) {
-          onServiceWorkerWaiting(reg);
-        }
-
-        reg.addEventListener('updatefound', function () {
-          var worker = reg.installing;
-          if (!worker) return;
-          worker.addEventListener('statechange', function () {
-            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-              onServiceWorkerWaiting(reg);
-            }
-          });
-        });
-      }
-
-      async function hardenServiceWorkerUpdates(build) {
-        if (!('serviceWorker' in navigator)) return;
-
-        if (isIosSafari()) {
-          await cleanupIosSafariServiceWorkersOncePerSession();
-          return;
-        }
-
+      function rememberResolvedBuild(build) {
+        if (!isResolvedBuildId(build)) return;
         try {
-          navigator.serviceWorker.addEventListener('controllerchange', function () {
-            if (!swReloadOnControllerChange) return;
-            swReloadOnControllerChange = false;
-            window.location.reload();
-          });
-        } catch (_) {}
-
-        try {
-          var swUrl = 'flutter_service_worker.js?v=' + encodeURIComponent(build);
-          var reg = await navigator.serviceWorker.register(swUrl, {
-            updateViaCache: 'none'
-          });
-          bindServiceWorkerRegistration(reg);
-        } catch (_) {
-          // fallback: registration handled by Flutter loader.
-        }
-
-        try {
-          var regs = await navigator.serviceWorker.getRegistrations();
-          for (var i = 0; i < regs.length; i++) {
-            var r = regs[i];
-            bindServiceWorkerRegistration(r);
-            try { await r.update(); } catch (_) {}
-          }
+          localStorage.setItem('bitflow_last_build', build);
         } catch (_) {}
       }
 
@@ -576,47 +493,24 @@
 
       // Build badge moved to Flutter widget (_BuildBadge).
 
-      // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
-      async function nukeCachesIfBuildChanged(build) {
-        var key = 'bitflow_last_build';
-        var last = null;
-        try { last = localStorage.getItem(key); } catch (_) {}
-
-        if (last === build) return;
-        try { localStorage.setItem(key, build); } catch (_) {}
-
-        try {
-          if ('serviceWorker' in navigator) {
-            var regs = await navigator.serviceWorker.getRegistrations();
-            for (var i = 0; i < regs.length; i++) {
-              try { await regs[i].unregister(); } catch (_) {}
-            }
-          }
-        } catch (_) {}
-
-        try {
-          if (window.caches && caches.keys) {
-            var names = await caches.keys();
-            for (var j = 0; j < names.length; j++) {
-              try { await caches.delete(names[j]); } catch (_) {}
-            }
-          }
-        } catch (_) {}
-      }
-
       function loadFlutterBootstrap(build) {
         try {
+          setBootStage('bootstrap-requested');
           var script = document.createElement('script');
           script.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(build);
           script.async = true;
           script.onload = function () {
-            // El script cargo; el guard se desactiva al montar flt-glass-pane.
+            setBootStage('bootstrap-loaded');
           };
           script.onerror = function () {
+            setBootStage('bootstrap-load-failed', 'No se pudo descargar flutter_bootstrap.js.');
             showBootFallback('No se pudo cargar la app. Reintenta o abre la landing.');
           };
           document.body.appendChild(script);
-        } catch (_) {}
+        } catch (error) {
+          setBootStage('bootstrap-load-failed', String(error || 'Error al inyectar bootstrap.'));
+          showBootFallback('No se pudo iniciar el bootstrap de la app.');
+        }
       }
 
       function loadFlutterBootstrapDeferred(build) {
@@ -681,6 +575,7 @@
       }
 
       function boot() {
+        setBootStage('viewport-watch');
         scheduleApply();
 
         window.addEventListener('resize', scheduleApply, { passive: true });
@@ -697,15 +592,28 @@
           new MutationObserver(function () {
             scheduleApply();
             if (document.querySelector('flt-glass-pane')) {
+              setBootStage('flutter-root-detected');
               markBootReady();
             }
           }).observe(document.documentElement, { childList: true, subtree: true });
         } catch (_) {}
       }
 
+      window.addEventListener('error', function (event) {
+        if (bootReady) return;
+        setBootStage('window-error', (event && event.message) ? String(event.message) : 'Error JS durante el arranque.');
+      });
+
+      window.addEventListener('unhandledrejection', function (event) {
+        if (bootReady) return;
+        var reason = event && event.reason ? String(event.reason) : 'Promesa rechazada durante el arranque.';
+        setBootStage('window-rejection', reason);
+      });
+
       async function start() {
         if (startInvoked) return;
         startInvoked = true;
+        setBootStage('resolving-build');
         bootGuardTimer = setTimeout(function () {
           showBootFallback('Arranque demorado. Puedes reintentar sin perder estado local.');
         }, 12000);
@@ -713,25 +621,20 @@
         try {
           var build = await resolveBuildIdFast(1200);
           window.__BITFLOW_BUILD__ = build;
+          rememberResolvedBuild(build);
+          setBootStage(
+            isResolvedBuildId(build) ? 'build-resolved' : 'build-fallback',
+            isResolvedBuildId(build)
+              ? 'Build ' + build + '.'
+              : 'version.json no respondio a tiempo; se uso fallback temporal.'
+          );
           boot();
-          Promise.resolve()
-            .then(function () {
-              return nukeCachesIfBuildChanged(build);
-            })
-            .then(function () {
-              return hardenServiceWorkerUpdates(build);
-            })
-            .catch(function () {});
           loadFlutterBootstrapDeferred(build);
-        } catch (_) {
+        } catch (error) {
           var fallback = 'dev-' + Date.now();
           window.__BITFLOW_BUILD__ = fallback;
+          setBootStage('build-resolution-failed', String(error || 'No se pudo resolver buildId.'));
           boot();
-          Promise.resolve()
-            .then(function () {
-              return hardenServiceWorkerUpdates(fallback);
-            })
-            .catch(function () {});
           loadFlutterBootstrapDeferred(fallback);
         }
       }
@@ -779,8 +682,8 @@
       <h2>BitFlow inicio seguro</h2>
       <p data-role="message">La app tarda mas de lo normal en iniciar.</p>
       <div class="row">
-        <button class="primary" type="button" onclick="window.location.reload()">Reintentar app</button>
-        <a href="bitflow/">Abrir landing premium</a>
+        <button class="primary" type="button" onclick="window.__bitflowBootRetry ? window.__bitflowBootRetry() : window.location.reload()">Reintentar app</button>
+        <a href="landing">Abrir landing premium</a>
       </div>
     </div>
   </div>
