@@ -974,7 +974,7 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hoja vacia',
+            'Hoja vac\u00eda',
             style: TextStyle(
               color: palette.fg,
               fontSize: 14,
@@ -983,7 +983,7 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Empieza en segundos: crea un registro, pega una tabla o importa cuando este habilitado.',
+            'Empieza en segundos: crea un registro, pega una tabla o importa cuando est\u00e9 habilitado.',
             style: TextStyle(
               color: palette.fgMuted,
               fontSize: 12,
@@ -1009,7 +1009,7 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Tip: pega TSV/CSV y aparece preview para confirmar.',
+            'Tip: pega TSV/CSV y aparece una vista previa para confirmar.',
             style: TextStyle(
               color: palette.fgMuted,
               fontSize: 11.5,
@@ -1019,7 +1019,7 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
           const SizedBox(height: 8),
           AppButton(
             key: const ValueKey('empty-state-cta-template'),
-            label: 'Usar plantilla',
+            label: 'Usar una plantilla',
             icon: Icons.grid_view_rounded,
             variant: AppButtonVariant.ghost,
             onPressed: onUseTemplate,

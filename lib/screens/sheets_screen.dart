@@ -240,12 +240,12 @@ class _SheetsScreenState extends State<SheetsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_rounded),
-                title: const Text('Terminos'),
+                title: const Text('T\u00e9rminos'),
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
               ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('DiagnÃ³stico / Soporte'),
+                title: const Text('Diagn\u00f3stico / Soporte'),
                 onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
               ListTile(
@@ -353,6 +353,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
           );
         }
 
+        final narrowLayout = MediaQuery.of(ctx).size.width < 560;
         return ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(ctx).size.height * 0.82,
@@ -366,7 +367,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'Galeria de templates',
+                        'Galer\u00eda de plantillas',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -375,12 +376,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   ),
                 ),
                 GridView.count(
-                  crossAxisCount: 2,
+                  key: const ValueKey('sheets-template-gallery-grid'),
+                  crossAxisCount: narrowLayout ? 1 : 2,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  childAspectRatio: 1.18,
+                  childAspectRatio: narrowLayout ? 2.15 : 1.18,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
                   children: [
                     tile(
@@ -398,7 +400,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     tile(
                       icon: Icons.inventory_2_outlined,
                       title: 'Inventario simple',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicaci\u00f3n, Nota',
                       value: TemplateKind.inventario,
                     ),
                     tile(
@@ -410,7 +412,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     tile(
                       icon: Icons.payments_outlined,
                       title: 'Control de gastos',
-                      subtitle: 'Fecha, Categoria, Descripcion, Monto, Metodo',
+                      subtitle:
+                          'Fecha, Categor\u00eda, Descripci\u00f3n, Monto, M\u00e9todo',
                       value: TemplateKind.controlGastos,
                     ),
                     tile(
@@ -421,8 +424,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     ),
                     tile(
                       icon: Icons.straighten_rounded,
-                      title: 'Mediciones tecnicas',
-                      subtitle: 'Punto, parametro, lectura, tolerancia y estado',
+                      title: 'Mediciones t\u00e9cnicas',
+                      subtitle:
+                          'Punto, par\u00e1metro, lectura, tolerancia y estado',
                       value: TemplateKind.medicionesTecnicas,
                     ),
                   ],
@@ -669,17 +673,17 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   String get _subtitleText {
     if (_loading) return 'Cargando planillas...';
-    if (_items.isEmpty) return 'Sin planillas guardadas todavia';
+    if (_items.isEmpty) return 'Sin planillas guardadas todav\u00eda';
 
     final last = _lastUpdatedSheet;
-    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : 'â€”';
+    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '-';
     final pins = _pinnedIds.length;
 
     // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas | $pins fijadas | Ãšltima: $lastLabel';
+      return '${_items.length} planillas | $pins fijadas | \u00daltima: $lastLabel';
     }
-    return '${_items.length} planillas | Ãšltima: $lastLabel';
+    return '${_items.length} planillas | \u00daltima: $lastLabel';
   }
 
   @override
@@ -1007,7 +1011,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'DÃ­a',
+                  label: isLight ? 'Noche' : 'D\u00eda',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,

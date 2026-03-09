@@ -35,8 +35,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'Pendiente',
         'Falta mixer'
       ],
-      <String>['2026-02-14', 'Sur', 'Excavacion', 'OK', 'Cota verificada'],
-      <String>['2026-02-14', 'Sur', 'Compactacion', 'Obs', 'Humedad alta'],
+      <String>['2026-02-14', 'Sur', 'Excavaci\u00f3n', 'OK', 'Cota verificada'],
+      <String>['2026-02-14', 'Sur', 'Compactaci\u00f3n', 'Obs', 'Humedad alta'],
       <String>['2026-02-14', 'Este', 'Canaleta', 'OK', ''],
     ],
   ),
@@ -44,27 +44,27 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
     slug: 'inventario',
     name: 'Inventario',
     sheetName: 'Demo Inventario',
-    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicación'],
+    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicaci\u00f3n'],
     rows: <List<String>>[
-      <String>['MAT-001', 'Cemento', '35', 'bolsas', 'Deposito A'],
-      <String>['MAT-014', 'Hierro 8mm', '120', 'u', 'Deposito B'],
+      <String>['MAT-001', 'Cemento', '35', 'bolsas', 'Dep\u00f3sito A'],
+      <String>['MAT-014', 'Hierro 8mm', '120', 'u', 'Dep\u00f3sito B'],
       <String>['MAT-032', 'Arena', '18', 'm3', 'Patio'],
-      <String>['EPP-002', 'Guantes', '56', 'pares', 'Panuelo'],
+      <String>['EPP-002', 'Guantes', '56', 'pares', 'Pa\u00f1uelo'],
       <String>['EPP-010', 'Cascos', '24', 'u', 'Oficina'],
     ],
   ),
   DemoTemplateSpec(
     slug: 'rendicion',
-    name: 'Rendicion',
-    sheetName: 'Demo Rendicion',
-    headers: <String>['Fecha', 'Concepto', 'Categoria', 'Monto', 'Comprobante'],
+    name: 'Rendici\u00f3n',
+    sheetName: 'Demo Rendici\u00f3n',
+    headers: <String>['Fecha', 'Concepto', 'Categor\u00eda', 'Monto', 'Comprobante'],
     rows: <List<String>>[
       <String>['2026-02-10', 'Combustible', 'Movilidad', '45200', 'TK-1001'],
       <String>['2026-02-10', 'Peaje', 'Movilidad', '7800', 'TK-1002'],
       <String>[
         '2026-02-11',
         'Almuerzo cuadrilla',
-        'Viaticos',
+        'Vi\u00e1ticos',
         '23500',
         'TK-1003'
       ],
@@ -78,8 +78,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
     sheetName: 'Control de Gastos',
     headers: <String>[
       'Fecha',
-      'Categoria',
-      'Descripcion',
+      'Categor\u00eda',
+      'Descripci\u00f3n',
       'Monto',
       'Medio',
       'Estado'
@@ -88,8 +88,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
       <String>['2026-03-01', 'Movilidad', 'Combustible', '42000', 'Tarjeta', 'OK'],
       <String>['2026-03-01', 'Comidas', 'Almuerzo equipo', '18500', 'Efectivo', 'OK'],
       <String>['2026-03-02', 'Materiales', 'Ferreteria', '63800', 'Transferencia', 'OK'],
-      <String>['2026-03-02', 'Servicios', 'Mensajeria', '9200', 'Tarjeta', 'Obs'],
-      <String>['2026-03-03', 'Viaticos', 'Taxi cliente', '12600', 'Efectivo', 'OK'],
+      <String>['2026-03-02', 'Servicios', 'Mensajer\u00eda', '9200', 'Tarjeta', 'Obs'],
+      <String>['2026-03-03', 'Vi\u00e1ticos', 'Taxi cliente', '12600', 'Efectivo', 'OK'],
       <String>['2026-03-03', 'TOTAL', '', '=SUM(D1:D5)', '', ''],
     ],
   ),
@@ -115,15 +115,15 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   ),
   DemoTemplateSpec(
     slug: 'mediciones',
-    name: 'Mediciones tecnicas',
+    name: 'Mediciones t\u00e9cnicas',
     sheetName: 'Mediciones Tecnicas',
     headers: <String>[
       'Fecha',
       'Punto',
-      'Parametro',
+      'Par\u00e1metro',
       'Lectura',
       'Unidad',
-      'Limite',
+      'L\u00edmite',
       'Estado'
     ],
     rows: <List<String>>[
@@ -143,3 +143,4 @@ DemoTemplateSpec? resolveDemoTemplateFromSlug(String? slug) {
   }
   return null;
 }
+

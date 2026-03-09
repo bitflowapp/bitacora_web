@@ -81,7 +81,7 @@ void main() {
     expect(exportButton.onPressed, isNull);
     expect(shareButton.onPressed, isNull);
     expect(
-      find.textContaining('Ya hay una operacion en curso'),
+      find.textContaining('Ya hay una operaci\u00f3n en curso'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

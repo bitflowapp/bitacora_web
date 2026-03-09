@@ -81,7 +81,7 @@ extension _EditorExportDialogs on _EditorScreenState {
               Text(
                 format == 'zip'
                     ? 'Recomendado para compartir una copia completa con adjuntos.'
-                    : 'Exporta una version lista para guardar, descargar o enviar.',
+                    : 'Exporta una versi\u00f3n lista para guardar, descargar o enviar.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               if (_rows.isEmpty) ...[
@@ -96,7 +96,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                 Text(
                   _saving
                       ? 'Hay un guardado en curso. Espera a que termine para exportar.'
-                      : 'Ya hay una operacion en curso. Espera a que termine para exportar o compartir.',
+                      : 'Ya hay una operaci\u00f3n en curso. Espera a que termine para exportar o compartir.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
