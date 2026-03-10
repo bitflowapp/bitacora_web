@@ -33,18 +33,19 @@ void main() {
 
     expect(find.text('XLSX'), findsOneWidget);
     expect(find.text('PDF'), findsOneWidget);
-    expect(find.text('ZIP'), findsOneWidget);
+    expect(find.text('Paquete completo (.zip)'), findsOneWidget);
 
-    await tester.tap(find.text('ZIP'));
+    await tester.tap(find.text('Paquete completo (.zip)'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('.bitflow.zip'), findsOneWidget);
+    expect(find.textContaining('Archivo: BitFlow_'), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-share')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('export dialog disables actions while another operation is running',
+  testWidgets(
+      'export dialog disables actions while another operation is running',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 

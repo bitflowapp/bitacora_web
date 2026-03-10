@@ -143,13 +143,17 @@ void main() {
         EmbeddedPhoto(rowIndex: 0, colIndex: 0, bytes: png),
         EmbeddedPhoto(rowIndex: 2, colIndex: 0, bytes: png),
       ],
-      attachments: const [
+      attachments: [
         AttachmentRow(
+          sheetName: 'Control Diario',
           cellRef: 'A1',
-          type: 'photo',
-          fileName: 'A1_p1_foto.jpg',
-          notes: '',
-          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+          rowLabel: 'Fila-1',
+          type: 'foto',
+          fileName: 'foto_Control_Diario_A1_2026-03-10_03-01.jpg',
+          description: '',
+          addedAt: DateTime(2026, 3, 10, 3, 1),
+          relativePath:
+              'evidencias/fotos/foto_Control_Diario_A1_2026-03-10_03-01.jpg',
         ),
       ],
     );
@@ -214,13 +218,17 @@ void main() {
         EmbeddedPhoto(rowIndex: 1, colIndex: 0, bytes: png),
         EmbeddedPhoto(rowIndex: 2, colIndex: 0, bytes: png),
       ],
-      attachments: const [
+      attachments: [
         AttachmentRow(
+          sheetName: 'Control Diario',
           cellRef: 'A1',
-          type: 'photo',
-          fileName: 'A1_p1_foto.jpg',
-          notes: '',
-          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+          rowLabel: 'Fila-1',
+          type: 'foto',
+          fileName: 'foto_Control_Diario_A1_2026-03-10_03-01.jpg',
+          description: '',
+          addedAt: DateTime(2026, 3, 10, 3, 1),
+          relativePath:
+              'evidencias/fotos/foto_Control_Diario_A1_2026-03-10_03-01.jpg',
         ),
       ],
       includeIndexColumn: false,

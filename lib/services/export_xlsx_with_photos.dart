@@ -74,17 +74,23 @@ class EmbeddedPhoto {
 
 class AttachmentRow {
   const AttachmentRow({
+    required this.sheetName,
     required this.cellRef,
+    required this.rowLabel,
     required this.type,
     required this.fileName,
-    required this.notes,
+    required this.description,
+    required this.addedAt,
     required this.relativePath,
   });
 
+  final String sheetName;
   final String cellRef;
+  final String rowLabel;
   final String type;
   final String fileName;
-  final String notes;
+  final String description;
+  final DateTime? addedAt;
   final String relativePath;
 }
 
@@ -559,15 +565,18 @@ void _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
-  final sheet = workbook.worksheets.addWithName('Adjuntos');
+  final sheet = workbook.worksheets.addWithName('Evidencias');
   sheet.showGridlines = false;
 
   const headers = [
-    'Referencia de celda',
+    'Hoja',
+    'Celda',
+    'Fila',
     'Tipo',
-    'Nombre de archivo',
-    'Notas',
-    'Ruta',
+    'Archivo',
+    'Descripción',
+    'Fecha',
+    'Ruta relativa',
   ];
 
   for (int c = 0; c < headers.length; c++) {
@@ -584,11 +593,16 @@ void _buildAttachmentsSheet(
   for (int i = 0; i < attachments.length; i++) {
     final row = i + 2;
     final item = attachments[i];
-    sheet.getRangeByIndex(row, 1).setText(item.cellRef);
-    sheet.getRangeByIndex(row, 2).setText(item.type);
-    sheet.getRangeByIndex(row, 3).setText(item.fileName);
-    sheet.getRangeByIndex(row, 4).setText(item.notes);
-    sheet.getRangeByIndex(row, 5).setText(item.relativePath);
+    sheet.getRangeByIndex(row, 1).setText(item.sheetName);
+    sheet.getRangeByIndex(row, 2).setText(item.cellRef);
+    sheet.getRangeByIndex(row, 3).setText(item.rowLabel);
+    sheet.getRangeByIndex(row, 4).setText(item.type);
+    sheet.getRangeByIndex(row, 5).setText(item.fileName);
+    sheet.getRangeByIndex(row, 6).setText(item.description);
+    sheet
+        .getRangeByIndex(row, 7)
+        .setText(item.addedAt?.toIso8601String() ?? '');
+    sheet.getRangeByIndex(row, 8).setText(item.relativePath);
   }
 
   final lastRow = attachments.length + 1;

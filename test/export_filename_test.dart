@@ -16,11 +16,29 @@ void main() {
     expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.xlsx');
   });
 
-  test('buildBitFlowBundleExportFileName uses commercial bundle pattern', () {
+  test('buildBitFlowBundleExportFileName uses full package pattern', () {
     final fileName = buildBitFlowBundleExportFileName(
       sheetName: '  Mi Hoja * QA ',
       now: DateTime(2026, 2, 13, 10, 12),
     );
-    expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.bitflow.zip');
+    expect(fileName, 'BitFlow_Mi_Hoja_QA_2026-02-13_10-12.zip');
+  });
+
+  test('buildBitFlowPackageWorkbookFileName keeps sheet identity', () {
+    final fileName = buildBitFlowPackageWorkbookFileName(
+      sheetName: 'Inventario Norte',
+    );
+    expect(fileName, 'BitFlow_Inventario_Norte.xlsx');
+  });
+
+  test('buildBitFlowEvidenceFileName uses professional evidence naming', () {
+    final fileName = buildBitFlowEvidenceFileName(
+      kind: 'video',
+      sheetName: 'Mediciones Técnicas',
+      reference: 'E4',
+      timestamp: DateTime(2026, 3, 10, 3, 1),
+      extension: '.mp4',
+    );
+    expect(fileName, 'video_Mediciones_T_cnicas_E4_2026-03-10_03-01.mp4');
   });
 }

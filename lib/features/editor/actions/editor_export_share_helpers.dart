@@ -85,9 +85,13 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     required bool share,
     bool Function()? shouldCancel,
     String? successMessage,
+    String? shareSubject,
+    String? shareText,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final xf = XFile.fromData(bytes, name: name, mimeType: mime);
+    final resolvedSubject = (shareSubject ?? _exportShareSubject(name)).trim();
+    final resolvedText = (shareText ?? _exportShareText(name)).trim();
 
     final isMobile = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
@@ -114,7 +118,11 @@ extension _EditorExportShareHelpers on _EditorScreenState {
 
     if (share) {
       if (kIsWeb) {
-        final shared = await _tryShareWebFile(xf);
+        final shared = await _tryShareWebFile(
+          xf,
+          subject: resolvedSubject,
+          text: resolvedText,
+        );
         if (shared) {
           notifySuccess(_shareOpenedMessage(name));
           return;
@@ -138,6 +146,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           mime: mime,
           bytes: bytes,
           shouldCancel: shouldCancel,
+          subject: resolvedSubject,
+          text: resolvedText,
         );
         if (shared) {
           notifySuccess();
@@ -165,7 +175,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         await _shareExportParams(
           ShareParams(
             files: [xf],
-            subject: _exportShareSubject(name),
+            subject: resolvedSubject,
+            text: resolvedText,
           ),
         );
         if (share) {
@@ -213,12 +224,17 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     }
   }
 
-  Future<bool> _tryShareWebFile(XFile file) async {
+  Future<bool> _tryShareWebFile(
+    XFile file, {
+    required String subject,
+    required String text,
+  }) async {
     try {
       await _shareExportParams(
         ShareParams(
           files: [file],
-          subject: _exportShareSubject(file.name),
+          subject: subject,
+          text: text,
         ),
       );
       return true;
@@ -234,11 +250,12 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     required String name,
     required String mime,
     required Uint8List bytes,
+    required String subject,
+    required String text,
     bool Function()? shouldCancel,
   }) async {
     final path =
         await _persistShareExportTempFile(fileName: name, bytes: bytes);
-    final shareText = _exportShareText(name);
 
     if (path != null && path.trim().isNotEmpty) {
       try {
@@ -246,8 +263,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         await _shareExportParams(
           ShareParams(
             files: <XFile>[XFile(path, mimeType: mime, name: name)],
-            subject: _exportShareSubject(name),
-            text: shareText,
+            subject: subject,
+            text: text,
           ),
         );
         return true;
@@ -262,8 +279,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         await _shareExportParams(
           ShareParams(
             files: <XFile>[XFile(path, name: name)],
-            subject: _exportShareSubject(name),
-            text: shareText,
+            subject: subject,
+            text: text,
           ),
         );
         return true;
@@ -276,8 +293,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
-          subject: _exportShareSubject(name),
-          body: shareText,
+          subject: subject,
+          body: text,
           attachmentPaths: <String>[path],
           isHTML: false,
         );
@@ -290,8 +307,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         final mailto = Uri(
           scheme: 'mailto',
           queryParameters: <String, String>{
-            'subject': _exportShareSubject(name),
-            'body': '$shareText\n\nRuta local del archivo:\n$path',
+            'subject': subject,
+            'body': '$text\n\nRuta local del archivo:\n$path',
           },
         );
         if (await canLaunchUrl(mailto)) {
@@ -306,8 +323,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       await _shareExportParams(
         ShareParams(
           files: <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
-          subject: _exportShareSubject(name),
-          text: shareText,
+          subject: subject,
+          text: text,
         ),
       );
       return true;

@@ -18938,9 +18938,14 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
+      final xlsxFileName = buildBitFlowPackageWorkbookFileName(
+        sheetName: _sheetName,
+      );
+
       _setLongOperationMessage(AppStrings.progressPackagingAssets);
       final zipBytes = await _buildAttachmentsZip(
         xlsxBytes: xlsxBytes,
+        xlsxFileName: xlsxFileName,
         photoItems: prep.photoItems,
         audioItems: prep.audioItems,
         manifest: prep.manifest,
@@ -18961,6 +18966,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
+      final evidenceCount = prep.photoItems.length + prep.audioItems.length;
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
@@ -18970,8 +18976,12 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
-            ? 'Listo para compartir: $fileName'
-            : 'ZIP preparado: $fileName',
+            ? 'Paquete completo listo para compartir: $fileName'
+            : (evidenceCount > 0
+                ? 'Paquete completo listo: $fileName'
+                : 'Paquete completo listo (sin evidencias adjuntas): $fileName'),
+        shareSubject: 'BitFlow | $_sheetName',
+        shareText: 'Paquete exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -18997,8 +19007,8 @@ class _EditorScreenState extends State<EditorScreen>
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_zip' : 'export_zip',
           fallbackMessage: share
-              ? 'Compartir paquete ZIP no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar paquete ZIP no esta disponible en este dispositivo.',
+              ? 'Compartir paquete completo no está disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar paquete completo no está disponible en este dispositivo.',
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
@@ -19009,8 +19019,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
         fallbackMessage: share
-            ? 'No pudimos compartir el paquete ZIP. Podes exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el paquete ZIP. Intenta nuevamente en unos segundos.',
+            ? 'No pudimos compartir el paquete completo. Puedes exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el paquete completo. Intenta nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -19983,16 +19993,20 @@ class _EditorScreenState extends State<EditorScreen>
       final meta = entry.value;
       if (meta.isEmpty) continue;
       final cellRef = cell.a1;
+      final rowLabel = 'Fila-${cell.row + 1}';
       final cellManifest = <String, dynamic>{};
 
       if (meta.gps != null) {
         final gps = meta.gps!;
         attachments.add(
           AttachmentRow(
+            sheetName: _sheetName,
             cellRef: cellRef,
+            rowLabel: rowLabel,
             type: 'gps',
             fileName: '',
-            notes: _gpsNotes(gps),
+            description: _gpsNotes(gps),
+            addedAt: gps.timestamp,
             relativePath: '',
           ),
         );
@@ -20006,22 +20020,31 @@ class _EditorScreenState extends State<EditorScreen>
         for (int i = 0; i < meta.photos.length; i++) {
           _throwIfOperationCancelledBy(shouldCancel);
           final photo = meta.photos[i];
-          final fileName = _exportPhotoFileName(cellRef, photo, index: i + 1);
           final lowerMime = photo.mime.toLowerCase();
-          final itemType = lowerMime.startsWith('video/')
-              ? 'video'
-              : (lowerMime.startsWith('image/') ? 'photo' : 'file');
-          final folder = itemType == 'photo'
-              ? 'photos'
-              : (itemType == 'video' ? 'video' : 'files');
-          final relPath = 'attachments/$folder/$fileName';
+          final isVideo = lowerMime.startsWith('video/');
+          final isImage = lowerMime.startsWith('image/');
+          final itemType = isVideo ? 'video' : (isImage ? 'foto' : 'archivo');
+          final manifestKind = isVideo ? 'video' : (isImage ? 'photo' : 'file');
+          final fileName = _exportPhotoFileName(
+            cellRef,
+            photo,
+            kind: itemType,
+            index: i + 1,
+          );
+          final folder = itemType == 'foto'
+              ? 'fotos'
+              : (itemType == 'video' ? 'videos' : 'archivos');
+          final relPath = 'evidencias/$folder/$fileName';
 
           attachments.add(
             AttachmentRow(
+              sheetName: _sheetName,
               cellRef: cellRef,
+              rowLabel: rowLabel,
               type: itemType,
               fileName: fileName,
-              notes: _photoNotes(photo),
+              description: _photoNotes(photo),
+              addedAt: photo.addedAt,
               relativePath: relPath,
             ),
           );
@@ -20050,7 +20073,7 @@ class _EditorScreenState extends State<EditorScreen>
             );
             final photoManifest = <String, dynamic>{
               'id': photo.id,
-              'kind': itemType,
+              'kind': manifestKind,
               'cellKey': cellRef,
               'type': itemType,
               'fileName': fileName,
@@ -20076,14 +20099,17 @@ class _EditorScreenState extends State<EditorScreen>
           _throwIfOperationCancelledBy(shouldCancel);
           final audio = meta.audios[i];
           final fileName = _exportAudioFileName(cellRef, audio, index: i + 1);
-          final relPath = 'attachments/audio/$fileName';
+          final relPath = 'evidencias/audio/$fileName';
 
           attachments.add(
             AttachmentRow(
+              sheetName: _sheetName,
               cellRef: cellRef,
+              rowLabel: rowLabel,
               type: 'audio',
               fileName: fileName,
-              notes: _audioNotes(audio),
+              description: _audioNotes(audio),
+              addedAt: audio.addedAt,
               relativePath: relPath,
             ),
           );
@@ -20146,6 +20172,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<Uint8List?> _buildAttachmentsZip({
     required Uint8List xlsxBytes,
+    required String xlsxFileName,
     required List<_ZipPhotoItem> photoItems,
     required List<_ZipAudioItem> audioItems,
     required Map<String, dynamic> manifest,
@@ -20154,7 +20181,9 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final archive = Archive();
-    archive.addFile(ArchiveFile('export.xlsx', xlsxBytes.length, xlsxBytes));
+    archive.addFile(
+      ArchiveFile(xlsxFileName, xlsxBytes.length, xlsxBytes),
+    );
 
     for (final item in photoItems) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -20181,6 +20210,14 @@ class _EditorScreenState extends State<EditorScreen>
     archive.addFile(
       ArchiveFile('sheet.json', sheetJsonBytes.length, sheetJsonBytes),
     );
+
+    final readme = _buildPackageReadme(
+      xlsxFileName: xlsxFileName,
+      photoCount: photoItems.length,
+      audioCount: audioItems.length,
+    );
+    final readmeBytes = Uint8List.fromList(utf8.encode(readme));
+    archive.addFile(ArchiveFile('README.txt', readmeBytes.length, readmeBytes));
 
     final encoder = ZipEncoder();
     final zipData = encoder.encode(archive);
@@ -20212,6 +20249,14 @@ class _EditorScreenState extends State<EditorScreen>
         'rowCount': _rows.length,
         'columnCount': _headers.length,
       },
+      'package': {
+        'workbook': buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+        'evidencePaths': <String>[
+          'evidencias/fotos',
+          'evidencias/videos',
+          'evidencias/audio'
+        ],
+      },
       'counts': {
         'rows': _rows.length,
         'cells': nonEmptyCells,
@@ -20238,6 +20283,31 @@ class _EditorScreenState extends State<EditorScreen>
       'sourceRevision': _rev,
     };
     return json;
+  }
+
+  String _buildPackageReadme({
+    required String xlsxFileName,
+    required int photoCount,
+    required int audioCount,
+  }) {
+    final evidenceTotal = photoCount + audioCount;
+    return [
+      'BitFlow - Paquete completo',
+      '',
+      'Contenido:',
+      '- $xlsxFileName (planilla principal)',
+      '- evidencias/fotos y evidencias/videos (si existen)',
+      '- evidencias/audio (si existen)',
+      '- manifest.json (índice técnico)',
+      '- sheet.json (snapshot importable)',
+      '',
+      'Resumen:',
+      '- Evidencias multimedia: $evidenceTotal',
+      '- Fotos/Videos: $photoCount',
+      '- Audios: $audioCount',
+      '',
+      'Sugerencia: abrir primero el XLSX y revisar la hoja "Evidencias".',
+    ].join('\n');
   }
 
   Future<String> _readAppVersionForExport() async {
@@ -21087,12 +21157,19 @@ class _EditorScreenState extends State<EditorScreen>
   String _exportPhotoFileName(
     String cellRef,
     PhotoAttachment photo, {
+    required String kind,
     required int index,
   }) {
-    final base = _safeFile(photo.filename.isNotEmpty ? photo.filename : 'foto');
+    final base = _safeFile(photo.filename.isNotEmpty ? photo.filename : kind);
     final ext = _extForName(base, photo.mime, fallback: '.jpg');
-    final stem = _stripExt(base);
-    return '${cellRef}_p${index}_$stem$ext';
+    final safeRef = '${cellRef}_${index > 1 ? 'v$index' : 'v1'}';
+    return buildBitFlowEvidenceFileName(
+      kind: kind,
+      sheetName: _sheetName,
+      reference: safeRef,
+      timestamp: photo.addedAt.toLocal(),
+      extension: ext,
+    );
   }
 
   String _exportAudioFileName(
@@ -21104,8 +21181,14 @@ class _EditorScreenState extends State<EditorScreen>
       audio.filename.isNotEmpty ? audio.filename : 'audio',
     );
     final ext = _extForName(base, audio.mime, fallback: '.m4a');
-    final stem = _stripExt(base);
-    return '${cellRef}_a${index}_$stem$ext';
+    final safeRef = '${cellRef}_${index > 1 ? 'a$index' : 'a1'}';
+    return buildBitFlowEvidenceFileName(
+      kind: 'audio',
+      sheetName: _sheetName,
+      reference: safeRef,
+      timestamp: audio.addedAt.toLocal(),
+      extension: ext,
+    );
   }
 
   String _backupPhotoFileName(
