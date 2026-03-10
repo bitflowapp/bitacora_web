@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../services/bitflow_payment_service.dart';
 import '../services/bitflow_product_models.dart';
+import '../services/runtime_flags.dart';
 
 Future<void> showBitFlowUpgradeModal(
   BuildContext context, {
   String? reason,
 }) {
+  if (!RuntimeFlags.monetizationEnabled) {
+    return Future<void>.value();
+  }
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

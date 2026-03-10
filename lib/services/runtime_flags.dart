@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 class RuntimeFlags {
   RuntimeFlags._();
 
@@ -16,6 +18,29 @@ class RuntimeFlags {
     'AUTH_ENABLED',
     defaultValue: false,
   );
+
+  /// Monetization master switch.
+  ///
+  /// Default is free-only mode so product testing has zero Pro friction.
+  static bool _monetizationEnabled = bool.fromEnvironment(
+    'MONETIZATION_ENABLED',
+    defaultValue: false,
+  );
+
+  static bool get monetizationEnabled => _monetizationEnabled;
+
+  @visibleForTesting
+  static void setMonetizationEnabledForTest(bool value) {
+    _monetizationEnabled = value;
+  }
+
+  @visibleForTesting
+  static void resetMonetizationFlagForTest() {
+    _monetizationEnabled = bool.fromEnvironment(
+      'MONETIZATION_ENABLED',
+      defaultValue: false,
+    );
+  }
 
   static const bool isAuthRequired = authEnabled && !demoMode;
 

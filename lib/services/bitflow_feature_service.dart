@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'bitflow_product_models.dart';
+import 'runtime_flags.dart';
 
 class BitFlowFeatureService {
   BitFlowFeatureService._();
@@ -27,11 +28,12 @@ class BitFlowFeatureService {
 
   bool _enforcementEnabled = false;
 
-  bool get enforcementEnabled => _enforcementEnabled;
+  bool get monetizationEnabled => RuntimeFlags.monetizationEnabled;
+  bool get enforcementEnabled => monetizationEnabled && _enforcementEnabled;
   BitFlowEntitlement get current => entitlement.value;
 
   Future<void> init({bool enforcePaidFeatures = false}) async {
-    _enforcementEnabled = enforcePaidFeatures;
+    _enforcementEnabled = enforcePaidFeatures && monetizationEnabled;
   }
 
   void updateEntitlement(BitFlowEntitlement next) {
@@ -39,12 +41,12 @@ class BitFlowFeatureService {
   }
 
   bool isEnabled(BitFlowFeature feature) {
-    if (!_enforcementEnabled) return true;
+    if (!enforcementEnabled) return true;
     return current.has(feature);
   }
 
   bool canCreateSheet(int currentSheetCount) {
-    if (!_enforcementEnabled) return true;
+    if (!enforcementEnabled) return true;
     final maxSheets = current.maxSheets;
     if (maxSheets == null) return true;
     return currentSheetCount < maxSheets;
@@ -74,7 +76,7 @@ class BitFlowFeatureService {
   }
 
   bool isFormulaAllowed(String rawFormula) {
-    if (!_enforcementEnabled) return true;
+    if (!enforcementEnabled) return true;
     final requiresPro = formulaRequiresPro(rawFormula);
     if (!requiresPro) return true;
     return current.has(BitFlowFeature.advancedFormulas);

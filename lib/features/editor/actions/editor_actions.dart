@@ -411,8 +411,8 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'export_pdf',
-          label: 'Reporte PDF premium',
-          subtitle: 'Resumen comercial + evidencias',
+          label: 'Reporte PDF',
+          subtitle: 'Resumen de trabajo + evidencias',
           shortcut: 'Ctrl/Cmd+Shift+P',
           icon: Icons.picture_as_pdf_outlined,
           onSelected: () => unawaited(

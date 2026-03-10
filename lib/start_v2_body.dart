@@ -134,15 +134,11 @@ class _StartPageState extends State<StartPageV2> {
             type: 'status',
             enumValues: <String>['Pendiente', 'OK', 'No cumple', 'Urgente']),
         _PackColumnSpec(label: 'Evidencia', type: 'text'),
-        _PackColumnSpec(
-            label: 'Observaci\u00f3n',
-            type: 'text'),
+        _PackColumnSpec(label: 'Observaci\u00f3n', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(
-            name: 'Revisi\u00f3n',
-            statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisi\u00f3n', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -150,8 +146,7 @@ class _StartPageState extends State<StartPageV2> {
       id: 'campo_mantenimiento_rapido',
       pack: 'Campo/Inspecci\u00f3n',
       name: 'Mantenimiento r\u00e1pido',
-      description:
-          'Tareas de mantenimiento con pr\u00f3xima fecha.',
+      description: 'Tareas de mantenimiento con pr\u00f3xima fecha.',
       icon: CupertinoIcons.wrench,
       tags: <String>['Mantenimiento', 'Equipo', 'Servicio'],
       columns: <_PackColumnSpec>[
@@ -163,18 +158,12 @@ class _StartPageState extends State<StartPageV2> {
           'Completado',
           'Urgente'
         ]),
-        _PackColumnSpec(
-            label: 'Pr\u00f3xima fecha',
-            type: 'date'),
-        _PackColumnSpec(
-            label: 'Observaci\u00f3n',
-            type: 'text'),
+        _PackColumnSpec(label: 'Pr\u00f3xima fecha', type: 'date'),
+        _PackColumnSpec(label: 'Observaci\u00f3n', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(
-            name: 'Revisi\u00f3n',
-            statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisi\u00f3n', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -281,8 +270,7 @@ class _StartPageState extends State<StartPageV2> {
       id: 'gps_relevamiento_foto',
       pack: 'Relevamiento/GPS',
       name: 'Relevamiento foto',
-      description:
-          'Registro de ubicaci\u00f3n, estado y observaci\u00f3n.',
+      description: 'Registro de ubicaci\u00f3n, estado y observaci\u00f3n.',
       icon: CupertinoIcons.photo_on_rectangle,
       tags: <String>[
         'Relevamiento',
@@ -291,29 +279,19 @@ class _StartPageState extends State<StartPageV2> {
       ],
       columns: <_PackColumnSpec>[
         _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(
-            label:
-                'Ubicaci\u00f3n',
-            type: 'text',
-            required: true),
+        _PackColumnSpec(label: 'Ubicaci\u00f3n', type: 'text', required: true),
         _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
           'Pendiente',
           'Revisar',
           'Completado',
           'Urgente'
         ]),
-        _PackColumnSpec(
-            label:
-                'Observaci\u00f3n',
-            type: 'text'),
+        _PackColumnSpec(label: 'Observaci\u00f3n', type: 'text'),
         _PackColumnSpec(label: 'Referencia', type: 'text'),
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(
-            name:
-                'Revisi\u00f3n',
-            statusValue: 'Revisar'),
+        _PackViewPreset(name: 'Revisi\u00f3n', statusValue: 'Revisar'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -473,14 +451,20 @@ class _StartPageState extends State<StartPageV2> {
     final creationReason =
         _featureService.creationLimitReason(_nonTrashSheetCount);
     if (creationReason != null) {
-      await showBitFlowUpgradeModal(context, reason: creationReason);
+      await _showUpgradeForFeature(
+        BitFlowFeature.templates,
+        reason: creationReason,
+      );
       return false;
     }
     if (requiresTemplates) {
       final templateReason =
           _featureService.featureBlockedReason(BitFlowFeature.templates);
       if (templateReason != null) {
-        await showBitFlowUpgradeModal(context, reason: templateReason);
+        await _showUpgradeForFeature(
+          BitFlowFeature.templates,
+          reason: templateReason,
+        );
         return false;
       }
     }
@@ -491,6 +475,7 @@ class _StartPageState extends State<StartPageV2> {
     BitFlowFeature feature, {
     String? reason,
   }) async {
+    if (!RuntimeFlags.monetizationEnabled) return;
     await showBitFlowUpgradeModal(
       context,
       reason: reason ?? _featureService.featureBlockedReason(feature),
@@ -1214,8 +1199,7 @@ class _StartPageState extends State<StartPageV2> {
                           card(
                             value: _CreateSheetChoice.blank,
                             icon: CupertinoIcons.doc_text,
-                            title:
-                                'Planilla vac\u00eda',
+                            title: 'Planilla vac\u00eda',
                             subtitle:
                                 'Empieza desde cero con columnas editables.',
                             emphasized: true,
@@ -2753,8 +2737,7 @@ class _StartPageState extends State<StartPageV2> {
                     CupertinoSlidingSegmentedControl<String>(
                       groupValue: engineMode,
                       children: const <String, Widget>{
-                        EngineConfig.modeAuto: Text(
-                            'Autom\u00e1tico'),
+                        EngineConfig.modeAuto: Text('Autom\u00e1tico'),
                         EngineConfig.modeManual: Text('Manual'),
                       },
                       onValueChanged: (v) {
@@ -2824,9 +2807,7 @@ class _StartPageState extends State<StartPageV2> {
                         color: pal.group,
                         borderRadius: BorderRadius.circular(10),
                         child: Text(
-                          testing
-                              ? 'Probando...'
-                              : 'Probar conexi\u00f3n',
+                          testing ? 'Probando...' : 'Probar conexi\u00f3n',
                           style: TextStyle(
                             color: pal.textPrimary,
                             fontWeight: FontWeight.w700,
@@ -2869,8 +2850,7 @@ class _StartPageState extends State<StartPageV2> {
                       ),
                     const SizedBox(height: 10),
                     _CupertinoToggleRow(
-                      title:
-                          'Auto-env\u00edo al exportar',
+                      title: 'Auto-env\u00edo al exportar',
                       subtitle:
                           'Activa la automatizaci\u00f3n cuando tu producto lo ejecute.',
                       value: autoSend,
@@ -3156,7 +3136,7 @@ class _StartPageState extends State<StartPageV2> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Cuenta y sync',
+                    'Cuenta y sincronización',
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontSize: 18,
@@ -3166,8 +3146,8 @@ class _StartPageState extends State<StartPageV2> {
                   const SizedBox(height: 12),
                   Text(
                     signedIn
-                        ? (authUser?.email ?? authUser?.name ?? 'Sesion activa')
-                        : 'Sesion local',
+                        ? (authUser?.email ?? authUser?.name ?? 'Sesión activa')
+                        : 'Sesión local',
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontSize: 16,
@@ -3176,7 +3156,9 @@ class _StartPageState extends State<StartPageV2> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Plan: ${_entitlement.isPro ? 'Pro' : 'Free'}',
+                    RuntimeFlags.monetizationEnabled
+                        ? 'Plan: ${_entitlement.isPro ? 'Pro' : 'Free'}'
+                        : 'Modo libre activo',
                     style: TextStyle(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
@@ -3195,18 +3177,7 @@ class _StartPageState extends State<StartPageV2> {
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                     ),
-                    child: const Text('Sync now'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: () async {
-                      Navigator.of(ctx).pop();
-                      await showBitFlowUpgradeModal(context);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    child: const Text('Upgrade to Pro'),
+                    child: const Text('Sincronizar ahora'),
                   ),
                 ],
               ),
@@ -3382,7 +3353,7 @@ class _StartPageState extends State<StartPageV2> {
     final items = <_MoreSheetItem>[
       _MoreSheetItem(
         icon: CupertinoIcons.person_crop_circle,
-        title: 'Cuenta y sync',
+        title: 'Cuenta y sincronización',
         subtitle: _product.syncStatus.value,
         onSelected: () => _openAccountSheet(colors),
       ),
@@ -3392,14 +3363,15 @@ class _StartPageState extends State<StartPageV2> {
         subtitle: 'Actual: ${_currentWorkspace?.name ?? 'Personal'}',
         onSelected: () => _openWorkspaceSheet(colors),
       ),
-      _MoreSheetItem(
-        icon: CupertinoIcons.sparkles,
-        title: _entitlement.isPro ? 'Plan Pro activo' : 'Upgrade a Pro',
-        subtitle: _entitlement.isPro
-            ? 'Plantillas, compartir y automatizaciones desbloqueadas'
-            : 'Desbloque\u00e1 compartir, plantillas y automatizaciones',
-        onSelected: () => showBitFlowUpgradeModal(context),
-      ),
+      if (RuntimeFlags.monetizationEnabled)
+        _MoreSheetItem(
+          icon: CupertinoIcons.sparkles,
+          title: _entitlement.isPro ? 'Plan Pro activo' : 'Upgrade a Pro',
+          subtitle: _entitlement.isPro
+              ? 'Plantillas, compartir y automatizaciones desbloqueadas'
+              : 'Desbloquea compartir, plantillas y automatizaciones',
+          onSelected: () => showBitFlowUpgradeModal(context),
+        ),
       _MoreSheetItem(
         icon: CupertinoIcons.settings,
         title: 'Ajustes',
@@ -3415,12 +3387,12 @@ class _StartPageState extends State<StartPageV2> {
       _MoreSheetItem(
         icon: CupertinoIcons.info_circle,
         title: 'Acerca de BitFlow',
-        subtitle: 'Version, build y estado general de la app',
+        subtitle: 'Versión, build y estado general de la app',
         onSelected: () => _openStaticPage(const AboutScreen()),
       ),
       _MoreSheetItem(
         icon: CupertinoIcons.waveform_path_ecg,
-        title: 'Diagnostico',
+        title: 'Diagnóstico',
         subtitle: 'Verifica motor, adjuntos y conectividad',
         onSelected: _openDiagnostics,
       ),
@@ -3813,7 +3785,8 @@ class _StartPageState extends State<StartPageV2> {
           id: 'automation_first_sheet',
           icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
           title: 'Crear primera planilla',
-          subtitle: 'Empez\u00e1 con una hoja limpia y entr\u00e1 directo a editar',
+          subtitle:
+              'Empez\u00e1 con una hoja limpia y entr\u00e1 directo a editar',
           contextLabel: 'Mejor primer paso',
           onSelected: () => _createAndOpenSheet(),
         ),
@@ -3825,7 +3798,8 @@ class _StartPageState extends State<StartPageV2> {
         id: 'automation_measurement',
         icon: CupertinoIcons.waveform_path_ecg,
         title: 'Crear planilla de medici\u00f3n',
-        subtitle: 'Abr\u00ed una plantilla t\u00e9cnica lista para cargar datos en campo',
+        subtitle:
+            'Abr\u00ed una plantilla t\u00e9cnica lista para cargar datos en campo',
         contextLabel: 'Ideal para trabajo t\u00e9cnico',
         onSelected: () => _createAndOpenSheet(
           template: TemplateKind.resistividades,
@@ -3838,7 +3812,8 @@ class _StartPageState extends State<StartPageV2> {
         id: 'automation_import',
         icon: CupertinoIcons.arrow_down_doc,
         title: 'Importar datos',
-        subtitle: 'Tra\u00e9 un ZIP de backup o paquete y segu\u00ed trabajando',
+        subtitle:
+            'Tra\u00e9 un ZIP de backup o paquete y segu\u00ed trabajando',
         contextLabel: 'Desde otro equipo o backup',
         onSelected: _importBackupZip,
       ),
@@ -3850,7 +3825,8 @@ class _StartPageState extends State<StartPageV2> {
             id: 'automation_template_gallery',
             icon: CupertinoIcons.square_grid_2x2,
             title: 'Abrir plantilla',
-            subtitle: 'Explor\u00e1 plantillas de medici\u00f3n, inventario y proyectos',
+            subtitle:
+                'Explor\u00e1 plantillas de medici\u00f3n, inventario y proyectos',
             contextLabel: 'Galer\u00eda de plantillas',
             onSelected: _newTemplateSheet,
           ),
@@ -4238,7 +4214,9 @@ class _StartPageState extends State<StartPageV2> {
     final activeCount = _activeSheets.length;
     final recentCount = _recentSheets.length;
     final workspaceName = _currentWorkspace?.name ?? 'Personal';
-    final planLabel = _entitlement.isPro ? 'Pro' : 'Free';
+    final planLabel = RuntimeFlags.monetizationEnabled
+        ? (_entitlement.isPro ? 'Pro' : 'Free')
+        : 'Libre';
     final headerTitle = activeCount == 0
         ? 'Listo para trabajar'
         : recentCount > 0
@@ -4261,7 +4239,7 @@ class _StartPageState extends State<StartPageV2> {
         colors: colors,
       ),
       _StartMetricPill(
-        label: 'Plan',
+        label: 'Modo',
         value: planLabel,
         colors: colors,
       ),
@@ -4289,7 +4267,8 @@ class _StartPageState extends State<StartPageV2> {
         key: const ValueKey('start-primary-search'),
         icon: CupertinoIcons.search,
         title: 'Buscar archivos',
-        subtitle: 'Paleta para archivos, acciones y navegaci\u00f3n r\u00e1pida',
+        subtitle:
+            'Paleta para archivos, acciones y navegaci\u00f3n r\u00e1pida',
         shortcut: 'Ctrl/Cmd + K',
         onPressed: _openQuickSwitcher,
       ),

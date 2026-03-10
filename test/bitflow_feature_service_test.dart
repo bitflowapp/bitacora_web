@@ -2,10 +2,17 @@ import 'package:bitacora_web/services/bitflow_feature_service.dart';
 import 'package:bitacora_web/services/bitflow_product_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bitacora_web/services/runtime_flags.dart';
+
 void main() {
   group('BitFlowFeatureService', () {
+    setUp(() {
+      RuntimeFlags.setMonetizationEnabledForTest(true);
+    });
+
     tearDown(() {
       BitFlowFeatureService.I.updateEntitlement(BitFlowEntitlement.free);
+      RuntimeFlags.resetMonetizationFlagForTest();
     });
 
     test('free tier enforces sheet limit and advanced formula lock', () async {
@@ -30,6 +37,23 @@ void main() {
       expect(BitFlowFeatureService.I.canCreateSheet(999), isTrue);
       expect(
           BitFlowFeatureService.I.isFormulaAllowed('=IF(A1>0, 1, 0)'), isTrue);
+      expect(
+        BitFlowFeatureService.I.isEnabled(BitFlowFeature.sharing),
+        isTrue,
+      );
+      expect(
+        BitFlowFeatureService.I.featureBlockedReason(BitFlowFeature.templates),
+        isNull,
+      );
+    });
+
+    test('free-only mode disables monetization gating globally', () async {
+      RuntimeFlags.setMonetizationEnabledForTest(false);
+      await BitFlowFeatureService.I.init(enforcePaidFeatures: true);
+      BitFlowFeatureService.I.updateEntitlement(BitFlowEntitlement.free);
+
+      expect(BitFlowFeatureService.I.enforcementEnabled, isFalse);
+      expect(BitFlowFeatureService.I.canCreateSheet(999), isTrue);
       expect(
         BitFlowFeatureService.I.isEnabled(BitFlowFeature.sharing),
         isTrue,
