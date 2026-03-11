@@ -9463,51 +9463,78 @@ class _EditorScreenState extends State<EditorScreen>
     VoidCallback? onDismiss,
   }) {
     final t = AppTheme.of(context);
+    final isMobileLayout = MediaQuery.sizeOf(context).width < 760;
     final borderColor = t.colors.warningFg.withValues(
       alpha: pal.isLight ? 0.35 : 0.5,
     );
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: t.colors.warningBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: pal.hairline),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: t.colors.warningFg),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: t.colors.warningFg,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
-              ),
+
+    final mainRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: isMobileLayout ? 17 : 18, color: t.colors.warningFg),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: isMobileLayout ? 3 : null,
+            overflow: isMobileLayout ? TextOverflow.ellipsis : null,
+            style: TextStyle(
+              color: t.colors.warningFg,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+              fontSize: isMobileLayout ? 12.5 : 13,
             ),
           ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(width: 10),
-            AppleButton(
-              label: actionLabel,
-              dense: true,
-              variant: AppleButtonVariant.ghost,
-              onPressed: onAction,
+        ),
+        if (!isMobileLayout && actionLabel != null && onAction != null) ...[
+          const SizedBox(width: 10),
+          AppleButton(
+            label: actionLabel,
+            dense: true,
+            variant: AppleButtonVariant.ghost,
+            onPressed: onAction,
+          ),
+        ],
+        if (onDismiss != null)
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: onDismiss,
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: t.colors.warningFg.withValues(alpha: 0.74),
             ),
-          ],
-          if (onDismiss != null)
-            IconButton(
-              tooltip: 'Cerrar',
-              onPressed: onDismiss,
-              icon: Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: t.colors.warningFg.withValues(alpha: 0.74),
+          ),
+      ],
+    );
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, isMobileLayout ? 4 : 6, 16, 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobileLayout ? 10 : 12,
+        vertical: isMobileLayout ? 8 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: t.colors.warningBg,
+        borderRadius: BorderRadius.circular(isMobileLayout ? 10 : 12),
+        border: Border.all(color: borderColor, width: pal.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          mainRow,
+          if (isMobileLayout && actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: AppleButton(
+                label: actionLabel,
+                dense: true,
+                variant: AppleButtonVariant.ghost,
+                onPressed: onAction,
               ),
             ),
+          ],
         ],
       ),
     );

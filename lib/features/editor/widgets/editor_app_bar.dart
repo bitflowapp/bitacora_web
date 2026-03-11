@@ -833,24 +833,31 @@ class _MobileCompactHeader extends StatelessWidget {
             final summaryParts = <String>[
               saveLabel,
               if (pendingLabel != null) pendingLabel,
-              if (queueLabel != null) queueLabel,
-              if (outboxPendingLabel != null) outboxPendingLabel,
               if (outboxErrorLabel != null) outboxErrorLabel,
             ];
+            final quickHint = (selectedRow >= 0 && selectedCol >= 0)
+                ? 'Completá datos y exportá o compartí al terminar.'
+                : 'Tocá una celda para empezar a editar.';
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-              child: GlassSurface(
-                radius: 22,
-                blurSigma: palette.isLight ? 13 : 10,
-                backgroundColor: palette.headerCardBg
-                    .withValues(alpha: palette.isLight ? 0.78 : 0.6),
-                borderColor: palette.headerCardBorder
-                    .withValues(alpha: palette.isLight ? 0.55 : 0.84),
-                shadowColor: Colors.black
-                    .withValues(alpha: palette.isLight ? 0.08 : 0.26),
-                shadowBlur: 18,
-                shadowOffset: const Offset(0, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: palette.headerCardBg.withValues(alpha: 1),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: palette.headerCardBorder.withValues(alpha: 1),
+                    width: palette.hairline,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: palette.isLight ? 0.06 : 0.22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -887,48 +894,77 @@ class _MobileCompactHeader extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      summaryParts.join(' | '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.fgMuted,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.8,
-                      ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _InlineMetaChip(
+                          palette: palette,
+                          icon: Icons.grid_3x3_rounded,
+                          label: 'Celda $activeCell',
+                        ),
+                        _InlineMetaChip(
+                          palette: palette,
+                          icon: Icons.schedule_rounded,
+                          label: localLabel,
+                        ),
+                        _InlineMetaChip(
+                          palette: palette,
+                          icon: Icons.cloud_done_rounded,
+                          label: offlineLabel,
+                          onTap: onOpenOfflineQueue,
+                        ),
+                        if (queueLabel != null)
+                          _InlineMetaChip(
+                            palette: palette,
+                            icon: Icons.cloud_upload_outlined,
+                            label: queueLabel,
+                            onTap: onOpenOfflineQueue,
+                          ),
+                        if (outboxPendingLabel != null)
+                          _InlineMetaChip(
+                            palette: palette,
+                            icon: Icons.schedule_send_rounded,
+                            label: outboxPendingLabel,
+                            onTap: onOpenOfflineQueue,
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
+                    if (summaryParts.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        summaryParts.join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.fgMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
                     Text(
-                      'Celda: $activeCell | $localLabel | $offlineLabel',
+                      quickHint,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: palette.fgMuted,
                         fontWeight: FontWeight.w600,
-                        fontSize: 11.5,
+                        fontSize: 11.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: AppButton(
                             label: AppStrings.editorSave,
                             icon: Icons.check_circle_outline_rounded,
-                            variant: AppButtonVariant.secondary,
+                            variant: AppButtonVariant.primary,
                             size: AppButtonSize.sm,
                             onPressed: onSave,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: AppButton(
-                            label: 'Cola',
-                            icon: Icons.sync_alt_rounded,
-                            variant: AppButtonVariant.secondary,
-                            size: AppButtonSize.sm,
-                            onPressed: onOpenOfflineQueue,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -991,40 +1027,37 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: GlassSurface(
-          radius: 999,
-          blurSigma: palette.isLight ? 10 : 8,
-          backgroundColor: palette.headerCardBg
-              .withValues(alpha: palette.isLight ? 0.72 : 0.56),
-          borderColor: palette.headerCardBorder
-              .withValues(alpha: palette.isLight ? 0.5 : 0.84),
-          shadowColor:
-              Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
-          shadowBlur: 12,
-          shadowOffset: const Offset(0, 6),
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.headerCardBg.withValues(alpha: 1),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: palette.headerCardBorder.withValues(alpha: 1),
+              width: palette.hairline,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black
+                    .withValues(alpha: palette.isLight ? 0.05 : 0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
           padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 16,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: palette.fgMuted.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(width: 8),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
+                constraints: const BoxConstraints(maxWidth: 236),
                 child: Text(
-                  '$safeTitle | $activeCell',
+                  '$safeTitle · $activeCell',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontWeight: FontWeight.w700,
-                    fontSize: 11.8,
+                    fontSize: 12,
                   ),
                 ),
               ),

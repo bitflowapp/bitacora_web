@@ -1295,22 +1295,16 @@ class _MobileInlineEditorBar extends StatelessWidget {
                           : const EdgeInsets.fromLTRB(10, 8, 10, 10),
                       child: GlassSurface(
                         radius: compactBar ? 16 : 20,
-                        blurSigma: palette.isLight
-                            ? (compactBar ? 10 : 13)
-                            : (compactBar ? 8 : 10),
-                        backgroundColor: palette.editorBg.withValues(
-                          alpha: palette.isLight ? 0.80 : 0.62,
-                        ),
-                        borderColor: palette.borderStrong.withValues(
-                          alpha: palette.isLight ? 0.55 : 0.84,
-                        ),
+                        blurSigma: 0,
+                        backgroundColor: palette.editorBg.withValues(alpha: 1),
+                        borderColor: palette.borderStrong.withValues(alpha: 1),
                         shadowColor: Colors.black.withValues(
-                          alpha: palette.isLight ? 0.08 : 0.26,
+                          alpha: palette.isLight ? 0.07 : 0.22,
                         ),
-                        shadowBlur: compactBar ? 10 : 16,
+                        shadowBlur: compactBar ? 10 : 14,
                         shadowOffset: compactBar
                             ? const Offset(0, 4)
-                            : const Offset(0, 8),
+                            : const Offset(0, 7),
                         padding: compactBar
                             ? const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -1370,20 +1364,22 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     splashRadius: iconSplash,
                                     padding: iconPadding,
                                     constraints: iconConstraints,
+                                    filled: true,
                                   ),
-                                  _MobilePanelIconButton(
-                                    icon: isExpanded
-                                        ? Icons.unfold_less_rounded
-                                        : Icons.unfold_more_rounded,
-                                    tooltip:
-                                        isExpanded ? 'Compactar' : 'Expandir',
-                                    onTap: onToggleExpanded,
-                                    palette: palette,
-                                    iconSize: iconSize,
-                                    splashRadius: iconSplash,
-                                    padding: iconPadding,
-                                    constraints: iconConstraints,
-                                  ),
+                                  if (!keyboardVisible)
+                                    _MobilePanelIconButton(
+                                      icon: isExpanded
+                                          ? Icons.unfold_less_rounded
+                                          : Icons.unfold_more_rounded,
+                                      tooltip:
+                                          isExpanded ? 'Compactar' : 'Expandir',
+                                      onTap: onToggleExpanded,
+                                      palette: palette,
+                                      iconSize: iconSize,
+                                      splashRadius: iconSplash,
+                                      padding: iconPadding,
+                                      constraints: iconConstraints,
+                                    ),
                                   _MobilePanelIconButton(
                                     icon: Icons.more_horiz_rounded,
                                     tooltip: 'Acciones',
@@ -1454,6 +1450,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                         iconSize: 18,
                                         splashRadius: 16,
                                         padding: const EdgeInsets.all(4),
+                                        filled: true,
                                       ),
                                       _MobilePanelIconButton(
                                         icon: Icons.more_horiz_rounded,
@@ -1523,6 +1520,7 @@ class _MobilePanelIconButton extends StatelessWidget {
     this.splashRadius = 18,
     this.padding = const EdgeInsets.all(6),
     this.constraints = const BoxConstraints(minWidth: 34, minHeight: 34),
+    this.filled = false,
   });
 
   final IconData icon;
@@ -1533,19 +1531,32 @@ class _MobilePanelIconButton extends StatelessWidget {
   final double splashRadius;
   final EdgeInsets padding;
   final BoxConstraints constraints;
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    final fg = enabled ? palette.fg : palette.fgMuted.withValues(alpha: 0.5);
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onTap,
-      icon: Icon(icon, color: fg, size: iconSize),
-      padding: padding,
-      splashRadius: splashRadius,
-      constraints: constraints,
-      visualDensity: VisualDensity.compact,
+    final fg = filled
+        ? palette.editorBg
+        : (enabled ? palette.fg : palette.fgMuted.withValues(alpha: 0.5));
+    final bg = filled
+        ? palette.accent.withValues(alpha: enabled ? 1 : 0.42)
+        : Colors.transparent;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon, color: fg, size: iconSize),
+        padding: padding,
+        splashRadius: splashRadius,
+        constraints: constraints,
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 }
@@ -1604,12 +1615,31 @@ class _MobileEditorField extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-        // Dark: mantener vidrio visible.
-        fillColor: palette.mobileInputBg,
+        fillColor: palette.mobileInputBg.withValues(alpha: 1),
         contentPadding: contentPadding,
         hintText: 'Escribir',
         hintStyle: TextStyle(color: palette.fgMuted),
-        border: InputBorder.none,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(compactMode ? 14 : 16),
+          borderSide: BorderSide(
+            color: palette.borderStrong.withValues(alpha: 0.5),
+            width: palette.hairline,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(compactMode ? 14 : 16),
+          borderSide: BorderSide(
+            color: palette.borderStrong.withValues(alpha: 0.55),
+            width: palette.hairline,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(compactMode ? 14 : 16),
+          borderSide: BorderSide(
+            color: palette.accent.withValues(alpha: 0.75),
+            width: math.max(1, palette.hairline),
+          ),
+        ),
       ),
       onSubmitted: (_) => onNext == null ? onDone() : onNext!(),
     );
