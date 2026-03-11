@@ -67,9 +67,9 @@ Notas de seguridad:
 - Android release (APK): `.github/workflows/android_release.yml`
 - Release web local (Windows, validaciones incluidas): `scripts/release_web.ps1`
 - Deploy opcional a `gh-pages`: `scripts/deploy_gh_pages.ps1`
-- URL live (Pages): `https://marcoluna-nqn.github.io/bitacora_web/`
+- URL live (Pages): `https://bitflowapp.github.io/bitacora_web/`
 - Web release usa `--pwa-strategy=none` para evitar cache persistente de Service Worker y asegurar updates inmediatos en Pages.
-- Release estable: `https://github.com/marcoluna-nqn/bitacora_web/releases/tag/v1.3.0`
+- Release estable: `https://github.com/bitflowapp/bitacora_web/releases/tag/v1.3.0`
 
 Entrega tipica a cliente:
 

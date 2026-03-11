@@ -3530,7 +3530,7 @@ class _StartPageState extends State<StartPageLegacy> {
     if (sent) return;
 
     final issues = Uri.parse(
-      'https://github.com/marcoluna-nqn/bitacora_web/issues',
+      'https://github.com/bitflowapp/bitacora_web/issues',
     );
     final opened =
         await launchUrl(issues, mode: LaunchMode.externalApplication);

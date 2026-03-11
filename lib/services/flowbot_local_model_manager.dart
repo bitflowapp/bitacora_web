@@ -18,7 +18,7 @@ class FlowBotModelDownloadResult {
 abstract class FlowBotLocalModelManager {
   static const String defaultModelFileName = 'flowbot-model.gguf';
   static const String defaultModelDownloadUrl =
-      'https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/flowbot-model.gguf';
+      'https://github.com/bitflowapp/bitacora_web/releases/latest/download/flowbot-model.gguf';
 
   Future<FlowBotModelDownloadResult> downloadDefaultModel({
     void Function(double progress)? onProgress,

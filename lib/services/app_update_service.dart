@@ -47,11 +47,11 @@ class AppUpdateService {
 
   static const String defaultVersionJsonUrl = String.fromEnvironment(
     'UPDATE_VERSION_URL',
-    defaultValue: 'https://marcoluna-nqn.github.io/bitacora_web/version.json',
+    defaultValue: 'https://bitflowapp.github.io/bitacora_web/version.json',
   );
 
   static const String androidLatestApkUrl =
-      'https://github.com/marcoluna-nqn/bitacora_web/releases/latest/download/BitFlow-android.apk';
+      'https://github.com/bitflowapp/bitacora_web/releases/latest/download/BitFlow-android.apk';
 
   final http.Client? _client;
 

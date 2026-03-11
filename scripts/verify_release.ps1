@@ -1,5 +1,5 @@
 param(
-    [string] $Owner = 'marcoluna-nqn',
+    [string] $Owner = 'bitflowapp',
     [string] $Repo = 'bitacora_web',
     [string] $AssetName = 'BitFlow-android.apk'
 )

@@ -144,7 +144,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Future<void> _openIssues() async {
     final opened = await launchUrl(
-      Uri.parse('https://github.com/marcoluna-nqn/bitacora_web/issues'),
+      Uri.parse('https://github.com/bitflowapp/bitacora_web/issues'),
       mode: LaunchMode.externalApplication,
     );
     if (!opened) {
