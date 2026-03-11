@@ -35,6 +35,7 @@ const String kBuildBadgeId =
 const bool kShowDebugBadge =
     bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
         bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
+const String _kPublicBrandName = 'BitFlow';
 bool _demoNoticeDismissedInSession = false;
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
@@ -138,7 +139,7 @@ Future<void> main() async {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Gridnote - Error',
+                          'BitFlow - Error',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -355,7 +356,7 @@ class _AppState extends State<App> {
     Widget buildBoot(Widget child) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Bitacora Web',
+        title: _kPublicBrandName,
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
@@ -431,7 +432,7 @@ class _AppState extends State<App> {
 
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          title: 'Bitacora Web',
+          title: _kPublicBrandName,
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
@@ -767,7 +768,7 @@ class _BootSplash extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Gridnote',
+                            _kPublicBrandName,
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.2,
