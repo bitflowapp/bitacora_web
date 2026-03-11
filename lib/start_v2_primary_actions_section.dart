@@ -11,6 +11,7 @@ class _StartPrimaryActionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.height < 760;
     final heroAction = quickActions.isNotEmpty ? quickActions.first : null;
     final secondaryActions = quickActions.length > 1
         ? quickActions.sublist(1)
@@ -24,28 +25,31 @@ class _StartPrimaryActionsSection extends StatelessWidget {
             'Acciones principales',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 22,
+              fontSize: compact ? 20 : 22,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Una acci\u00f3n principal para empezar y accesos directos claros para retomar sin ruido.',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+          SizedBox(height: compact ? 10 : 6),
+          if (!compact) ...[
+            Text(
+              'Una acci\u00f3n principal para empezar y accesos directos claros para retomar sin ruido.',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 18),
+            const SizedBox(height: 18),
+          ],
           if (heroAction != null) ...[
             _StartQuickActionTile(
               action: heroAction,
               colors: colors,
               prominent: true,
             ),
-            if (secondaryActions.isNotEmpty) const SizedBox(height: 14),
+            if (secondaryActions.isNotEmpty)
+              SizedBox(height: compact ? 12 : 14),
           ],
           if (secondaryActions.isNotEmpty)
             LayoutBuilder(
@@ -72,17 +76,19 @@ class _StartPrimaryActionsSection extends StatelessWidget {
                 );
               },
             ),
-          const SizedBox(height: 14),
-          const Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _StartShortcutChip(
-                combo: 'Ctrl/Cmd + K',
-                label: 'Paleta de comandos',
-              ),
-            ],
-          ),
+          if (!compact) ...[
+            const SizedBox(height: 14),
+            const Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StartShortcutChip(
+                  combo: 'Ctrl/Cmd + K',
+                  label: 'Paleta de comandos',
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

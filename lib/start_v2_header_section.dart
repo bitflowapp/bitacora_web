@@ -81,7 +81,7 @@ class _StartHeaderSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Centro de productividad',
+                        'Planillas operativas con evidencia',
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: 12,

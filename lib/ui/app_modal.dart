@@ -23,17 +23,21 @@ class AppModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final media = MediaQuery.of(context);
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(
+          maxWidth: maxWidth,
+          maxHeight: media.size.height - 40,
+        ),
         child: AppCard(
           padding: const EdgeInsets.all(20),
           radius: t.radii.xl,
           borderColor: t.colors.borderStrong,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (title != null || showClose)
@@ -65,16 +69,27 @@ class AppModal extends StatelessWidget {
                   ],
                 ),
               if (title != null || showClose) const SizedBox(height: 12),
-              child,
-              if (actions != null) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.end,
-                  children: actions!,
+              Flexible(
+                fit: FlexFit.loose,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      child,
+                      if (actions != null) ...[
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.end,
+                          children: actions!,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ],
           ),
         ),

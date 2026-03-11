@@ -5637,9 +5637,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (parsing) return 'Analizando comando...';
     if (preview.isNotEmpty) return '';
     if (useLocalLlm && !localModelReady) {
-      return 'Instala el modelo local o cambia a motor Offline.';
+      return 'Descarga el modelo local o vuelve al motor offline.';
     }
-    return 'Analiza un comando para generar acciones antes de aplicar.';
+    return 'Analiza el comando para revisar la vista previa antes de aplicar.';
   }
 
   Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
@@ -5988,6 +5988,7 @@ class _EditorScreenState extends State<EditorScreen>
         var chosenScope = _flowBotLastScope;
         var activeEngine = _flowBotUseLocalLlm ? 'local_llm' : 'rule_based';
         var localModelReady = _flowBotLocalModelPath.trim().isNotEmpty;
+        var showAdvancedOptions = false;
 
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
@@ -6105,6 +6106,17 @@ class _EditorScreenState extends State<EditorScreen>
             );
             final previewMaxHeight = compactSheet ? 188.0 : 230.0;
             final actionsMaxHeight = compactSheet ? 104.0 : 120.0;
+            final historyChipMaxWidth = math.max(
+              120.0,
+              math.min(media.size.width - 72, compactSheet ? 216.0 : 300.0),
+            );
+            final quickCommands = _flowBotHistory.isNotEmpty
+                ? _flowBotHistory.take(6).toList(growable: false)
+                : const <String>[
+                    'poner OK en B2',
+                    'fecha hoy columna completa',
+                    'fila nueva: estado=OK, observaciones=revisar',
+                  ];
 
             Widget buildVoiceControls() {
               if (compactSheet) {
@@ -6116,7 +6128,8 @@ class _EditorScreenState extends State<EditorScreen>
                       overflowSpacing: 8,
                       children: [
                         AppleButton(
-                          label: listening ? 'Detener' : 'Voz',
+                          key: const ValueKey('flowbot-voice'),
+                          label: listening ? 'Detener' : 'Dictar',
                           icon: listening
                               ? Icons.stop_rounded
                               : Icons.mic_none_rounded,
@@ -6125,6 +6138,7 @@ class _EditorScreenState extends State<EditorScreen>
                           onPressed: () => unawaited(startListening()),
                         ),
                         AppleButton(
+                          key: const ValueKey('flowbot-analyze'),
                           label: parsing ? 'Analizando...' : 'Analizar',
                           icon: Icons.play_arrow_rounded,
                           dense: true,
@@ -6149,7 +6163,8 @@ class _EditorScreenState extends State<EditorScreen>
               return Row(
                 children: [
                   AppleButton(
-                    label: listening ? 'Detener' : 'Voz',
+                    key: const ValueKey('flowbot-voice'),
+                    label: listening ? 'Detener' : 'Dictar',
                     icon:
                         listening ? Icons.stop_rounded : Icons.mic_none_rounded,
                     dense: true,
@@ -6168,6 +6183,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   const SizedBox(width: 8),
                   AppleButton(
+                    key: const ValueKey('flowbot-analyze'),
                     label: parsing ? 'Analizando...' : 'Analizar',
                     icon: Icons.play_arrow_rounded,
                     dense: true,
@@ -6183,6 +6199,8 @@ class _EditorScreenState extends State<EditorScreen>
               await _setEditorDefaultRules(flowBotUseLocalLlm: next);
               if (!modalCtx.mounted) return;
               setModalState(() {
+                activeEngine = next ? 'local_llm' : 'rule_based';
+                showAdvancedOptions = showAdvancedOptions || next;
                 if (next && _flowBotLocalModelPath.trim().isEmpty) {
                   warning =
                       'Local LLM activo sin modelo: se usa parser offline.';
@@ -6199,7 +6217,188 @@ class _EditorScreenState extends State<EditorScreen>
               if (!modalCtx.mounted) return;
               setModalState(() {
                 localModelReady = ready;
+                showAdvancedOptions = !ready;
               });
+            }
+
+            void fillCommandText(String value) {
+              transcriptEC.text = value;
+              transcriptEC.selection = TextSelection.collapsed(
+                offset: value.length,
+              );
+            }
+
+            Widget buildQuickCommandSection() {
+              final hasHistory = _flowBotHistory.isNotEmpty;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasHistory ? 'Ultimos comandos' : 'Comandos sugeridos',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (int index = 0; index < quickCommands.length; index++)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: historyChipMaxWidth,
+                          ),
+                          child: ActionChip(
+                            key: ValueKey(
+                              hasHistory
+                                  ? 'flowbot-history-chip-$index'
+                                  : 'flowbot-example-chip-$index',
+                            ),
+                            label: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: historyChipMaxWidth - 28,
+                              ),
+                              child: Text(
+                                quickCommands[index],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                            ),
+                            onPressed: () {
+                              fillCommandText(quickCommands[index]);
+                              unawaited(parseNow());
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildAdvancedPanel() {
+              return Container(
+                key: const ValueKey('flowbot-advanced-panel'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: pal.mobileInputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: pal.border,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Opciones avanzadas',
+                                style: TextStyle(
+                                  color: pal.fg,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activeEngine == 'local_llm'
+                                    ? 'Motor activo: Local LLM'
+                                    : 'Motor activo: Offline deterministico',
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AppleButton(
+                          key: const ValueKey('flowbot-advanced-toggle'),
+                          label: showAdvancedOptions ? 'Ocultar' : 'Mostrar',
+                          icon: showAdvancedOptions
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: () => setModalState(
+                            () => showAdvancedOptions = !showAdvancedOptions,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (showAdvancedOptions) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        activeEngine == 'local_llm'
+                            ? (localModelReady
+                                ? 'Modelo local listo para comandos mas flexibles.'
+                                : 'Descarga el modelo si queres probar el motor local.')
+                            : 'El modo offline es el mas estable para una demo rapida.',
+                        style: TextStyle(
+                          color: pal.fgMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          AppleButton(
+                            label: _flowBotUseLocalLlm
+                                ? 'Usar motor offline'
+                                : 'Usar Local LLM',
+                            icon: Icons.settings_suggest_rounded,
+                            dense: true,
+                            variant: AppleButtonVariant.ghost,
+                            onPressed: () => unawaited(toggleFlowBotEngine()),
+                          ),
+                          AppleButton(
+                            label: _flowBotModelDownloading
+                                ? 'Descargando...'
+                                : (localModelReady
+                                    ? 'Actualizar modelo'
+                                    : 'Descargar modelo'),
+                            icon: _flowBotModelDownloading
+                                ? Icons.downloading_rounded
+                                : Icons.download_rounded,
+                            dense: true,
+                            variant: AppleButtonVariant.ghost,
+                            onPressed: _flowBotModelDownloading
+                                ? null
+                                : () => unawaited(refreshLocalModelReady()),
+                          ),
+                        ],
+                      ),
+                      if (_flowBotModelDownloading) ...[
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: _flowBotModelDownloadProgress > 0
+                              ? _flowBotModelDownloadProgress
+                              : null,
+                          minHeight: 4,
+                          borderRadius: BorderRadius.circular(999),
+                          backgroundColor: pal.cellText.withValues(alpha: 0.08),
+                          color: pal.accent,
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              );
             }
 
             Widget buildFooterActions() {
@@ -6207,37 +6406,6 @@ class _EditorScreenState extends State<EditorScreen>
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    OverflowBar(
-                      spacing: 8,
-                      overflowSpacing: 8,
-                      children: [
-                        AppleButton(
-                          label: _flowBotUseLocalLlm
-                              ? 'Motor: Local LLM'
-                              : 'Motor: Offline',
-                          icon: Icons.settings_suggest_rounded,
-                          dense: true,
-                          variant: AppleButtonVariant.ghost,
-                          onPressed: () => unawaited(toggleFlowBotEngine()),
-                        ),
-                        AppleButton(
-                          label: _flowBotModelDownloading
-                              ? 'Descargando...'
-                              : (localModelReady
-                                  ? 'Actualizar modelo'
-                                  : 'Descargar modelo'),
-                          icon: _flowBotModelDownloading
-                              ? Icons.downloading_rounded
-                              : Icons.download_rounded,
-                          dense: true,
-                          variant: AppleButtonVariant.ghost,
-                          onPressed: _flowBotModelDownloading
-                              ? null
-                              : () => unawaited(refreshLocalModelReady()),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
                     OverflowBar(
                       spacing: 8,
                       overflowSpacing: 8,
@@ -6250,7 +6418,8 @@ class _EditorScreenState extends State<EditorScreen>
                           onPressed: () => Navigator.of(modalCtx).pop(),
                         ),
                         AppleButton(
-                          label: 'Aplicar',
+                          key: const ValueKey('flowbot-apply'),
+                          label: 'Aplicar cambios',
                           icon: Icons.check_rounded,
                           dense: true,
                           variant: AppleButtonVariant.filled,
@@ -6267,35 +6436,8 @@ class _EditorScreenState extends State<EditorScreen>
               }
 
               return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Expanded(
-                    child: AppleButton(
-                      label: _flowBotUseLocalLlm
-                          ? 'Motor: Local LLM'
-                          : 'Motor: Offline',
-                      icon: Icons.settings_suggest_rounded,
-                      dense: true,
-                      variant: AppleButtonVariant.ghost,
-                      onPressed: () => unawaited(toggleFlowBotEngine()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  AppleButton(
-                    label: _flowBotModelDownloading
-                        ? 'Descargando...'
-                        : (localModelReady
-                            ? 'Actualizar modelo'
-                            : 'Descargar modelo'),
-                    icon: _flowBotModelDownloading
-                        ? Icons.downloading_rounded
-                        : Icons.download_rounded,
-                    dense: true,
-                    variant: AppleButtonVariant.ghost,
-                    onPressed: _flowBotModelDownloading
-                        ? null
-                        : () => unawaited(refreshLocalModelReady()),
-                  ),
-                  const SizedBox(width: 8),
                   AppleButton(
                     label: 'Cancelar',
                     dense: true,
@@ -6304,7 +6446,8 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   const SizedBox(width: 8),
                   AppleButton(
-                    label: 'Aplicar',
+                    key: const ValueKey('flowbot-apply'),
+                    label: 'Aplicar cambios',
                     icon: Icons.check_rounded,
                     dense: true,
                     variant: AppleButtonVariant.filled,
@@ -6362,6 +6505,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                               IconButton(
+                                key: const ValueKey('flowbot-close'),
                                 tooltip: 'Cerrar',
                                 onPressed: () => Navigator.of(modalCtx).pop(),
                                 icon: Icon(
@@ -6376,6 +6520,15 @@ class _EditorScreenState extends State<EditorScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Text(
+                                    'Pedi un cambio puntual, revisa la vista previa y aplica solo cuando se vea bien.',
+                                    style: TextStyle(
+                                      color: pal.fgMuted,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
                                   TextField(
                                     controller: transcriptEC,
                                     minLines: 1,
@@ -6391,6 +6544,11 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   buildVoiceControls(),
+                                  if (_flowBotHistory.isNotEmpty ||
+                                      preview.isEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    buildQuickCommandSection(),
+                                  ],
                                   if (warning.trim().isNotEmpty) ...[
                                     const SizedBox(height: 8),
                                     Text(
@@ -6402,7 +6560,16 @@ class _EditorScreenState extends State<EditorScreen>
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Vista previa',
+                                    style: TextStyle(
+                                      color: pal.fg,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
                                   if (compactSheet) ...[
                                     Text(
                                       'Resumen',
@@ -6494,7 +6661,7 @@ class _EditorScreenState extends State<EditorScreen>
                                         ? Padding(
                                             padding: const EdgeInsets.all(10),
                                             child: Text(
-                                              'Analiza un comando para ver preview de celdas.',
+                                              'Analiza un comando para revisar las celdas que van a cambiar.',
                                               style: TextStyle(
                                                 color: pal.fgMuted,
                                                 fontSize: 11.5,
@@ -6576,85 +6743,57 @@ class _EditorScreenState extends State<EditorScreen>
                                             ),
                                           ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxHeight: actionsMaxHeight,
-                                    ),
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: scopedPreview.length,
-                                      itemBuilder: (itemCtx, index) {
-                                        final action = scopedPreview[index];
-                                        return ListTile(
-                                          dense: true,
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            Icons.bolt_rounded,
-                                            size: 16,
-                                            color: pal.fgMuted,
-                                          ),
-                                          title: Text(
-                                            _flowBotActionLabel(action),
-                                            style: TextStyle(
-                                              color: pal.fg,
-                                              fontSize: 12.2,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  if (_flowBotHistory.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        for (final item
-                                            in _flowBotHistory.take(6))
-                                          ActionChip(
-                                            label: Text(
-                                              item,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            onPressed: () {
-                                              transcriptEC.text = item;
-                                              transcriptEC.selection =
-                                                  TextSelection.collapsed(
-                                                offset: item.length,
-                                              );
-                                              unawaited(parseNow());
-                                            },
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 10),
                                   Text(
-                                    activeEngine == 'local_llm'
-                                        ? 'Motor activo: Local LLM'
-                                        : 'Motor activo: Offline deterministico',
+                                    'Acciones detectadas',
                                     style: TextStyle(
-                                      color: pal.fgMuted,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
+                                      color: pal.fg,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  if (_flowBotModelDownloading) ...[
-                                    const SizedBox(height: 6),
-                                    LinearProgressIndicator(
-                                      value: _flowBotModelDownloadProgress > 0
-                                          ? _flowBotModelDownloadProgress
-                                          : null,
-                                      minHeight: 4,
-                                      borderRadius: BorderRadius.circular(999),
-                                      backgroundColor:
-                                          pal.cellText.withValues(alpha: 0.08),
-                                      color: pal.accent,
+                                  const SizedBox(height: 4),
+                                  if (scopedPreview.isEmpty)
+                                    Text(
+                                      'Todavia no hay acciones listas. Usa Analizar para generar una propuesta.',
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )
+                                  else
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxHeight: actionsMaxHeight,
+                                      ),
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: scopedPreview.length,
+                                        itemBuilder: (itemCtx, index) {
+                                          final action = scopedPreview[index];
+                                          return ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.bolt_rounded,
+                                              size: 16,
+                                              color: pal.fgMuted,
+                                            ),
+                                            title: Text(
+                                              _flowBotActionLabel(action),
+                                              style: TextStyle(
+                                                color: pal.fg,
+                                                fontSize: 12.2,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ],
+                                  const SizedBox(height: 10),
+                                  buildAdvancedPanel(),
                                 ],
                               ),
                             ),
@@ -6697,7 +6836,7 @@ class _EditorScreenState extends State<EditorScreen>
         const _ActionResult(
           ok: false,
           message:
-              'FlowBot no tiene acciones para aplicar. Usa "Analizar" primero.',
+              'FlowBot no tiene cambios listos. Analiza un comando primero.',
         ),
         failureIcon: Icons.warning_amber_rounded,
       );

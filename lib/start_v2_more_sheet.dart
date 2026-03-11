@@ -31,101 +31,103 @@ class _StartMoreSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return SafeArea(
       top: false,
       child: Padding(
         padding: EdgeInsets.fromLTRB(10, 0, 10, 10 + bottomInset),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: colors.separator),
-            boxShadow: [colors.subtleShadow],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: media.size.height * 0.82,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.separator,
-                  borderRadius: BorderRadius.circular(999),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colors.separator),
+              boxShadow: [colors.subtleShadow],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.separator,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Text(
-                      'Mas',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const Spacer(),
-                    CupertinoButton(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      minimumSize: const Size(0, 0),
-                      borderRadius: BorderRadius.circular(999),
-                      color: colors.group,
-                      onPressed: onClose,
-                      child: Text(
-                        'Cerrar',
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Mas',
                         style: TextStyle(
                           color: colors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  itemCount: items.length,
-                  separatorBuilder: (_, index) {
-                    if (firstDangerousIndex > 0 &&
-                        index == firstDangerousIndex - 1) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Container(
-                          height: 1,
-                          color: colors.separator.withValues(alpha: 0.9),
+                      const Spacer(),
+                      CupertinoButton(
+                        key: const ValueKey('start-more-close-x'),
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(36, 36),
+                        borderRadius: BorderRadius.circular(999),
+                        color: colors.group,
+                        onPressed: onClose,
+                        child: Icon(
+                          CupertinoIcons.xmark,
+                          color: colors.textPrimary,
+                          size: 16,
                         ),
-                      );
-                    }
-                    return Container(
-                      height: 1,
-                      color: colors.separator,
-                    );
-                  },
-                  itemBuilder: (_, index) {
-                    final item = items[index];
-                    return _MoreSheetRow(
-                      colors: colors,
-                      item: item,
-                      onTap: () async {
-                        Navigator.of(context).pop();
-                        await item.onSelected();
-                      },
-                    );
-                  },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    key: const ValueKey('start-more-scroll'),
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    itemCount: items.length,
+                    separatorBuilder: (_, index) {
+                      if (firstDangerousIndex > 0 &&
+                          index == firstDangerousIndex - 1) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Container(
+                            height: 1,
+                            color: colors.separator.withValues(alpha: 0.9),
+                          ),
+                        );
+                      }
+                      return Container(
+                        height: 1,
+                        color: colors.separator,
+                      );
+                    },
+                    itemBuilder: (_, index) {
+                      final item = items[index];
+                      return _MoreSheetRow(
+                        colors: colors,
+                        item: item,
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          await item.onSelected();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

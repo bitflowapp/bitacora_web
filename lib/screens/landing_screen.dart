@@ -89,7 +89,7 @@ class LandingScreen extends StatelessWidget {
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'BitFlow'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
@@ -110,7 +110,7 @@ class LandingScreen extends StatelessWidget {
                                 title: 'Falta canal de contacto',
                                 message:
                                     'Configura email o WhatsApp para recibir consultas desde la landing.',
-                                actionLabel: 'Abrir aplicacion',
+                                actionLabel: 'Abrir app',
                                 onAction: () => context.go('/app'),
                                 icon: Icons.support_agent_outlined,
                               ),
@@ -166,7 +166,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'FAQ',
                               subtitle:
-                                  'Respuestas rápidas para decidir sin dudas.',
+                                  'Respuestas rapidas para decidir sin dudas.',
                             ),
                             const SizedBox(height: 18),
                             const _FaqList(),
@@ -206,7 +206,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta BitFlow',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -226,7 +226,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitácora operativa sin conexión',
+      subtitle: 'Planillas operativas con evidencia y exportacion lista',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -277,7 +277,7 @@ class _HeroSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
+                    'Planillas operativas con evidencias en un solo lugar',
                     style: t.text.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -287,7 +287,7 @@ class _HeroSection extends StatelessWidget {
                   Text(
                     config.brandTagline.isNotEmpty
                         ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
+                        : 'Registros, fotos, audio y GPS con exportacion inmediata. Todo offline, listo para auditorias.',
                     style: t.text.bodyLarge?.copyWith(
                       color: t.colors.textSecondary,
                       height: 1.5,
@@ -320,8 +320,8 @@ class _HeroSection extends StatelessWidget {
                     spacing: 10,
                     runSpacing: 10,
                     children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
+                      _Tag('Sin conexion real'),
+                      _Tag('Paquete ZIP'),
                       _Tag('Reporte imprimible'),
                       _Tag('Sin servidores'),
                     ],
@@ -380,7 +380,7 @@ class _PreviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
+            'Tu equipo ve la misma informacion, con trazabilidad y exportacion inmediata.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -404,13 +404,13 @@ class _BenefitsGrid extends StatelessWidget {
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin conexión real',
+            title: 'Sin conexion real',
             desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
             icon: Icons.offline_bolt_outlined,
           ),
           const _BenefitCard(
             title: 'Reporte listo',
-            desc: 'HTML imprimible con evidencias para auditorias.',
+            desc: 'PDF y paquete listos para auditorias.',
             icon: Icons.picture_as_pdf_outlined,
           ),
           const _BenefitCard(
@@ -502,7 +502,7 @@ class _HowItWorks extends StatelessWidget {
           _StepCard(
             index: '03',
             title: 'Exporta y entrega',
-            desc: 'Backup ZIP y reporte imprimible listo para auditorias.',
+            desc: 'Paquete ZIP y PDF listos para auditorias y demos.',
           ),
         ];
         if (wide) {
@@ -724,7 +724,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar BitFlow',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -858,7 +858,7 @@ class _FaqList extends StatelessWidget {
       children: const [
         _FaqItem(
           q: 'Necesito servidor o internet?',
-          a: 'No. Funciona local. Solo necesitas internet para enviar o imprimir.',
+          a: 'No. Funciona local. Solo necesitas internet para compartir o imprimir.',
         ),
         SizedBox(height: 12),
         _FaqItem(
@@ -868,7 +868,7 @@ class _FaqList extends StatelessWidget {
         SizedBox(height: 12),
         _FaqItem(
           q: 'Que pasa si se llena el almacenamiento?',
-          a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
+          a: 'La app avisa y recomienda exportar un ZIP y limpiar adjuntos.',
         ),
       ],
     );
@@ -924,11 +924,11 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'BitFlow' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
-              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
+              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitflow.local' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
             if (showDebugBadge)

@@ -94,11 +94,15 @@ class _StartMetricPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: colors.separator),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colors.textPrimary,
               fontSize: 13,
@@ -108,6 +112,8 @@ class _StartMetricPill extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: 12,

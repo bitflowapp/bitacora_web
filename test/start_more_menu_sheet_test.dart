@@ -7,7 +7,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow.onboarding_done.v1': true,
+      'bitflow.demo_mode_enabled.v1': true,
+    });
   });
 
   testWidgets('menu de tres puntos muestra X y cierra al tocarla',

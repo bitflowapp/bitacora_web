@@ -1,4 +1,4 @@
-part of '../editor_screen.dart';
+﻿part of '../editor_screen.dart';
 
 extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
@@ -17,6 +17,16 @@ extension _EditorExportDialogs on _EditorScreenState {
           final fileName = format == 'zip'
               ? buildBitFlowBundleExportFileName(sheetName: _sheetName)
               : _buildCommercialExportFileName(format);
+          final exportLabel = switch (format) {
+            'zip' => 'Exportar paquete',
+            'xlsx' => 'Exportar XLSX',
+            _ => 'Exportar PDF',
+          };
+          final shareLabel = switch (format) {
+            'zip' => 'Compartir paquete',
+            'xlsx' => 'Compartir XLSX',
+            _ => 'Compartir PDF',
+          };
           final maxBodyHeight = MediaQuery.of(context).size.height * 0.62;
           return SizedBox(
             width: double.infinity,
@@ -92,8 +102,8 @@ extension _EditorExportDialogs on _EditorScreenState {
                     const SizedBox(height: 6),
                     Text(
                       format == 'zip'
-                          ? 'Recomendado para compartir una copia completa con evidencias.'
-                          : 'Exporta una versión lista para guardar, descargar o enviar.',
+                          ? 'Recomendado para demo: incluye planilla, evidencias y manifiesto en un solo archivo.'
+                          : 'Exporta una version lista para guardar, descargar o enviar.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (_rows.isEmpty) ...[
@@ -115,7 +125,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                     const SizedBox(height: 12),
                     AppButton(
                       key: const ValueKey('editor-export-submit'),
-                      label: 'Exportar',
+                      label: exportLabel,
                       icon: Icons.download_rounded,
                       variant: AppButtonVariant.primary,
                       onPressed: exportBusy
@@ -133,7 +143,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                     const SizedBox(height: 8),
                     AppButton(
                       key: const ValueKey('editor-export-share'),
-                      label: 'Compartir',
+                      label: shareLabel,
                       icon: Icons.ios_share_rounded,
                       variant: AppButtonVariant.secondary,
                       onPressed: exportBusy
@@ -194,3 +204,4 @@ extension _EditorExportDialogs on _EditorScreenState {
     );
   }
 }
+

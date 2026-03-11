@@ -39,6 +39,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Archivo: BitFlow_'), findsOneWidget);
+    expect(find.text('Exportar paquete'), findsOneWidget);
+    expect(find.text('Compartir paquete'), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-share')), findsOneWidget);
     expect(tester.takeException(), isNull);
