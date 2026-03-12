@@ -32,6 +32,66 @@ class EditorStorageFallbackReasonMapping {
   final String snackVariant;
 }
 
+enum GpsErrorAction { none, openAppSettings, openLocationSettings }
+
+class GpsErrorPresentation {
+  const GpsErrorPresentation({
+    required this.message,
+    this.action = GpsErrorAction.none,
+  });
+
+  final String message;
+  final GpsErrorAction action;
+}
+
+GpsErrorPresentation classifyGpsErrorForUi({
+  required String? code,
+  required String? rawError,
+}) {
+  final normalizedCode = (code ?? '').trim().toLowerCase();
+  final raw = (rawError ?? '').trim().toLowerCase();
+
+  if (normalizedCode == 'permission_denied_forever' ||
+      raw.contains('permanent')) {
+    return const GpsErrorPresentation(
+      message: 'Permiso de ubicación bloqueado. Habilitalo en Ajustes.',
+      action: GpsErrorAction.openAppSettings,
+    );
+  }
+  if (normalizedCode == 'permission_denied' || raw.contains('deneg')) {
+    return const GpsErrorPresentation(
+      message: 'Permiso de ubicación denegado. Autorizá GPS para continuar.',
+      action: GpsErrorAction.openAppSettings,
+    );
+  }
+  if (normalizedCode == 'service_disabled' ||
+      raw.contains('servicio') ||
+      raw.contains('service disabled')) {
+    return const GpsErrorPresentation(
+      message: 'GPS del dispositivo apagado. Encendelo para capturar ubicación.',
+      action: GpsErrorAction.openLocationSettings,
+    );
+  }
+  if (normalizedCode == 'timeout' || raw.contains('timeout')) {
+    return const GpsErrorPresentation(
+      message: 'No hubo señal GPS a tiempo. Intentá de nuevo en un lugar abierto.',
+    );
+  }
+  if (raw.contains('https')) {
+    return const GpsErrorPresentation(
+      message: 'GPS requiere HTTPS o localhost.',
+    );
+  }
+  if (raw.contains('no disponible') || raw.contains('unavailable')) {
+    return const GpsErrorPresentation(
+      message: 'Ubicación no disponible en este dispositivo o navegador.',
+    );
+  }
+  return const GpsErrorPresentation(
+    message: 'No se pudo obtener GPS. Revisá permisos, señal y ajustes del dispositivo.',
+  );
+}
+
 EditorStorageFallbackReasonMapping classifyEditorStorageFallbackReason(
   String? reasonCode,
 ) {
@@ -287,6 +347,7 @@ class _EditorScreenState extends State<EditorScreen>
   _GpsWriteMode _gpsWriteMode = _GpsWriteMode.pasteActive;
   _GpsFix? _pendingGpsFix;
   bool _gpsPickingTarget = false;
+  bool _gpsRequestInFlight = false;
   bool _autoGpsBatchEnabled = false;
   static const String _prefGpsMode = 'bitflow:gps_mode';
   static const String _prefAutoGpsBatch = 'bitflow:auto_gps_batch';
@@ -17346,30 +17407,45 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final outcome = await _getGpsFixWithFallback(
-      timeout: const Duration(seconds: 12),
-    );
-    if (!mounted) return;
-    if (!outcome.ok || outcome.fix == null) {
-      _showGpsError(outcome);
+    if (_gpsRequestInFlight) {
+      _showActionSnack(
+        'Ya se está capturando GPS. Esperá unos segundos.',
+        isError: false,
+        icon: Icons.hourglass_top_rounded,
+      );
       return;
     }
 
-    final fix = outcome.fix!;
-    if (!forceWriteText && _gpsWriteMode == _GpsWriteMode.pickTarget) {
-      setState(() {
-        _gpsPickingTarget = true;
-        _pendingGpsFix = fix;
-      });
-      _engineStatus = 'Toca la celda destino para pegar GPS.';
-      _engineStatusIsError = false;
-      _showSnack('Toca la celda destino para pegar GPS.', isError: false);
-      return;
-    }
+    _gpsRequestInFlight = true;
 
-    final shouldWrite =
-        forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
-    _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+    try {
+      final outcome = await _getGpsFixWithFallback(
+        timeout: const Duration(seconds: 12),
+      );
+      if (!mounted) return;
+      if (!outcome.ok || outcome.fix == null) {
+        _showGpsError(outcome);
+        return;
+      }
+
+      final fix = outcome.fix!;
+      if (!forceWriteText && _gpsWriteMode == _GpsWriteMode.pickTarget) {
+        setState(() {
+          _gpsPickingTarget = true;
+          _pendingGpsFix = fix;
+        });
+        _engineStatus = 'Toca la celda destino para pegar GPS.';
+        _engineStatusIsError = false;
+        _showSnack('Toca la celda destino para pegar GPS.', isError: false);
+        return;
+      }
+
+      final shouldWrite =
+          forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
+      _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+    } finally {
+      _gpsRequestInFlight = false;
+    }
   }
 
   bool _tryConsumePendingGps(int r, int c) {
@@ -18079,20 +18155,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _showGpsError(_GpsOutcome outcome) {
     final raw = (outcome.error ?? '').trim();
-    final lower = raw.toLowerCase();
-    String userMsg;
-    if (lower.contains('https')) {
-      userMsg = 'GPS requiere HTTPS o localhost.';
-    } else if (lower.contains('deneg')) {
-      userMsg = 'Permiso de ubicacion denegado. Habilitalo en Ajustes.';
-    } else if (lower.contains('timeout')) {
-      userMsg = 'Timeout obteniendo GPS.';
-    } else if (lower.contains('no disponible') ||
-        lower.contains('unavailable')) {
-      userMsg = 'Ubicacion no disponible.';
-    } else {
-      userMsg = 'No se pudo obtener GPS. Revisa permisos y conexion.';
-    }
+    final presentation = classifyGpsErrorForUi(
+      code: outcome.code,
+      rawError: raw,
+    );
+    final userMsg = presentation.message;
 
     _engineStatus = userMsg;
     _engineStatusIsError = true;
@@ -18104,7 +18171,25 @@ class _EditorScreenState extends State<EditorScreen>
     );
     if (mounted) {
       setState(() {});
-      _showActionSnack(userMsg, isError: true, icon: Icons.gps_off_rounded);
+      _showActionSnack(
+        userMsg,
+        isError: true,
+        icon: Icons.gps_off_rounded,
+        actionLabel: switch (presentation.action) {
+          GpsErrorAction.openAppSettings => 'Ajustes app',
+          GpsErrorAction.openLocationSettings => 'Activar GPS',
+          GpsErrorAction.none => null,
+        },
+        onAction: switch (presentation.action) {
+          GpsErrorAction.openAppSettings => () {
+              unawaited(LocationService.I.openAppSettings());
+            },
+          GpsErrorAction.openLocationSettings => () {
+              unawaited(LocationService.I.openSystemLocationSettings());
+            },
+          GpsErrorAction.none => null,
+        },
+      );
     }
   }
 
