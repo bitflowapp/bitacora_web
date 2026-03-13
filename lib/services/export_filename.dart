@@ -46,6 +46,11 @@ String buildBitFlowPackageWorkbookFileName({required String sheetName}) {
   return 'BitFlow_$safeSheet.xlsx';
 }
 
+String buildBitFlowPackageReportFileName({required String sheetName}) {
+  final safeSheet = sanitizeBitFlowSheetName(sheetName);
+  return 'BitFlow_$safeSheet.pdf';
+}
+
 String buildBitFlowEvidenceFileName({
   required String kind,
   required String sheetName,

@@ -31,6 +31,13 @@ void main() {
     expect(fileName, 'BitFlow_Inventario_Norte.xlsx');
   });
 
+  test('buildBitFlowPackageReportFileName keeps sheet identity', () {
+    final fileName = buildBitFlowPackageReportFileName(
+      sheetName: 'Inventario Norte',
+    );
+    expect(fileName, 'BitFlow_Inventario_Norte.pdf');
+  });
+
   test('buildBitFlowEvidenceFileName uses professional evidence naming', () {
     final fileName = buildBitFlowEvidenceFileName(
       kind: 'video',

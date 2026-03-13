@@ -82,6 +82,8 @@ class AttachmentRow {
     required this.description,
     required this.addedAt,
     required this.relativePath,
+    this.latitude,
+    this.longitude,
   });
 
   final String sheetName;
@@ -92,6 +94,8 @@ class AttachmentRow {
   final String description;
   final DateTime? addedAt;
   final String relativePath;
+  final double? latitude;
+  final double? longitude;
 }
 
 /// Genera un XLSX con datos + fotos embebidas.
@@ -163,13 +167,20 @@ Future<Uint8List> buildXlsxWithPhotos({
     final int textStartCol = includeIndexColumn ? 2 : 1;
     final int gpsStartCol = textStartCol + textCols;
 
-    // Estilo header (nombre unico por seguridad).
-    final styleName = 'HeaderStyle_${DateTime.now().microsecondsSinceEpoch}';
-    final headerStyle = workbook.styles.add(styleName);
+    // Estilos profesionales (nombre unico por seguridad).
+    final styleSeed = DateTime.now().microsecondsSinceEpoch;
+    final headerStyle = workbook.styles.add('HeaderStyle_$styleSeed');
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.fontColor = '#FFFFFFFF';
+    headerStyle.backColor = '#FF1F3A5F';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
+
+    final oddRowStyle = workbook.styles.add('BodyOddStyle_$styleSeed');
+    oddRowStyle.backColor = '#FFFFFFFF';
+
+    final evenRowStyle = workbook.styles.add('BodyEvenStyle_$styleSeed');
+    evenRowStyle.backColor = '#FFF7FAFC';
 
     // --------------------------
     // 1) Encabezados
@@ -210,6 +221,13 @@ Future<Uint8List> buildXlsxWithPhotos({
     final headerRange =
         sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
     headerRange.cellStyle = headerStyle;
+    sheet.autoFilters.filterRange = sheet.getRangeByIndex(
+      headerRow,
+      1,
+      math.max(headerRow, rows.length + 1),
+      safeLastCol,
+    );
+    sheet.getRangeByIndex(firstDataRow, 1).freezePanes();
 
     // --------------------------
     // 2) Datos + fotos
@@ -244,10 +262,15 @@ Future<Uint8List> buildXlsxWithPhotos({
     for (int r = 0; r < rows.length; r++) {
       final excelRow = firstDataRow + r;
       final rowValues = rows[r];
+      final rowStyle = r.isEven ? oddRowStyle : evenRowStyle;
+      sheet.getRangeByIndex(excelRow, 1, excelRow, safeLastCol).cellStyle =
+          rowStyle;
 
       // Columna "#"
       if (includeIndexColumn) {
-        sheet.getRangeByIndex(excelRow, 1).setNumber((r + 1).toDouble());
+        final indexCell = sheet.getRangeByIndex(excelRow, 1);
+        indexCell.setNumber((r + 1).toDouble());
+        indexCell.numberFormat = '0';
       }
 
       // Texto: escribe hasta textCols, padding con ''.
@@ -261,17 +284,22 @@ Future<Uint8List> buildXlsxWithPhotos({
         final gps =
             (gpsByRow != null && r < gpsByRow.length) ? gpsByRow[r] : null;
         if (gps != null && gps.hasFix) {
-          sheet.getRangeByIndex(excelRow, gpsStartCol).setNumber(gps.lat ?? 0);
-          sheet
-              .getRangeByIndex(excelRow, gpsStartCol + 1)
-              .setNumber(gps.lng ?? 0);
-          sheet
-              .getRangeByIndex(excelRow, gpsStartCol + 2)
-              .setNumber(gps.accuracy ?? 0);
+          final latCell = sheet.getRangeByIndex(excelRow, gpsStartCol);
+          latCell.setNumber(gps.lat ?? 0);
+          latCell.numberFormat = '0.000000';
+
+          final lngCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 1);
+          lngCell.setNumber(gps.lng ?? 0);
+          lngCell.numberFormat = '0.000000';
+
+          final accuracyCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 2);
+          accuracyCell.setNumber(gps.accuracy ?? 0);
+          accuracyCell.numberFormat = '0.00';
+
           if (gps.ts != null) {
-            sheet
-                .getRangeByIndex(excelRow, gpsStartCol + 3)
-                .setDateTime(gps.ts!);
+            final tsCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 3);
+            tsCell.setDateTime(gps.ts!);
+            tsCell.numberFormat = 'yyyy-mm-dd hh:mm';
           }
           sheet
               .getRangeByIndex(excelRow, gpsStartCol + 4)
@@ -504,7 +532,9 @@ int _buildFotosSheet(
     photosSheet.getRangeByIndex(row, 1).setNumber(item.rowIndex + 1);
     photosSheet.getRangeByIndex(row, 2).setNumber(item.colIndex + 1);
     photosSheet.getRangeByIndex(row, 3).setText('');
-    photosSheet.getRangeByIndex(row, 4).setText(item.addedAt.toIso8601String());
+    final addedAtCell = photosSheet.getRangeByIndex(row, 4);
+    addedAtCell.setDateTime(item.addedAt.toLocal());
+    addedAtCell.numberFormat = 'yyyy-mm-dd hh:mm';
     if (item.lat != null) {
       photosSheet.getRangeByIndex(row, 5).setNumber(item.lat ?? 0);
     }
@@ -576,6 +606,8 @@ void _buildAttachmentsSheet(
     'Archivo',
     'Descripción',
     'Fecha',
+    'Latitud',
+    'Longitud',
     'Ruta relativa',
   ];
 
@@ -583,38 +615,69 @@ void _buildAttachmentsSheet(
     sheet.getRangeByIndex(1, c + 1).setText(headers[c]);
   }
 
+  final styleSeed = DateTime.now().microsecondsSinceEpoch;
+  final headerStyle = workbook.styles.add('EvidenceHeaderStyle_$styleSeed');
+  headerStyle.bold = true;
+  headerStyle.fontColor = '#FFFFFFFF';
+  headerStyle.backColor = '#FF2D4C7A';
+  headerStyle.hAlign = xlsio.HAlignType.center;
+  headerStyle.vAlign = xlsio.VAlignType.center;
   final headerRange = sheet.getRangeByIndex(1, 1, 1, headers.length);
-  headerRange.cellStyle.bold = true;
-  headerRange.cellStyle.backColor = '#F4F0E6';
-  headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
-  headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
-  headerRange.cellStyle.fontSize = 11;
+  headerRange.cellStyle = headerStyle;
+
+  final oddRowStyle = workbook.styles.add('EvidenceOddStyle_$styleSeed');
+  oddRowStyle.backColor = '#FFFFFFFF';
+  final evenRowStyle = workbook.styles.add('EvidenceEvenStyle_$styleSeed');
+  evenRowStyle.backColor = '#FFF7FAFC';
 
   for (int i = 0; i < attachments.length; i++) {
     final row = i + 2;
     final item = attachments[i];
+    sheet.getRangeByIndex(row, 1, row, headers.length).cellStyle =
+        i.isEven ? oddRowStyle : evenRowStyle;
     sheet.getRangeByIndex(row, 1).setText(item.sheetName);
     sheet.getRangeByIndex(row, 2).setText(item.cellRef);
     sheet.getRangeByIndex(row, 3).setText(item.rowLabel);
     sheet.getRangeByIndex(row, 4).setText(item.type);
     sheet.getRangeByIndex(row, 5).setText(item.fileName);
     sheet.getRangeByIndex(row, 6).setText(item.description);
-    sheet
-        .getRangeByIndex(row, 7)
-        .setText(item.addedAt?.toIso8601String() ?? '');
-    sheet.getRangeByIndex(row, 8).setText(item.relativePath);
+
+    final dateCell = sheet.getRangeByIndex(row, 7);
+    if (item.addedAt != null) {
+      dateCell.setDateTime(item.addedAt!.toLocal());
+      dateCell.numberFormat = 'yyyy-mm-dd hh:mm';
+    } else {
+      dateCell.setText('');
+    }
+
+    final latCell = sheet.getRangeByIndex(row, 8);
+    if (item.latitude != null) {
+      latCell.setNumber(item.latitude!);
+      latCell.numberFormat = '0.000000';
+    } else {
+      latCell.setText('');
+    }
+
+    final lonCell = sheet.getRangeByIndex(row, 9);
+    if (item.longitude != null) {
+      lonCell.setNumber(item.longitude!);
+      lonCell.numberFormat = '0.000000';
+    } else {
+      lonCell.setText('');
+    }
+
+    sheet.getRangeByIndex(row, 10).setText(item.relativePath);
   }
 
   final lastRow = attachments.length + 1;
   if (attachments.isNotEmpty) {
-    final bodyRange = sheet.getRangeByIndex(
-      1,
-      1,
-      lastRow,
-      headers.length,
-    );
+    final bodyRange = sheet.getRangeByIndex(1, 1, lastRow, headers.length);
     bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
   }
+
+  sheet.autoFilters.filterRange =
+      sheet.getRangeByIndex(1, 1, math.max(1, lastRow), headers.length);
+  sheet.getRangeByIndex(2, 1).freezePanes();
 
   for (int c = 1; c <= headers.length; c++) {
     try {
@@ -648,29 +711,34 @@ int _photosCount({
   required List<AttachmentRow>? attachments,
 }) {
   if (attachments != null && attachments.isNotEmpty) {
-    return attachments.where((a) => a.type == 'photo').length;
+    return attachments
+        .where((a) => a.type == 'photo' || a.type == 'foto')
+        .length;
   }
   if (photosByRow == null || photosByRow.isEmpty) return 0;
   return photosByRow.values.fold<int>(0, (prev, list) => prev + list.length);
 }
 
 void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
+  final cell = sheet.getRangeByIndex(r, c);
   final trimmed = v.trim();
   if (FormulaEngine.isFormula(trimmed)) {
-    sheet.getRangeByIndex(r, c).setFormula(trimmed);
+    cell.setFormula(trimmed);
     return;
   }
   final numVal = double.tryParse(trimmed);
   if (numVal != null && RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(trimmed)) {
-    sheet.getRangeByIndex(r, c).setNumber(numVal);
+    cell.setNumber(numVal);
+    cell.numberFormat = trimmed.contains('.') ? '#,##0.00' : '0';
     return;
   }
   final dt = DateTime.tryParse(trimmed);
   if (dt != null) {
-    sheet.getRangeByIndex(r, c).setDateTime(dt);
+    cell.setDateTime(dt.toLocal());
+    cell.numberFormat = 'yyyy-mm-dd hh:mm';
     return;
   }
-  sheet.getRangeByIndex(r, c).setText(v);
+  cell.setText(v);
 }
 
 void _buildCoverSheet(xlsio.Workbook wb) {

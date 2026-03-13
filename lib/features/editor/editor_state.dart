@@ -6092,7 +6092,8 @@ class _EditorScreenState extends State<EditorScreen>
                 chosenScope,
               );
 
-              if (_isFlowBotApplyIntent(text) && initialScopedPreview.isNotEmpty) {
+              if (_isFlowBotApplyIntent(text) &&
+                  initialScopedPreview.isNotEmpty) {
                 Navigator.of(modalCtx)
                     .pop(List<FlowBotAction>.from(initialScopedPreview));
                 return;
@@ -6120,7 +6121,8 @@ class _EditorScreenState extends State<EditorScreen>
                 if (result.actions.isEmpty) {
                   setModalState(() {
                     warning = _flowBotApplyDisabledReason(
-                      preview: _applyScopeToFlowBotActions(preview, chosenScope),
+                      preview:
+                          _applyScopeToFlowBotActions(preview, chosenScope),
                       parsing: false,
                       useLocalLlm: _flowBotUseLocalLlm,
                       localModelReady: localModelReady,
@@ -6567,8 +6569,7 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.check_rounded,
                     dense: true,
                     variant: AppleButtonVariant.filled,
-                    onPressed:
-                        parsing ? null : () => unawaited(confirmApply()),
+                    onPressed: parsing ? null : () => unawaited(confirmApply()),
                   ),
                 ],
               );
@@ -6643,12 +6644,14 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   const SizedBox(height: 10),
                                   TextField(
-                                    key: const ValueKey('flowbot-command-input'),
+                                    key:
+                                        const ValueKey('flowbot-command-input'),
                                     controller: transcriptEC,
                                     minLines: 1,
                                     maxLines: 3,
                                     textInputAction: TextInputAction.done,
-                                    onSubmitted: (_) => unawaited(confirmApply()),
+                                    onSubmitted: (_) =>
+                                        unawaited(confirmApply()),
                                     decoration: InputDecoration(
                                       hintText:
                                           'Ej: poner OK en B2; rellenar listo x 3',
@@ -6923,7 +6926,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 parsing: parsing,
                                 useLocalLlm: _flowBotUseLocalLlm,
                                 localModelReady: localModelReady,
-                                hasTranscript: transcriptEC.text.trim().isNotEmpty,
+                                hasTranscript:
+                                    transcriptEC.text.trim().isNotEmpty,
                                 parseWarning: warning,
                               ),
                               style: TextStyle(
@@ -18208,6 +18212,79 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  Future<void> debugRunExportSaveFlowForTest({
+    required String name,
+    required String mime,
+    bool share = false,
+    Uint8List? bytes,
+  }) async {
+    try {
+      await _saveExportBytes(
+        name: name,
+        mime: mime,
+        bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
+        share: share,
+      );
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.exportData,
+        operation: share
+            ? 'debug_export_save_flow_share'
+            : 'debug_export_save_flow_save',
+        fallbackMessage: 'No pudimos exportar el archivo.',
+        stackTrace: st,
+        icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+    }
+  }
+
+  @visibleForTesting
+  Future<Uint8List?> debugBuildZipBundleBytesForTest({
+    bool includeAttachments = true,
+  }) async {
+    final exportedAtUtc = DateTime.now().toUtc();
+    final manifest = <String, dynamic>{
+      'format': 'bitflow_package_v1',
+      'exportedAt': exportedAtUtc.toIso8601String(),
+      'sheet': {'id': widget.sheetId, 'name': _sheetName},
+      'package': {
+        'workbook': buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+        'report': buildBitFlowPackageReportFileName(sheetName: _sheetName),
+        'evidencePaths': <String>[
+          'evidencias/fotos',
+          'evidencias/videos',
+          'evidencias/audio',
+        ],
+      },
+      'counts': {
+        'rows': _rows.length,
+        'photos': 0,
+        'audios': 0,
+        'gps': 0,
+      },
+    };
+    final packageSheetJson = <String, dynamic>{
+      'sheetId': widget.sheetId,
+      'name': _sheetName,
+      'headers': _headers,
+      'rows': _rows,
+      'includeAttachments': includeAttachments,
+      'exportedAt': exportedAtUtc.toIso8601String(),
+    };
+    return _buildAttachmentsZip(
+      xlsxBytes: Uint8List.fromList(utf8.encode('xlsx-test')),
+      xlsxFileName: buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+      pdfBytes: Uint8List.fromList(utf8.encode('pdf-test')),
+      pdfFileName: buildBitFlowPackageReportFileName(sheetName: _sheetName),
+      photoItems: const <_ZipPhotoItem>[],
+      audioItems: const <_ZipAudioItem>[],
+      manifest: manifest,
+      packageSheetJson: packageSheetJson,
+    );
+  }
+
+  @visibleForTesting
   void debugOpenInlineSearch() {
     _openInlineSearch();
   }
@@ -19034,8 +19111,10 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
-            ? 'Listo para compartir: $fileName'
-            : 'XLSX preparado: $fileName',
+            ? 'XLSX listo para compartir: $fileName'
+            : 'Excel (XLSX) listo: $fileName',
+        shareSubject: 'BitFlow | Excel | $_sheetName',
+        shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -19130,8 +19209,10 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
-            ? 'Listo para compartir: $fileName'
-            : 'PDF preparado: $fileName',
+            ? 'PDF listo para compartir: $fileName'
+            : 'Reporte PDF listo: $fileName',
+        shareSubject: 'BitFlow | PDF | $_sheetName',
+        shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -19223,11 +19304,34 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxFileName = buildBitFlowPackageWorkbookFileName(
         sheetName: _sheetName,
       );
+      final pdfFileName = buildBitFlowPackageReportFileName(
+        sheetName: _sheetName,
+      );
+
+      _setLongOperationMessage('Generando reporte PDF...');
+      final pdfBytes = await _buildPdfBytesForExport(
+        includeAttachments: true,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      if (!mounted) return;
+      _throwIfLongOperationCancelled();
+      if (pdfBytes == null) {
+        _reportFlowErrorMessage(
+          'pdf_generation_failed',
+          flow: AppErrorFlow.exportData,
+          operation: 'export_zip_build_pdf',
+          fallbackMessage: 'No se pudo preparar el PDF para exportar ZIP.',
+          icon: Icons.picture_as_pdf_rounded,
+        );
+        return;
+      }
 
       _setLongOperationMessage(AppStrings.progressPackagingAssets);
       final zipBytes = await _buildAttachmentsZip(
         xlsxBytes: xlsxBytes,
         xlsxFileName: xlsxFileName,
+        pdfBytes: pdfBytes,
+        pdfFileName: pdfFileName,
         photoItems: prep.photoItems,
         audioItems: prep.audioItems,
         manifest: prep.manifest,
@@ -19258,12 +19362,13 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
-            ? 'Paquete completo listo para compartir: $fileName'
+            ? 'Paquete ZIP completo listo para compartir: $fileName'
             : (evidenceCount > 0
-                ? 'Paquete completo listo: $fileName'
-                : 'Paquete completo listo (sin evidencias adjuntas): $fileName'),
-        shareSubject: 'BitFlow | $_sheetName',
-        shareText: 'Paquete exportado desde BitFlow: $_sheetName',
+                ? 'Paquete ZIP completo listo: $fileName'
+                : 'Paquete ZIP listo (sin evidencias adjuntas): $fileName'),
+        shareSubject: 'BitFlow | Paquete completo | $_sheetName',
+        shareText:
+            'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -20012,8 +20117,13 @@ class _EditorScreenState extends State<EditorScreen>
 
           final content = <pw.Widget>[
             pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              'BitFlow | Reporte profesional',
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'Planilla: ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              style: const pw.TextStyle(fontSize: 10),
             ),
             pw.SizedBox(height: 4),
             pw.Text(
@@ -20044,6 +20154,17 @@ class _EditorScreenState extends State<EditorScreen>
           ];
 
           if (headers.isNotEmpty) {
+            content
+              ..add(
+                pw.Text(
+                  'Tabla principal',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              )
+              ..add(pw.SizedBox(height: 6));
             content.add(
               pw.TableHelper.fromTextArray(
                 headers: headers,
@@ -20290,6 +20411,8 @@ class _EditorScreenState extends State<EditorScreen>
             description: _gpsNotes(gps),
             addedAt: gps.timestamp,
             relativePath: '',
+            latitude: gps.lat,
+            longitude: gps.lng,
           ),
         );
         if (includeZip) {
@@ -20304,18 +20427,15 @@ class _EditorScreenState extends State<EditorScreen>
           final photo = meta.photos[i];
           final lowerMime = photo.mime.toLowerCase();
           final isVideo = lowerMime.startsWith('video/');
-          final isImage = lowerMime.startsWith('image/');
-          final itemType = isVideo ? 'video' : (isImage ? 'foto' : 'archivo');
-          final manifestKind = isVideo ? 'video' : (isImage ? 'photo' : 'file');
+          final itemType = isVideo ? 'video' : 'foto';
+          final manifestKind = isVideo ? 'video' : 'photo';
           final fileName = _exportPhotoFileName(
             cellRef,
             photo,
             kind: itemType,
             index: i + 1,
           );
-          final folder = itemType == 'foto'
-              ? 'fotos'
-              : (itemType == 'video' ? 'videos' : 'archivos');
+          final folder = itemType == 'video' ? 'videos' : 'fotos';
           final relPath = 'evidencias/$folder/$fileName';
 
           attachments.add(
@@ -20328,6 +20448,8 @@ class _EditorScreenState extends State<EditorScreen>
               description: _photoNotes(photo),
               addedAt: photo.addedAt,
               relativePath: relPath,
+              latitude: photo.lat,
+              longitude: photo.lon,
             ),
           );
 
@@ -20455,6 +20577,8 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildAttachmentsZip({
     required Uint8List xlsxBytes,
     required String xlsxFileName,
+    required Uint8List pdfBytes,
+    required String pdfFileName,
     required List<_ZipPhotoItem> photoItems,
     required List<_ZipAudioItem> audioItems,
     required Map<String, dynamic> manifest,
@@ -20466,6 +20590,20 @@ class _EditorScreenState extends State<EditorScreen>
     archive.addFile(
       ArchiveFile(xlsxFileName, xlsxBytes.length, xlsxBytes),
     );
+    archive.addFile(
+      ArchiveFile(pdfFileName, pdfBytes.length, pdfBytes),
+    );
+
+    for (final folder in const <String>[
+      'evidencias/',
+      'evidencias/fotos/',
+      'evidencias/videos/',
+      'evidencias/audio/',
+    ]) {
+      final dir = ArchiveFile(folder, 0, Uint8List(0));
+      dir.isFile = false;
+      archive.addFile(dir);
+    }
 
     for (final item in photoItems) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -20495,6 +20633,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     final readme = _buildPackageReadme(
       xlsxFileName: xlsxFileName,
+      pdfFileName: pdfFileName,
       photoCount: photoItems.length,
       audioCount: audioItems.length,
     );
@@ -20533,6 +20672,7 @@ class _EditorScreenState extends State<EditorScreen>
       },
       'package': {
         'workbook': buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+        'report': buildBitFlowPackageReportFileName(sheetName: _sheetName),
         'evidencePaths': <String>[
           'evidencias/fotos',
           'evidencias/videos',
@@ -20569,6 +20709,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _buildPackageReadme({
     required String xlsxFileName,
+    required String pdfFileName,
     required int photoCount,
     required int audioCount,
   }) {
@@ -20578,10 +20719,12 @@ class _EditorScreenState extends State<EditorScreen>
       '',
       'Contenido:',
       '- $xlsxFileName (planilla principal)',
+      '- $pdfFileName (reporte profesional)',
       '- evidencias/fotos y evidencias/videos (si existen)',
       '- evidencias/audio (si existen)',
       '- manifest.json (índice técnico)',
       '- sheet.json (snapshot importable)',
+      '- README.txt (esta guía)',
       '',
       'Resumen:',
       '- Evidencias multimedia: $evidenceTotal',
@@ -21604,9 +21747,13 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _buildCommercialExportFileName(String extension) {
+    final ext = extension.trim().toLowerCase().replaceAll('.', '');
+    if (ext == 'xlsx') {
+      return buildBitFlowPackageWorkbookFileName(sheetName: _sheetName);
+    }
     return buildBitFlowExportFileName(
       sheetName: _sheetName,
-      extension: extension,
+      extension: ext,
     );
   }
   // ------------------------------ Engine compute (opcional) ----------------

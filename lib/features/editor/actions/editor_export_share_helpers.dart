@@ -10,26 +10,39 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     return '.../${parts[parts.length - 2]}/${parts.last}';
   }
 
-  String _exportShareSubject(String name) => 'BitFlow | $name';
+  String _exportShareSubject(String name) =>
+      'BitFlow | ${_formatLabelFromFileName(name)} | $name';
 
   String _exportShareText(String name) =>
-      'Archivo exportado desde BitFlow: $name';
+      '${_formatLabelFromFileName(name)} exportado desde BitFlow: $name';
 
-  String _fileReadyMessage(String label) => 'Archivo guardado: $label';
+  String _fileReadyMessage(String label, {required String name}) =>
+      '${_formatLabelFromFileName(name)} guardado: $label';
 
-  String _downloadStartedMessage(String name) => 'Descarga iniciada: $name';
+  String _downloadStartedMessage(String name) =>
+      'Descarga de ${_formatLabelFromFileName(name)} iniciada: $name';
 
-  String _shareOpenedMessage(String name) => 'Listo para compartir: $name';
+  String _shareOpenedMessage(String name) =>
+      '${_formatLabelFromFileName(name)} listo para compartir: $name';
 
   String _exportSheetOpenedMessage(String name) =>
-      'Archivo listo para guardar o enviar: $name. El sistema abri\u00f3 las opciones para compartir.';
+      '${_formatLabelFromFileName(name)} listo para guardar o enviar: $name. El sistema abrió las opciones para compartir.';
 
   String _shareFallbackSavedMessage({
     required String name,
     String? location,
   }) {
     final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir compartir. El archivo ya qued\u00f3 listo para guardar o enviar: $target';
+    return 'No pudimos abrir la opción de compartir el ${_formatLabelFromFileName(name)}. El archivo ya quedó listo para guardar o enviar: $target';
+  }
+
+  String _formatLabelFromFileName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.xlsx')) return 'XLSX';
+    if (lower.endsWith('.pdf')) return 'PDF';
+    if (lower.endsWith('.zip')) return 'paquete ZIP';
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'HTML';
+    return 'archivo';
   }
 
   Future<void> _shareExportParams(ShareParams params) async {
@@ -220,7 +233,11 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       notifySavedFallbackFromShare(savedLocation);
     } else {
       notifySuccess(
-          _fileReadyMessage(savedLocation.isEmpty ? name : savedLocation));
+        _fileReadyMessage(
+          savedLocation.isEmpty ? name : savedLocation,
+          name: name,
+        ),
+      );
     }
   }
 

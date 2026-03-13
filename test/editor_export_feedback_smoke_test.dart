@@ -46,17 +46,51 @@ void main() {
           null,
     );
 
-    await state.debugTriggerExportForTest(
-      format: 'xlsx',
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       share: true,
-      includeAttachments: false,
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(
       state.debugLastToastMessage(),
       contains(
-          'No pudimos abrir compartir. El archivo ya qued\u00f3 listo para guardar o enviar:'),
+        'No pudimos abrir la opción de compartir el XLSX. El archivo ya quedó listo para guardar o enviar:',
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('share fallback message adapts to PDF format', (tester) async {
+    final dynamic state = await pumpEditor(tester);
+    state.debugSetExportHooks(
+      shareHook: (_) async => throw UnsupportedError('share not supported'),
+      saveLocationHook: ({
+        required String suggestedName,
+        required List<XTypeGroup> acceptedTypeGroups,
+      }) async =>
+          const FileSaveLocation('/tmp/export-fallback.pdf'),
+      saveFileHook: (_, __) async {},
+      persistShareTempFileHook: ({
+        required String fileName,
+        required bytes,
+      }) async =>
+          null,
+    );
+
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.pdf',
+      mime: 'application/pdf',
+      share: true,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      state.debugLastToastMessage(),
+      contains('No pudimos abrir la opción de compartir el PDF.'),
     );
     expect(tester.takeException(), isNull);
   });
@@ -78,16 +112,17 @@ void main() {
           null,
     );
 
-    await state.debugTriggerExportForTest(
-      format: 'xlsx',
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       share: false,
-      includeAttachments: false,
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(
       state.debugLastErrorFeedbackMessage(),
-      contains('No pudimos exportar el XLSX.'),
+      contains('No pudimos exportar el archivo.'),
     );
   });
 }

@@ -31,16 +31,25 @@ void main() {
     state.debugOpenExportMenuForTest();
     await tester.pumpAndSettle();
 
-    expect(find.text('XLSX'), findsOneWidget);
-    expect(find.text('PDF'), findsOneWidget);
-    expect(find.text('Paquete completo (.zip)'), findsOneWidget);
+    expect(find.text('Excel (.xlsx)'), findsOneWidget);
+    expect(find.text('Reporte PDF (.pdf)'), findsOneWidget);
+    expect(find.text('Paquete completo (.ZIP)'), findsOneWidget);
+    expect(find.textContaining('Reporte listo para clientes'), findsOneWidget);
 
-    await tester.tap(find.text('Paquete completo (.zip)'));
+    await tester.tap(find.text('Excel (.xlsx)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Archivo: BitFlow_Control_Diario.xlsx'), findsOneWidget);
+
+    await tester.tap(find.text('Paquete completo (.ZIP)'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Archivo: BitFlow_'), findsOneWidget);
-    expect(find.text('Exportar paquete'), findsOneWidget);
-    expect(find.text('Compartir paquete'), findsOneWidget);
+    expect(
+      find.textContaining('Paquete recomendado para enviar'),
+      findsOneWidget,
+    );
+    expect(find.text('Exportar paquete ZIP'), findsOneWidget);
+    expect(find.text('Compartir paquete ZIP'), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-export-share')), findsOneWidget);
     expect(tester.takeException(), isNull);
