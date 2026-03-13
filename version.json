@@ -1,6 +1,1 @@
-{
-    "appVersion":  "1.3.1+11",
-    "buildId":  "20260311T194947Z-720ab27",
-    "gitSha":  "720ab27cc05c7b3b095eb9bdbeacfd67d34e4f0f",
-    "buildTime":  "2026-03-11T19:49:47.1341266Z"
-}
+{"buildId":"dev","appVersion":"1.3.0","gitSha":"dev","buildTime":"","engineBaseUrl":""}
