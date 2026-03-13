@@ -14,6 +14,7 @@ class _StartRecentWorkSection extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onTogglePinned,
     required this.onMore,
+    required this.onOpenHistory,
   });
 
   final _ApplePalette colors;
@@ -28,6 +29,7 @@ class _StartRecentWorkSection extends StatelessWidget {
   final Future<void> Function(SheetMeta meta) onToggleFavorite;
   final Future<void> Function(SheetMeta meta) onTogglePinned;
   final Future<void> Function(SheetMeta meta) onMore;
+  final Future<void> Function() onOpenHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +38,55 @@ class _StartRecentWorkSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Trabajo reciente',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Trabajo reciente',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+              CupertinoButton(
+                key: const ValueKey('start-history-open-all'),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                minimumSize: Size.zero,
+                onPressed: () => unawaited(onOpenHistory()),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: colors.separator),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.collections,
+                        size: 14,
+                        color: colors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ver todas',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(

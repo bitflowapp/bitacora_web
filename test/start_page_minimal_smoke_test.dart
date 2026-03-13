@@ -36,6 +36,7 @@ void main() {
     expect(find.byKey(const ValueKey('start-primary-new')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-primary-open-recent')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('start-primary-history')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-primary-search')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('start-primary-automate')), findsOneWidget);
@@ -43,6 +44,7 @@ void main() {
     expect(find.text('Acciones principales'), findsOneWidget);
     expect(find.text('Nueva planilla'), findsOneWidget);
     expect(find.text('Abrir reciente'), findsOneWidget);
+    expect(find.text('Todas las planillas'), findsOneWidget);
     expect(find.text('Buscar archivos'), findsOneWidget);
     expect(find.text('Plantillas'), findsOneWidget);
 
@@ -54,6 +56,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Trabajo reciente'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('start-history-open-all')), findsOneWidget);
     expect(find.text('Smoke Sheet A'), findsWidgets);
 
     await tester.scrollUntilVisible(

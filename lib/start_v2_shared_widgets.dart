@@ -590,6 +590,7 @@ class _StartFileItemTile extends StatelessWidget {
             runSpacing: 8,
             children: [
               _StartFileActionChip(
+                buttonKey: ValueKey('start-sheet-open-${sheet.id}'),
                 icon: CupertinoIcons.arrow_up_right_square,
                 label: 'Abrir',
                 colors: colors,
@@ -651,6 +652,7 @@ class _StartTinyIconButton extends StatelessWidget {
 
 class _StartFileActionChip extends StatelessWidget {
   const _StartFileActionChip({
+    this.buttonKey,
     required this.icon,
     required this.label,
     required this.colors,
@@ -658,6 +660,7 @@ class _StartFileActionChip extends StatelessWidget {
     this.emphasis = false,
   });
 
+  final Key? buttonKey;
   final IconData icon;
   final String label;
   final _ApplePalette colors;
@@ -670,6 +673,7 @@ class _StartFileActionChip extends StatelessWidget {
         ? colors.accent.withValues(alpha: colors.isLight ? 0.10 : 0.18)
         : colors.surface;
     return CupertinoButton(
+      key: buttonKey,
       padding: EdgeInsets.zero,
       minimumSize: const Size(44, 36),
       onPressed: onPressed,

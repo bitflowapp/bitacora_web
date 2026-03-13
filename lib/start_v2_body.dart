@@ -1532,11 +1532,26 @@ class _StartPageState extends State<StartPageV2> {
     required String sheetId,
     String? initialName,
   }) async {
-    if (!mounted || _openEditorRouteInFlight) return;
+    final safeSheetId = sheetId.trim();
+    if (!mounted) return;
+    if (safeSheetId.isEmpty) {
+      _reportStartPageErrorMessage(
+        'sheet_id_empty',
+        flow: AppErrorFlow.load,
+        operation: 'open_sheet_route',
+        fallbackMessage: 'No pudimos abrir esta planilla.',
+      );
+      return;
+    }
+    if (_openEditorRouteInFlight) {
+      _toast('Ya estamos abriendo una planilla. Esperá un momento.');
+      return;
+    }
+
     _openEditorRouteInFlight = true;
     try {
-      _markSheetOpened(sheetId);
-      final encodedSheetId = Uri.encodeComponent(sheetId.trim());
+      _markSheetOpened(safeSheetId);
+      final encodedSheetId = Uri.encodeComponent(safeSheetId);
       final cleanName = (initialName ?? '').trim();
       final route = cleanName.isEmpty
           ? '/app/sheet/$encodedSheetId'
@@ -1544,7 +1559,7 @@ class _StartPageState extends State<StartPageV2> {
 
       var openedWithRouter = false;
       try {
-        await context.push(route);
+        context.go(route);
         openedWithRouter = true;
       } catch (_) {
         openedWithRouter = false;
@@ -1557,16 +1572,23 @@ class _StartPageState extends State<StartPageV2> {
             builder: (_) => EditorScreen(
               isLight: widget.isLight,
               onToggleTheme: widget.onToggleTheme,
-              sheetId: sheetId,
+              sheetId: safeSheetId,
               initialName: cleanName.isEmpty ? null : cleanName,
               engineBaseUrl: _engineBaseForEditor(),
             ),
           ),
         );
+        if (!mounted) return;
+        _reload();
       }
-
-      if (!mounted) return;
-      _reload();
+    } catch (e, st) {
+      _reportStartPageError(
+        e,
+        flow: AppErrorFlow.load,
+        operation: 'open_sheet_route',
+        stackTrace: st,
+        fallbackMessage: 'No pudimos abrir esta planilla.',
+      );
     } finally {
       _openEditorRouteInFlight = false;
     }
@@ -1580,24 +1602,48 @@ class _StartPageState extends State<StartPageV2> {
   }
 
   Future<void> _createAndOpenSheet({TemplateKind? template}) async {
-    if (_busy) return;
+    if (_busy) {
+      _toast('Hay una operación en curso. Esperá a que termine.');
+      return;
+    }
     if (!await _guardSheetCreation(requiresTemplates: template != null)) return;
 
-    final id = template == null
-        ? SheetStore.createNew()
-        : SheetStore.createFromTemplate(template);
+    try {
+      final id = template == null
+          ? SheetStore.createNew()
+          : SheetStore.createFromTemplate(template);
 
-    _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
-    if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
-      _sheetFolder[id] = _selectedFolderId;
+      if (id.trim().isEmpty) {
+        _reportStartPageErrorMessage(
+          'sheet_create_empty_id',
+          flow: AppErrorFlow.save,
+          operation: 'create_sheet',
+          fallbackMessage: 'No pudimos crear una planilla nueva.',
+        );
+        return;
+      }
+
+      _sheetCreatedAtMs[id] = DateTime.now().millisecondsSinceEpoch;
+      if (_tab == _HomeTab.sheets && _selectedFolderId.isNotEmpty) {
+        _sheetFolder[id] = _selectedFolderId;
+      }
+
+      await _saveOrg();
+      _reload();
+      unawaited(_product.handleLocalSheetSaved(id));
+      if (!mounted) return;
+
+      _toast('Se creó una planilla nueva.');
+      await _openEditorRoute(sheetId: id);
+    } catch (e, st) {
+      _reportStartPageError(
+        e,
+        flow: AppErrorFlow.save,
+        operation: 'create_sheet',
+        stackTrace: st,
+        fallbackMessage: 'No pudimos crear una planilla nueva.',
+      );
     }
-
-    await _saveOrg();
-    _reload();
-    unawaited(_product.handleLocalSheetSaved(id));
-    if (!mounted) return;
-
-    await _openEditorRoute(sheetId: id);
   }
 
   String _packColId(String label, int index) {
@@ -2374,24 +2420,46 @@ class _StartPageState extends State<StartPageV2> {
   }
 
   Future<void> _open(SheetMeta m) async {
-    if (_busy) return;
+    if (_busy) {
+      _toast('Hay una operación en curso. Esperá a que termine.');
+      return;
+    }
 
-    // Si esta en papelera, pedimos restauracion antes de abrir.
-    if (_trashDeletedAtMs.containsKey(m.id)) {
+    final safeId = m.id.trim();
+    if (safeId.isEmpty) {
+      _reportStartPageErrorMessage(
+        'sheet_open_empty_id',
+        flow: AppErrorFlow.load,
+        operation: 'open_sheet',
+        fallbackMessage: 'No pudimos abrir esta planilla.',
+      );
+      return;
+    }
+
+    final raw = SheetStore.loadRaw(safeId);
+    final table = SheetStore.load(safeId);
+    if ((raw == null || raw.trim().isEmpty) && table == null) {
+      _toast('No encontramos el archivo reciente.');
+      _reload();
+      return;
+    }
+
+    // Si está en papelera, pedimos restauración antes de abrir.
+    if (_trashDeletedAtMs.containsKey(safeId)) {
       final ok = await _confirmCupertino(
-        title: 'Est\u00e1 en papelera',
+        title: 'Está en papelera',
         message:
-            'Para abrir y editar, primero hay que restaurar la planilla. \u00bfRestaurar ahora?',
+            'Para abrir y editar, primero hay que restaurar la planilla. ¿Restaurar ahora?',
         okText: 'Restaurar',
       );
       if (ok != true) return;
-      await _restoreFromTrash(m.id, silent: true);
+      await _restoreFromTrash(safeId, silent: true);
     }
 
     if (!mounted) return;
 
     await _openEditorRoute(
-      sheetId: m.id,
+      sheetId: safeId,
       initialName: m.title,
     );
   }
@@ -3706,11 +3774,19 @@ class _StartPageState extends State<StartPageV2> {
   Future<void> _openMostRecentSheet() async {
     final recents = _recentSheets;
     if (recents.isEmpty) {
-      _toast('No hay archivos recientes todav\u00eda.');
-      await _openQuickSwitcher();
+      _toast('No hay archivos recientes todavía.');
+      await _openSheetHistory();
       return;
     }
     await _open(recents.first);
+  }
+
+  Future<void> _openSheetHistory() async {
+    if (_busy) {
+      _toast('Hay una operación en curso. Esperá a que termine.');
+      return;
+    }
+    await _openQuickSwitcher();
   }
 
   Future<void> _exportMostRecentSheet() async {
@@ -4258,17 +4334,24 @@ class _StartPageState extends State<StartPageV2> {
         icon: CupertinoIcons.clock_fill,
         title: 'Abrir reciente',
         subtitle: recentSheets.isEmpty
-            ? 'Reabrir\u00e1s tu \u00faltimo archivo apenas tengas uno'
+            ? 'Reabrirás tu último archivo apenas tengas uno'
             : _sheetDisplayTitle(recentSheets.first),
         shortcut: 'Ctrl/Cmd + O',
         onPressed: _openMostRecentSheet,
       ),
       _StartQuickActionSpec(
+        key: const ValueKey('start-primary-history'),
+        icon: CupertinoIcons.collections_solid,
+        title: 'Todas las planillas',
+        subtitle: 'Historial completo para abrir sin buscar menús',
+        shortcut: 'Ver todas',
+        onPressed: _openSheetHistory,
+      ),
+      _StartQuickActionSpec(
         key: const ValueKey('start-primary-search'),
         icon: CupertinoIcons.search,
         title: 'Buscar archivos',
-        subtitle:
-            'Paleta para archivos, acciones y navegaci\u00f3n r\u00e1pida',
+        subtitle: 'Buscador rápido por nombre, acciones y navegación',
         shortcut: 'Ctrl/Cmd + K',
         onPressed: _openQuickSwitcher,
       ),
@@ -4418,6 +4501,7 @@ class _StartPageState extends State<StartPageV2> {
                                   onToggleFavorite: _toggleFavorite,
                                   onTogglePinned: _togglePinned,
                                   onMore: _openSheetQuickMenu,
+                                  onOpenHistory: _openSheetHistory,
                                 ),
                               ),
                             ),
