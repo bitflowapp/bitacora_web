@@ -2,7 +2,16 @@ part of 'editor_screen.dart';
 
 // ============================== Constantes globales ========================
 
-const int kDefaultCols = 15; // 14 + Fotos
+const int kDefaultCols = 6; // 5 de datos + Fotos
+const int kDefaultRows = 12;
+const List<String> kDefaultSheetHeaders = <String>[
+  'Campo 1',
+  'Campo 2',
+  'Campo 3',
+  'Campo 4',
+  'Campo 5',
+  'Fotos',
+];
 const String kPhotosHeader = 'Fotos';
 const String kPhotosColId = 'col_photos';
 const double _kMobileInlineCompactBarH = 68.0;
@@ -941,8 +950,8 @@ class _EditorScreenState extends State<EditorScreen>
         );
       }
     } else {
-      // 3 filas vac??as por defecto (mobile-friendly)
-      for (int i = 0; i < 3; i++) {
+      // Estructura inicial clara para planilla nueva.
+      for (int i = 0; i < kDefaultRows; i++) {
         rowModels.add(_RowModel.empty(headers.length, id: _genStableId('r_')));
       }
     }
@@ -964,9 +973,16 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   List<String> _defaultHeaders() {
-    final h = List<String>.filled(kDefaultCols, '');
-    if (h.isNotEmpty) h[h.length - 1] = kPhotosHeader;
-    return h;
+    final base = List<String>.from(kDefaultSheetHeaders, growable: true);
+    if (base.length < kDefaultCols) {
+      base.addAll(List<String>.filled(kDefaultCols - base.length, ''));
+    } else if (base.length > kDefaultCols) {
+      base.removeRange(kDefaultCols, base.length);
+    }
+    if (base.isNotEmpty) {
+      base[base.length - 1] = kPhotosHeader;
+    }
+    return base;
   }
 
   List<String> _normalizeHeaders(List<String> incoming) {
@@ -11379,6 +11395,23 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
+                                        'mobile-fab-action-add-row'),
+                                    icon: Icons.table_rows_rounded,
+                                    label: 'Agregar fila',
+                                    onTap: () =>
+                                        unawaited(_openInsertRowQuickActions()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-add-column'),
+                                    icon: Icons.view_column_rounded,
+                                    label: 'Agregar columna',
+                                    onTap: () => unawaited(
+                                      _openInsertColumnQuickActions(),
+                                    ),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
                                       'mobile-fab-action-smart-paste',
                                     ),
                                     icon: Icons.table_chart_rounded,
@@ -14279,6 +14312,20 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
         actions.add(
+          _CtxAction(
+            'Insertar columna izquierda',
+            Icons.keyboard_double_arrow_left_rounded,
+            () => _insertColumnAt(c),
+          ),
+        );
+        actions.add(
+          _CtxAction(
+            'Insertar columna derecha',
+            Icons.keyboard_double_arrow_right_rounded,
+            () => _insertColumnAt(c + 1),
+          ),
+        );
+        actions.add(
           _CtxAction('Limpiar encabezado', Icons.clear_rounded, () {
             if (_headers[c].isEmpty) return;
             _headers[c] = '';
@@ -14370,6 +14417,20 @@ class _EditorScreenState extends State<EditorScreen>
           'Pegar',
           Icons.paste_rounded,
           () => unawaited(_pasteFromClipboard()),
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Insertar fila arriba',
+          Icons.vertical_align_top_rounded,
+          () => _insertRow(r),
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Insertar fila abajo',
+          Icons.vertical_align_bottom_rounded,
+          () => _insertRow(r + 1),
         ),
       );
       actions.add(
@@ -15570,6 +15631,226 @@ class _EditorScreenState extends State<EditorScreen>
       message: 'Insertar fila ${idx + 1}',
       origin: 'manual',
       row: idx,
+    );
+  }
+
+  Future<void> _openInsertRowQuickActions() async {
+    if (!mounted) return;
+    await showAppModal<void>(
+      context: context,
+      title: 'Agregar fila',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppButton(
+            label: 'Insertar arriba',
+            icon: Icons.vertical_align_top_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              final target = _rows.isEmpty ? 0 : _selRow.clamp(0, _rows.length);
+              _insertRow(target);
+              _showActionSnack(
+                'Fila insertada arriba.',
+                isError: false,
+                icon: Icons.table_rows_rounded,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Insertar abajo',
+            icon: Icons.vertical_align_bottom_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              final target =
+                  _rows.isEmpty ? 0 : (_selRow + 1).clamp(0, _rows.length);
+              _insertRow(target);
+              _showActionSnack(
+                'Fila insertada abajo.',
+                isError: false,
+                icon: Icons.table_rows_rounded,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Agregar al final',
+            icon: Icons.add_rounded,
+            variant: AppButtonVariant.primary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _insertRow(_rows.length);
+              _showActionSnack(
+                'Fila agregada al final.',
+                isError: false,
+                icon: Icons.table_rows_rounded,
+              );
+            },
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+  }
+
+  String _nextColumnDefaultLabel() {
+    final taken = <String>{
+      for (int i = 0; i < _headers.length - 1; i++)
+        _headerLabel(i).trim().toLowerCase(),
+    };
+    for (int n = 1; n <= 999; n++) {
+      final candidate = 'Columna $n';
+      if (!taken.contains(candidate.toLowerCase())) {
+        return candidate;
+      }
+    }
+    return 'Columna';
+  }
+
+  void _insertColumnAt(int index) {
+    final dataCols = math.max(0, _headers.length - 1);
+    final insertAt = index.clamp(0, dataCols);
+    final newColId = _genStableId('c_');
+    final newHeader = _nextColumnDefaultLabel();
+
+    final leftColId = insertAt > 0 ? _colIds[insertAt - 1] : null;
+    final rightColId = insertAt < dataCols ? _colIds[insertAt] : null;
+
+    if (!_suspendUndoSnapshot) {
+      _pushUndoSnapshot();
+    }
+
+    setState(() {
+      _headers.insert(insertAt, newHeader);
+      _colIds.insert(insertAt, newColId);
+      for (int i = 0; i < _rows.length; i++) {
+        final row = _rows[i];
+        final nextCells = List<String>.from(row.cells, growable: true);
+        final safeIndex = insertAt.clamp(0, nextCells.length);
+        nextCells.insert(safeIndex, '');
+        _rows[i] = row.copyWithCells(nextCells);
+      }
+
+      final nextPrefs = _cloneColumnPrefs(_columnPrefsById)
+        ..[newColId] = const _ColumnPrefs(type: _ColType.text, wrapLines: 1);
+      _columnPrefsById =
+          _normalizeColumnPrefs(colIds: _colIds, incoming: nextPrefs);
+
+      final nextOrder = List<String>.from(
+        _normalizeColumnOrder(colIds: _colIds, incoming: _columnOrder),
+      )..remove(newColId);
+
+      int orderInsertAt = nextOrder.length;
+      if (leftColId != null) {
+        final leftIndex = nextOrder.indexOf(leftColId);
+        if (leftIndex >= 0) {
+          orderInsertAt = leftIndex + 1;
+        }
+      } else if (rightColId != null) {
+        final rightIndex = nextOrder.indexOf(rightColId);
+        if (rightIndex >= 0) {
+          orderInsertAt = rightIndex;
+        }
+      }
+      nextOrder.insert(orderInsertAt.clamp(0, nextOrder.length), newColId);
+      _columnOrder =
+          _normalizeColumnOrder(colIds: _colIds, incoming: nextOrder);
+
+      _setSelection(
+        _selRow,
+        insertAt,
+        preserveRowSelection: true,
+      );
+    });
+
+    _markDirty(snapshot: false);
+    _addHistoryEvent(
+      type: 'insert_column',
+      message: 'Insertar columna ${insertAt + 1}',
+      origin: 'manual',
+      col: insertAt,
+    );
+    _bumpGridVersion();
+    _scheduleValidationRecompute(immediate: true);
+  }
+
+  Future<void> _openInsertColumnQuickActions() async {
+    if (!mounted) return;
+    final dataCols = math.max(0, _headers.length - 1);
+    if (dataCols <= 0) return;
+
+    final baseCol = _selCol.clamp(0, dataCols - 1);
+    await showAppModal<void>(
+      context: context,
+      title: 'Agregar columna',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppButton(
+            label: 'Insertar a la izquierda',
+            icon: Icons.keyboard_double_arrow_left_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _insertColumnAt(baseCol);
+              _showActionSnack(
+                'Columna insertada a la izquierda.',
+                isError: false,
+                icon: Icons.view_column_rounded,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Insertar a la derecha',
+            icon: Icons.keyboard_double_arrow_right_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _insertColumnAt(baseCol + 1);
+              _showActionSnack(
+                'Columna insertada a la derecha.',
+                isError: false,
+                icon: Icons.view_column_rounded,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Agregar al final',
+            icon: Icons.add_chart_rounded,
+            variant: AppButtonVariant.primary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _insertColumnAt(dataCols);
+              _showActionSnack(
+                'Columna agregada al final.',
+                isError: false,
+                icon: Icons.view_column_rounded,
+              );
+            },
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.close,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
     );
   }
 
@@ -18041,6 +18322,28 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   int get debugRowCount => _rows.length;
+
+  @visibleForTesting
+  int get debugColumnCount => _headers.length;
+
+  @visibleForTesting
+  String debugHeaderText(int c) => _headerLabel(c);
+
+  @visibleForTesting
+  void debugInsertRowAt(int index) {
+    assert(() {
+      _insertRow(index);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugInsertColumnAt(int index) {
+    assert(() {
+      _insertColumnAt(index);
+      return true;
+    }());
+  }
 
   @visibleForTesting
   bool get debugMobileEditorOpen => _mobileEditorOpen;

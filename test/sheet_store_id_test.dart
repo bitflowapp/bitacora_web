@@ -12,6 +12,31 @@ void main() {
     await SheetStore.init();
   });
 
+  test('createNew starts with 12 empty rows and 6 default columns', () {
+    final id = SheetStore.createNew();
+    final raw = SheetStore.loadRaw(id);
+    expect(raw, isNotNull);
+
+    final map = jsonDecode(raw!) as Map<String, dynamic>;
+    final headers = (map['headers'] as List<dynamic>).cast<String>();
+    expect(headers, const <String>[
+      'Campo 1',
+      'Campo 2',
+      'Campo 3',
+      'Campo 4',
+      'Campo 5',
+      'Fotos',
+    ]);
+
+    final rows = (map['rows'] as List<dynamic>).cast<Map<dynamic, dynamic>>();
+    expect(rows.length, 12);
+    for (final row in rows) {
+      final cells = (row['cells'] as List<dynamic>).cast<String>();
+      expect(cells.length, 6);
+      expect(cells.every((cell) => cell.isEmpty), isTrue);
+    }
+  });
+
   test('createNew generates unique ids during burst creation', () {
     final ids = List<String>.generate(120, (_) => SheetStore.createNew());
     final unique = ids.toSet();

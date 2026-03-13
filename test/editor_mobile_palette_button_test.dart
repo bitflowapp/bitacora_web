@@ -41,6 +41,10 @@ void main() {
     expect(find.byKey(const ValueKey('mobile-fab-panel')), findsOneWidget);
     expect(find.byKey(const ValueKey('mobile-fab-action-new-record')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-action-add-row')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-action-add-column')),
+        findsOneWidget);
     expect(find.byKey(const ValueKey('mobile-fab-action-smart-paste')),
         findsOneWidget);
   });

@@ -3440,6 +3440,26 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
+            label: 'Agregar fila',
+            icon: Icons.table_rows_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openInsertRowQuickActions());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Agregar columna',
+            icon: Icons.view_column_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openInsertColumnQuickActions());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
             label: 'Adjuntar en celda activa',
             icon: Icons.attach_file_rounded,
             variant: AppButtonVariant.secondary,
@@ -3516,16 +3536,6 @@ extension _EditorAttachments on _EditorScreenState {
             onPressed: () {
               Navigator.of(context).pop();
               unawaited(_runAttachmentSmokeTest());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Agregar fila',
-            icon: Icons.add_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _insertRow(_rows.length);
             },
           ),
           const SizedBox(height: 8),

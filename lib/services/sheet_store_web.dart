@@ -119,6 +119,15 @@ class SheetStore {
 
   static const String _photosHeader = AppStrings.photos;
   static const String _photosColId = 'col_photos';
+  static const int _defaultInitialRows = 12;
+  static const List<String> _defaultHeadersBase = <String>[
+    'Campo 1',
+    'Campo 2',
+    'Campo 3',
+    'Campo 4',
+    'Campo 5',
+    '',
+  ];
   static int _sheetIdSeed = 0;
 
   static Future<void> init() async {
@@ -415,7 +424,10 @@ class SheetStore {
     final headers = _defaultHeaders();
     final colIds = _defaultColIds(headers.length);
     final rows = _buildRowMaps(
-      List.generate(3, (_) => List<String>.filled(headers.length, '')),
+      List.generate(
+        _defaultInitialRows,
+        (_) => List<String>.filled(headers.length, ''),
+      ),
     );
 
     final model = <String, dynamic>{
@@ -641,7 +653,8 @@ class SheetStore {
             _TemplateColumn(label: 'Descripcion', type: 'text'),
             _TemplateColumn(label: 'Monto', type: 'number'),
             _TemplateColumn(label: 'Metodo', type: 'text'),
-            _TemplateColumn(label: 'Estado', type: 'status', defaultValue: 'OK'),
+            _TemplateColumn(
+                label: 'Estado', type: 'status', defaultValue: 'OK'),
           ],
           seedRows: <List<String>>[
             <String>[
@@ -795,7 +808,10 @@ class SheetStore {
   }) {
     final id = _nextSheetId();
     final initialRows = rows ??
-        List.generate(3, (_) => List<String>.filled(headers.length, ''));
+        List.generate(
+          _defaultInitialRows,
+          (_) => List<String>.filled(headers.length, ''),
+        );
     final colIds = _normalizeColIds(headers, null);
 
     final model = <String, dynamic>{
@@ -846,8 +862,7 @@ class SheetStore {
   }
 
   static List<String> _defaultHeaders() {
-    const cols = 15;
-    final h = List<String>.filled(cols, '');
+    final h = List<String>.from(_defaultHeadersBase, growable: true);
     if (h.isNotEmpty) h[h.length - 1] = _photosHeader;
     return h;
   }
