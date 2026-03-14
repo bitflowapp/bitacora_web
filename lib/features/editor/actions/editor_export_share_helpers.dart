@@ -91,6 +91,39 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     return persistShareTempFile(fileName: fileName, bytes: bytes);
   }
 
+  static const Duration _shareAwaitTimeout = Duration(seconds: 35);
+
+  Future<void> _shareExportParamsSafely({
+    required ShareParams params,
+    required String operation,
+    bool Function()? shouldCancel,
+  }) async {
+    if (mounted) {
+      _setLongOperationMessage('Abriendo compartir...');
+    }
+    _throwIfOperationCancelledBy(shouldCancel);
+
+    final timeoutCompleter = Completer<void>();
+    final timeoutTimer = Timer(_shareAwaitTimeout, () {
+      if (!timeoutCompleter.isCompleted) {
+        timeoutCompleter.completeError(
+          TimeoutException('share_timeout:$operation'),
+        );
+      }
+    });
+
+    try {
+      final cancelFuture = _operationCancelledFuture(shouldCancel);
+      await Future.any<void>([
+        _shareExportParams(params),
+        cancelFuture,
+        timeoutCompleter.future,
+      ]);
+    } finally {
+      timeoutTimer.cancel();
+    }
+  }
+
   Future<void> _saveExportBytes({
     required String name,
     required String mime,
@@ -135,6 +168,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           xf,
           subject: resolvedSubject,
           text: resolvedText,
+          shouldCancel: shouldCancel,
         );
         if (shared) {
           notifySuccess(_shareOpenedMessage(name));
@@ -185,12 +219,14 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     if (isMobile) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await _shareExportParams(
-          ShareParams(
+        await _shareExportParamsSafely(
+          params: ShareParams(
             files: [xf],
             subject: resolvedSubject,
             text: resolvedText,
           ),
+          operation: 'share_mobile_direct',
+          shouldCancel: shouldCancel,
         );
         if (share) {
           notifySuccess(_shareOpenedMessage(name));
@@ -205,6 +241,9 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       } catch (e) {
         if (_looksLikeShareUserCancel(e)) {
           throw const _EditorLongOperationCancelled();
+        }
+        if (e is TimeoutException) {
+          rethrow;
         }
       }
     }
@@ -245,19 +284,25 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     XFile file, {
     required String subject,
     required String text,
+    bool Function()? shouldCancel,
   }) async {
     try {
-      await _shareExportParams(
-        ShareParams(
+      await _shareExportParamsSafely(
+        params: ShareParams(
           files: [file],
           subject: subject,
           text: text,
         ),
+        operation: 'share_web',
+        shouldCancel: shouldCancel,
       );
       return true;
     } catch (e) {
       if (_looksLikeShareUserCancel(e)) {
         throw const _EditorLongOperationCancelled();
+      }
+      if (e is TimeoutException) {
+        rethrow;
       }
       return false;
     }
@@ -277,33 +322,43 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     if (path != null && path.trim().isNotEmpty) {
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await _shareExportParams(
-          ShareParams(
+        await _shareExportParamsSafely(
+          params: ShareParams(
             files: <XFile>[XFile(path, mimeType: mime, name: name)],
             subject: subject,
             text: text,
           ),
+          operation: 'share_mobile_temp_mime',
+          shouldCancel: shouldCancel,
         );
         return true;
       } catch (e) {
         if (_looksLikeShareUserCancel(e)) {
           throw const _EditorLongOperationCancelled();
         }
+        if (e is TimeoutException) {
+          rethrow;
+        }
       }
 
       try {
         _throwIfOperationCancelledBy(shouldCancel);
-        await _shareExportParams(
-          ShareParams(
+        await _shareExportParamsSafely(
+          params: ShareParams(
             files: <XFile>[XFile(path, name: name)],
             subject: subject,
             text: text,
           ),
+          operation: 'share_mobile_temp_plain',
+          shouldCancel: shouldCancel,
         );
         return true;
       } catch (e) {
         if (_looksLikeShareUserCancel(e)) {
           throw const _EditorLongOperationCancelled();
+        }
+        if (e is TimeoutException) {
+          rethrow;
         }
       }
 
@@ -329,25 +384,35 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           },
         );
         if (await canLaunchUrl(mailto)) {
-          await launchUrl(mailto, mode: LaunchMode.externalApplication);
-          return true;
+          final launched = await launchUrl(
+            mailto,
+            mode: LaunchMode.externalApplication,
+          );
+          if (launched) {
+            return true;
+          }
         }
       } catch (_) {}
     }
 
     try {
       _throwIfOperationCancelledBy(shouldCancel);
-      await _shareExportParams(
-        ShareParams(
+      await _shareExportParamsSafely(
+        params: ShareParams(
           files: <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
           subject: subject,
           text: text,
         ),
+        operation: 'share_mobile_memory',
+        shouldCancel: shouldCancel,
       );
       return true;
     } catch (e) {
       if (_looksLikeShareUserCancel(e)) {
         throw const _EditorLongOperationCancelled();
+      }
+      if (e is TimeoutException) {
+        rethrow;
       }
       return false;
     }

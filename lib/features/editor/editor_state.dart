@@ -400,6 +400,7 @@ class _EditorScreenState extends State<EditorScreen>
   String? _lastSaveErrorMessage;
   bool _allowPopOnce = false;
   _EditorLongOperationState? _longOperation;
+  Completer<void>? _longOperationCancelSignal;
   bool _saveHapticPending = false;
   final EditorAtomicSnapshotStore _atomicSnapshotStore =
       EditorAtomicSnapshotStore();
@@ -9308,11 +9309,16 @@ class _EditorScreenState extends State<EditorScreen>
       message: message,
       cancellable: cancellable,
     );
+    final cancelSignal = Completer<void>();
     if (!mounted) {
       _longOperation = next;
+      _longOperationCancelSignal = cancelSignal;
       return;
     }
-    _setEditorState(() => _longOperation = next);
+    _setEditorState(() {
+      _longOperation = next;
+      _longOperationCancelSignal = cancelSignal;
+    });
   }
 
   bool _tryBeginLongOperation({
@@ -9357,6 +9363,10 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       _setEditorState(() => _longOperation = next);
     }
+    final signal = _longOperationCancelSignal;
+    if (signal != null && !signal.isCompleted) {
+      signal.complete();
+    }
     _showActionSnack(
       AppStrings.infoOperationCancelling,
       isError: false,
@@ -9366,11 +9376,19 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _clearLongOperation() {
     if (_longOperation == null) return;
+    final signal = _longOperationCancelSignal;
+    if (signal != null && !signal.isCompleted) {
+      signal.complete();
+    }
     if (!mounted) {
       _longOperation = null;
+      _longOperationCancelSignal = null;
       return;
     }
-    _setEditorState(() => _longOperation = null);
+    _setEditorState(() {
+      _longOperation = null;
+      _longOperationCancelSignal = null;
+    });
   }
 
   bool _isLongOperationCancelled() {
@@ -9387,6 +9405,17 @@ class _EditorScreenState extends State<EditorScreen>
     if (shouldCancel != null && shouldCancel()) {
       throw const _EditorLongOperationCancelled();
     }
+  }
+
+  Future<void> _operationCancelledFuture(bool Function()? shouldCancel) {
+    if (shouldCancel != null && shouldCancel()) {
+      return Future<void>.error(const _EditorLongOperationCancelled());
+    }
+    final signal = _longOperationCancelSignal;
+    if (signal != null) {
+      return signal.future;
+    }
+    return Completer<void>().future;
   }
 
   void _reportFlowError(
@@ -18543,6 +18572,52 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  Future<void> debugRunExportSaveFlowWithProgressForTest({
+    required String name,
+    required String mime,
+    bool share = false,
+    Uint8List? bytes,
+  }) async {
+    if (!_tryBeginLongOperation(
+      message: AppStrings.progressPreparingExport,
+      cancellable: true,
+    )) {
+      return;
+    }
+    try {
+      await _saveExportBytes(
+        name: name,
+        mime: mime,
+        bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
+        share: share,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      _throwIfLongOperationCancelled();
+    } on _EditorLongOperationCancelled {
+      _showActionSnack(
+        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
+        isError: false,
+        icon: Icons.info_outline_rounded,
+      );
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.exportData,
+        operation: share
+            ? 'debug_export_save_flow_with_progress_share'
+            : 'debug_export_save_flow_with_progress_save',
+        fallbackMessage: share
+            ? 'No pudimos compartir la planilla.'
+            : 'No pudimos exportar el archivo.',
+        stackTrace: st,
+        icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+    } finally {
+      _clearLongOperation();
+    }
+  }
+
+  @visibleForTesting
   Future<Uint8List?> debugBuildZipBundleBytesForTest({
     bool includeAttachments = true,
   }) async {
@@ -19423,7 +19498,7 @@ class _EditorScreenState extends State<EditorScreen>
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19431,7 +19506,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
           isError: false,
           icon: Icons.info_outline_rounded,
         );
@@ -19521,7 +19596,7 @@ class _EditorScreenState extends State<EditorScreen>
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19529,7 +19604,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
           isError: false,
           icon: Icons.info_outline_rounded,
         );
@@ -19677,7 +19752,7 @@ class _EditorScreenState extends State<EditorScreen>
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19685,7 +19760,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
           isError: false,
           icon: Icons.info_outline_rounded,
         );
