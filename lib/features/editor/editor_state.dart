@@ -19287,6 +19287,7 @@ class _EditorScreenState extends State<EditorScreen>
     var photoCount = 0;
     var audioCount = 0;
     var gpsCount = 0;
+    var videoCount = 0;
 
     if (includeAttachments) {
       final entries = _cellMeta.entries.toList(growable: false);
@@ -19322,7 +19323,13 @@ class _EditorScreenState extends State<EditorScreen>
 
         for (final photo in meta.photos) {
           _throwIfOperationCancelledBy(shouldCancel);
-          photoCount++;
+          final lowerMime = photo.mime.toLowerCase();
+          final isVideo = lowerMime.startsWith('video/');
+          if (isVideo) {
+            videoCount++;
+          } else {
+            photoCount++;
+          }
           final caption = photo.caption.trim().isNotEmpty
               ? photo.caption.trim()
               : photo.filename.trim();
@@ -19332,23 +19339,25 @@ class _EditorScreenState extends State<EditorScreen>
           final dateText = _formatDateTimeShort(photo.addedAt.toLocal());
           attachmentRows.add(<String>[
             cellLabel,
-            'Foto',
+            isVideo ? 'Video' : 'Foto',
             caption.isEmpty ? photo.filename : caption,
             dateText,
           ]);
 
           Uint8List? thumb;
-          final bytes = await _loadPhotoBytesFromAttachment(
-            photo,
-            preferThumb: true,
-          );
-          if (bytes != null && bytes.isNotEmpty) {
-            thumb = _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
-                bytes;
+          if (!isVideo) {
+            final bytes = await _loadPhotoBytesFromAttachment(
+              photo,
+              preferThumb: true,
+            );
+            if (bytes != null && bytes.isNotEmpty) {
+              thumb = _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
+                  bytes;
+            }
           }
           evidenceItems.add((
             cell: cellLabel,
-            kind: 'Foto',
+            kind: isVideo ? 'Video' : 'Foto',
             caption: caption.isEmpty ? photo.filename : caption,
             date: dateText,
             mapUrl: mapUrl,
@@ -19378,73 +19387,128 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    final totalAttachments = photoCount + audioCount;
+    final totalAttachments = photoCount + audioCount + videoCount;
     final evidencePreview = evidenceItems.take(24).toList(growable: false);
+
+    final brandColor = PdfColor.fromHex('#2F4B7D');
+    final panelBg = PdfColor.fromHex('#F8FAFC');
+    final borderColor = PdfColor.fromHex('#D8E1ED');
+    final textPrimary = PdfColor.fromHex('#0F172A');
+    final textMuted = PdfColor.fromHex('#64748B');
 
     doc.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4.landscape,
-          margin: const pw.EdgeInsets.all(20),
+          margin: const pw.EdgeInsets.fromLTRB(24, 22, 24, 24),
+        ),
+        footer: (context) => pw.Container(
+          padding: const pw.EdgeInsets.only(top: 6),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'BitFlow • Documento de exportacion',
+                style: pw.TextStyle(fontSize: 8, color: textMuted),
+              ),
+              pw.Text(
+                'Pagina ${context.pageNumber}/${context.pagesCount}',
+                style: pw.TextStyle(fontSize: 8, color: textMuted),
+              ),
+            ],
+          ),
         ),
         build: (context) {
-          pw.Widget metricChip(String label, String value) {
+          pw.Widget metricCard(String label, String value) {
             return pw.Container(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 5,
-              ),
+              width: 118,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: pw.BoxDecoration(
-                color: PdfColors.grey200,
-                borderRadius: pw.BorderRadius.circular(10),
+                color: panelBg,
+                borderRadius: pw.BorderRadius.circular(8),
+                border: pw.Border.all(color: borderColor, width: 0.8),
               ),
-              child: pw.Row(
-                mainAxisSize: pw.MainAxisSize.min,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    '$label: ',
+                    label,
                     style: pw.TextStyle(
                       fontSize: 8,
+                      color: textMuted,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
-                  pw.Text(value, style: const pw.TextStyle(fontSize: 8)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    value,
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      color: textPrimary,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             );
           }
 
           final content = <pw.Widget>[
-            pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              'Exportado: $exportedAt',
-              style: const pw.TextStyle(fontSize: 10),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              'Version: $appVersion | Build: $buildId',
-              style: const pw.TextStyle(fontSize: 9),
-            ),
-            pw.SizedBox(height: 8),
-            pw.Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                metricChip('Filas', '${_rows.length}'),
-                metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
-                metricChip('Adjuntos', '$totalAttachments'),
-                metricChip('Fotos', '$photoCount'),
-                metricChip('Audios', '$audioCount'),
-                metricChip('GPS', '$gpsCount'),
-                if (includeReviewColumns)
-                  metricChip('Revisadas', '$reviewedCount/${_rows.length}'),
-              ],
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: pw.BoxDecoration(
+                color: panelBg,
+                borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: borderColor, width: 0.9),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'BitFlow',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      color: brandColor,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    _sheetName.trim().isEmpty
+                        ? 'Reporte de planilla'
+                        : _sheetName.trim(),
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Exportado: $exportedAt  •  Version: $appVersion  •  Build: $buildId',
+                    style: pw.TextStyle(fontSize: 9, color: textMuted),
+                  ),
+                ],
+              ),
             ),
             pw.SizedBox(height: 12),
+            pw.Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                metricCard('Registros', '${_rows.length}'),
+                metricCard('Celdas con dato', '${_countNonEmptyCells()}'),
+                metricCard('Adjuntos', '$totalAttachments'),
+                metricCard('Fotos', '$photoCount'),
+                metricCard('Videos', '$videoCount'),
+                metricCard('Audios', '$audioCount'),
+                metricCard('GPS', '$gpsCount'),
+                if (includeReviewColumns)
+                  metricCard('Revisadas', '$reviewedCount/${_rows.length}'),
+              ],
+            ),
+            pw.SizedBox(height: 14),
           ];
 
           if (headers.isNotEmpty) {
@@ -19453,21 +19517,30 @@ class _EditorScreenState extends State<EditorScreen>
                 headers: headers,
                 data: rows,
                 headerStyle: pw.TextStyle(
-                  fontSize: 9,
+                  fontSize: 8.8,
                   fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
                 ),
-                cellStyle: const pw.TextStyle(fontSize: 8),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.grey300,
-                ),
+                cellStyle: pw.TextStyle(fontSize: 8, color: textPrimary),
+                headerDecoration: pw.BoxDecoration(color: brandColor),
+                border: pw.TableBorder.all(color: borderColor, width: 0.5),
                 cellAlignments: {
                   for (int i = 0; i < headers.length; i++)
                     i: pw.Alignment.centerLeft,
                 },
+                cellPadding: const pw.EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 4,
+                ),
               ),
             );
           } else {
-            content.add(pw.Text('Sin columnas exportables.'));
+            content.add(
+              pw.Text(
+                'Sin columnas exportables.',
+                style: pw.TextStyle(fontSize: 9, color: textMuted),
+              ),
+            );
           }
 
           if (includeAttachments) {
@@ -19479,6 +19552,7 @@ class _EditorScreenState extends State<EditorScreen>
                   style: pw.TextStyle(
                     fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
+                    color: textPrimary,
                   ),
                 ),
               )
@@ -19487,7 +19561,7 @@ class _EditorScreenState extends State<EditorScreen>
               content.add(
                 pw.Text(
                   'No hay adjuntos registrados.',
-                  style: const pw.TextStyle(fontSize: 9),
+                  style: pw.TextStyle(fontSize: 9, color: textMuted),
                 ),
               );
             } else {
@@ -19497,12 +19571,12 @@ class _EditorScreenState extends State<EditorScreen>
                   data: attachmentRows,
                   headerStyle: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 9,
+                    fontSize: 8.6,
+                    color: PdfColors.white,
                   ),
-                  cellStyle: const pw.TextStyle(fontSize: 8),
-                  headerDecoration: const pw.BoxDecoration(
-                    color: PdfColors.grey300,
-                  ),
+                  cellStyle: pw.TextStyle(fontSize: 8, color: textPrimary),
+                  headerDecoration: pw.BoxDecoration(color: brandColor),
+                  border: pw.TableBorder.all(color: borderColor, width: 0.5),
                 ),
               );
             }
@@ -19516,6 +19590,7 @@ class _EditorScreenState extends State<EditorScreen>
                     style: pw.TextStyle(
                       fontSize: 12,
                       fontWeight: pw.FontWeight.bold,
+                      color: textPrimary,
                     ),
                   ),
                 )
@@ -19530,21 +19605,22 @@ class _EditorScreenState extends State<EditorScreen>
                           width: 220,
                           padding: const pw.EdgeInsets.all(8),
                           decoration: pw.BoxDecoration(
-                            color: PdfColors.grey100,
+                            color: panelBg,
                             borderRadius: pw.BorderRadius.circular(8),
                             border: pw.Border.all(
-                              color: PdfColors.grey400,
-                              width: 0.6,
+                              color: borderColor,
+                              width: 0.7,
                             ),
                           ),
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                '${item.kind} | ${item.cell}',
+                                '${item.kind} • ${item.cell}',
                                 style: pw.TextStyle(
                                   fontSize: 8.5,
                                   fontWeight: pw.FontWeight.bold,
+                                  color: textPrimary,
                                 ),
                               ),
                               if (item.thumb != null &&
@@ -19565,12 +19641,15 @@ class _EditorScreenState extends State<EditorScreen>
                               pw.Text(
                                 item.caption,
                                 maxLines: 2,
-                                style: const pw.TextStyle(fontSize: 8),
+                                style: pw.TextStyle(
+                                  fontSize: 8,
+                                  color: textPrimary,
+                                ),
                               ),
                               pw.SizedBox(height: 2),
                               pw.Text(
                                 item.date,
-                                style: const pw.TextStyle(fontSize: 7.5),
+                                style: pw.TextStyle(fontSize: 7.5, color: textMuted),
                               ),
                               if (item.mapUrl != null) ...[
                                 pw.SizedBox(height: 2),
@@ -19580,7 +19659,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     'Abrir en mapas',
                                     style: pw.TextStyle(
                                       fontSize: 7.5,
-                                      color: PdfColors.blue700,
+                                      color: brandColor,
                                       decoration: pw.TextDecoration.underline,
                                     ),
                                   ),

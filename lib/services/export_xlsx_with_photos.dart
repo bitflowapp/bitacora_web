@@ -387,18 +387,34 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
 
     if (includeCoverSheet) {
-      _buildCoverSheet(workbook);
+      _buildCoverSheet(
+        workbook,
+        sheetName: _sanitizeWorksheetName(sheetName),
+        exportedAt: DateTime.now().toLocal(),
+      );
     }
 
     if (includeSummarySheet) {
+      final photosCount = _photosCount(
+        photosByRow: photosByRow,
+        attachments: attachments,
+      );
+      final gpsCount = _gpsCount(gpsByRow, attachments: attachments);
+      final videoCount = attachments == null
+          ? 0
+          : attachments.where((a) => a.type == 'video').length;
+      final audioCount = attachments == null
+          ? 0
+          : attachments.where((a) => a.type == 'audio').length;
       _buildSummarySheet(
         workbook,
         rowsCount: rows.length,
-        photosCount: _photosCount(
-          photosByRow: photosByRow,
-          attachments: attachments,
-        ),
-        gpsCount: _gpsCount(gpsByRow, attachments: attachments),
+        photosCount: photosCount,
+        gpsCount: gpsCount,
+        videoCount: videoCount,
+        audioCount: audioCount,
+        fileName: '${_sanitizeWorksheetName(sheetName)}.xlsx',
+        exportedAt: DateTime.now().toLocal(),
       );
     }
 
@@ -659,19 +675,115 @@ void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   sheet.getRangeByIndex(r, c).setText(v);
 }
 
-void _buildCoverSheet(xlsio.Workbook wb) {
+void _buildCoverSheet(
+  xlsio.Workbook wb, {
+  required String sheetName,
+  required DateTime exportedAt,
+}) {
   final cover = wb.worksheets.addWithName('Caratula');
-  final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
+  cover.showGridlines = false;
+
+  final brandStyle = wb.styles.add('cover_brand');
+  brandStyle.bold = true;
+  brandStyle.fontSize = 11;
+  brandStyle.fontColor = '#2F4B7D';
+
+  final titleStyle = wb.styles.add('cover_title');
+  titleStyle.bold = true;
+  titleStyle.fontSize = 23;
+  titleStyle.fontColor = '#0F172A';
+
+  final subtitleStyle = wb.styles.add('cover_subtitle');
+  subtitleStyle.fontSize = 11;
+  subtitleStyle.fontColor = '#475569';
+
+  final sectionLabelStyle = wb.styles.add('cover_section_label');
+  sectionLabelStyle.bold = true;
+  sectionLabelStyle.fontSize = 10;
+  sectionLabelStyle.fontColor = '#334155';
+
+  final valueStyle = wb.styles.add('cover_value');
+  valueStyle.fontSize = 11;
+  valueStyle.fontColor = '#0F172A';
+
+  final noteStyle = wb.styles.add('cover_note');
+  noteStyle.fontSize = 9;
+  noteStyle.fontColor = '#64748B';
+
+  final panel = cover.getRangeByIndex(1, 1, 17, 8);
+  panel.cellStyle.backColor = '#F8FAFC';
+  panel.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+  panel.cellStyle.borders.all.color = '#D8E1ED';
+
+  cover.getRangeByIndex(2, 2).setText('BitFlow');
+  cover.getRangeByIndex(2, 2).cellStyle = brandStyle;
+
+  cover.getRangeByIndex(3, 2, 3, 7).merge();
+  cover.getRangeByIndex(3, 2).setText('Informe de exportacion');
+  cover.getRangeByIndex(3, 2).cellStyle = titleStyle;
+
+  cover.getRangeByIndex(4, 2, 4, 7).merge();
+  cover.getRangeByIndex(4, 2).setText(
+    'Documento generado para compartir con cliente, obra y control interno.',
+  );
+  cover.getRangeByIndex(4, 2).cellStyle = subtitleStyle;
+
+  final labels = <String>[
+    'Planilla',
+    'Fecha de exportacion',
+    'Cliente',
+    'Obra / Proyecto',
+    'Responsable',
+    'Observaciones',
+  ];
+  final values = <String>[
+    sheetName,
+    _formatExportDateTime(exportedAt),
+    'No especificado',
+    'No especificado',
+    'Equipo BitFlow',
+    'Completar antes de enviar a cliente si aplica.',
+  ];
+
   for (int i = 0; i < labels.length; i++) {
-    cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
-    cover.getRangeByIndex(i + 1, 2).setText('');
+    final row = 7 + (i * 2);
+    cover.getRangeByIndex(row, 2).setText(labels[i]);
+    cover.getRangeByIndex(row, 2).cellStyle = sectionLabelStyle;
+    cover.getRangeByIndex(row, 3, row, 7).merge();
+    cover.getRangeByIndex(row, 3).setText(values[i]);
+    cover.getRangeByIndex(row, 3).cellStyle = valueStyle;
   }
-  final title = cover.getRangeByIndex(1, 4);
-  title.setText('Bitacora PRO');
-  title.cellStyle.bold = true;
+
+  cover.getRangeByIndex(16, 2, 16, 7).merge();
+  cover.getRangeByIndex(16, 2).setText(
+    'BitFlow • Exportacion profesional de reportes y evidencias',
+  );
+  cover.getRangeByIndex(16, 2).cellStyle = noteStyle;
+
+  cover.getRangeByIndex(16, 2, 16, 7).cellStyle.borders.top.lineStyle =
+      xlsio.LineStyle.thin;
+  cover.getRangeByIndex(16, 2, 16, 7).cellStyle.borders.top.color = '#D8E1ED';
+
+  cover.getRangeByIndex(1, 1).rowHeight = 6;
+  cover.getRangeByIndex(3, 1).rowHeight = 30;
+  cover.getRangeByIndex(4, 1).rowHeight = 22;
+  cover.getRangeByIndex(16, 1).rowHeight = 20;
+
+  cover.getRangeByIndex(1, 1).columnWidth = 3;
+  cover.getRangeByIndex(1, 2).columnWidth = 24;
+  cover.getRangeByIndex(1, 3).columnWidth = 24;
+  cover.getRangeByIndex(1, 4).columnWidth = 18;
+  cover.getRangeByIndex(1, 5).columnWidth = 18;
+  cover.getRangeByIndex(1, 6).columnWidth = 18;
+  cover.getRangeByIndex(1, 7).columnWidth = 18;
+  cover.getRangeByIndex(1, 8).columnWidth = 3;
+
   try {
-    cover.autoFitColumn(1);
-    cover.autoFitColumn(2);
+    cover.autoFitRow(7);
+    cover.autoFitRow(9);
+    cover.autoFitRow(11);
+    cover.autoFitRow(13);
+    cover.autoFitRow(15);
   } catch (_) {}
 }
 
@@ -680,23 +792,117 @@ void _buildSummarySheet(
   required int rowsCount,
   required int photosCount,
   required int gpsCount,
+  required int videoCount,
+  required int audioCount,
+  required String fileName,
+  required DateTime exportedAt,
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
-  final data = [
-    ['Filas', rowsCount],
-    ['Fotos', photosCount],
-    ['Ubicaciones', gpsCount],
+  summary.showGridlines = false;
+
+  final titleStyle = wb.styles.add('summary_title');
+  titleStyle.bold = true;
+  titleStyle.fontSize = 18;
+  titleStyle.fontColor = '#0F172A';
+
+  final subtitleStyle = wb.styles.add('summary_subtitle');
+  subtitleStyle.fontSize = 10;
+  subtitleStyle.fontColor = '#64748B';
+
+  final metricLabelStyle = wb.styles.add('summary_metric_label');
+  metricLabelStyle.bold = true;
+  metricLabelStyle.fontSize = 9;
+  metricLabelStyle.fontColor = '#334155';
+  metricLabelStyle.hAlign = xlsio.HAlignType.center;
+
+  final metricValueStyle = wb.styles.add('summary_metric_value');
+  metricValueStyle.bold = true;
+  metricValueStyle.fontSize = 20;
+  metricValueStyle.fontColor = '#0F172A';
+  metricValueStyle.hAlign = xlsio.HAlignType.center;
+
+  final infoLabelStyle = wb.styles.add('summary_info_label');
+  infoLabelStyle.bold = true;
+  infoLabelStyle.fontSize = 10;
+  infoLabelStyle.fontColor = '#334155';
+
+  final infoValueStyle = wb.styles.add('summary_info_value');
+  infoValueStyle.fontSize = 10;
+  infoValueStyle.fontColor = '#0F172A';
+
+  summary.getRangeByIndex(2, 2, 2, 10).merge();
+  summary.getRangeByIndex(2, 2).setText('BitFlow • Resumen de exportacion');
+  summary.getRangeByIndex(2, 2).cellStyle = titleStyle;
+  summary.getRangeByIndex(3, 2, 3, 10).merge();
+  summary.getRangeByIndex(3, 2).setText(
+    'Indicadores clave de la planilla y sus evidencias adjuntas.',
+  );
+  summary.getRangeByIndex(3, 2).cellStyle = subtitleStyle;
+
+  final metrics = <(String, int)>[
+    ('Registros', rowsCount),
+    ('Fotos', photosCount),
+    ('Ubicaciones GPS', gpsCount),
+    ('Videos', videoCount),
+    ('Audios', audioCount),
   ];
-  for (int i = 0; i < data.length; i++) {
-    summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
-    summary.getRangeByIndex(i + 1, 2).setNumber(
-          (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-        );
+
+  for (int i = 0; i < metrics.length; i++) {
+    final startCol = 2 + (i * 2);
+    final labelRow = 6;
+    final valueRow = 7;
+    summary
+        .getRangeByIndex(labelRow, startCol, labelRow, startCol + 1)
+        .merge();
+    summary
+        .getRangeByIndex(valueRow, startCol, valueRow, startCol + 1)
+        .merge();
+    final panel = summary.getRangeByIndex(5, startCol, 8, startCol + 1);
+    panel.cellStyle.backColor = '#F8FAFC';
+    panel.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    panel.cellStyle.borders.all.color = '#D8E1ED';
+
+    summary.getRangeByIndex(labelRow, startCol).setText(metrics[i].$1);
+    summary.getRangeByIndex(labelRow, startCol).cellStyle = metricLabelStyle;
+    summary
+        .getRangeByIndex(valueRow, startCol)
+        .setNumber(metrics[i].$2.toDouble());
+    summary.getRangeByIndex(valueRow, startCol).cellStyle = metricValueStyle;
   }
+
+  summary.getRangeByIndex(11, 2).setText('Archivo');
+  summary.getRangeByIndex(11, 2).cellStyle = infoLabelStyle;
+  summary.getRangeByIndex(11, 3, 11, 10).merge();
+  summary.getRangeByIndex(11, 3).setText(fileName);
+  summary.getRangeByIndex(11, 3).cellStyle = infoValueStyle;
+
+  summary.getRangeByIndex(12, 2).setText('Fecha de exportacion');
+  summary.getRangeByIndex(12, 2).cellStyle = infoLabelStyle;
+  summary.getRangeByIndex(12, 3, 12, 10).merge();
+  summary.getRangeByIndex(12, 3).setText(_formatExportDateTime(exportedAt));
+  summary.getRangeByIndex(12, 3).cellStyle = infoValueStyle;
+
+  summary.getRangeByIndex(13, 2).setText('Marca');
+  summary.getRangeByIndex(13, 2).cellStyle = infoLabelStyle;
+  summary.getRangeByIndex(13, 3, 13, 10).merge();
+  summary.getRangeByIndex(13, 3).setText('BitFlow');
+  summary.getRangeByIndex(13, 3).cellStyle = infoValueStyle;
+
+  summary.getRangeByIndex(1, 1).columnWidth = 3;
+  for (int c = 2; c <= 10; c++) {
+    summary.getRangeByIndex(1, c).columnWidth = 14;
+  }
+
   try {
-    summary.autoFitColumn(1);
-    summary.autoFitColumn(2);
+    summary.autoFitRow(11);
+    summary.autoFitRow(12);
+    summary.autoFitRow(13);
   } catch (_) {}
+}
+
+String _formatExportDateTime(DateTime dateTime) {
+  return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
+      '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
 }
 
 String _sanitizeWorksheetName(String name) {
