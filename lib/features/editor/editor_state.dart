@@ -18660,7 +18660,7 @@ class _EditorScreenState extends State<EditorScreen>
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
-        name: '$baseName.bitflow.zip',
+        name: '$baseName.bitflow-package.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
@@ -19224,6 +19224,9 @@ class _EditorScreenState extends State<EditorScreen>
       includeIndexColumn: false,
       includeCoverSheet: true,
       includeSummarySheet: true,
+      exportedAt: DateTime.now(),
+      exportFileName: _buildCommercialExportFileName('xlsx'),
+      projectName: _sheetName,
     );
   }
 
@@ -19387,16 +19390,27 @@ class _EditorScreenState extends State<EditorScreen>
           pageFormat: PdfPageFormat.a4.landscape,
           margin: const pw.EdgeInsets.all(20),
         ),
+        footer: (context) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'BitFlow · Pag ${context.pageNumber}/${context.pagesCount}',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+        ),
         build: (context) {
+          const brandBlue = PdfColor.fromInt(0xFF1F3A5F);
+          const softBlue = PdfColor.fromInt(0xFFF3F7FC);
+
           pw.Widget metricChip(String label, String value) {
             return pw.Container(
               padding: const pw.EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 5,
+                horizontal: 10,
+                vertical: 6,
               ),
               decoration: pw.BoxDecoration(
-                color: PdfColors.grey200,
+                color: softBlue,
                 borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: PdfColors.blueGrey100, width: 0.6),
               ),
               child: pw.Row(
                 mainAxisSize: pw.MainAxisSize.min,
@@ -19406,6 +19420,7 @@ class _EditorScreenState extends State<EditorScreen>
                     style: pw.TextStyle(
                       fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
+                      color: brandBlue,
                     ),
                   ),
                   pw.Text(value, style: const pw.TextStyle(fontSize: 8)),
@@ -19415,19 +19430,46 @@ class _EditorScreenState extends State<EditorScreen>
           }
 
           final content = <pw.Widget>[
-            pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              'Exportado: $exportedAt',
-              style: const pw.TextStyle(fontSize: 10),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              'Version: $appVersion | Build: $buildId',
-              style: const pw.TextStyle(fontSize: 9),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: softBlue,
+                borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: PdfColors.blueGrey100, width: 0.8),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'BITFLOW',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: brandBlue,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    'Reporte de Campo · ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blueGrey900,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Exportado: $exportedAt',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                  pw.SizedBox(height: 1),
+                  pw.Text(
+                    'Version: $appVersion | Build: $buildId',
+                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+                  ),
+                ],
+              ),
             ),
             pw.SizedBox(height: 8),
             pw.Wrap(
@@ -19458,7 +19500,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 cellStyle: const pw.TextStyle(fontSize: 8),
                 headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.grey300,
+                  color: PdfColor.fromInt(0xFFE6EEF7),
                 ),
                 cellAlignments: {
                   for (int i = 0; i < headers.length; i++)
@@ -19501,7 +19543,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   cellStyle: const pw.TextStyle(fontSize: 8),
                   headerDecoration: const pw.BoxDecoration(
-                    color: PdfColors.grey300,
+                    color: PdfColor.fromInt(0xFFE6EEF7),
                   ),
                 ),
               );
@@ -19530,10 +19572,10 @@ class _EditorScreenState extends State<EditorScreen>
                           width: 220,
                           padding: const pw.EdgeInsets.all(8),
                           decoration: pw.BoxDecoration(
-                            color: PdfColors.grey100,
+                            color: softBlue,
                             borderRadius: pw.BorderRadius.circular(8),
                             border: pw.Border.all(
-                              color: PdfColors.grey400,
+                              color: PdfColors.blueGrey100,
                               width: 0.6,
                             ),
                           ),
@@ -19850,7 +19892,9 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final archive = Archive();
-    archive.addFile(ArchiveFile('export.xlsx', xlsxBytes.length, xlsxBytes));
+    archive.addFile(
+      ArchiveFile('bitflow_report.xlsx', xlsxBytes.length, xlsxBytes),
+    );
 
     for (final item in photoItems) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -19878,6 +19922,21 @@ class _EditorScreenState extends State<EditorScreen>
       ArchiveFile('sheet.json', sheetJsonBytes.length, sheetJsonBytes),
     );
 
+    final readme = '''# BitFlow Export Package
+
+Este paquete contiene un snapshot de exportacion listo para compartir con cliente.
+
+## Contenido
+- bitflow_report.xlsx: planilla principal con caratula, resumen y evidencias.
+- manifest.json: metadatos de exportacion y conteos.
+- sheet.json: snapshot estructural para import/merge.
+- attachments/: evidencias (fotos, video, audio, archivos).
+
+Exportado por BitFlow (${_platformLabelForExport()}).
+''';
+    final readmeBytes = Uint8List.fromList(utf8.encode(readme));
+    archive.addFile(ArchiveFile('README.txt', readmeBytes.length, readmeBytes));
+
     final encoder = ZipEncoder();
     final zipData = encoder.encode(archive);
     return Uint8List.fromList(zipData);
@@ -19897,6 +19956,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     return <String, dynamic>{
       'format': 'bitflow_package_v1',
+      'formatLabel': 'BitFlow Export Package',
       'collaboration': {'snapshotMode': 'full', 'supportsMerge': true},
       'appVersion': appVersion,
       'buildId': BuildInfo.buildIdLabel,
