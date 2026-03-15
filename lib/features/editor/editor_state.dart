@@ -19224,6 +19224,8 @@ class _EditorScreenState extends State<EditorScreen>
       includeIndexColumn: false,
       includeCoverSheet: true,
       includeSummarySheet: true,
+      exportFileName: _buildCommercialExportFileName('xlsx'),
+      exportedAt: DateTime.now(),
     );
   }
 

@@ -245,7 +245,7 @@ class ExportXlsxService {
 
     final headerStyle = sheet.workbook.styles.add('HeaderStyle');
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.backColor = '#EFEFEF';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
 
@@ -291,7 +291,7 @@ class ExportXlsxService {
 
     final headerStyle = sheet.workbook.styles.add('FotosHeaderStyle');
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.backColor = '#EFEFEF';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
 
@@ -403,7 +403,7 @@ class ExportXlsxService {
       link.textToDisplay = 'Abrir en mapa de Google';
       link.screenTip = 'Abrir ubicación en mapa de Google';
 
-      linkRange.cellStyle.fontColor = '#FF0000FF';
+      linkRange.cellStyle.fontColor = '#0000FF';
       linkRange.cellStyle.bold = true;
     } else {
       sheet.getRangeByIndex(4, 1).setText(
