@@ -19231,6 +19231,12 @@ class _EditorScreenState extends State<EditorScreen>
     final audiosCount = attachments.where((a) => a.type == 'audio').length;
     final gpsCount = attachments.where((a) => a.type == 'gps').length;
 
+    final exportFileName = buildBitFlowExportFileName(
+      sheetName: _sheetName,
+      extension: 'xlsx',
+      now: exportedAt,
+    );
+
     return buildXlsxWithPhotos(
       columns: columns,
       rows: rows,
@@ -19250,6 +19256,7 @@ class _EditorScreenState extends State<EditorScreen>
         videosCount: videosCount,
         audiosCount: audiosCount,
         gpsCount: gpsCount,
+        exportFileName: exportFileName,
       ),
     );
   }
@@ -19712,10 +19719,15 @@ class _EditorScreenState extends State<EditorScreen>
         final gps = meta.gps!;
         attachments.add(
           AttachmentRow(
+            sheet: _sheetName,
             cellRef: cellRef,
+            rowNumber: cell.row + 1,
             type: 'gps',
             fileName: '',
-            notes: _gpsNotes(gps),
+            description: _gpsNotes(gps),
+            capturedAt: gps.timestamp.toLocal(),
+            lat: gps.lat,
+            lng: gps.lng,
             relativePath: '',
           ),
         );
@@ -19741,10 +19753,15 @@ class _EditorScreenState extends State<EditorScreen>
 
           attachments.add(
             AttachmentRow(
+              sheet: _sheetName,
               cellRef: cellRef,
+              rowNumber: cell.row + 1,
               type: itemType,
               fileName: fileName,
-              notes: _photoNotes(photo),
+              description: _photoNotes(photo),
+              capturedAt: photo.addedAt.toLocal(),
+              lat: photo.lat,
+              lng: photo.lon,
               relativePath: relPath,
             ),
           );
@@ -19803,10 +19820,13 @@ class _EditorScreenState extends State<EditorScreen>
 
           attachments.add(
             AttachmentRow(
+              sheet: _sheetName,
               cellRef: cellRef,
+              rowNumber: cell.row + 1,
               type: 'audio',
               fileName: fileName,
-              notes: _audioNotes(audio),
+              description: _audioNotes(audio),
+              capturedAt: audio.addedAt.toLocal(),
               relativePath: relPath,
             ),
           );
