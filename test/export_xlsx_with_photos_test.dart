@@ -81,6 +81,13 @@ void main() {
     }
   }
 
+  String entryContent(Archive archive, String name) {
+    final file = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/') == name,
+    );
+    return utf8.decode(file.content as List<int>);
+  }
+
   void expectMediaAndDrawings(Uint8List bytes) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final names = archive.files
@@ -198,6 +205,39 @@ void main() {
     );
 
     expectMediaAndDrawings(bytes);
+  });
+
+  test('cover, resumen y headers quedan profesionales con marca BitFlow',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['', 'hdjdjsjs', '   Cliente  '],
+      rows: const [
+        ['valor 1', 'valor 2', 'ACME'],
+      ],
+      includeIndexColumn: false,
+      includeCoverSheet: true,
+      includeSummarySheet: true,
+      exportFileName: 'BitFlow_2026-02-13_Obra_Norte.xlsx',
+      exportedAt: DateTime.parse('2026-02-13T15:10:00Z'),
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final shared = entryContent(archive, 'xl/sharedStrings.xml');
+    expect(shared.contains('Bitacora PRO'), isFalse);
+    expect(shared.contains('BitFlow - Reporte XLSX Profesional'), isTrue);
+    expect(shared.contains('Resumen ejecutivo - BitFlow'), isTrue);
+    expect(shared.contains('Total de registros'), isTrue);
+    expect(shared.contains('Total de fotos'), isTrue);
+    expect(shared.contains('Total de ubicaciones'), isTrue);
+    expect(shared.contains('Fecha/hora de exportacion'), isTrue);
+    expect(shared.contains('BitFlow_2026-02-13_Obra_Norte.xlsx'), isTrue);
+    expect(shared.contains('Campo 1'), isTrue);
+    expect(shared.contains('Dato 2'), isTrue);
+    expect(shared.contains('Cliente'), isTrue);
+
+    final styles = entryContent(archive, 'xl/styles.xml');
+    expect(styles.contains('FFEFEFEF'), isFalse);
+    expect(styles.contains('FF0000FF'), isFalse);
   });
 
   test('generate sample XLSX with photos for manual review', () async {
