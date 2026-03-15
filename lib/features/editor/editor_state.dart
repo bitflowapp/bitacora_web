@@ -18456,7 +18456,7 @@ class _EditorScreenState extends State<EditorScreen>
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
             ? 'XLSX listo para compartir.'
-            : 'XLSX exportado en este dispositivo.',
+            : 'Excel (.xlsx) exportado correctamente.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -18547,7 +18547,9 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage:
-            share ? 'PDF listo para compartir.' : 'PDF exportado con Ã©xito.',
+            share
+                ? 'PDF listo para compartir.'
+                : 'Reporte PDF (.pdf) exportado correctamente.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -18633,8 +18635,16 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       _setLongOperationMessage(AppStrings.progressPackagingAssets);
+      final pdfBytes = await _buildPdfBytesForExport(
+        includeAttachments: true,
+        shouldCancel: _isLongOperationCancelled,
+      );
+      if (!mounted) return;
+      _throwIfLongOperationCancelled();
+
       final zipBytes = await _buildAttachmentsZip(
         xlsxBytes: xlsxBytes,
+        pdfBytes: pdfBytes,
         photoItems: prep.photoItems,
         audioItems: prep.audioItems,
         manifest: prep.manifest,
@@ -18656,18 +18666,18 @@ class _EditorScreenState extends State<EditorScreen>
 
       final now = DateTime.now();
       final baseName =
-          'BitFlow-package_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
+          'BitFlow_paquete_completo_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
-        name: '$baseName.bitflow.zip',
+        name: '$baseName.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
-            ? 'Paquete ZIP listo para compartir.'
-            : 'Paquete ZIP exportado con Ã©xito.',
+            ? 'Paquete completo (.zip) listo para compartir.'
+            : 'Paquete completo (.zip) exportado correctamente.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -19215,6 +19225,18 @@ class _EditorScreenState extends State<EditorScreen>
       rows.add(values);
     }
 
+    final exportedAt = DateTime.now().toLocal();
+    final photosCount = attachments.where((a) => a.type == 'photo').length;
+    final videosCount = attachments.where((a) => a.type == 'video').length;
+    final audiosCount = attachments.where((a) => a.type == 'audio').length;
+    final gpsCount = attachments.where((a) => a.type == 'gps').length;
+
+    final exportFileName = buildBitFlowExportFileName(
+      sheetName: _sheetName,
+      extension: 'xlsx',
+      now: exportedAt,
+    );
+
     return buildXlsxWithPhotos(
       columns: columns,
       rows: rows,
@@ -19224,6 +19246,18 @@ class _EditorScreenState extends State<EditorScreen>
       includeIndexColumn: false,
       includeCoverSheet: true,
       includeSummarySheet: true,
+      reportMeta: ExportReportMeta(
+        sheetName: _sheetName,
+        exportedAt: exportedAt,
+        rowsCount: rows.length,
+        columnsCount: columns.length,
+        nonEmptyCells: _countNonEmptyCells(),
+        photosCount: photosCount,
+        videosCount: videosCount,
+        audiosCount: audiosCount,
+        gpsCount: gpsCount,
+        exportFileName: exportFileName,
+      ),
     );
   }
 
@@ -19416,7 +19450,7 @@ class _EditorScreenState extends State<EditorScreen>
 
           final content = <pw.Widget>[
             pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+              'BitFlow · Reporte de Relevamiento - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 4),
@@ -19685,10 +19719,15 @@ class _EditorScreenState extends State<EditorScreen>
         final gps = meta.gps!;
         attachments.add(
           AttachmentRow(
+            sheet: _sheetName,
             cellRef: cellRef,
+            rowNumber: cell.row + 1,
             type: 'gps',
             fileName: '',
-            notes: _gpsNotes(gps),
+            description: _gpsNotes(gps),
+            capturedAt: gps.timestamp.toLocal(),
+            lat: gps.lat,
+            lng: gps.lng,
             relativePath: '',
           ),
         );
@@ -19714,10 +19753,15 @@ class _EditorScreenState extends State<EditorScreen>
 
           attachments.add(
             AttachmentRow(
+              sheet: _sheetName,
               cellRef: cellRef,
+              rowNumber: cell.row + 1,
               type: itemType,
               fileName: fileName,
-              notes: _photoNotes(photo),
+              description: _photoNotes(photo),
+              capturedAt: photo.addedAt.toLocal(),
+              lat: photo.lat,
+              lng: photo.lon,
               relativePath: relPath,
             ),
           );
@@ -19776,10 +19820,13 @@ class _EditorScreenState extends State<EditorScreen>
 
           attachments.add(
             AttachmentRow(
+              sheet: _sheetName,
               cellRef: cellRef,
+              rowNumber: cell.row + 1,
               type: 'audio',
               fileName: fileName,
-              notes: _audioNotes(audio),
+              description: _audioNotes(audio),
+              capturedAt: audio.addedAt.toLocal(),
               relativePath: relPath,
             ),
           );
@@ -19842,6 +19889,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<Uint8List?> _buildAttachmentsZip({
     required Uint8List xlsxBytes,
+    required Uint8List? pdfBytes,
     required List<_ZipPhotoItem> photoItems,
     required List<_ZipAudioItem> audioItems,
     required Map<String, dynamic> manifest,
@@ -19850,7 +19898,12 @@ class _EditorScreenState extends State<EditorScreen>
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final archive = Archive();
-    archive.addFile(ArchiveFile('export.xlsx', xlsxBytes.length, xlsxBytes));
+    archive.addFile(
+      ArchiveFile('relevamiento.xlsx', xlsxBytes.length, xlsxBytes),
+    );
+    if (pdfBytes != null && pdfBytes.isNotEmpty) {
+      archive.addFile(ArchiveFile('reporte.pdf', pdfBytes.length, pdfBytes));
+    }
 
     for (final item in photoItems) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -19878,9 +19931,49 @@ class _EditorScreenState extends State<EditorScreen>
       ArchiveFile('sheet.json', sheetJsonBytes.length, sheetJsonBytes),
     );
 
+    final readme = _buildExportReadme(
+      sheetName: _sheetName,
+      manifest: manifest,
+      hasPdf: pdfBytes != null && pdfBytes.isNotEmpty,
+    );
+    final readmeBytes = Uint8List.fromList(utf8.encode(readme));
+    archive.addFile(ArchiveFile('README.txt', readmeBytes.length, readmeBytes));
+
     final encoder = ZipEncoder();
     final zipData = encoder.encode(archive);
     return Uint8List.fromList(zipData);
+  }
+
+  String _buildExportReadme({
+    required String sheetName,
+    required Map<String, dynamic> manifest,
+    required bool hasPdf,
+  }) {
+    final counts = manifest['counts'] as Map<String, dynamic>?;
+    return [
+      'BitFlow - Paquete completo de exportacion',
+      '',
+      'Planilla: $sheetName',
+      'Formato: bitflow_package_v1',
+      '',
+      'Contenido del paquete:',
+      '- relevamiento.xlsx (datos + resumen + evidencias)',
+      if (hasPdf) '- reporte.pdf (reporte visual para compartir)',
+      '- attachments/photos/',
+      '- attachments/video/',
+      '- attachments/audio/',
+      '- manifest.json',
+      '- sheet.json',
+      '- README.txt',
+      '',
+      'Totales:',
+      '- Filas: ${counts?['rows'] ?? 0}',
+      '- Celdas con datos: ${counts?['cells'] ?? 0}',
+      '- Adjuntos: ${counts?['attachments'] ?? 0}',
+      '- Fotos: ${counts?['photos'] ?? 0}',
+      '- Audios: ${counts?['audios'] ?? 0}',
+      '- GPS: ${counts?['gps'] ?? 0}',
+    ].join('\n');
   }
 
   Future<Map<String, dynamic>> _buildPackageManifest({

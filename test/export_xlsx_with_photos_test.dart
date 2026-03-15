@@ -130,6 +130,18 @@ void main() {
     }
   }
 
+  String allXmlContent(Uint8List bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final xmlFiles = archive.files.where(
+      (f) => f.name.toLowerCase().endsWith('.xml'),
+    );
+    final buffer = StringBuffer();
+    for (final file in xmlFiles) {
+      buffer.writeln(utf8.decode(file.content as List<int>));
+    }
+    return buffer.toString();
+  }
+
   test('buildXlsxWithPhotos includes media + drawings and no names', () async {
     final png = makeTinyPng();
     final bytes = await buildXlsxWithPhotos(
@@ -145,10 +157,13 @@ void main() {
       ],
       attachments: const [
         AttachmentRow(
+          sheet: 'Planilla',
           cellRef: 'A1',
+          rowNumber: 1,
           type: 'photo',
           fileName: 'A1_p1_foto.jpg',
-          notes: '',
+          description: '',
+          capturedAt: DateTime.parse('2026-01-01T10:00:00.000Z'),
           relativePath: 'attachments/photos/A1_p1_foto.jpg',
         ),
       ],
@@ -216,10 +231,13 @@ void main() {
       ],
       attachments: const [
         AttachmentRow(
+          sheet: 'Planilla',
           cellRef: 'A1',
+          rowNumber: 1,
           type: 'photo',
           fileName: 'A1_p1_foto.jpg',
-          notes: '',
+          description: '',
+          capturedAt: DateTime.parse('2026-01-01T10:00:00.000Z'),
           relativePath: 'attachments/photos/A1_p1_foto.jpg',
         ),
       ],
@@ -237,5 +255,56 @@ void main() {
 
     expect(file.existsSync(), isTrue);
     expect(file.lengthSync() > 0, isTrue);
+  });
+
+  test('xlsx branding and sheets remain professional and consistent', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Tarea', 'Estado'],
+      rows: const [
+        ['Inspeccion frente', 'OK'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          sheet: 'Obra Norte',
+          cellRef: 'A1',
+          rowNumber: 1,
+          type: 'gps',
+          fileName: '',
+          description: 'GPS tomado en sitio',
+          capturedAt: DateTime.parse('2026-01-01T10:00:00.000Z'),
+          lat: -34.603722,
+          lng: -58.381592,
+          relativePath: '',
+        ),
+      ],
+      includeCoverSheet: true,
+      includeSummarySheet: true,
+      reportMeta: ExportReportMeta(
+        sheetName: 'Obra Norte',
+        exportedAt: DateTime.parse('2026-01-01T12:00:00.000Z'),
+        rowsCount: 1,
+        columnsCount: 2,
+        nonEmptyCells: 2,
+        photosCount: 0,
+        videosCount: 0,
+        audiosCount: 0,
+        gpsCount: 1,
+        exportFileName: 'BitFlow_2026-01-01_Obra_Norte.xlsx',
+        client: 'Cliente Demo',
+        project: 'Proyecto Norte',
+        responsible: 'Supervisor A',
+        observations: 'Sin novedades',
+      ),
+    );
+
+    final xml = allXmlContent(bytes);
+    expect(xml.contains('BITFLOW · REPORTE DE RELEVAMIENTO'), isTrue);
+    expect(xml.contains('Bitacora PRO'), isFalse);
+    expect(xml.contains('name="Caratula"'), isTrue);
+    expect(xml.contains('name="Resumen"'), isTrue);
+    expect(xml.contains('name="Evidencias"'), isTrue);
+    expect(xml.contains('Hoja'), isTrue);
+    expect(xml.contains('Ruta relativa'), isTrue);
+    expect(xml.contains('Resumen ejecutivo'), isTrue);
   });
 }

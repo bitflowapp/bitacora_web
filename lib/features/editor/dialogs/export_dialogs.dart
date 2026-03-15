@@ -4,7 +4,9 @@ extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    var format = _lastExportPreset == 'xlsx' ? 'xlsx' : 'pdf';
+    var format = _lastExportPreset == 'xlsx'
+        ? 'xlsx'
+        : (_lastExportPreset == 'zip' ? 'zip' : 'pdf');
     var includeAttachments = true;
 
     await showAppModal<void>(
@@ -29,17 +31,24 @@ extension _EditorExportDialogs on _EditorScreenState {
                 runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('XLSX'),
+                    label: const Text('Excel (.xlsx)'),
                     selected: format == 'xlsx',
                     onSelected: (_) => setModalState(() {
                       format = 'xlsx';
                     }),
                   ),
                   ChoiceChip(
-                    label: const Text('PDF'),
+                    label: const Text('Reporte PDF (.pdf)'),
                     selected: format == 'pdf',
                     onSelected: (_) => setModalState(() {
                       format = 'pdf';
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Paquete completo (.zip)'),
+                    selected: format == 'zip',
+                    onSelected: (_) => setModalState(() {
+                      format = 'zip';
                     }),
                   ),
                 ],
@@ -56,7 +65,7 @@ extension _EditorExportDialogs on _EditorScreenState {
               ),
               const SizedBox(height: 6),
               Text(
-                'Archivo: $fileName',
+                'Archivo estimado: $fileName',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
@@ -110,7 +119,11 @@ extension _EditorExportDialogs on _EditorScreenState {
     required bool includeAttachments,
     required bool share,
   }) {
-    unawaited(_setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx'));
+    unawaited(
+      _setExportPresetPref(
+        format == 'pdf' ? 'pdf' : (format == 'zip' ? 'zip' : 'xlsx'),
+      ),
+    );
     if (format == 'pdf') {
       unawaited(
         _exportPdf(
@@ -118,6 +131,10 @@ extension _EditorExportDialogs on _EditorScreenState {
           share: share,
         ),
       );
+      return;
+    }
+    if (format == 'zip') {
+      unawaited(_exportZipBundle(share: share));
       return;
     }
     unawaited(
