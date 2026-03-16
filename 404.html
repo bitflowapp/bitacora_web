@@ -1,22 +1,693 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Redirecting...</title>
-    <meta name="robots" content="noindex" />
-    <script>
-      (function () {
-        var pathname = window.location.pathname || "/";
-        var base = pathname.substring(0, pathname.lastIndexOf("/") + 1);
-        var target = window.location.origin + base + "index.html";
-        var redirect = target + "?p=" + encodeURIComponent(
-          pathname + window.location.search + window.location.hash
+<html lang="es">
+<head>
+  <base href="/bitacora_web/" />
+
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+
+  <!-- iOS: viewport correcto -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <title>BitFlow | Planillas operativas con evidencias</title>
+  <meta name="description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia operativa clara y lista para clientes." />
+  <meta name="robots" content="index,follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="BitFlow | Planillas operativas con evidencias" />
+  <meta property="og:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia operativa clara y lista para clientes." />
+  <meta property="og:image" content="icons/Icon-512.png" />
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:title" content="BitFlow | Planillas operativas con evidencias" />
+  <meta property="twitter:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia operativa clara y lista para clientes." />
+  <meta property="twitter:image" content="icons/Icon-512.png" />
+
+  <!-- BUILD ID fallback (si version.json no está disponible) -->
+  <meta name="bitflow-build" content="__BUILD_ID__" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="BitFlow" />
+  <meta name="application-name" content="BitFlow" />
+  <meta name="theme-color" content="#F5F5F7" />
+  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+
+  <style>
+    :root {
+      --app-h: 100vh;
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --ink: #111113;
+      --muted: #575861;
+      --line: #e3e4e8;
+      --accent: #111113;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;            /* clave: Safari no scrollea el documento */
+      overscroll-behavior: none;
+      background: #f5f5f7 !important;
+      background-image: none !important;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+      height: var(--app-h);
+      background: #f5f5f7 !important;
+      background-image: none !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    * { -webkit-tap-highlight-color: transparent; }
+
+    /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
+    input, textarea, select { font-size: 16px !important; }
+
+    /* Build badge moved to Flutter widget (_BuildBadge). */
+
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483640;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--ink);
+      transition: opacity 220ms ease;
+    }
+
+    #boot-splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #boot-splash .shell {
+      width: min(460px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      box-shadow: 0 20px 44px rgba(17, 17, 19, 0.08);
+      padding: 20px;
+      text-align: center;
+    }
+
+    #boot-splash .logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      margin: 0 auto 14px;
+      border: 1px solid rgba(17, 17, 19, 0.08);
+      background: #f4f4f6;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 8px 20px rgba(17, 17, 19, 0.08);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: #111113;
+      font-size: 22px;
+    }
+
+    #boot-splash h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+
+    #boot-splash p {
+      margin: 8px 0 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.4;
+      font-weight: 600;
+    }
+
+    #boot-fallback {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483646;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(245, 245, 247, 0.96);
+      color: var(--ink);
+    }
+
+    #boot-fallback .card {
+      width: min(560px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: var(--surface);
+      box-shadow: 0 18px 40px rgba(93, 74, 48, 0.14);
+    }
+
+    #boot-fallback h2 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    #boot-fallback p {
+      margin: 0 0 12px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    #boot-fallback .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #boot-fallback button,
+    #boot-fallback a {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 12px;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    #boot-fallback .primary {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    #install-fab {
+      position: fixed;
+      left: 10px;
+      bottom: 10px;
+      z-index: 2147483645;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(44, 39, 33, 0.22);
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      animation: installPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes installPulse {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      var hardKey = 'bitflow_boot_build';
+      var sessionKey = 'bitflow_boot_hard_done';
+
+      function withTimeout(promise, timeoutMs) {
+        return Promise.race([
+          promise,
+          new Promise(function (resolve) {
+            setTimeout(function () {
+              resolve(null);
+            }, timeoutMs);
+          })
+        ]);
+      }
+
+      async function hardRefreshGuard() {
+        try {
+          var current = new URL(window.location.href);
+          var currentHard = current.searchParams.get('hard') || '';
+          var sessionBuild = '';
+          try {
+            sessionBuild = sessionStorage.getItem(sessionKey) || '';
+          } catch (_) {}
+
+          var response = await withTimeout(
+            fetch('/bitacora_web/version.json?ts=' + Date.now(), {
+              cache: 'no-store'
+            }),
+            1500,
+          );
+          if (!response || !response.ok) return;
+
+          var payload = await response.json();
+          var remoteBuild = '';
+          if (payload && typeof payload === 'object') {
+            remoteBuild = (payload.buildId || payload.gitSha || '').toString().trim();
+          }
+          if (!remoteBuild) return;
+
+          var lastBuild = '';
+          try {
+            lastBuild = localStorage.getItem(hardKey) || '';
+          } catch (_) {}
+
+          if (lastBuild === remoteBuild) return;
+
+          try {
+            localStorage.setItem(hardKey, remoteBuild);
+          } catch (_) {}
+
+          if (currentHard === remoteBuild || sessionBuild === remoteBuild) {
+            return;
+          }
+
+          try {
+            sessionStorage.setItem(sessionKey, remoteBuild);
+          } catch (_) {}
+
+          try {
+            if ('serviceWorker' in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              for (var i = 0; i < regs.length; i++) {
+                try {
+                  await regs[i].unregister();
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          try {
+            if (window.caches && caches.keys) {
+              var cacheKeys = await caches.keys();
+              for (var c = 0; c < cacheKeys.length; c++) {
+                try {
+                  await caches.delete(cacheKeys[c]);
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          current.searchParams.set('hard', remoteBuild);
+          window.location.replace(current.pathname + current.search + current.hash);
+        } catch (_) {
+          // Silencioso: si falla el guard, sigue boot normal.
+        }
+      }
+
+      hardRefreshGuard();
+    })();
+  </script>
+
+  <script>
+    (function () {
+      var bootGuardTimer = 0;
+      var bootReady = false;
+      var installPromptEvent = null;
+      var startInvoked = false;
+      var bootStage = 'idle';
+      var bootDetail = '';
+
+      function setBootStage(stage, detail) {
+        bootStage = stage || bootStage;
+        bootDetail = detail || bootDetail;
+        try {
+          document.documentElement.setAttribute('data-bitflow-boot', bootStage);
+        } catch (_) {}
+        try {
+          if (window.console && console.info) {
+            console.info('[bitflow boot]', bootStage, detail || '');
+          }
+        } catch (_) {}
+      }
+
+      function describeBootState(reason) {
+        var parts = [];
+        if (reason) parts.push(reason);
+        if (bootStage) parts.push('Estado: ' + bootStage + '.');
+        if (bootDetail) parts.push(bootDetail);
+        return parts.join(' ');
+      }
+
+      function showBootFallback(reason) {
+        try {
+          if (bootReady) return;
+          var root = document.getElementById('boot-fallback');
+          if (!root) return;
+          if (root.style.display === 'flex') return;
+          root.style.display = 'flex';
+          var msg = root.querySelector('[data-role=\"message\"]');
+          if (msg) msg.textContent = describeBootState(reason);
+        } catch (_) {}
+      }
+
+      function hideBootFallback() {
+        try {
+          var root = document.getElementById('boot-fallback');
+          if (!root) return;
+          root.style.display = 'none';
+        } catch (_) {}
+      }
+
+      function hideBootSplash() {
+        try {
+          var splash = document.getElementById('boot-splash');
+          if (!splash) return;
+          splash.classList.add('hidden');
+          setTimeout(function () {
+            splash.style.display = 'none';
+          }, 260);
+        } catch (_) {}
+      }
+
+      function markBootReady() {
+        if (bootReady) return;
+        bootReady = true;
+        setBootStage('flutter-mounted');
+        if (bootGuardTimer) {
+          clearTimeout(bootGuardTimer);
+          bootGuardTimer = 0;
+        }
+        hideBootSplash();
+        hideBootFallback();
+      }
+
+      function showInstallFab() {
+        var btn = document.getElementById('install-fab');
+        if (!btn) return;
+        btn.style.display = 'inline-flex';
+      }
+
+      function hideInstallFab() {
+        var btn = document.getElementById('install-fab');
+        if (!btn) return;
+        btn.style.display = 'none';
+      }
+
+      async function promptInstall() {
+        if (!installPromptEvent) return;
+        try {
+          installPromptEvent.prompt();
+          await installPromptEvent.userChoice;
+        } catch (_) {
+          // noop
+        } finally {
+          installPromptEvent = null;
+          hideInstallFab();
+        }
+      }
+
+      async function clearCachesAndReload() {
+        setBootStage('clean-retry');
+        try {
+          if ('serviceWorker' in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < regs.length; i++) {
+              try { await regs[i].unregister(); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        try {
+          if (window.caches && caches.keys) {
+            var keys = await caches.keys();
+            for (var j = 0; j < keys.length; j++) {
+              try { await caches.delete(keys[j]); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        try {
+          window.location.reload();
+        } catch (_) {}
+      }
+
+      window.__bitflowBootRetry = function () {
+        return clearCachesAndReload();
+      };
+
+      function isResolvedBuildId(build) {
+        var value = (build || '').toString().trim();
+        return value && value !== '__BUILD_ID__' && value.indexOf('dev-') !== 0;
+      }
+
+      function rememberResolvedBuild(build) {
+        if (!isResolvedBuildId(build)) return;
+        try {
+          localStorage.setItem('bitflow_last_build', build);
+        } catch (_) {}
+      }
+
+      async function resolveBuildId() {
+        try {
+          var res = await fetch('version.json?x=' + Date.now(), {
+            cache: 'no-store'
+          });
+          if (res.ok) {
+            var json = await res.json();
+            if (json && typeof json === 'object') {
+              var fromVersion = (json.buildId || json.gitSha || json.buildTime || '')
+                .toString()
+                .trim();
+              if (fromVersion) return fromVersion;
+            }
+          }
+        } catch (_) {}
+
+        var m = document.querySelector('meta[name="bitflow-build"]');
+        var v = m ? (m.getAttribute('content') || '') : '';
+        if (v && v !== '__BUILD_ID__') return v;
+        return 'dev-' + Date.now();
+      }
+
+      async function resolveBuildIdFast(timeoutMs) {
+        try {
+          return await Promise.race([
+            resolveBuildId(),
+            new Promise(function (resolve) {
+              setTimeout(function () {
+                resolve('dev-' + Date.now());
+              }, timeoutMs);
+            }),
+          ]);
+        } catch (_) {
+          return 'dev-' + Date.now();
+        }
+      }
+
+      // Build badge moved to Flutter widget (_BuildBadge).
+
+      function loadFlutterBootstrap(build) {
+        try {
+          setBootStage('bootstrap-requested');
+          var script = document.createElement('script');
+          script.src = 'flutter_bootstrap.js?v=' + encodeURIComponent(build);
+          script.async = true;
+          script.onload = function () {
+            setBootStage('bootstrap-loaded');
+          };
+          script.onerror = function () {
+            setBootStage('bootstrap-load-failed', 'No se pudo descargar flutter_bootstrap.js.');
+            showBootFallback('No se pudo cargar la app. Reintenta o abre la landing.');
+          };
+          document.body.appendChild(script);
+        } catch (error) {
+          setBootStage('bootstrap-load-failed', String(error || 'Error al inyectar bootstrap.'));
+          showBootFallback('No se pudo iniciar el bootstrap de la app.');
+        }
+      }
+
+      function loadFlutterBootstrapDeferred(build) {
+        var startLoad = function () {
+          loadFlutterBootstrap(build);
+        };
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(startLoad, { timeout: 1200 });
+        } else {
+          setTimeout(startLoad, 120);
+        }
+      }
+
+      // iOS Safari keyboard fix: “pega” los roots de Flutter al visualViewport
+      var raf = 0;
+      var lastH = -1, lastTop = -1;
+      var lastKick = 0;
+
+      function applyViewport() {
+        raf = 0;
+
+        var vv = window.visualViewport;
+        var h = vv ? vv.height : window.innerHeight;
+        var top = vv ? vv.offsetTop : 0;
+
+        if (!h) return;
+        if (Math.abs(h - lastH) < 0.5 && Math.abs(top - lastTop) < 0.5) return;
+        lastH = h; lastTop = top;
+
+        document.documentElement.style.setProperty('--app-h', h + 'px');
+
+        var nodes = document.querySelectorAll(
+          'flt-glass-pane, flt-text-editing-host, flt-semantics-host, flt-announcement-host'
         );
-        window.location.replace(redirect);
-      })();
-    </script>
-  </head>
-  <body>
-    Redirecting...
-  </body>
+
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          n.style.position = 'fixed';
+          n.style.left = '0';
+          n.style.right = '0';
+          n.style.top = '0';
+          n.style.width = '100%';
+          n.style.height = h + 'px';
+          n.style.transform = 'translateY(' + top + 'px)';
+          n.style.transformOrigin = '0 0';
+          n.style.willChange = 'transform,height';
+        }
+
+        // “patadita” a Flutter: fuerza recálculo cuando iOS se hace el distraído
+        try {
+          var now = Date.now();
+          if (now - lastKick > 120) {
+            lastKick = now;
+            window.dispatchEvent(new Event('resize'));
+          }
+        } catch (_) {}
+      }
+
+      function scheduleApply() {
+        if (raf) return;
+        raf = requestAnimationFrame(applyViewport);
+      }
+
+      function boot() {
+        setBootStage('viewport-watch');
+        scheduleApply();
+
+        window.addEventListener('resize', scheduleApply, { passive: true });
+        window.addEventListener('orientationchange', scheduleApply, { passive: true });
+        document.addEventListener('focusin', scheduleApply, true);
+        document.addEventListener('focusout', scheduleApply, true);
+
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', scheduleApply, { passive: true });
+          window.visualViewport.addEventListener('scroll', scheduleApply, { passive: true });
+        }
+
+        try {
+          new MutationObserver(function () {
+            scheduleApply();
+            if (document.querySelector('flt-glass-pane')) {
+              setBootStage('flutter-root-detected');
+              markBootReady();
+            }
+          }).observe(document.documentElement, { childList: true, subtree: true });
+        } catch (_) {}
+      }
+
+      window.addEventListener('error', function (event) {
+        if (bootReady) return;
+        setBootStage('window-error', (event && event.message) ? String(event.message) : 'Error JS durante el arranque.');
+      });
+
+      window.addEventListener('unhandledrejection', function (event) {
+        if (bootReady) return;
+        var reason = event && event.reason ? String(event.reason) : 'Promesa rechazada durante el arranque.';
+        setBootStage('window-rejection', reason);
+      });
+
+      async function start() {
+        if (startInvoked) return;
+        startInvoked = true;
+        setBootStage('resolving-build');
+        bootGuardTimer = setTimeout(function () {
+          showBootFallback('Arranque demorado. Puedes reintentar sin perder estado local.');
+        }, 12000);
+
+        try {
+          var build = await resolveBuildIdFast(1200);
+          window.__BITFLOW_BUILD__ = build;
+          rememberResolvedBuild(build);
+          setBootStage(
+            isResolvedBuildId(build) ? 'build-resolved' : 'build-fallback',
+            isResolvedBuildId(build)
+              ? 'Build ' + build + '.'
+              : 'version.json no respondio a tiempo; se uso fallback temporal.'
+          );
+          boot();
+          loadFlutterBootstrapDeferred(build);
+        } catch (error) {
+          var fallback = 'dev-' + Date.now();
+          window.__BITFLOW_BUILD__ = fallback;
+          setBootStage('build-resolution-failed', String(error || 'No se pudo resolver buildId.'));
+          boot();
+          loadFlutterBootstrapDeferred(fallback);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+      } else {
+        start();
+      }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        installPromptEvent = event;
+        showInstallFab();
+      });
+
+      window.addEventListener('appinstalled', function () {
+        installPromptEvent = null;
+        hideInstallFab();
+      });
+
+      window.addEventListener('DOMContentLoaded', function () {
+        var btn = document.getElementById('install-fab');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            promptInstall();
+          });
+        }
+      });
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="boot-splash" aria-live="polite">
+    <div class="shell">
+      <div class="logo">B</div>
+      <h1>BitFlow</h1>
+      <p>Preparando tu espacio de trabajo operativo...</p>
+    </div>
+  </div>
+
+  <div id="boot-fallback" aria-live="polite">
+    <div class="card">
+      <h2>BitFlow inicio seguro</h2>
+      <p data-role="message">La app tarda mas de lo normal en iniciar.</p>
+      <div class="row">
+        <button class="primary" type="button" onclick="window.__bitflowBootRetry ? window.__bitflowBootRetry() : window.location.reload()">Reintentar app</button>
+        <a href="landing">Abrir landing premium</a>
+      </div>
+    </div>
+  </div>
+  <button id="install-fab" type="button" aria-label="Instalar BitFlow">Instalar BitFlow</button>
+  <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
+</body>
 </html>
