@@ -20,6 +20,14 @@ const String _kExportVersion = 'bitflow_xlsx_v2';
 const String _kAppVersion =
     String.fromEnvironment('APP_VERSION', defaultValue: '');
 
+const String _kColorPrimary = '#1F2A44';
+const String _kColorPrimarySoft = '#DCE3F1';
+const String _kColorHeader = '#253248';
+const String _kColorCard = '#EEF2FA';
+const String _kColorAltRow = '#F7F9FC';
+const String _kColorBorder = '#D5DCE8';
+const String _kColorLabel = '#4A5568';
+
 class GpsExport {
   const GpsExport({
     this.lat,
@@ -115,7 +123,9 @@ Future<Uint8List> buildXlsxWithPhotos({
   final workbook = xlsio.Workbook(1);
   try {
     final sheet = workbook.worksheets[0];
-    sheet.name = _sanitizeWorksheetName(sheetName);
+    final safeSheetName = _sanitizeWorksheetName(sheetName);
+    sheet.name = (includeCoverSheet || includeSummarySheet) ? 'Hoja' : safeSheetName;
+    sheet.showGridlines = false;
 
     const int headerRow = 1;
     const int firstDataRow = headerRow + 1;
@@ -204,6 +214,10 @@ Future<Uint8List> buildXlsxWithPhotos({
     final headerRange =
         sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
     headerRange.cellStyle = headerStyle;
+    _styleMainHeader(workbook, headerRange);
+    sheet.getRangeByIndex(firstDataRow, 1).freezePanes();
+    sheet.autoFilters.filterRange =
+        sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
 
     // --------------------------
     // 2) Datos + fotos
@@ -248,6 +262,7 @@ Future<Uint8List> buildXlsxWithPhotos({
       for (int c = 0; c < textCols; c++) {
         final v = (c < rowValues.length) ? rowValues[c] : '';
         _setSheetValue(sheet, excelRow, textStartCol + c, v);
+        _applyDisplayFormat(sheet, excelRow, textStartCol + c, v);
       }
 
       // GPS
@@ -338,6 +353,8 @@ Future<Uint8List> buildXlsxWithPhotos({
     final int lastRow = rows.length + 1; // incluye headers
     final tableRange = sheet.getRangeByIndex(1, 1, lastRow, safeLastCol);
     tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    tableRange.cellStyle.borders.all.color = _kColorBorder;
+    _styleMainRows(sheet, firstDataRow: firstDataRow, lastRow: lastRow, lastCol: safeLastCol);
 
     // --------------------------
     // 4) Anchos: autoFit con fallback seguro
@@ -387,18 +404,18 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
 
     if (includeCoverSheet) {
-      _buildCoverSheet(workbook);
+      _buildCoverSheet(
+        workbook,
+        projectName: safeSheetName,
+      );
     }
 
     if (includeSummarySheet) {
       _buildSummarySheet(
         workbook,
-        rowsCount: rows.length,
-        photosCount: _photosCount(
-          photosByRow: photosByRow,
-          attachments: attachments,
-        ),
-        gpsCount: _gpsCount(gpsByRow, attachments: attachments),
+        dataSheetName: sheet.name,
+        hasGps: hasGps,
+        gpsColIndex: hasGps ? gpsStartCol : null,
       );
     }
 
@@ -659,44 +676,209 @@ void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   sheet.getRangeByIndex(r, c).setText(v);
 }
 
-void _buildCoverSheet(xlsio.Workbook wb) {
-  final cover = wb.worksheets.addWithName('Caratula');
-  final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
-  for (int i = 0; i < labels.length; i++) {
-    cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
-    cover.getRangeByIndex(i + 1, 2).setText('');
+void _applyDisplayFormat(xlsio.Worksheet sheet, int row, int col, String value) {
+  final raw = value.trim();
+  if (raw.isEmpty) return;
+  if (FormulaEngine.isFormula(raw)) return;
+
+  final cell = sheet.getRangeByIndex(row, col);
+  final date = DateTime.tryParse(raw);
+  if (date != null) {
+    cell.numberFormat = 'dd/mm/yyyy hh:mm';
+    return;
   }
-  final title = cover.getRangeByIndex(1, 4);
-  title.setText('Bitacora PRO');
-  title.cellStyle.bold = true;
-  try {
-    cover.autoFitColumn(1);
-    cover.autoFitColumn(2);
-  } catch (_) {}
+
+  if (double.tryParse(raw) == null) return;
+  if (!RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(raw)) return;
+
+  final decimals = raw.contains('.') ? (raw.split('.').last.length) : 0;
+  cell.numberFormat = decimals > 0 ? '#,##0.${'0' * decimals.clamp(1, 4)}' : '#,##0';
+}
+
+void _styleMainHeader(xlsio.Workbook workbook, xlsio.Range headerRange) {
+  final styleName = 'MainHeader_${DateTime.now().microsecondsSinceEpoch}';
+  final style = workbook.styles.add(styleName);
+  style.bold = true;
+  style.fontColor = '#FFFFFF';
+  style.backColor = _kColorHeader;
+  style.hAlign = xlsio.HAlignType.center;
+  style.vAlign = xlsio.VAlignType.center;
+  style.fontSize = 11;
+  style.borders.all.lineStyle = xlsio.LineStyle.thin;
+  style.borders.all.color = _kColorBorder;
+  headerRange.cellStyle = style;
+}
+
+void _styleMainRows(
+  xlsio.Worksheet sheet, {
+  required int firstDataRow,
+  required int lastRow,
+  required int lastCol,
+}) {
+  for (int row = firstDataRow; row <= lastRow; row++) {
+    sheet.setRowHeightInPixels(row, 24);
+    final rowRange = sheet.getRangeByIndex(row, 1, row, lastCol);
+    rowRange.cellStyle.backColor =
+        (row % 2 == 0) ? '#FFFFFF' : _kColorAltRow;
+    rowRange.cellStyle.vAlign = xlsio.VAlignType.center;
+  }
+}
+
+void _buildCoverSheet(
+  xlsio.Workbook wb, {
+  required String projectName,
+}) {
+  final cover = wb.worksheets.addWithName('Caratula');
+  cover.showGridlines = false;
+
+  for (int c = 1; c <= 8; c++) {
+    cover.setColumnWidthInPixels(c, c == 1 ? 24 : (c <= 3 ? 120 : 108));
+  }
+
+  cover.setRowHeightInPixels(1, 54);
+  final topBand = cover.getRangeByIndex(1, 1, 1, 8);
+  topBand.merge();
+  topBand.setText('BitFlow');
+  topBand.cellStyle.backColor = _kColorPrimary;
+  topBand.cellStyle.fontColor = '#FFFFFF';
+  topBand.cellStyle.fontSize = 24;
+  topBand.cellStyle.bold = true;
+  topBand.cellStyle.vAlign = xlsio.VAlignType.center;
+
+  final subtitle = cover.getRangeByIndex(2, 2, 2, 8);
+  subtitle.merge();
+  subtitle.setText('Planilla profesional exportada');
+  subtitle.cellStyle.fontColor = _kColorLabel;
+  subtitle.cellStyle.fontSize = 12;
+  subtitle.cellStyle.bold = true;
+
+  const labels = <String>[
+    'Proyecto',
+    'Cliente',
+    'Fecha',
+    'Responsable',
+    'Observaciones',
+  ];
+  final values = <String>[
+    projectName,
+    '',
+    DateTime.now().toIso8601String(),
+    '',
+    '',
+  ];
+
+  int row = 4;
+  for (int i = 0; i < labels.length; i++) {
+    final labelCell = cover.getRangeByIndex(row, 2, row, 3);
+    labelCell.merge();
+    labelCell.setText(labels[i]);
+    labelCell.cellStyle.backColor = _kColorPrimarySoft;
+    labelCell.cellStyle.fontColor = _kColorPrimary;
+    labelCell.cellStyle.bold = true;
+    labelCell.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    labelCell.cellStyle.borders.all.color = _kColorBorder;
+
+    final valueCell = cover.getRangeByIndex(row, 4, row, 8);
+    valueCell.merge();
+    if (i == 2) {
+      valueCell.setDateTime(DateTime.now());
+      valueCell.numberFormat = 'dd/mm/yyyy';
+    } else {
+      valueCell.setText(values[i]);
+    }
+    valueCell.cellStyle.backColor = '#FFFFFF';
+    valueCell.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    valueCell.cellStyle.borders.all.color = _kColorBorder;
+    valueCell.cellStyle.vAlign = xlsio.VAlignType.center;
+
+    if (labels[i] == 'Observaciones') {
+      cover.setRowHeightInPixels(row, 64);
+      valueCell.cellStyle.wrapText = true;
+    } else {
+      cover.setRowHeightInPixels(row, 30);
+    }
+    row++;
+  }
 }
 
 void _buildSummarySheet(
   xlsio.Workbook wb, {
-  required int rowsCount,
-  required int photosCount,
-  required int gpsCount,
+  required String dataSheetName,
+  required bool hasGps,
+  required int? gpsColIndex,
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
-  final data = [
-    ['Filas', rowsCount],
-    ['Fotos', photosCount],
-    ['Ubicaciones', gpsCount],
-  ];
-  for (int i = 0; i < data.length; i++) {
-    summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
-    summary.getRangeByIndex(i + 1, 2).setNumber(
-          (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-        );
+  summary.showGridlines = false;
+
+  summary.setColumnWidthInPixels(1, 24);
+  for (int c = 2; c <= 9; c++) {
+    summary.setColumnWidthInPixels(c, 116);
   }
-  try {
-    summary.autoFitColumn(1);
-    summary.autoFitColumn(2);
-  } catch (_) {}
+
+  final title = summary.getRangeByIndex(1, 2, 1, 9);
+  title.merge();
+  title.setText('Resumen Ejecutivo');
+  title.cellStyle.backColor = _kColorPrimary;
+  title.cellStyle.fontColor = '#FFFFFF';
+  title.cellStyle.bold = true;
+  title.cellStyle.fontSize = 16;
+
+  final subtitle = summary.getRangeByIndex(2, 2, 2, 9);
+  subtitle.merge();
+  subtitle.setText('Indicadores consolidados de la hoja exportada');
+  subtitle.cellStyle.fontColor = _kColorLabel;
+
+  const labels = [
+    'Total de filas',
+    'Cantidad de fotos',
+    'Cantidad de ubicaciones',
+    'Última fecha cargada',
+  ];
+  final formulas = [
+    "=MAX(COUNTA('" + dataSheetName + "'!A:A)-1,0)",
+    "=COUNTIF('" + dataSheetName + "'!1:1,\"Foto*\")*MAX(COUNTA('" + dataSheetName + "'!A:A)-1,0)",
+    hasGps && gpsColIndex != null
+        ? "=COUNT('" + dataSheetName + "'!${_excelColumnName(gpsColIndex)}:${_excelColumnName(gpsColIndex)})"
+        : '=0',
+    "=IF(MAX(COUNTA('" + dataSheetName + "'!A:A)-1,0)=0,\"\",MAX('" + dataSheetName + "'!A:A))",
+  ];
+
+  for (int i = 0; i < labels.length; i++) {
+    final cardRowStart = 4 + i * 2;
+    final card = summary.getRangeByIndex(cardRowStart, 2, cardRowStart + 1, 9);
+    card.merge();
+    card.cellStyle.backColor = _kColorCard;
+    card.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    card.cellStyle.borders.all.color = _kColorBorder;
+
+    final labelCell = summary.getRangeByIndex(cardRowStart, 2, cardRowStart, 5);
+    labelCell.merge();
+    labelCell.setText(labels[i]);
+    labelCell.cellStyle.fontColor = _kColorLabel;
+    labelCell.cellStyle.bold = true;
+
+    final valueCell = summary.getRangeByIndex(cardRowStart, 6, cardRowStart + 1, 9);
+    valueCell.merge();
+    valueCell.setFormula(formulas[i]);
+    valueCell.cellStyle.bold = true;
+    valueCell.cellStyle.fontSize = 14;
+    valueCell.cellStyle.hAlign = xlsio.HAlignType.right;
+    valueCell.cellStyle.vAlign = xlsio.VAlignType.center;
+    if (i == 3) {
+      valueCell.numberFormat = 'dd/mm/yyyy hh:mm';
+    }
+  }
+}
+
+String _excelColumnName(int index1Based) {
+  var index = index1Based;
+  final buffer = StringBuffer();
+  while (index > 0) {
+    final rem = (index - 1) % 26;
+    buffer.writeCharCode(65 + rem);
+    index = (index - 1) ~/ 26;
+  }
+  return buffer.toString().split('').reversed.join();
 }
 
 String _sanitizeWorksheetName(String name) {
