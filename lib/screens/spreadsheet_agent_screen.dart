@@ -16,12 +16,12 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   final SpreadsheetAgentFacade _agent = SpreadsheetAgentFacade();
 
   final TextEditingController _clientController =
-  TextEditingController(text: 'default');
+      TextEditingController(text: 'default');
   final TextEditingController _pasteController = TextEditingController();
   final TextEditingController _defaultCentroController =
-  TextEditingController();
+      TextEditingController();
   final TextEditingController _defaultProveedorController =
-  TextEditingController();
+      TextEditingController();
   final TextEditingController _defaultObraController = TextEditingController();
 
   late String _templateId;
@@ -68,9 +68,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   }
 
   void _showSnack(
-      ScaffoldMessengerState messenger,
-      String message,
-      ) {
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
     final text = message.trim();
     if (text.isEmpty) return;
 
@@ -90,8 +90,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     try {
       await action();
     } finally {
-      if (!mounted) return;
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -435,7 +436,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     final options = <MapEntry<String, String>>[
       const MapEntry<String, String>('', 'Ignorar'),
       ..._template.fields.map(
-            (field) => MapEntry<String, String>(field.key, field.label),
+        (field) => MapEntry<String, String>(field.key, field.label),
       ),
     ];
 
@@ -453,7 +454,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
         final theme = Theme.of(sheetContext);
         final cs = theme.colorScheme;
         final maxHeight =
-        math.min(MediaQuery.of(sheetContext).size.height * 0.78, 560.0);
+            math.min(MediaQuery.of(sheetContext).size.height * 0.78, 560.0);
 
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
@@ -494,52 +495,54 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       Expanded(
                         child: filtered.isEmpty
                             ? Center(
-                          child: Text(
-                            'Sin resultados para "$query".',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        )
-                            : ListView.separated(
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                          const SizedBox(height: 6),
-                          itemBuilder: (ctx, index) {
-                            final option = filtered[index];
-                            final selected = option.key == currentValue;
-
-                            return ListTile(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: selected
-                                      ? cs.primary.withOpacity(0.55)
-                                      : cs.outline.withOpacity(0.25),
+                                child: Text(
+                                  'Sin resultados para "$query".',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
-                              tileColor: selected
-                                  ? cs.primaryContainer.withOpacity(0.55)
-                                  : cs.surface,
-                              title: Text(option.value),
-                              subtitle: option.key.isEmpty
-                                  ? null
-                                  : Text(
-                                option.key,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: selected
-                                  ? Icon(
-                                Icons.check_rounded,
-                                color: cs.primary,
                               )
-                                  : null,
-                              onTap: () =>
-                                  Navigator.of(sheetContext).pop(option.key),
-                            );
-                          },
-                        ),
+                            : ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 6),
+                                itemBuilder: (ctx, index) {
+                                  final option = filtered[index];
+                                  final selected = option.key == currentValue;
+
+                                  return ListTile(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      side: BorderSide(
+                                        color: selected
+                                            ? cs.primary.withValues(alpha: 0.55)
+                                            : cs.outline
+                                                .withValues(alpha: 0.25),
+                                      ),
+                                    ),
+                                    tileColor: selected
+                                        ? cs.primaryContainer
+                                            .withValues(alpha: 0.55)
+                                        : cs.surface,
+                                    title: Text(option.value),
+                                    subtitle: option.key.isEmpty
+                                        ? null
+                                        : Text(
+                                            option.key,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                    trailing: selected
+                                        ? Icon(
+                                            Icons.check_rounded,
+                                            color: cs.primary,
+                                          )
+                                        : null,
+                                    onTap: () => Navigator.of(sheetContext)
+                                        .pop(option.key),
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
@@ -564,7 +567,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   }) {
     final allowedKeys = <String>{'', ..._template.fields.map((f) => f.key)};
     final selectedValue =
-    allowedKeys.contains(currentValue) ? currentValue : '';
+        allowedKeys.contains(currentValue) ? currentValue : '';
 
     if (!_useBottomSheetMapping(context)) {
       return DropdownButtonFormField<String>(
@@ -579,7 +582,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
             child: Text('Ignorar'),
           ),
           ..._template.fields.map(
-                (field) => DropdownMenuItem<String>(
+            (field) => DropdownMenuItem<String>(
               value: field.key,
               child: Text(field.label),
             ),
@@ -659,7 +662,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       icon: Icons.auto_awesome_rounded,
                       title: 'Transformación y exportación',
                       subtitle:
-                      'Importá una planilla o pegá una tabla, mapeá columnas, validá y exportá a XLSX o PDF.',
+                          'Importá una planilla o pegá una tabla, mapeá columnas, validá y exportá a XLSX o PDF.',
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -683,7 +686,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                                   ? Icons.error_outline_rounded
                                   : Icons.verified_outlined,
                               label:
-                              '${report.errorCount} errores · ${report.warningCount} warnings',
+                                  '${report.errorCount} errores · ${report.warningCount} warnings',
                               tone: report.hasErrors
                                   ? _ChipTone.danger
                                   : _ChipTone.success,
@@ -777,10 +780,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
             items: _agent.templates
                 .map(
                   (template) => DropdownMenuItem<String>(
-                value: template.id,
-                child: Text(template.name),
-              ),
-            )
+                    value: template.id,
+                    child: Text(template.name),
+                  ),
+                )
                 .toList(growable: false),
             onChanged: (value) {
               if (value == null || value == _templateId) return;
@@ -819,7 +822,8 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
     return _SectionCard(
       icon: Icons.input_rounded,
       title: '2) Importar o pegar',
-      subtitle: 'Admite CSV/XLSX o pegado directo desde mail, WhatsApp o Excel.',
+      subtitle:
+          'Admite CSV/XLSX o pegado directo desde mail, WhatsApp o Excel.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -875,14 +879,14 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   }
 
   Widget _buildMappingCard(
-      BuildContext context,
-      SpreadsheetIngestResult ingest,
-      ) {
+    BuildContext context,
+    SpreadsheetIngestResult ingest,
+  ) {
     return _SectionCard(
       icon: Icons.alt_route_rounded,
       title: '3) Mapeo + defaults',
       subtitle:
-      'Asigná cada encabezado al campo destino y completá valores por defecto.',
+          'Asigná cada encabezado al campo destino y completá valores por defecto.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -900,9 +904,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                       children: [
                         Text(
                           header,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                         const SizedBox(height: 8),
                         _buildMappingPicker(
@@ -922,9 +927,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style:
-                          Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -988,9 +993,9 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
   }
 
   Widget _buildValidationCard(
-      BuildContext context,
-      SpreadsheetValidationReport report,
-      ) {
+    BuildContext context,
+    SpreadsheetValidationReport report,
+  ) {
     final issues = report.issues.take(12).toList(growable: false);
 
     return _SectionCard(
@@ -999,7 +1004,7 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
           : Icons.verified_outlined,
       title: '4) Resultado de validación',
       subtitle:
-      '${report.errorCount} errores · ${report.warningCount} warnings',
+          '${report.errorCount} errores · ${report.warningCount} warnings',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1007,19 +1012,19 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
             const Text('Sin observaciones. Listo para exportar.')
           else
             ...issues.map(
-                  (issue) => Container(
+              (issue) => Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: issue.isWarning
-                      ? Colors.orange.withOpacity(0.08)
-                      : Colors.red.withOpacity(0.08),
+                      ? Colors.orange.withValues(alpha: 0.08)
+                      : Colors.red.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: issue.isWarning
-                        ? Colors.orange.withOpacity(0.28)
-                        : Colors.red.withOpacity(0.28),
+                        ? Colors.orange.withValues(alpha: 0.28)
+                        : Colors.red.withValues(alpha: 0.28),
                   ),
                 ),
                 child: Text(
@@ -1060,26 +1065,26 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
                 columns: _template.fields
                     .map(
                       (f) => DataColumn(label: Text(f.label)),
-                )
+                    )
                     .toList(growable: false),
                 rows: _mappedRows.take(12).map((row) {
                   return DataRow(
                     cells: _template.fields
                         .map(
                           (f) => DataCell(
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            minWidth: 90,
-                            maxWidth: 220,
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: 90,
+                                maxWidth: 220,
+                              ),
+                              child: Text(
+                                row[f.key] ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                          child: Text(
-                            row[f.key] ?? '',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    )
+                        )
                         .toList(growable: false),
                   );
                 }).toList(growable: false),
@@ -1124,7 +1129,10 @@ class _SpreadsheetAgentScreenState extends State<SpreadsheetAgentScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.18),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.18),
                 ),
               ),
               child: Text(
@@ -1163,7 +1171,7 @@ class _SectionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(
-          color: cs.outline.withOpacity(0.10),
+          color: cs.outline.withValues(alpha: 0.10),
         ),
       ),
       child: Padding(
@@ -1177,7 +1185,7 @@ class _SectionCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.10),
+                    color: cs.primary.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(icon, color: cs.primary),
@@ -1243,19 +1251,19 @@ class _InfoChip extends StatelessWidget {
 
     switch (tone) {
       case _ChipTone.success:
-        bg = Colors.green.withOpacity(0.10);
+        bg = Colors.green.withValues(alpha: 0.10);
         fg = Colors.green.shade800;
-        border = Colors.green.withOpacity(0.22);
+        border = Colors.green.withValues(alpha: 0.22);
         break;
       case _ChipTone.danger:
-        bg = Colors.red.withOpacity(0.10);
+        bg = Colors.red.withValues(alpha: 0.10);
         fg = Colors.red.shade800;
-        border = Colors.red.withOpacity(0.22);
+        border = Colors.red.withValues(alpha: 0.22);
         break;
       case _ChipTone.neutral:
-        bg = cs.surfaceVariant.withOpacity(0.55);
+        bg = cs.surfaceContainerHighest.withValues(alpha: 0.55);
         fg = cs.onSurfaceVariant;
-        border = cs.outline.withOpacity(0.16);
+        border = cs.outline.withValues(alpha: 0.16);
         break;
     }
 

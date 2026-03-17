@@ -1,4 +1,4 @@
-﻿// lib/screens/sheets_screen.dart
+// lib/screens/sheets_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -144,7 +144,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
-    list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt)); // Más reciente arriba
+    list.sort(
+        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // Más reciente arriba
 
     setState(() {
       _items = list;
@@ -310,7 +311,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withOpacity(0.65);
+        final divider = theme.dividerColor.withValues(alpha: 0.65);
         final narrowLayout = MediaQuery.of(ctx).size.width < 560;
 
         Widget tile({
@@ -360,7 +361,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     child: Text(
                       'Elegí una base pensada para campo, oficina y seguimiento operativo.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.70),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.70),
                       ),
                     ),
                   ),
@@ -379,7 +381,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.table_rows,
                       title: 'Relevamiento resistividades',
                       subtitle:
-                      'Formato técnico con fecha, progresiva, lecturas 1m/3m/5m y observaciones.',
+                          'Formato técnico con fecha, progresiva, lecturas 1m/3m/5m y observaciones.',
                       tag: 'Campo',
                       value: TemplateKind.resistividades,
                     ),
@@ -387,7 +389,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.straighten_rounded,
                       title: 'Mediciones técnicas',
                       subtitle:
-                      'Puntos, parámetros, lectura, tolerancia y estado para trabajo operativo.',
+                          'Puntos, parámetros, lectura, tolerancia y estado para trabajo operativo.',
                       tag: 'Empresa',
                       value: TemplateKind.medicionesTecnicas,
                     ),
@@ -395,7 +397,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.payments_outlined,
                       title: 'Control de gastos',
                       subtitle:
-                      'Registro simple de fecha, categoría, descripción, monto y método.',
+                          'Registro simple de fecha, categoría, descripción, monto y método.',
                       tag: 'Administración',
                       value: TemplateKind.controlGastos,
                     ),
@@ -403,7 +405,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.check_circle_outline,
                       title: 'Checklist diario',
                       subtitle:
-                      'Seguimiento rápido de tareas, responsables, estado y comentarios.',
+                          'Seguimiento rápido de tareas, responsables, estado y comentarios.',
                       tag: 'Operativo',
                       value: TemplateKind.checklist,
                     ),
@@ -411,7 +413,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.inventory_2_outlined,
                       title: 'Inventario simple',
                       subtitle:
-                      'Items, cantidades, unidad, ubicación y nota para control interno.',
+                          'Items, cantidades, unidad, ubicación y nota para control interno.',
                       tag: 'Stock',
                       value: TemplateKind.inventario,
                     ),
@@ -419,7 +421,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.account_tree_outlined,
                       title: 'Seguimiento de proyectos',
                       subtitle:
-                      'Proyecto, responsable, fechas clave, avance y estado.',
+                          'Proyecto, responsable, fechas clave, avance y estado.',
                       tag: 'Gestión',
                       value: TemplateKind.seguimientoProyectos,
                     ),
@@ -427,7 +429,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       icon: Icons.auto_awesome_outlined,
                       title: 'Plantilla base',
                       subtitle:
-                      'Hoja general para tareas, detalle, estado, responsable y fecha.',
+                          'Hoja general para tareas, detalle, estado, responsable y fecha.',
                       tag: 'Flexible',
                       value: TemplateKind.plantilla,
                     ),
@@ -537,7 +539,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withOpacity(0.55);
+        final divider = theme.dividerColor.withValues(alpha: 0.55);
         final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
 
         Widget actionTile({
@@ -609,13 +611,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final pinned = _pinnedIds.contains(it.id);
 
     final overlay =
-    Overlay.of(context).context.findRenderObject() as RenderBox?;
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     final rect = overlay == null
         ? RelativeRect.fromLTRB(globalPos.dx, globalPos.dy, 0, 0)
         : RelativeRect.fromRect(
-      Rect.fromLTWH(globalPos.dx, globalPos.dy, 1, 1),
-      Offset.zero & overlay.size,
-    );
+            Rect.fromLTWH(globalPos.dx, globalPos.dy, 1, 1),
+            Offset.zero & overlay.size,
+          );
 
     final action = await showMenu<_SheetAction>(
       context: context,
@@ -742,32 +744,32 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     final shortcuts = <ShortcutActivator, Intent>{
       const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-      const _FocusSearchIntent(),
+          const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-      const _FocusSearchIntent(),
+          const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.slash):
-      const _FocusSearchIntent(),
+          const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.keyN, control: true):
-      const _NewSheetIntent(),
+          const _NewSheetIntent(),
       const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
-      const _NewSheetIntent(),
+          const _NewSheetIntent(),
       const SingleActivator(LogicalKeyboardKey.keyT, control: true):
-      const _TemplatesIntent(),
+          const _TemplatesIntent(),
       const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
-      const _TemplatesIntent(),
+          const _TemplatesIntent(),
       const SingleActivator(LogicalKeyboardKey.keyL, control: true):
-      const _OpenLastIntent(),
+          const _OpenLastIntent(),
       const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
-      const _OpenLastIntent(),
+          const _OpenLastIntent(),
       const SingleActivator(LogicalKeyboardKey.escape):
-      const _ClearSearchIntent(),
+          const _ClearSearchIntent(),
     };
 
     final appearanceKey = Object.hash(
       theme.brightness,
-      theme.scaffoldBackgroundColor.value,
-      theme.dividerColor.value,
-      theme.colorScheme.surfaceContainerHighest.value,
+      theme.scaffoldBackgroundColor.toARGB32(),
+      theme.dividerColor.toARGB32(),
+      theme.colorScheme.surfaceContainerHighest.toARGB32(),
     );
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
@@ -783,7 +785,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.2,
-                  color: theme.colorScheme.onSurface.withOpacity(0.70),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
                 ),
               ),
             ),
@@ -825,7 +827,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
               onRefresh: _handleRefresh,
               child: CustomScrollView(
                 keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior.onDrag,
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   _AppleLargeTitleAppBar(
@@ -871,37 +873,37 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       ),
                     )
                   else ...[
-                      if (pinned.isNotEmpty) ...[
-                        sectionHeader('Fijadas', count: pinned.length),
-                        _SheetsSliverList(
-                          items: pinned,
-                          formatUpdatedAt: _formatUpdatedAt,
-                          onOpen: (id) => _open(id),
-                          onActions: (it) => _showSheetActions(it),
-                          onContextMenu: (it, pos) => _showContextMenu(it, pos),
-                          isPinned: (id) => _pinnedIds.contains(id),
-                          onTogglePinned: (id) => _togglePinned(id),
-                          hapticSelect: _hapticSelect,
-                        ),
-                      ],
-                      if (others.isNotEmpty) ...[
-                        sectionHeader(
-                          pinned.isNotEmpty ? 'Recientes' : 'Planillas',
-                          count: others.length,
-                        ),
-                        _SheetsSliverList(
-                          items: others,
-                          formatUpdatedAt: _formatUpdatedAt,
-                          onOpen: (id) => _open(id),
-                          onActions: (it) => _showSheetActions(it),
-                          onContextMenu: (it, pos) => _showContextMenu(it, pos),
-                          isPinned: (id) => _pinnedIds.contains(id),
-                          onTogglePinned: (id) => _togglePinned(id),
-                          hapticSelect: _hapticSelect,
-                          bottomPadding: 110,
-                        ),
-                      ],
+                    if (pinned.isNotEmpty) ...[
+                      sectionHeader('Fijadas', count: pinned.length),
+                      _SheetsSliverList(
+                        items: pinned,
+                        formatUpdatedAt: _formatUpdatedAt,
+                        onOpen: (id) => _open(id),
+                        onActions: (it) => _showSheetActions(it),
+                        onContextMenu: (it, pos) => _showContextMenu(it, pos),
+                        isPinned: (id) => _pinnedIds.contains(id),
+                        onTogglePinned: (id) => _togglePinned(id),
+                        hapticSelect: _hapticSelect,
+                      ),
                     ],
+                    if (others.isNotEmpty) ...[
+                      sectionHeader(
+                        pinned.isNotEmpty ? 'Recientes' : 'Planillas',
+                        count: others.length,
+                      ),
+                      _SheetsSliverList(
+                        items: others,
+                        formatUpdatedAt: _formatUpdatedAt,
+                        onOpen: (id) => _open(id),
+                        onActions: (it) => _showSheetActions(it),
+                        onContextMenu: (it, pos) => _showContextMenu(it, pos),
+                        isPinned: (id) => _pinnedIds.contains(id),
+                        onTogglePinned: (id) => _togglePinned(id),
+                        hapticSelect: _hapticSelect,
+                        bottomPadding: 110,
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -943,7 +945,7 @@ class _SheetsSliverList extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 6, 12, bottomPadding),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
-              (ctx, i) {
+          (ctx, i) {
             final it = items[i];
             final updated = formatUpdatedAt(it.updatedAt);
             return Center(
@@ -1066,7 +1068,8 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   child: Text(
                     'Planillas listas para campo, oficina y exportación.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.72),
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.72),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1128,13 +1131,13 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context,
-      double shrinkOffset,
-      bool overlapsContent,
-      ) {
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final theme = Theme.of(context);
-    final bg = theme.scaffoldBackgroundColor.withOpacity(0.94);
-    final divider = theme.dividerColor.withOpacity(0.55);
+    final bg = theme.scaffoldBackgroundColor.withValues(alpha: 0.94);
+    final divider = theme.dividerColor.withValues(alpha: 0.55);
     final canOpenLast = onOpenLast != null;
 
     return DecoratedBox(
@@ -1270,13 +1273,13 @@ class _SearchBar extends StatelessWidget {
               suffixIcon: value.text.isEmpty
                   ? null
                   : IconButton(
-                tooltip: AppStrings.clearSearch,
-                onPressed: () {
-                  controller.clear();
-                  onClearHaptic();
-                },
-                icon: const Icon(Icons.close),
-              ),
+                      tooltip: AppStrings.clearSearch,
+                      onPressed: () {
+                        controller.clear();
+                        onClearHaptic();
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
             ),
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
@@ -1340,7 +1343,7 @@ class _SheetCardState extends State<_SheetCard> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(
-            color: theme.dividerColor.withOpacity(0.58),
+            color: theme.dividerColor.withValues(alpha: 0.58),
             width: 0.85,
           ),
         ),
@@ -1386,7 +1389,7 @@ class _SheetCardState extends State<_SheetCard> {
                                 Icons.star_rounded,
                                 size: 18,
                                 color: theme.colorScheme.onSurface
-                                    .withOpacity(0.62),
+                                    .withValues(alpha: 0.62),
                               ),
                             ],
                           ],
@@ -1484,8 +1487,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bg = theme.colorScheme.surfaceContainerHighest.withOpacity(
-      theme.brightness == Brightness.dark ? 0.55 : 0.72,
+    final bg = theme.colorScheme.surfaceContainerHighest.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.55 : 0.72,
     );
 
     return AnimatedScale(
@@ -1536,12 +1539,12 @@ class _PillIcon extends StatelessWidget {
     final resolvedColor = color ?? theme.colorScheme.primary;
 
     final bg = filled
-        ? resolvedColor.withOpacity(
-      theme.brightness == Brightness.dark ? 0.22 : 0.14,
-    )
-        : theme.colorScheme.surfaceContainerHighest.withOpacity(
-      theme.brightness == Brightness.dark ? 0.55 : 0.70,
-    );
+        ? resolvedColor.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14,
+          )
+        : theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
+          );
 
     return Container(
       width: 44,
@@ -1571,12 +1574,12 @@ class _HeroMetricChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-          theme.brightness == Brightness.dark ? 0.45 : 0.70,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.45 : 0.70,
         ),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: theme.dividerColor.withOpacity(0.22),
+          color: theme.dividerColor.withValues(alpha: 0.22),
         ),
       ),
       child: Row(
@@ -1585,7 +1588,7 @@ class _HeroMetricChip extends StatelessWidget {
           Icon(
             icon,
             size: 16,
-            color: theme.colorScheme.onSurface.withOpacity(0.78),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
           ),
           const SizedBox(width: 8),
           Text(
@@ -1616,8 +1619,8 @@ class _MetaBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-          theme.brightness == Brightness.dark ? 0.40 : 0.62,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.40 : 0.62,
         ),
         borderRadius: BorderRadius.circular(999),
       ),
@@ -1627,7 +1630,7 @@ class _MetaBadge extends StatelessWidget {
           Icon(
             icon,
             size: 14,
-            color: theme.colorScheme.onSurface.withOpacity(0.72),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
           ),
           const SizedBox(width: 6),
           ConstrainedBox(
@@ -1663,8 +1666,8 @@ class _ShortcutPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-          theme.brightness == Brightness.dark ? 0.42 : 0.62,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.42 : 0.62,
         ),
         borderRadius: BorderRadius.circular(999),
       ),
@@ -1672,7 +1675,7 @@ class _ShortcutPill extends StatelessWidget {
         '$label · $hint',
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w700,
-          color: theme.colorScheme.onSurface.withOpacity(0.72),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
         ),
       ),
     );
@@ -1739,7 +1742,7 @@ class _TemplateTile extends StatelessWidget {
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.72),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
                   height: 1.25,
                 ),
               ),
@@ -1775,7 +1778,7 @@ class _Empty extends StatelessWidget {
               const EmptyState(
                 title: AppStrings.emptySheetsTitle,
                 message:
-                'Creá una hoja nueva o arrancá con una plantilla lista para campo, oficina y seguimiento operativo.',
+                    'Creá una hoja nueva o arrancá con una plantilla lista para campo, oficina y seguimiento operativo.',
                 icon: Icons.table_chart_outlined,
               ),
               const SizedBox(height: 14),
@@ -1783,7 +1786,7 @@ class _Empty extends StatelessWidget {
                 'Podés empezar en blanco o usar una base ya armada para resistividades, checklist, gastos o mediciones.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.70),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.70),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1841,7 +1844,7 @@ class _NoResults extends StatelessWidget {
           child: EmptyState(
             title: AppStrings.noResultsTitle,
             message:
-            '${AppStrings.noResultsBody(query)} Probá buscar por título o ID.',
+                '${AppStrings.noResultsBody(query)} Probá buscar por título o ID.',
             icon: Icons.search_off_outlined,
             actionLabel: AppStrings.clearSearch,
             onAction: onClear,
