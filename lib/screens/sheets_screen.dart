@@ -344,7 +344,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Plantillas listas para arrancar',
+                          'Galería de plantillas',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w900,
                           ),
@@ -844,7 +844,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _SearchHeaderDelegate(
-                      height: 146,
+                      height: 170,
                       controller: _searchEC,
                       focusNode: _searchFN,
                       onNew: _newBlank,
