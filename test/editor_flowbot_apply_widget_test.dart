@@ -1,5 +1,6 @@
 import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:bitacora_web/services/flowbot.dart';
+import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,8 +137,7 @@ void main() {
     expect(state.debugCellText(beforeRows, 1), '');
   });
 
-  testWidgets('FlowBot primary CTA parses and applies current command from UI',
-      (tester) async {
+  testWidgets('FlowBot analyze then apply updates B2 from UI', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
     tester.view.physicalSize = const Size(390, 844);
@@ -149,9 +149,10 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'flowbot-apply-ui-test',
-          initialHeaders: <String>['Notas', 'Fotos'],
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
           initialRows: <List<String>>[
-            <String>['', ''],
+            <String>['', '', ''],
+            <String>['', '', ''],
           ],
         ),
       ),
@@ -173,20 +174,35 @@ void main() {
 
     await tester.enterText(
       find.byKey(const ValueKey('flowbot-command-input')),
-      'poner OK en A1',
+      'poner OK en B2',
     );
     await tester.pump();
+
+    AppleButton applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 cambio listo'), findsOneWidget);
+    applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNotNull);
 
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('flowbot-apply')), findsNothing);
-    expect(state.debugCellText(0, 0), 'OK');
+    expect(state.debugCellText(1, 1), 'OK');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('FlowBot apply CTA explains invalid command instead of silent no-op',
+  testWidgets('FlowBot apply CTA stays disabled when analyze finds no actions',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
@@ -227,13 +243,23 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    AppleButton applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
     await tester.pump();
     await tester.pumpAndSettle();
 
+    expect(find.text('Sin acciones detectadas'), findsWidgets);
     expect(find.byKey(const ValueKey('flowbot-apply')), findsOneWidget);
     expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
-    expect(find.textContaining('No se detectaron acciones'), findsWidgets);
+    expect(find.textContaining('Prueba con:'), findsWidgets);
+    applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
     expect(state.debugCellText(0, 0), '');
     expect(tester.takeException(), isNull);
   });

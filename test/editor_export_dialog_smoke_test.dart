@@ -97,4 +97,41 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('export dialog shows data quality snapshot before exporting',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EditorScreen(
+            sheetId: 'export_dialog_quality_sheet',
+            initialName: 'Parte de campo',
+            initialHeaders: <String>['Fecha', 'Actividad', 'Fotos'],
+            initialRows: <List<String>>[
+              <String>['17/03/2026', '', ''],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle(const Duration(milliseconds: 800));
+
+    final dynamic state = tester.state(find.byType(EditorScreen));
+    state.debugOpenExportMenuForTest();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('editor-export-quality-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Estado de la planilla'), findsOneWidget);
+    expect(find.textContaining('Completitud 50%'), findsOneWidget);
+    expect(find.textContaining('Errores 1'), findsOneWidget);
+    expect(find.text('Ver primer error'), findsOneWidget);
+    expect(find.text('Exportar reporte PDF igual'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

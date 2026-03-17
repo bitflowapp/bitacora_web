@@ -4,6 +4,9 @@ extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    _recomputeValidation();
+    final quality = _sheetQuality;
+    final evidenceCount = _sheetEvidenceCount();
     var format =
         _isValidExportPreset(_lastExportPreset) ? _lastExportPreset : 'pdf';
     var includeAttachments = true;
@@ -17,16 +20,20 @@ extension _EditorExportDialogs on _EditorScreenState {
           final fileName = format == 'zip'
               ? buildBitFlowBundleExportFileName(sheetName: _sheetName)
               : _buildCommercialExportFileName(format);
-          final exportLabel = switch (format) {
+          final exportBaseLabel = switch (format) {
             'zip' => 'Exportar paquete ZIP',
             'xlsx' => 'Exportar Excel (.xlsx)',
             _ => 'Exportar reporte PDF',
           };
-          final shareLabel = switch (format) {
+          final shareBaseLabel = switch (format) {
             'zip' => 'Compartir paquete ZIP',
             'xlsx' => 'Compartir Excel (.xlsx)',
             _ => 'Compartir reporte PDF',
           };
+          final exportLabel =
+              quality.hasIssues ? '$exportBaseLabel igual' : exportBaseLabel;
+          final shareLabel =
+              quality.hasIssues ? '$shareBaseLabel igual' : shareBaseLabel;
           final maxBodyHeight = MediaQuery.of(context).size.height * 0.62;
           return SizedBox(
             width: double.infinity,
@@ -115,6 +122,105 @@ extension _EditorExportDialogs on _EditorScreenState {
                           'Excel (.xlsx): ideal para seguir editando y hacer seguimiento interno.',
                       },
                       style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      key: const ValueKey('editor-export-quality-card'),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: quality.hasIssues
+                            ? Theme.of(context)
+                                .colorScheme
+                                .errorContainer
+                                .withValues(alpha: 0.7)
+                            : Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer
+                                .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: quality.hasIssues
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.25)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .secondary
+                                  .withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Estado de la planilla',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _sheetQualityHeadline(quality),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _ExportQualityChip(
+                                label:
+                                    'Completitud ${quality.requiredCompletionPercent}%',
+                              ),
+                              _ExportQualityChip(
+                                label:
+                                    'Filas listas ${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)}',
+                              ),
+                              _ExportQualityChip(
+                                label: 'Errores ${quality.invalidCells}',
+                              ),
+                              _ExportQualityChip(
+                                label: 'Evidencias $evidenceCount',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _sheetQualityDetail(
+                              quality,
+                              evidenceCount: evidenceCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          if (quality.hasIssues) ...[
+                            const SizedBox(height: 8),
+                            AppButton(
+                              label: 'Ver primer error',
+                              icon: Icons.rule_rounded,
+                              size: AppButtonSize.sm,
+                              variant: AppButtonVariant.ghost,
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _setEditorState(() => _errorsPanelOpen = true);
+                                _jumpToFirstValidationIssue();
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                     if (_rows.isEmpty) ...[
                       const SizedBox(height: 8),
@@ -210,6 +316,32 @@ extension _EditorExportDialogs on _EditorScreenState {
       _exportXlsxOnly(
         includeAttachments: includeAttachments,
         share: share,
+      ),
+    );
+  }
+}
+
+class _ExportQualityChip extends StatelessWidget {
+  const _ExportQualityChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }

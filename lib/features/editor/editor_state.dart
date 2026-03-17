@@ -122,6 +122,62 @@ class _CellTarget {
   final int col;
 }
 
+class _SheetQualitySnapshot {
+  const _SheetQualitySnapshot({
+    required this.rowsTotal,
+    required this.rowsWithData,
+    required this.rowsReady,
+    required this.invalidCells,
+    required this.pendingRequired,
+    required this.requiredCellsTotal,
+    required this.requiredCellsValid,
+  });
+
+  const _SheetQualitySnapshot.empty()
+      : rowsTotal = 0,
+        rowsWithData = 0,
+        rowsReady = 0,
+        invalidCells = 0,
+        pendingRequired = 0,
+        requiredCellsTotal = 0,
+        requiredCellsValid = 0;
+
+  final int rowsTotal;
+  final int rowsWithData;
+  final int rowsReady;
+  final int invalidCells;
+  final int pendingRequired;
+  final int requiredCellsTotal;
+  final int requiredCellsValid;
+
+  bool get hasIssues => invalidCells > 0 || pendingRequired > 0;
+
+  int get requiredCompletionPercent {
+    if (requiredCellsTotal <= 0) {
+      return rowsWithData > 0 ? 100 : 0;
+    }
+    return ((requiredCellsValid / requiredCellsTotal) * 100)
+        .round()
+        .clamp(0, 100);
+  }
+
+  String get statusLabel {
+    if (rowsWithData <= 0) return 'Sin carga';
+    if (hasIssues) return 'Requiere revision';
+    return 'Lista para presentar';
+  }
+
+  bool sameAs(_SheetQualitySnapshot other) {
+    return rowsTotal == other.rowsTotal &&
+        rowsWithData == other.rowsWithData &&
+        rowsReady == other.rowsReady &&
+        invalidCells == other.invalidCells &&
+        pendingRequired == other.pendingRequired &&
+        requiredCellsTotal == other.requiredCellsTotal &&
+        requiredCellsValid == other.requiredCellsValid;
+  }
+}
+
 class _EditorLongOperationState {
   const _EditorLongOperationState({
     required this.message,
@@ -513,6 +569,7 @@ class _EditorScreenState extends State<EditorScreen>
   Set<_CellRef> _invalidCells = <_CellRef>{};
   Map<_CellRef, String> _invalidCellMessages = <_CellRef, String>{};
   int _pendingRequired = 0;
+  _SheetQualitySnapshot _sheetQuality = const _SheetQualitySnapshot.empty();
   bool _errorsPanelOpen = false;
   final List<_ColumnTemplate> _columnTemplates = <_ColumnTemplate>[];
   bool _inlineSearchOpen = false;
@@ -4303,6 +4360,75 @@ class _EditorScreenState extends State<EditorScreen>
     return list;
   }
 
+  int _sheetEvidenceCount() {
+    var total = 0;
+    for (final meta in _cellMeta.values) {
+      total += meta.photos.length;
+      total += meta.audios.length;
+      if (meta.gps != null) total += 1;
+    }
+    return total;
+  }
+
+  String _sheetQualityHeadline(_SheetQualitySnapshot quality) {
+    if (quality.rowsWithData <= 0) {
+      return 'Sin registros cargados todavia.';
+    }
+    final requiredPct = quality.requiredCompletionPercent;
+    final readyBase = math.max(quality.rowsWithData, quality.rowsTotal);
+    if (quality.hasIssues) {
+      return '${quality.statusLabel} | $requiredPct% de campos obligatorios completos | ${quality.rowsReady}/$readyBase filas listas';
+    }
+    return '${quality.statusLabel} | $requiredPct% de campos obligatorios completos | ${quality.rowsReady}/$readyBase filas listas';
+  }
+
+  String _sheetQualityDetail(
+    _SheetQualitySnapshot quality, {
+    int? evidenceCount,
+  }) {
+    final parts = <String>[];
+    if (quality.invalidCells > 0) {
+      parts.add('${quality.invalidCells} error(es)');
+    }
+    if (quality.pendingRequired > 0) {
+      parts.add('${quality.pendingRequired} obligatorio(s) pendiente(s)');
+    }
+    if ((evidenceCount ?? 0) > 0) {
+      parts.add('${evidenceCount!} evidencia(s)');
+    }
+    if (parts.isEmpty) {
+      return quality.rowsWithData > 0
+          ? 'La planilla esta lista para exportar o compartir.'
+          : 'Empieza cargando filas para ver el estado operativo.';
+    }
+    return parts.join(' | ');
+  }
+
+  String get _sheetQualityHeaderLabel {
+    final quality = _sheetQuality;
+    if (quality.rowsWithData <= 0 && !quality.hasIssues) {
+      return 'Sin carga';
+    }
+    return 'Calidad ${quality.requiredCompletionPercent}%';
+  }
+
+  String get _sheetQualityHeaderDetail {
+    final quality = _sheetQuality;
+    if (quality.rowsWithData <= 0) {
+      return 'Sin filas cargadas todavia.';
+    }
+    final parts = <String>[
+      '${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)} filas listas',
+    ];
+    if (quality.invalidCells > 0) {
+      parts.add('${quality.invalidCells} error(es)');
+    }
+    if (quality.pendingRequired > 0) {
+      parts.add('${quality.pendingRequired} obligatorio(s) pendiente(s)');
+    }
+    return parts.join(' | ');
+  }
+
   void _recomputeValidation() {
     final stopwatch = kDebugMode ? (Stopwatch()..start()) : null;
     if (kDebugMode) {
@@ -4312,36 +4438,85 @@ class _EditorScreenState extends State<EditorScreen>
       final invalid = <_CellRef>{};
       final messages = <_CellRef, String>{};
       int pending = 0;
+      var rowsWithData = 0;
+      var rowsReady = 0;
+      var requiredCellsTotal = 0;
+      var requiredCellsValid = 0;
+      final dataCols = math.max(0, _headers.length - 1);
+      final requiredByCol = List<bool>.generate(
+        dataCols,
+        (index) => _isRequired(index),
+        growable: false,
+      );
 
       for (int r = 0; r < _rows.length; r++) {
+        var rowHasData = false;
+        var rowHasInvalid = false;
+        var rowRequiredOk = true;
+        var rowHasRequiredColumns = false;
         for (int c = 0; c < _headers.length - 1; c++) {
           final v = _rows[r].cells[c];
           final ref = _CellRef(r, c);
+          final trimmed = v.trim();
+          if (trimmed.isNotEmpty) {
+            rowHasData = true;
+          }
           final message = _validationMessageForCell(r, c, overrideValue: v);
           if (message != null) {
             invalid.add(ref);
             messages[ref] = message;
+            rowHasInvalid = true;
             if (message == 'Campo requerido') pending++;
           }
+          if (c < requiredByCol.length && requiredByCol[c]) {
+            rowHasRequiredColumns = true;
+            requiredCellsTotal++;
+            if (message == null && trimmed.isNotEmpty) {
+              requiredCellsValid++;
+            } else {
+              rowRequiredOk = false;
+            }
+          }
+        }
+        if (rowHasData) {
+          rowsWithData++;
+        }
+        if (rowHasData &&
+            !rowHasInvalid &&
+            (!rowHasRequiredColumns || rowRequiredOk)) {
+          rowsReady++;
         }
       }
+
+      final quality = _SheetQualitySnapshot(
+        rowsTotal: _rows.length,
+        rowsWithData: rowsWithData,
+        rowsReady: rowsReady,
+        invalidCells: invalid.length,
+        pendingRequired: pending,
+        requiredCellsTotal: requiredCellsTotal,
+        requiredCellsValid: requiredCellsValid,
+      );
 
       final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
           !_invalidCells.containsAll(invalid) ||
-          !mapEquals(_invalidCellMessages, messages);
+          !mapEquals(_invalidCellMessages, messages) ||
+          !_sheetQuality.sameAs(quality);
       if (!hasChanges) return;
 
       if (!mounted) {
         _invalidCells = invalid;
         _invalidCellMessages = messages;
         _pendingRequired = pending;
+        _sheetQuality = quality;
         return;
       }
       setState(() {
         _invalidCells = invalid;
         _invalidCellMessages = messages;
         _pendingRequired = pending;
+        _sheetQuality = quality;
         if (_invalidCells.isEmpty) {
           _errorsPanelOpen = false;
         }
@@ -5364,6 +5539,14 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final selectedRows = _batchTargetRows();
+    final dataCols = math.max(0, _headers.length - 1);
+    final headerLabels = dataCols <= 0
+        ? const <String>[]
+        : List<String>.generate(dataCols, _headerLabel);
+    flowBotDebugLog(
+      'Editor.parse command="$text" '
+      'rows=${_rows.length} dataCols=$dataCols selection=(${_selRow + 1},${_selCol + 1})',
+    );
     String? localWarning;
     final modelPath = _flowBotLocalModelPath.trim();
     if (_flowBotUseLocalLlm && modelPath.isNotEmpty) {
@@ -5374,7 +5557,13 @@ class _EditorScreenState extends State<EditorScreen>
         selectedCol: _selCol,
         selectedRows: selectedRows,
       );
-      if (llmResult.hasActions) return llmResult;
+      if (llmResult.hasActions) {
+        flowBotDebugLog(
+          'Editor.parse result engine=${llmResult.engine} '
+          'actions=${llmResult.actions.map((action) => action.type.name).join(',')}',
+        );
+        return llmResult;
+      }
       localWarning = llmResult.warning;
     }
 
@@ -5384,15 +5573,25 @@ class _EditorScreenState extends State<EditorScreen>
       selectedCol: _selCol,
       selectedRows: selectedRows,
       maxRows: _rows.length.clamp(1, 50000),
-      maxCols: _headers.length.clamp(1, 200),
+      maxCols: dataCols.clamp(1, 200),
+      headerLabels: headerLabels,
     );
     if ((localWarning ?? '').trim().isNotEmpty && !fallback.hasActions) {
+      flowBotDebugLog(
+        'Editor.parse result engine=${fallback.engine} '
+        'actions=0 warning="${localWarning ?? ''}"',
+      );
       return FlowBotParseResult(
         actions: fallback.actions,
         engine: fallback.engine,
         warning: localWarning,
       );
     }
+    flowBotDebugLog(
+      'Editor.parse result engine=${fallback.engine} '
+      'actions=${fallback.actions.map((action) => action.type.name).join(',')} '
+      'warning="${fallback.warning ?? ''}"',
+    );
     return fallback;
   }
 
@@ -5458,6 +5657,19 @@ class _EditorScreenState extends State<EditorScreen>
         final row = (action.row ?? _selRow) + 1;
         final times = (action.count ?? 1).clamp(1, 100);
         return 'Duplicar fila $row x$times';
+      case FlowBotActionType.deleteRow:
+        final row = (action.row ?? _selRow) + 1;
+        return 'Eliminar fila $row';
+      case FlowBotActionType.addColumn:
+        return 'Agregar columna "${action.value ?? 'Nueva columna'}"';
+      case FlowBotActionType.renameColumn:
+        final col = (action.column ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Renombrar columna ${_headerLabel(col)} -> "${action.value ?? ''}"';
       case FlowBotActionType.attachPhotoToCell:
         final row = (action.row ?? _selRow) + 1;
         final col = (action.col ?? _selCol) + 1;
@@ -5559,11 +5771,23 @@ class _EditorScreenState extends State<EditorScreen>
             addPatch(rows[i], col, '${start + (i * step)}');
           }
           break;
+        case FlowBotActionType.deleteRow:
+          final row = (action.row ?? _selRow)
+              .clamp(0, math.max(0, _rows.length - 1))
+              .toInt();
+          addPatch(
+            row,
+            _selCol.clamp(0, dataCols - 1).toInt(),
+            '(fila eliminada)',
+          );
+          break;
         case FlowBotActionType.setColumnAlign:
         case FlowBotActionType.setWrap:
         case FlowBotActionType.applyStatus:
         case FlowBotActionType.copyGps:
         case FlowBotActionType.duplicateRow:
+        case FlowBotActionType.addColumn:
+        case FlowBotActionType.renameColumn:
         case FlowBotActionType.attachPhotoToCell:
         case FlowBotActionType.exportPdfPreset:
         case FlowBotActionType.pasteTable:
@@ -5625,10 +5849,6 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  bool _isFlowBotApplyIntent(String text) {
-    return _flowBotRuleEngine.isApplyConfirmation(text);
-  }
-
   bool _flowBotCanApplyPreview({
     required List<FlowBotAction> preview,
     required bool parsing,
@@ -5655,7 +5875,17 @@ class _EditorScreenState extends State<EditorScreen>
     if (useLocalLlm && !localModelReady) {
       return 'Descarga el modelo local o vuelve al motor offline.';
     }
-    return 'FlowBot no detecto cambios aplicables. Prueba con un cambio puntual, por ejemplo "poner OK en B2".';
+    return flowBotNoActionsMessage();
+  }
+
+  String _flowBotStatusText({
+    required List<FlowBotAction> preview,
+    required bool parsing,
+  }) {
+    if (parsing) return 'Analizando...';
+    if (preview.isEmpty) return 'Sin acciones detectadas';
+    if (preview.length == 1) return '1 cambio listo';
+    return '${preview.length} cambios listos';
   }
 
   Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
@@ -5668,9 +5898,13 @@ class _EditorScreenState extends State<EditorScreen>
     var changed = false;
     final previousUndoFlag = _suspendUndoSnapshot;
     _suspendUndoSnapshot = true;
+    flowBotDebugLog(
+      'Editor.apply start actions=${actions.map((action) => action.toJson()).join(', ')}',
+    );
 
     try {
       for (final action in actions) {
+        flowBotDebugLog('Editor.apply action=${action.toJson()}');
         switch (action.type) {
           case FlowBotActionType.setCell:
             final row = action.row ?? _selRow;
@@ -5910,6 +6144,42 @@ class _EditorScreenState extends State<EditorScreen>
             changed = true;
             lastRow = (row + count).clamp(0, _rows.length - 1);
             break;
+          case FlowBotActionType.deleteRow:
+            if (_rows.isEmpty) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            _deleteRow(row);
+            applied += 1;
+            changed = true;
+            lastRow = row.clamp(0, _rows.length - 1);
+            lastCol = _selCol.clamp(0, dataCols - 1);
+            break;
+          case FlowBotActionType.addColumn:
+            final label = (action.value ?? '').trim();
+            if (label.isEmpty) {
+              throw StateError('FlowBot no recibio nombre para la columna.');
+            }
+            final insertedCol = _addFlowBotColumn(label);
+            applied += 1;
+            changed = true;
+            lastCol = insertedCol.clamp(0, _headers.length - 2);
+            lastRow = _selRow.clamp(0, math.max(0, _rows.length - 1));
+            break;
+          case FlowBotActionType.renameColumn:
+            final col = action.column;
+            final label = (action.value ?? '').trim();
+            if (col == null || col < 0 || col >= dataCols) {
+              throw StateError('FlowBot no encontro la columna a renombrar.');
+            }
+            if (label.isEmpty) {
+              throw StateError(
+                  'FlowBot necesita un nombre nuevo para la columna.');
+            }
+            _renameFlowBotColumn(col, label);
+            applied += 1;
+            changed = true;
+            lastCol = col.clamp(0, _headers.length - 2);
+            lastRow = _selRow.clamp(0, math.max(0, _rows.length - 1));
+            break;
           case FlowBotActionType.attachPhotoToCell:
             if (_rows.isEmpty) continue;
             final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
@@ -5946,6 +6216,10 @@ class _EditorScreenState extends State<EditorScreen>
             break;
         }
       }
+    } catch (e, st) {
+      flowBotDebugLog('Editor.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      rethrow;
     } finally {
       _suspendUndoSnapshot = previousUndoFlag;
     }
@@ -5954,14 +6228,19 @@ class _EditorScreenState extends State<EditorScreen>
       _pushUndoSnapshot();
     }
 
-    if (_rows.isNotEmpty) {
+    final finalDataCols = _headers.length - 1;
+    if (_rows.isNotEmpty && finalDataCols > 0) {
       _setSelectionAndRefreshGrid(
         lastRow.clamp(0, _rows.length - 1),
-        lastCol.clamp(0, dataCols - 1),
+        lastCol.clamp(0, finalDataCols - 1),
         preserveRowSelection: true,
       );
     }
 
+    flowBotDebugLog(
+      'Editor.apply done applied=$applied changed=$changed '
+      'selection=(${lastRow + 1},${lastCol + 1})',
+    );
     return applied;
   }
 
@@ -6009,9 +6288,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            Future<FlowBotParseResult> parseNow({
-              bool allowApplyIntent = true,
-            }) async {
+            Future<FlowBotParseResult> parseNow() async {
               final text = transcriptEC.text.trim();
               if (text.isEmpty) {
                 if (modalCtx.mounted) {
@@ -6033,65 +6310,52 @@ class _EditorScreenState extends State<EditorScreen>
                   warning: 'Escribe un cambio puntual antes de aplicar.',
                 );
               }
-
-              if (allowApplyIntent && _isFlowBotApplyIntent(text)) {
-                final scopedPreview = _applyScopeToFlowBotActions(
-                  preview,
-                  chosenScope,
-                );
-                final canApply = _flowBotCanApplyPreview(
-                  preview: scopedPreview,
-                  parsing: parsing,
-                );
-                if (canApply) {
-                  Navigator.of(modalCtx)
-                      .pop(List<FlowBotAction>.from(scopedPreview));
-                } else {
-                  setModalState(() {
-                    warning = _flowBotApplyDisabledReason(
-                      preview: scopedPreview,
-                      parsing: parsing,
-                      useLocalLlm: _flowBotUseLocalLlm,
-                      localModelReady: localModelReady,
-                      hasTranscript: text.isNotEmpty,
-                      parseWarning: warning,
-                    );
-                  });
-                }
-                return FlowBotParseResult(
-                  actions: List<FlowBotAction>.from(scopedPreview),
-                  engine: activeEngine,
-                  warning: canApply
-                      ? null
-                      : _flowBotApplyDisabledReason(
-                          preview: scopedPreview,
-                          parsing: parsing,
-                          useLocalLlm: _flowBotUseLocalLlm,
-                          localModelReady: localModelReady,
-                          hasTranscript: text.isNotEmpty,
-                          parseWarning: warning,
-                        ),
-                );
-              }
-
+              FocusManager.instance.primaryFocus?.unfocus();
               setModalState(() {
                 parsing = true;
                 warning = '';
               });
-              final result = await _parseFlowBotCommand(text);
-              if (!modalCtx.mounted) return result;
-              setModalState(() {
-                preview = result.actions;
-                previewSourceText = text;
-                parsing = false;
-                warning = result.warning ?? '';
-                activeEngine = result.engine;
-              });
-              if (result.actions.isNotEmpty) {
-                _lastFlowBotValidCommand = text;
+              try {
+                final result = await _parseFlowBotCommand(text);
+                if (!modalCtx.mounted) return result;
+                setModalState(() {
+                  preview = result.actions;
+                  previewSourceText = text;
+                  parsing = false;
+                  warning = result.warning ?? '';
+                  activeEngine = result.engine;
+                });
+                if (result.actions.isNotEmpty) {
+                  _lastFlowBotValidCommand = text;
+                }
+                _rememberFlowBotHistory(text);
+                return result;
+              } catch (e, st) {
+                flowBotDebugLog('Modal.parse error: $e');
+                debugPrintStack(stackTrace: st);
+                FlutterError.reportError(
+                  FlutterErrorDetails(
+                    exception: e,
+                    stack: st,
+                    library: 'flowbot',
+                    context:
+                        ErrorDescription('while analyzing a FlowBot command'),
+                  ),
+                );
+                final failure = FlowBotParseResult(
+                  actions: const <FlowBotAction>[],
+                  engine: activeEngine,
+                  warning: 'Error al analizar: $e',
+                );
+                if (!modalCtx.mounted) return failure;
+                setModalState(() {
+                  preview = <FlowBotAction>[];
+                  previewSourceText = '';
+                  parsing = false;
+                  warning = failure.warning ?? '';
+                });
+                return failure;
               }
-              _rememberFlowBotHistory(text);
-              return result;
             }
 
             Future<void> confirmApply() async {
@@ -6100,13 +6364,6 @@ class _EditorScreenState extends State<EditorScreen>
                 preview,
                 chosenScope,
               );
-
-              if (_isFlowBotApplyIntent(text) &&
-                  initialScopedPreview.isNotEmpty) {
-                Navigator.of(modalCtx)
-                    .pop(List<FlowBotAction>.from(initialScopedPreview));
-                return;
-              }
 
               if (parsing) {
                 setModalState(() {
@@ -6121,52 +6378,26 @@ class _EditorScreenState extends State<EditorScreen>
                 });
                 return;
               }
-
-              final needsFreshPreview =
-                  text != previewSourceText || initialScopedPreview.isEmpty;
-              if (needsFreshPreview) {
-                final result = await parseNow(allowApplyIntent: false);
-                if (!modalCtx.mounted) return;
-                if (result.actions.isEmpty) {
-                  setModalState(() {
-                    warning = _flowBotApplyDisabledReason(
-                      preview:
-                          _applyScopeToFlowBotActions(preview, chosenScope),
-                      parsing: false,
-                      useLocalLlm: _flowBotUseLocalLlm,
-                      localModelReady: localModelReady,
-                      hasTranscript: text.isNotEmpty,
-                      parseWarning: result.warning,
-                    );
-                  });
-                }
-              }
-
-              if (!modalCtx.mounted) return;
-              final refreshedScopedPreview = _applyScopeToFlowBotActions(
-                preview,
-                chosenScope,
-              );
               final canApply = _flowBotCanApplyPreview(
-                preview: refreshedScopedPreview,
+                preview: initialScopedPreview,
                 parsing: parsing,
               );
-              if (canApply) {
-                Navigator.of(modalCtx)
-                    .pop(List<FlowBotAction>.from(refreshedScopedPreview));
+              if (!canApply) {
+                setModalState(() {
+                  warning = _flowBotApplyDisabledReason(
+                    preview: initialScopedPreview,
+                    parsing: parsing,
+                    useLocalLlm: _flowBotUseLocalLlm,
+                    localModelReady: localModelReady,
+                    hasTranscript: text.isNotEmpty,
+                    parseWarning: warning,
+                  );
+                });
                 return;
               }
-
-              setModalState(() {
-                warning = _flowBotApplyDisabledReason(
-                  preview: refreshedScopedPreview,
-                  parsing: parsing,
-                  useLocalLlm: _flowBotUseLocalLlm,
-                  localModelReady: localModelReady,
-                  hasTranscript: text.isNotEmpty,
-                  parseWarning: warning,
-                );
-              });
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.of(modalCtx)
+                  .pop(List<FlowBotAction>.from(initialScopedPreview));
             }
 
             Future<void> startListening() async {
@@ -6219,6 +6450,10 @@ class _EditorScreenState extends State<EditorScreen>
             );
             final previewPatches = _flowBotPreviewPatches(scopedPreview);
             final summary = _flowBotPreviewSummary(previewPatches);
+            final statusText = _flowBotStatusText(
+              preview: scopedPreview,
+              parsing: parsing,
+            );
             final canApply = _flowBotCanApplyPreview(
               preview: scopedPreview,
               parsing: parsing,
@@ -6242,11 +6477,7 @@ class _EditorScreenState extends State<EditorScreen>
             );
             final quickCommands = _flowBotHistory.isNotEmpty
                 ? _flowBotHistory.take(6).toList(growable: false)
-                : const <String>[
-                    'poner OK en B2',
-                    'fecha hoy columna completa',
-                    'fila nueva: estado=OK, observaciones=revisar',
-                  ];
+                : kFlowBotHelpExamples;
 
             Widget buildVoiceControls() {
               if (compactSheet) {
@@ -6273,8 +6504,12 @@ class _EditorScreenState extends State<EditorScreen>
                           icon: Icons.play_arrow_rounded,
                           dense: true,
                           variant: AppleButtonVariant.tonal,
-                          onPressed:
-                              parsing ? null : () => unawaited(parseNow()),
+                          onPressed: parsing
+                              ? null
+                              : () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  unawaited(parseNow());
+                                },
                         ),
                       ],
                     ),
@@ -6318,7 +6553,12 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.play_arrow_rounded,
                     dense: true,
                     variant: AppleButtonVariant.tonal,
-                    onPressed: parsing ? null : () => unawaited(parseNow()),
+                    onPressed: parsing
+                        ? null
+                        : () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            unawaited(parseNow());
+                          },
                   ),
                 ],
               );
@@ -6330,6 +6570,8 @@ class _EditorScreenState extends State<EditorScreen>
               if (!modalCtx.mounted) return;
               setModalState(() {
                 activeEngine = next ? 'local_llm' : 'rule_based';
+                preview = <FlowBotAction>[];
+                previewSourceText = '';
                 showAdvancedOptions = showAdvancedOptions || next;
                 if (next && _flowBotLocalModelPath.trim().isEmpty) {
                   warning =
@@ -6554,7 +6796,7 @@ class _EditorScreenState extends State<EditorScreen>
                           dense: true,
                           variant: AppleButtonVariant.filled,
                           onPressed:
-                              parsing ? null : () => unawaited(confirmApply()),
+                              canApply ? () => unawaited(confirmApply()) : null,
                         ),
                       ],
                     ),
@@ -6578,7 +6820,8 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.check_rounded,
                     dense: true,
                     variant: AppleButtonVariant.filled,
-                    onPressed: parsing ? null : () => unawaited(confirmApply()),
+                    onPressed:
+                        canApply ? () => unawaited(confirmApply()) : null,
                   ),
                 ],
               );
@@ -6659,8 +6902,24 @@ class _EditorScreenState extends State<EditorScreen>
                                     minLines: 1,
                                     maxLines: 3,
                                     textInputAction: TextInputAction.done,
-                                    onSubmitted: (_) =>
-                                        unawaited(confirmApply()),
+                                    onChanged: (value) {
+                                      final trimmed = value.trim();
+                                      if (trimmed == previewSourceText) return;
+                                      setModalState(() {
+                                        preview = <FlowBotAction>[];
+                                        previewSourceText = '';
+                                        warning = '';
+                                      });
+                                    },
+                                    onSubmitted: (_) {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                      if (canApply) {
+                                        unawaited(confirmApply());
+                                      } else {
+                                        unawaited(parseNow());
+                                      }
+                                    },
                                     decoration: InputDecoration(
                                       hintText:
                                           'Ej: poner OK en B2; rellenar listo x 3',
@@ -6675,6 +6934,38 @@ class _EditorScreenState extends State<EditorScreen>
                                     const SizedBox(height: 10),
                                     buildQuickCommandSection(),
                                   ],
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    key: const ValueKey('flowbot-status'),
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: scopedPreview.isEmpty
+                                          ? pal.mobileInputBg
+                                          : pal.accent.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: scopedPreview.isEmpty
+                                            ? pal.border
+                                            : pal.accent
+                                                .withValues(alpha: 0.25),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      statusText,
+                                      style: TextStyle(
+                                        color: scopedPreview.isEmpty
+                                            ? pal.fgMuted
+                                            : pal.fg,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
                                   if (warning.trim().isNotEmpty) ...[
                                     const SizedBox(height: 8),
                                     Text(
@@ -6697,7 +6988,18 @@ class _EditorScreenState extends State<EditorScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  if (compactSheet) ...[
+                                  if (previewPatches.isEmpty)
+                                    Text(
+                                      scopedPreview.isEmpty
+                                          ? 'Sin preview de celdas.'
+                                          : 'Sin preview de celdas para este cambio; revisa las acciones detectadas.',
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  else if (compactSheet) ...[
                                     Text(
                                       'Resumen',
                                       style: TextStyle(
@@ -6788,7 +7090,9 @@ class _EditorScreenState extends State<EditorScreen>
                                         ? Padding(
                                             padding: const EdgeInsets.all(10),
                                             child: Text(
-                                              'Analiza un comando para revisar las celdas que van a cambiar.',
+                                              scopedPreview.isEmpty
+                                                  ? 'Analiza un comando para revisar las celdas que van a cambiar.'
+                                                  : 'Esta propuesta no cambia celdas puntuales. Revisa la lista de acciones.',
                                               style: TextStyle(
                                                 color: pal.fgMuted,
                                                 fontSize: 11.5,
@@ -6882,7 +7186,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   const SizedBox(height: 4),
                                   if (scopedPreview.isEmpty)
                                     Text(
-                                      'Todavia no hay acciones listas. Usa Analizar para generar una propuesta.',
+                                      'Sin acciones detectadas.',
                                       style: TextStyle(
                                         color: pal.fgMuted,
                                         fontSize: 11.5,
@@ -6971,15 +7275,37 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    final applied = await _applyFlowBotActions(parsedActions);
-    if (!mounted) return;
-    final result = _flowBotResultForAppliedChanges(applied);
-    _emitActionResult(
-      result,
-      successIcon: Icons.auto_awesome_rounded,
-      failureIcon: Icons.warning_amber_rounded,
-      onUndo: _undoOnce,
-    );
+    try {
+      flowBotDebugLog(
+        'Modal.apply actions=${parsedActions.map((action) => action.toJson()).join(', ')}',
+      );
+      final applied = await _applyFlowBotActions(parsedActions);
+      if (!mounted) return;
+      final result = _flowBotResultForAppliedChanges(applied);
+      _emitActionResult(
+        result,
+        successIcon: Icons.auto_awesome_rounded,
+        failureIcon: Icons.warning_amber_rounded,
+        onUndo: _undoOnce,
+      );
+    } catch (e, st) {
+      flowBotDebugLog('Modal.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'flowbot',
+          context:
+              ErrorDescription('while applying FlowBot actions from the sheet'),
+        ),
+      );
+      if (!mounted) return;
+      _emitActionResult(
+        _ActionResult(ok: false, message: 'FlowBot fallo al aplicar: $e'),
+        failureIcon: Icons.warning_amber_rounded,
+      );
+    }
   }
 
   Future<void> _runFlowBotCommandDirect(String command) async {
@@ -6991,29 +7317,51 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    final parsed = await _parseFlowBotCommand(text);
-    if (parsed.actions.isEmpty) {
+    try {
+      final parsed = await _parseFlowBotCommand(text);
+      if (parsed.actions.isEmpty) {
+        _emitActionResult(
+          _ActionResult(
+            ok: false,
+            message:
+                parsed.warning ?? 'FlowBot no detecto acciones aplicables.',
+          ),
+          failureIcon: Icons.warning_amber_rounded,
+        );
+        return;
+      }
+      _rememberFlowBotHistory(text);
+      _lastFlowBotValidCommand = text;
+      final scoped =
+          _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
+      flowBotDebugLog(
+        'Direct.apply actions=${scoped.map((action) => action.toJson()).join(', ')}',
+      );
+      final applied = await _applyFlowBotActions(scoped);
+      if (!mounted) return;
       _emitActionResult(
-        _ActionResult(
-          ok: false,
-          message: parsed.warning ?? 'FlowBot no detecto acciones aplicables.',
+        _flowBotResultForAppliedChanges(applied),
+        successIcon: Icons.auto_awesome_rounded,
+        failureIcon: Icons.warning_amber_rounded,
+        onUndo: _undoOnce,
+      );
+    } catch (e, st) {
+      flowBotDebugLog('Direct.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'flowbot',
+          context: ErrorDescription('while running a direct FlowBot command'),
         ),
+      );
+      if (!mounted) return;
+      _emitActionResult(
+        _ActionResult(ok: false, message: 'FlowBot fallo al aplicar: $e'),
         failureIcon: Icons.warning_amber_rounded,
       );
-      return;
     }
-    _rememberFlowBotHistory(text);
-    _lastFlowBotValidCommand = text;
-    final scoped =
-        _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
-    final applied = await _applyFlowBotActions(scoped);
-    if (!mounted) return;
-    _emitActionResult(
-      _flowBotResultForAppliedChanges(applied),
-      successIcon: Icons.auto_awesome_rounded,
-      failureIcon: Icons.warning_amber_rounded,
-      onUndo: _undoOnce,
-    );
   }
 
   Future<void> _saveCurrentFlowBotMacro() async {
@@ -10225,6 +10573,10 @@ class _EditorScreenState extends State<EditorScreen>
                                         outboxPendingCount: _outboxQueuedCount,
                                         outboxErrorCount: _outboxErrorCount,
                                         errorsCount: _invalidCells.length,
+                                        dataQualityLabel:
+                                            _sheetQualityHeaderLabel,
+                                        dataQualityDetail:
+                                            _sheetQualityHeaderDetail,
                                         savedViews: _savedViews,
                                         activeViewId: _activeSavedViewId,
                                         pendingReviewViewActive:
@@ -10253,6 +10605,9 @@ class _EditorScreenState extends State<EditorScreen>
                                     pendingOfflineCount: _pendingOfflineCount,
                                     outboxPendingCount: _outboxQueuedCount,
                                     outboxErrorCount: _outboxErrorCount,
+                                    dataQualityLabel: _sheetQualityHeaderLabel,
+                                    dataQualityDetail:
+                                        _sheetQualityHeaderDetail,
                                     selectedRow: _selRow,
                                     selectedCol: _selCol,
                                     onSave: () =>
@@ -15663,6 +16018,70 @@ class _EditorScreenState extends State<EditorScreen>
     return out;
   }
 
+  int _addFlowBotColumn(String label) {
+    final cleaned = label.trim();
+    if (cleaned.isEmpty) {
+      throw StateError('FlowBot necesita un nombre de columna valido.');
+    }
+    final insertAt = math.max(0, _headers.length - 1);
+    final colId = _genStableId('c_');
+    _headers.insert(insertAt, cleaned);
+    _colIds.insert(insertAt, colId);
+    for (final row in _rows) {
+      final safeInsertAt = insertAt.clamp(0, row.cells.length);
+      row.cells.insert(safeInsertAt, '');
+    }
+    _columnPrefsById[colId] = const _ColumnPrefs(type: _ColType.text);
+    if (!_columnOrder.contains(colId)) {
+      _columnOrder.add(colId);
+    }
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: _columnPrefsById,
+    );
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: _columnOrder,
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: _frozenColId,
+    );
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _addHistoryEvent(
+      type: 'add_column',
+      message: 'Agregar columna $cleaned',
+      origin: 'flowbot',
+      col: insertAt,
+    );
+    return insertAt;
+  }
+
+  void _renameFlowBotColumn(int col, String label) {
+    if (col < 0 || col >= _headers.length - 1) {
+      throw StateError('FlowBot no encontro la columna a renombrar.');
+    }
+    final cleaned = label.trim();
+    if (cleaned.isEmpty) {
+      throw StateError('FlowBot necesita un nombre de columna valido.');
+    }
+    final previous = _headers[col];
+    if (previous == cleaned) return;
+    _headers[col] = cleaned;
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _addHistoryEvent(
+      type: 'rename_column',
+      message:
+          'Renombrar columna ${previous.trim().isEmpty ? col + 1 : previous}',
+      origin: 'flowbot',
+      col: col,
+      beforeValue: previous,
+      afterValue: cleaned,
+    );
+  }
+
   Future<void> _openRowFormMode({int? rowIndex, bool createNew = false}) async {
     if (!mounted || _headers.length <= 1) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -15698,6 +16117,21 @@ class _EditorScreenState extends State<EditorScreen>
         var saving = false;
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            final formIssues = <int, String>{};
+            var pendingRequired = 0;
+            for (final col in orderedCols) {
+              final message = _validationMessageForValue(
+                col: col,
+                rawValue: controllers[col]!.text,
+              );
+              if (message == null) continue;
+              formIssues[col] = message;
+              if (message == 'Campo requerido') {
+                pendingRequired++;
+              }
+            }
+            final canSaveForm = !saving && formIssues.isEmpty;
+
             Future<void> runPhoto() async {
               setModalState(() => saving = true);
               await _startPhotoFlowForCell(targetRow, _headers.length - 1);
@@ -15794,6 +16228,47 @@ class _EditorScreenState extends State<EditorScreen>
                       ],
                     ),
                     const SizedBox(height: 10),
+                    Container(
+                      key: const ValueKey('row-form-quality'),
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: formIssues.isEmpty
+                            ? pal.hintBg
+                            : Theme.of(ctx)
+                                .colorScheme
+                                .errorContainer
+                                .withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: formIssues.isEmpty
+                              ? pal.border
+                              : Theme.of(ctx)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.35),
+                          width: pal.hairline,
+                        ),
+                      ),
+                      child: Text(
+                        formIssues.isEmpty
+                            ? 'Formulario listo para guardar.'
+                            : pendingRequired > 0
+                                ? '$pendingRequired campo(s) obligatorio(s) pendiente(s) y ${formIssues.length} validacion(es) por corregir.'
+                                : '${formIssues.length} validacion(es) por corregir antes de guardar.',
+                        style: TextStyle(
+                          color: formIssues.isEmpty
+                              ? pal.fgMuted
+                              : Theme.of(ctx).colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                     Flexible(
                       child: SingleChildScrollView(
                         child: Column(
@@ -15824,12 +16299,12 @@ class _EditorScreenState extends State<EditorScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: AppButton(
+                            key: const ValueKey('row-form-save'),
                             label: AppStrings.save,
                             icon: Icons.check_rounded,
                             variant: AppButtonVariant.primary,
-                            onPressed: saving
-                                ? null
-                                : () {
+                            onPressed: canSaveForm
+                                ? () {
                                     final refsToClear = <_CellRef>[];
                                     var changed = false;
                                     for (final col in orderedCols) {
@@ -15854,7 +16329,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       _markDirty(snapshot: true);
                                     }
                                     Navigator.of(ctx).pop();
-                                  },
+                                  }
+                                : null,
                           ),
                         ),
                       ],
@@ -15882,17 +16358,28 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     final type = _colType(col);
     final label = _headerLabel(col);
-    final border = Border.all(color: palette.border, width: palette.hairline);
+    final validationMessage = _validationMessageForValue(
+      col: col,
+      rawValue: controller.text,
+    );
+    final required = _isRequired(col);
+    final errorColor = Theme.of(context).colorScheme.error;
+    final border = Border.all(
+      color: validationMessage == null ? palette.border : errorColor,
+      width: palette.hairline,
+    );
 
     Widget field;
     switch (type) {
       case _ColType.status:
         final current = controller.text.trim();
+        final options =
+            _statusOptionsForCol(col) ?? const <String>['OK', 'Obs', 'Urgente'];
         field = Wrap(
           spacing: 6,
           runSpacing: 6,
           children: [
-            for (final status in const <String>['OK', 'Obs', 'Urgente'])
+            for (final status in options)
               ChoiceChip(
                 label: Text(status),
                 selected: current.toLowerCase() == status.toLowerCase(),
@@ -15922,7 +16409,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ColType.number:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             hintText: 'Numero (acepta , y .)',
@@ -15933,7 +16422,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ColType.date:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: TextInputType.datetime,
           decoration: const InputDecoration(
             hintText: 'dd/MM/yyyy',
@@ -15944,7 +16435,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       default:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: TextInputType.text,
           decoration: const InputDecoration(
             hintText: 'Escribir...',
@@ -15967,14 +16460,55 @@ class _EditorScreenState extends State<EditorScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: palette.fgMuted,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.fgMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                if (required)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.menuBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: palette.border,
+                        width: palette.hairline,
+                      ),
+                    ),
+                    child: Text(
+                      'Obligatorio',
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+              ],
             ),
+            if (validationMessage != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                validationMessage,
+                style: TextStyle(
+                  color: errorColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             field,
           ],
@@ -16033,7 +16567,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _removeMobileRowCache(idx);
     _ensureMobileRowCachesLength();
-    _pushUndoSnapshot();
+    if (!_suspendUndoSnapshot) {
+      _pushUndoSnapshot();
+    }
     _queueSave();
     _addHistoryEvent(
       type: 'delete_row',
@@ -18598,6 +19134,14 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  void debugOpenRowFormForTest({int? rowIndex, bool createNew = false}) {
+    assert(() {
+      unawaited(_openRowFormMode(rowIndex: rowIndex, createNew: createNew));
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   void debugInjectSaveErrorForTest([
     String message = 'No pudimos guardar los cambios.',
   ]) {
@@ -20440,6 +20984,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final dataCols = math.max(0, _headers.length - 1); // sin Photos
     final columns = List<String>.generate(dataCols, (i) => _headerLabel(i));
     final columnTypes = _buildExportColumnTypes(dataCols);
@@ -20472,6 +21018,12 @@ class _EditorScreenState extends State<EditorScreen>
       projectName: cover.projectName,
       responsibleName: cover.responsibleName,
       observations: cover.observations,
+      qualityStatus: quality.statusLabel,
+      qualityCompletionPercent: quality.requiredCompletionPercent,
+      qualityRowsReady: quality.rowsReady,
+      qualityRowsWithData: quality.rowsWithData,
+      qualityInvalidCells: quality.invalidCells,
+      qualityPendingRequired: quality.pendingRequired,
     );
   }
 
@@ -20481,6 +21033,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final dataCols = math.max(0, _headers.length - 1);
     final includeReviewColumns = _rows.any(
       (row) =>
@@ -20836,6 +21390,15 @@ class _EditorScreenState extends State<EditorScreen>
               children: [
                 metricChip('Registros', '${_rows.length}'),
                 metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
+                metricChip(
+                  'Integridad',
+                  '${quality.requiredCompletionPercent}%',
+                ),
+                metricChip(
+                  'Filas listas',
+                  '${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)}',
+                ),
+                metricChip('Errores', '${quality.invalidCells}'),
                 metricChip('Evidencias', '$totalAttachments'),
                 metricChip('Fotos', '$photoCount'),
                 metricChip('Videos', '$videoCount'),
@@ -20847,6 +21410,48 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             pw.SizedBox(height: 12),
           ];
+
+          content.add(
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: pw.BoxDecoration(
+                color:
+                    quality.hasIssues ? PdfColors.orange50 : PdfColors.green50,
+                borderRadius: pw.BorderRadius.circular(8),
+                border: pw.Border.all(
+                  color: quality.hasIssues
+                      ? PdfColors.orange300
+                      : PdfColors.green300,
+                  width: 0.8,
+                ),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Estado de carga: ${quality.statusLabel}',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    _sheetQualityDetail(
+                      quality,
+                      evidenceCount: totalAttachments,
+                    ),
+                    style: const pw.TextStyle(fontSize: 8.5),
+                  ),
+                ],
+              ),
+            ),
+          );
+          content.add(pw.SizedBox(height: 12));
 
           if (headers.isNotEmpty) {
             content
@@ -21027,6 +21632,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final attachments = <AttachmentRow>[];
     final embeddedPhotos = <EmbeddedPhoto>[];
     final photoItems = <_ZipPhotoItem>[];
@@ -21050,6 +21657,7 @@ class _EditorScreenState extends State<EditorScreen>
               audioCount: 0,
               gpsCount: 0,
               fileCount: 0,
+              quality: quality,
             )
           : const <String, dynamic>{};
       return _ExportPrep(
@@ -21295,6 +21903,7 @@ class _EditorScreenState extends State<EditorScreen>
             audioCount: audioCount,
             gpsCount: gpsCount,
             fileCount: fileCount,
+            quality: quality,
           )
         : const <String, dynamic>{};
 
@@ -21377,6 +21986,7 @@ class _EditorScreenState extends State<EditorScreen>
     required int audioCount,
     required int gpsCount,
     required int fileCount,
+    required _SheetQualitySnapshot quality,
   }) async {
     final appVersion = await _readAppVersionForExport();
     final nonEmptyCells = _countNonEmptyCells();
@@ -21416,6 +22026,14 @@ class _EditorScreenState extends State<EditorScreen>
         'gps': gpsCount,
         'files': fileCount,
       },
+      'quality': {
+        'status': quality.statusLabel,
+        'requiredCompletionPercent': quality.requiredCompletionPercent,
+        'rowsWithData': quality.rowsWithData,
+        'rowsReady': quality.rowsReady,
+        'invalidCells': quality.invalidCells,
+        'pendingRequired': quality.pendingRequired,
+      },
       if (manifestCells.isNotEmpty) 'cells': manifestCells,
       if (manifestAssets.isNotEmpty) 'assets': manifestAssets,
     };
@@ -21441,6 +22059,7 @@ class _EditorScreenState extends State<EditorScreen>
     required String pdfFileName,
     required List<AttachmentRow> attachments,
   }) {
+    final quality = _sheetQuality;
     final photoCount = attachments
         .where((item) => item.type.trim().toLowerCase() == 'foto')
         .length;
@@ -21480,6 +22099,13 @@ class _EditorScreenState extends State<EditorScreen>
       '- Audios: $audioCount',
       '- Ubicaciones GPS: $gpsCount',
       if (fileCount > 0) '- Archivos relacionados: $fileCount',
+      '- Estado de carga: ${quality.statusLabel}',
+      '- Completitud de obligatorios: ${quality.requiredCompletionPercent}%',
+      '- Filas listas: ${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)}',
+      if (quality.invalidCells > 0)
+        '- Errores de validacion: ${quality.invalidCells}',
+      if (quality.pendingRequired > 0)
+        '- Campos obligatorios pendientes: ${quality.pendingRequired}',
       '',
       'Uso recomendado:',
       '- Abrir primero el PDF para presentar o compartir.',

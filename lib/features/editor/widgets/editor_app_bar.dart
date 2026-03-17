@@ -49,6 +49,8 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.outboxPendingCount,
     required this.outboxErrorCount,
     required this.errorsCount,
+    required this.dataQualityLabel,
+    required this.dataQualityDetail,
     required this.savedViews,
     required this.activeViewId,
     required this.pendingReviewViewActive,
@@ -106,6 +108,8 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int outboxPendingCount;
   final int outboxErrorCount;
   final int errorsCount;
+  final String dataQualityLabel;
+  final String dataQualityDetail;
   final List<_SavedView> savedViews;
   final String? activeViewId;
   final bool pendingReviewViewActive;
@@ -326,8 +330,26 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.rule_rounded,
                                 label: '$errorsCount errores',
                               ),
+                            if (dataQualityLabel.trim().isNotEmpty)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.verified_outlined,
+                                label: dataQualityLabel,
+                              ),
                           ],
                         ),
+                        if (dataQualityDetail.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            dataQualityDetail,
+                            style: TextStyle(
+                              color: palette.fgMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -740,6 +762,8 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.pendingOfflineCount,
     required this.outboxPendingCount,
     required this.outboxErrorCount,
+    required this.dataQualityLabel,
+    required this.dataQualityDetail,
     required this.selectedRow,
     required this.selectedCol,
     required this.onSave,
@@ -756,6 +780,8 @@ class _MobileCompactHeader extends StatelessWidget {
   final int pendingOfflineCount;
   final int outboxPendingCount;
   final int outboxErrorCount;
+  final String dataQualityLabel;
+  final String dataQualityDetail;
   final int selectedRow;
   final int selectedCol;
   final VoidCallback onSave;
@@ -834,6 +860,7 @@ class _MobileCompactHeader extends StatelessWidget {
               saveLabel,
               if (pendingLabel != null) pendingLabel,
               if (outboxErrorLabel != null) outboxErrorLabel,
+              if (dataQualityLabel.trim().isNotEmpty) dataQualityLabel,
             ];
             final quickHint = (selectedRow >= 0 && selectedCol >= 0)
                 ? 'Completá datos y exportá o compartí al terminar.'
@@ -928,6 +955,12 @@ class _MobileCompactHeader extends StatelessWidget {
                             icon: Icons.schedule_send_rounded,
                             label: outboxPendingLabel,
                             onTap: onOpenOfflineQueue,
+                          ),
+                        if (dataQualityLabel.trim().isNotEmpty)
+                          _InlineMetaChip(
+                            palette: palette,
+                            icon: Icons.verified_outlined,
+                            label: dataQualityLabel,
                           ),
                       ],
                     ),
