@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 enum SmartTableDelimiter {
   tab,
   comma,
@@ -11,12 +13,15 @@ class SmartTableParseResult {
   const SmartTableParseResult({
     required this.cells,
     required this.delimiter,
+    this.errorMessage,
   });
 
   final List<List<String>> cells;
   final SmartTableDelimiter delimiter;
+  final String? errorMessage;
 
   bool get isEmpty => cells.isEmpty;
+  bool get hasError => errorMessage?.trim().isNotEmpty == true;
 
   int get rowCount => cells.length;
 
@@ -65,19 +70,31 @@ class SmartTableBatchPlan {
   int get changedCells => updates.length;
 }
 
+class SmartTableExpansionPlan {
+  const SmartTableExpansionPlan({
+    required this.requiredEditableColumns,
+    required this.finalEditableColumns,
+    required this.addedColumns,
+  });
+
+  final int requiredEditableColumns;
+  final int finalEditableColumns;
+  final int addedColumns;
+}
+
 SmartTableParseResult parseSmartTable(String raw) {
-  final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
-  if (normalized.isEmpty) {
+  final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final trimmedNewlines = normalized
+      .replaceFirst(RegExp(r'^\n+'), '')
+      .replaceFirst(RegExp(r'\n+$'), '');
+  if (trimmedNewlines.isEmpty) {
     return const SmartTableParseResult(
       cells: <List<String>>[],
       delimiter: SmartTableDelimiter.singleValue,
     );
   }
 
-  final lines = normalized
-      .split('\n')
-      .where((line) => line.trim().isNotEmpty)
-      .toList(growable: false);
+  final lines = trimmedNewlines.split('\n').toList(growable: false);
   if (lines.isEmpty) {
     return const SmartTableParseResult(
       cells: <List<String>>[],
@@ -88,6 +105,16 @@ SmartTableParseResult parseSmartTable(String raw) {
   final hasTabs = lines.any((line) => line.contains('\t'));
   final delimiter =
       hasTabs ? SmartTableDelimiter.tab : _resolveCsvDelimiter(lines);
+
+  if (delimiter != SmartTableDelimiter.singleValue &&
+      lines.any((line) => !_hasBalancedQuotes(line))) {
+    return SmartTableParseResult(
+      cells: const <List<String>>[],
+      delimiter: delimiter,
+      errorMessage:
+          'No pudimos interpretar el formato pegado. Revisa comillas, separadores y saltos de linea.',
+    );
+  }
 
   final cells = <List<String>>[];
   for (final line in lines) {
@@ -200,6 +227,23 @@ SmartTableBatchPlan planSmartTableBatch({
   );
 }
 
+SmartTableExpansionPlan planSmartTableExpansion({
+  required int existingEditableColumns,
+  required int startCol,
+  required int requiredColumns,
+}) {
+  final safeExisting = math.max(0, existingEditableColumns);
+  final safeStart = math.max(0, startCol);
+  final safeRequired = math.max(0, requiredColumns);
+  final requiredEditableColumns = safeStart + safeRequired;
+  final finalEditableColumns = math.max(safeExisting, requiredEditableColumns);
+  return SmartTableExpansionPlan(
+    requiredEditableColumns: requiredEditableColumns,
+    finalEditableColumns: finalEditableColumns,
+    addedColumns: finalEditableColumns - safeExisting,
+  );
+}
+
 SmartTableDelimiter _resolveCsvDelimiter(List<String> lines) {
   var commaScore = 0;
   var semicolonScore = 0;
@@ -234,6 +278,20 @@ int _countDelimiterOutsideQuotes(String input, String delimiter) {
     }
   }
   return count;
+}
+
+bool _hasBalancedQuotes(String input) {
+  var inQuotes = false;
+  for (var i = 0; i < input.length; i++) {
+    final char = input[i];
+    if (char != '"') continue;
+    if (inQuotes && i + 1 < input.length && input[i + 1] == '"') {
+      i++;
+      continue;
+    }
+    inQuotes = !inQuotes;
+  }
+  return !inQuotes;
 }
 
 List<String> _parseDelimitedLine(String line, String delimiter) {

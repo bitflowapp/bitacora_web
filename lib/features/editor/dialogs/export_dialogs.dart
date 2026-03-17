@@ -1,4 +1,4 @@
-﻿part of '../editor_screen.dart';
+part of '../editor_screen.dart';
 
 extension _EditorExportDialogs on _EditorScreenState {
   Future<void> _openExportMenu() async {
@@ -18,14 +18,14 @@ extension _EditorExportDialogs on _EditorScreenState {
               ? buildBitFlowBundleExportFileName(sheetName: _sheetName)
               : _buildCommercialExportFileName(format);
           final exportLabel = switch (format) {
-            'zip' => 'Exportar paquete',
-            'xlsx' => 'Exportar XLSX',
-            _ => 'Exportar PDF',
+            'zip' => 'Exportar paquete ZIP',
+            'xlsx' => 'Exportar Excel (.xlsx)',
+            _ => 'Exportar reporte PDF',
           };
           final shareLabel = switch (format) {
-            'zip' => 'Compartir paquete',
-            'xlsx' => 'Compartir XLSX',
-            _ => 'Compartir PDF',
+            'zip' => 'Compartir paquete ZIP',
+            'xlsx' => 'Compartir Excel (.xlsx)',
+            _ => 'Compartir reporte PDF',
           };
           final maxBodyHeight = MediaQuery.of(context).size.height * 0.62;
           return SizedBox(
@@ -49,7 +49,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                       runSpacing: 8,
                       children: [
                         ChoiceChip(
-                          label: const Text('XLSX'),
+                          label: const Text('Excel (.xlsx)'),
                           selected: format == 'xlsx',
                           onSelected: exportBusy
                               ? null
@@ -58,7 +58,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                                   }),
                         ),
                         ChoiceChip(
-                          label: const Text('PDF'),
+                          label: const Text('Reporte PDF (.pdf)'),
                           selected: format == 'pdf',
                           onSelected: exportBusy
                               ? null
@@ -67,7 +67,7 @@ extension _EditorExportDialogs on _EditorScreenState {
                                   }),
                         ),
                         ChoiceChip(
-                          label: const Text('Paquete completo (.zip)'),
+                          label: const Text('Paquete completo (.ZIP)'),
                           selected: format == 'zip',
                           onSelected: exportBusy
                               ? null
@@ -83,9 +83,14 @@ extension _EditorExportDialogs on _EditorScreenState {
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Incluir adjuntos'),
                       subtitle: Text(
-                        format == 'zip'
-                            ? 'El paquete completo incluye planilla, evidencias y manifiesto.'
-                            : 'Fotos, audio y GPS en el export.',
+                        switch (format) {
+                          'zip' =>
+                            'Incluye Excel, reporte PDF, manifiesto y carpetas de evidencias.',
+                          'pdf' =>
+                            'Incluye resumen, tabla principal y evidencias con fotos cuando existan.',
+                          _ =>
+                            'Incluye planilla editable y hoja de evidencias/adjuntos.',
+                        },
                       ),
                       value: format == 'zip' ? true : includeAttachments,
                       onChanged: exportBusy || format == 'zip'
@@ -101,9 +106,14 @@ extension _EditorExportDialogs on _EditorScreenState {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      format == 'zip'
-                          ? 'Recomendado para demo: incluye planilla, evidencias y manifiesto en un solo archivo.'
-                          : 'Exporta una version lista para guardar, descargar o enviar.',
+                      switch (format) {
+                        'zip' =>
+                          'Paquete completo (.zip): planilla + evidencias en una estructura portable.',
+                        'pdf' =>
+                          'Reporte PDF (.pdf): listo para presentar o compartir con clientes y supervisión.',
+                        _ =>
+                          'Excel (.xlsx): ideal para seguir editando y hacer seguimiento interno.',
+                      },
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (_rows.isEmpty) ...[
@@ -204,4 +214,3 @@ extension _EditorExportDialogs on _EditorScreenState {
     );
   }
 }
-

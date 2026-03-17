@@ -61,78 +61,46 @@ class FlowBotAction {
   final String? presetId;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'type': type.name,
-        if (row != null) 'row': row,
-        if (col != null) 'col': col,
-        if (rowEnd != null) 'rowEnd': rowEnd,
-        if (colEnd != null) 'colEnd': colEnd,
-        if (column != null) 'column': column,
-        if (value != null) 'value': value,
-        if (count != null) 'count': count,
-        if (align != null) 'align': align,
-        if (lines != null) 'lines': lines,
-        if (status != null) 'status': status,
-        if (format != null) 'format': format,
-        if (start != null) 'start': start,
-        if (step != null) 'step': step,
-        if (fromRow != null) 'fromRow': fromRow,
-        if (presetId != null) 'presetId': presetId,
-      };
+    'type': type.name,
+    if (row != null) 'row': row,
+    if (col != null) 'col': col,
+    if (rowEnd != null) 'rowEnd': rowEnd,
+    if (colEnd != null) 'colEnd': colEnd,
+    if (column != null) 'column': column,
+    if (value != null) 'value': value,
+    if (count != null) 'count': count,
+    if (align != null) 'align': align,
+    if (lines != null) 'lines': lines,
+    if (status != null) 'status': status,
+    if (format != null) 'format': format,
+    if (start != null) 'start': start,
+    if (step != null) 'step': step,
+    if (fromRow != null) 'fromRow': fromRow,
+    if (presetId != null) 'presetId': presetId,
+  };
 
   static FlowBotAction? fromJson(Object? raw) {
-    if (raw is! Map) return null;
-    final map = raw.cast<Object?, Object?>();
-    final typeRaw = (map['type'] ?? '').toString().trim().toLowerCase();
-    final type = switch (typeRaw) {
-      'set_cell' || 'setcell' || 'set' || 'write' => FlowBotActionType.setCell,
-      'fill_down' ||
-      'filldown' ||
-      'fill' ||
-      'fill_range' ||
-      'fillrange' =>
-        FlowBotActionType.fillRange,
-      'add_row' ||
-      'addrow' ||
-      'insert_row' ||
-      'new_row' =>
-        FlowBotActionType.addRow,
-      'clear_selection' || 'clearselection' => FlowBotActionType.clearSelection,
-      'clear_row' || 'clearrow' => FlowBotActionType.clearRow,
-      'set_column_align' ||
-      'setcolumnalign' ||
-      'column_align' =>
-        FlowBotActionType.setColumnAlign,
-      'set_wrap' || 'setwrap' || 'wrap' => FlowBotActionType.setWrap,
-      'apply_status' || 'status' => FlowBotActionType.applyStatus,
-      'set_today' || 'today' => FlowBotActionType.setToday,
-      'auto_id' || 'autoid' => FlowBotActionType.autoId,
-      'copy_gps' || 'copygps' => FlowBotActionType.copyGps,
-      'duplicate_row' || 'duplicaterow' => FlowBotActionType.duplicateRow,
-      'attach_photo_to_cell' ||
-      'attachphoto' =>
-        FlowBotActionType.attachPhotoToCell,
-      'export_pdf_preset' || 'exportpdf' => FlowBotActionType.exportPdfPreset,
-      'paste_table' || 'pastetable' => FlowBotActionType.pasteTable,
-      'export_bundle' || 'exportbundle' => FlowBotActionType.exportBundle,
-      _ => null,
-    };
+    final map = _asStringKeyMap(raw);
+    if (map == null) return null;
+
+    final type = _parseActionType(map['type']);
     if (type == null) return null;
 
-    final row = (map['row'] as num?)?.toInt();
-    final col = (map['col'] as num?)?.toInt();
-    final rowEnd = (map['rowEnd'] as num?)?.toInt();
-    final colEnd = (map['colEnd'] as num?)?.toInt();
-    final column = (map['column'] as num?)?.toInt();
-    final value = map['value']?.toString();
-    final count = (map['count'] as num?)?.toInt();
-    final align = map['align']?.toString();
-    final lines = (map['lines'] as num?)?.toInt();
-    final status = map['status']?.toString();
-    final format = map['format']?.toString();
-    final start = (map['start'] as num?)?.toInt();
-    final step = (map['step'] as num?)?.toInt();
-    final fromRow = (map['fromRow'] as num?)?.toInt();
-    final presetId = map['presetId']?.toString();
+    final row = _toInt(map['row']);
+    final col = _toInt(map['col']);
+    final rowEnd = _toInt(map['rowEnd']);
+    final colEnd = _toInt(map['colEnd']);
+    final column = _toInt(map['column']);
+    final value = _toTrimmedStringOrNull(map['value']);
+    final count = _toInt(map['count']);
+    final align = _toTrimmedStringOrNull(map['align']);
+    final lines = _toInt(map['lines']);
+    final status = _toTrimmedStringOrNull(map['status']);
+    final format = _toTrimmedStringOrNull(map['format']);
+    final start = _toInt(map['start']);
+    final step = _toInt(map['step']);
+    final fromRow = _toInt(map['fromRow']);
+    final presetId = _toTrimmedStringOrNull(map['presetId']);
 
     switch (type) {
       case FlowBotActionType.setCell:
@@ -143,6 +111,7 @@ class FlowBotAction {
           col: col,
           value: value ?? '',
         );
+
       case FlowBotActionType.fillRange:
         if (row == null || col == null) return null;
         return FlowBotAction(
@@ -154,27 +123,39 @@ class FlowBotAction {
           rowEnd: rowEnd,
           colEnd: colEnd,
         );
+
       case FlowBotActionType.addRow:
         return FlowBotAction(
           type: type,
           count: (count ?? 1).clamp(1, 500),
           value: value,
         );
+
       case FlowBotActionType.clearSelection:
-        return FlowBotAction(type: type);
+        return const FlowBotAction(type: FlowBotActionType.clearSelection);
+
       case FlowBotActionType.clearRow:
-        return FlowBotAction(type: type);
+        return const FlowBotAction(type: FlowBotActionType.clearRow);
+
       case FlowBotActionType.setColumnAlign:
-        if (column == null || (align ?? '').trim().isEmpty) return null;
+        if (column == null || (align ?? '').isEmpty) return null;
         return FlowBotAction(type: type, column: column, align: align);
+
       case FlowBotActionType.setWrap:
         if (column == null || lines == null) return null;
-        return FlowBotAction(type: type, column: column, lines: lines);
+        return FlowBotAction(
+          type: type,
+          column: column,
+          lines: lines.clamp(1, 3),
+        );
+
       case FlowBotActionType.applyStatus:
-        if ((status ?? '').trim().isEmpty) return null;
+        if ((status ?? '').isEmpty) return null;
         return FlowBotAction(type: type, status: status);
+
       case FlowBotActionType.setToday:
-        return FlowBotAction(type: type, format: format);
+        return FlowBotAction(type: type, format: format, value: value);
+
       case FlowBotActionType.autoId:
         return FlowBotAction(
           type: type,
@@ -183,33 +164,156 @@ class FlowBotAction {
           count: count,
           column: column,
         );
+
       case FlowBotActionType.copyGps:
         return FlowBotAction(type: type, fromRow: fromRow);
+
       case FlowBotActionType.duplicateRow:
         return FlowBotAction(
           type: type,
           row: row,
           count: (count ?? 1).clamp(1, 100),
         );
+
       case FlowBotActionType.attachPhotoToCell:
         return FlowBotAction(type: type, row: row, col: col);
+
       case FlowBotActionType.exportPdfPreset:
         return FlowBotAction(type: type, presetId: presetId);
+
       case FlowBotActionType.pasteTable:
-        return FlowBotAction(type: type);
+        return const FlowBotAction(type: FlowBotActionType.pasteTable);
+
       case FlowBotActionType.exportBundle:
-        return FlowBotAction(type: type);
+        return const FlowBotAction(type: FlowBotActionType.exportBundle);
     }
   }
 
-  static List<FlowBotAction> parseActionsList(Object? raw) {
+  static List<FlowBotAction> parseActionsList(
+      Object? raw, {
+        int maxActions = 50,
+      }) {
     if (raw is! List) return const <FlowBotAction>[];
+    if (maxActions <= 0) return const <FlowBotAction>[];
+
     final out = <FlowBotAction>[];
     for (final item in raw) {
       final action = FlowBotAction.fromJson(item);
-      if (action != null) out.add(action);
+      if (action != null) {
+        out.add(action);
+        if (out.length >= maxActions) break;
+      }
     }
     return out;
+  }
+
+  static FlowBotActionType? _parseActionType(Object? raw) {
+    final typeRaw = _toTrimmedStringOrNull(raw)?.toLowerCase() ?? '';
+    switch (typeRaw) {
+      case 'set_cell':
+      case 'setcell':
+      case 'set':
+      case 'write':
+        return FlowBotActionType.setCell;
+
+      case 'fill_down':
+      case 'filldown':
+      case 'fill':
+      case 'fill_range':
+      case 'fillrange':
+        return FlowBotActionType.fillRange;
+
+      case 'add_row':
+      case 'addrow':
+      case 'insert_row':
+      case 'new_row':
+        return FlowBotActionType.addRow;
+
+      case 'clear_selection':
+      case 'clearselection':
+        return FlowBotActionType.clearSelection;
+
+      case 'clear_row':
+      case 'clearrow':
+        return FlowBotActionType.clearRow;
+
+      case 'set_column_align':
+      case 'setcolumnalign':
+      case 'column_align':
+        return FlowBotActionType.setColumnAlign;
+
+      case 'set_wrap':
+      case 'setwrap':
+      case 'wrap':
+        return FlowBotActionType.setWrap;
+
+      case 'apply_status':
+      case 'status':
+        return FlowBotActionType.applyStatus;
+
+      case 'set_today':
+      case 'today':
+        return FlowBotActionType.setToday;
+
+      case 'auto_id':
+      case 'autoid':
+        return FlowBotActionType.autoId;
+
+      case 'copy_gps':
+      case 'copygps':
+        return FlowBotActionType.copyGps;
+
+      case 'duplicate_row':
+      case 'duplicaterow':
+        return FlowBotActionType.duplicateRow;
+
+      case 'attach_photo_to_cell':
+      case 'attachphoto':
+        return FlowBotActionType.attachPhotoToCell;
+
+      case 'export_pdf_preset':
+      case 'exportpdf':
+        return FlowBotActionType.exportPdfPreset;
+
+      case 'paste_table':
+      case 'pastetable':
+        return FlowBotActionType.pasteTable;
+
+      case 'export_bundle':
+      case 'exportbundle':
+        return FlowBotActionType.exportBundle;
+
+      default:
+        return null;
+    }
+  }
+
+  static Map<String, Object?>? _asStringKeyMap(Object? raw) {
+    if (raw is Map<String, Object?>) return raw;
+    if (raw is Map) {
+      return raw.map(
+            (key, value) => MapEntry(key.toString(), value),
+      );
+    }
+    return null;
+  }
+
+  static int? _toInt(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      return int.tryParse(trimmed);
+    }
+    return null;
+  }
+
+  static String? _toTrimmedStringOrNull(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
   }
 }
 
@@ -231,26 +335,34 @@ class RuleBasedFlowBot {
   const RuleBasedFlowBot();
 
   FlowBotParseResult parse(
-    String raw, {
-    required int selectedRow,
-    required int selectedCol,
-    List<int>? selectedRows,
-    int maxRows = 50000,
-    int maxCols = 200,
-  }) {
+      String raw, {
+        required int selectedRow,
+        required int selectedCol,
+        List<int>? selectedRows,
+        int maxRows = 50000,
+        int maxCols = 200,
+      }) {
     final input = raw.trim();
     if (input.isEmpty) {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'rule_based',
-        warning: 'Comando vacio.',
+        warning: 'Comando vacío.',
       );
     }
 
-    final rows = (selectedRows == null || selectedRows.isEmpty)
-        ? <int>[selectedRow]
-        : (List<int>.from(selectedRows)..sort());
-    final firstRow = rows.first.clamp(0, maxRows - 1);
+    final safeMaxRows = maxRows <= 0 ? 1 : maxRows;
+    final safeMaxCols = maxCols <= 0 ? 1 : maxCols;
+
+    final clampedSelectedRow = selectedRow.clamp(0, safeMaxRows - 1);
+    final clampedSelectedCol = selectedCol.clamp(0, safeMaxCols - 1);
+
+    final rows = _normalizeSelectedRows(
+      selectedRows,
+      fallbackRow: clampedSelectedRow,
+      maxRows: safeMaxRows,
+    );
+    final firstRow = rows.first;
 
     final actions = <FlowBotAction>[];
     final normalized = input.toLowerCase();
@@ -270,14 +382,20 @@ class RuleBasedFlowBot {
     }
 
     if (_containsAny(normalized, const <String>[
-          'agregar fila',
-          'nueva fila',
-          'fila nueva',
-          'nuevo registro',
-        ]) &&
+      'agregar fila',
+      'nueva fila',
+      'fila nueva',
+      'nuevo registro',
+      'agregá fila',
+      'agrega fila',
+    ]) &&
         newRowWithValues == null) {
-      actions
-          .add(const FlowBotAction(type: FlowBotActionType.addRow, count: 1));
+      actions.add(
+        const FlowBotAction(
+          type: FlowBotActionType.addRow,
+          count: 1,
+        ),
+      );
     }
 
     for (final segment in _splitCommands(parseInput)) {
@@ -286,14 +404,17 @@ class RuleBasedFlowBot {
 
       final clearSelection = _clearSelectionRegex.firstMatch(cmd);
       if (clearSelection != null) {
-        actions
-            .add(const FlowBotAction(type: FlowBotActionType.clearSelection));
+        actions.add(
+          const FlowBotAction(type: FlowBotActionType.clearSelection),
+        );
         continue;
       }
 
       final clearRow = _clearRowRegex.firstMatch(cmd);
       if (clearRow != null) {
-        actions.add(const FlowBotAction(type: FlowBotActionType.clearRow));
+        actions.add(
+          const FlowBotAction(type: FlowBotActionType.clearRow),
+        );
         continue;
       }
 
@@ -301,8 +422,9 @@ class RuleBasedFlowBot {
       if (fillSeries != null) {
         final start = int.tryParse(fillSeries.group(1) ?? '') ?? 1;
         final step = int.tryParse(fillSeries.group(2) ?? '') ?? 1;
-        final count = int.tryParse(fillSeries.group(3) ?? '') ??
-            rows.length.clamp(1, 500);
+        final count =
+            int.tryParse(fillSeries.group(3) ?? '') ?? rows.length.clamp(1, 500);
+
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.autoId,
@@ -318,6 +440,7 @@ class RuleBasedFlowBot {
       if (autonumber != null) {
         final start = int.tryParse(autonumber.group(1) ?? '') ?? 1;
         final step = int.tryParse(autonumber.group(2) ?? '') ?? 1;
+
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.autoId,
@@ -331,14 +454,17 @@ class RuleBasedFlowBot {
       final setRc = _setByRowColRegex.firstMatch(cmd);
       if (setRc != null) {
         final value = (setRc.group(1) ?? '').trim();
-        final row = int.tryParse(setRc.group(2) ?? '');
-        final col = int.tryParse(setRc.group(3) ?? '');
+        final rowRaw = int.tryParse(setRc.group(2) ?? '');
+        final colRaw = int.tryParse(setRc.group(3) ?? '');
+        final row = _rowNumberToIndex(rowRaw, safeMaxRows);
+        final col = _columnNumberToIndex(colRaw, safeMaxCols);
+
         if (row != null && col != null && value.isNotEmpty) {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setCell,
-              row: row - 1,
-              col: col - 1,
+              row: row,
+              col: col,
               value: value,
             ),
           );
@@ -351,12 +477,14 @@ class RuleBasedFlowBot {
         final value = (setA1.group(1) ?? '').trim();
         final colLabel = (setA1.group(2) ?? '').trim();
         final rowRaw = int.tryParse(setA1.group(3) ?? '');
-        final col = _columnTokenToIndex(colLabel);
-        if (rowRaw != null && col >= 0 && value.isNotEmpty) {
+        final row = _rowNumberToIndex(rowRaw, safeMaxRows);
+        final col = _columnTokenToIndex(colLabel, maxCols: safeMaxCols);
+
+        if (row != null && col != null && value.isNotEmpty) {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setCell,
-              row: rowRaw - 1,
+              row: row,
               col: col,
               value: value,
             ),
@@ -374,11 +502,11 @@ class RuleBasedFlowBot {
             FlowBotAction(
               type: FlowBotActionType.fillRange,
               row: firstRow,
-              col: selectedCol,
+              col: clampedSelectedCol,
               count: countRaw.clamp(1, 500),
               value: value,
               rowEnd: rows.last,
-              colEnd: selectedCol,
+              colEnd: clampedSelectedCol,
             ),
           );
           continue;
@@ -389,11 +517,13 @@ class RuleBasedFlowBot {
       if (align != null) {
         final columnToken = (align.group(1) ?? '').trim();
         final alignToken = (align.group(2) ?? '').trim().toLowerCase();
+
         final column = columnToken.isEmpty
-            ? selectedCol
-            : _columnTokenToIndex(columnToken);
+            ? clampedSelectedCol
+            : _columnTokenToIndex(columnToken, maxCols: safeMaxCols);
         final normalizedAlign = _normalizeAlign(alignToken);
-        if (column >= 0 && normalizedAlign != null) {
+
+        if (column != null && normalizedAlign != null) {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setColumnAlign,
@@ -409,10 +539,11 @@ class RuleBasedFlowBot {
       if (wrap != null) {
         final columnToken = (wrap.group(1) ?? '').trim();
         final linesRaw = int.tryParse(wrap.group(2) ?? '2') ?? 2;
+
         final column = columnToken.isEmpty
-            ? selectedCol
-            : _columnTokenToIndex(columnToken);
-        if (column >= 0) {
+            ? clampedSelectedCol
+            : _columnTokenToIndex(columnToken, maxCols: safeMaxCols);
+        if (column != null) {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setWrap,
@@ -460,7 +591,7 @@ class RuleBasedFlowBot {
           FlowBotAction(
             type: FlowBotActionType.autoId,
             start: start,
-            step: step,
+            step: step == null || step == 0 ? null : step,
           ),
         );
         continue;
@@ -469,11 +600,12 @@ class RuleBasedFlowBot {
       final copyGps = _copyGpsRegex.firstMatch(cmd);
       if (copyGps != null) {
         final source =
-            int.tryParse((copyGps.group(1) ?? copyGps.group(2) ?? '').trim());
+        int.tryParse((copyGps.group(1) ?? copyGps.group(2) ?? '').trim());
+        final fromRow = _rowNumberToIndex(source, safeMaxRows);
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.copyGps,
-            fromRow: source == null ? null : source - 1,
+            fromRow: fromRow,
           ),
         );
         continue;
@@ -481,12 +613,14 @@ class RuleBasedFlowBot {
 
       final duplicate = _duplicateRowRegex.firstMatch(cmd);
       if (duplicate != null) {
-        final row = int.tryParse((duplicate.group(1) ?? '').trim());
+        final rowRaw = int.tryParse((duplicate.group(1) ?? '').trim());
+        final row = _rowNumberToIndex(rowRaw, safeMaxRows) ?? clampedSelectedRow;
         final count = int.tryParse((duplicate.group(2) ?? '').trim()) ?? 1;
+
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.duplicateRow,
-            row: (row ?? selectedRow + 1) - 1,
+            row: row,
             count: count.clamp(1, 100),
           ),
         );
@@ -499,13 +633,19 @@ class RuleBasedFlowBot {
         if (token.isNotEmpty) {
           final a1 = _a1CellRegex.firstMatch(token);
           if (a1 != null) {
-            final c = _columnTokenToIndex((a1.group(1) ?? '').trim());
-            final r = int.tryParse(a1.group(2) ?? '');
-            if (c >= 0 && r != null) {
+            final c = _columnTokenToIndex(
+              (a1.group(1) ?? '').trim(),
+              maxCols: safeMaxCols,
+            );
+            final r = _rowNumberToIndex(
+              int.tryParse(a1.group(2) ?? ''),
+              safeMaxRows,
+            );
+            if (c != null && r != null) {
               actions.add(
                 FlowBotAction(
                   type: FlowBotActionType.attachPhotoToCell,
-                  row: r - 1,
+                  row: r,
                   col: c,
                 ),
               );
@@ -513,11 +653,12 @@ class RuleBasedFlowBot {
             }
           }
         }
+
         actions.add(
           FlowBotAction(
             type: FlowBotActionType.attachPhotoToCell,
-            row: selectedRow,
-            col: selectedCol,
+            row: clampedSelectedRow,
+            col: clampedSelectedCol,
           ),
         );
         continue;
@@ -537,13 +678,17 @@ class RuleBasedFlowBot {
 
       final pasteTable = _pasteTableRegex.firstMatch(cmd);
       if (pasteTable != null) {
-        actions.add(const FlowBotAction(type: FlowBotActionType.pasteTable));
+        actions.add(
+          const FlowBotAction(type: FlowBotActionType.pasteTable),
+        );
         continue;
       }
 
       final exportBundle = _exportBundleRegex.firstMatch(cmd);
       if (exportBundle != null) {
-        actions.add(const FlowBotAction(type: FlowBotActionType.exportBundle));
+        actions.add(
+          const FlowBotAction(type: FlowBotActionType.exportBundle),
+        );
         continue;
       }
 
@@ -552,6 +697,7 @@ class RuleBasedFlowBot {
         final start = int.tryParse(quickPattern.group(1) ?? '');
         final status = (quickPattern.group(2) ?? '').trim();
         final obs = (quickPattern.group(4) ?? '').trim();
+
         if (start != null) {
           actions.add(
             FlowBotAction(
@@ -562,6 +708,7 @@ class RuleBasedFlowBot {
             ),
           );
         }
+
         if (status.isNotEmpty) {
           actions.add(
             FlowBotAction(
@@ -570,18 +717,20 @@ class RuleBasedFlowBot {
             ),
           );
         }
+
         actions.add(
           const FlowBotAction(
             type: FlowBotActionType.setToday,
             format: 'yyyy-mm-dd',
           ),
         );
+
         if (obs.isNotEmpty) {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setCell,
-              row: selectedRow,
-              col: selectedCol,
+              row: clampedSelectedRow,
+              col: clampedSelectedCol,
               value: obs,
             ),
           );
@@ -596,8 +745,8 @@ class RuleBasedFlowBot {
           actions.add(
             FlowBotAction(
               type: FlowBotActionType.setCell,
-              row: selectedRow,
-              col: selectedCol,
+              row: clampedSelectedRow,
+              col: clampedSelectedCol,
               value: value,
             ),
           );
@@ -616,7 +765,7 @@ class RuleBasedFlowBot {
 
   bool isApplyConfirmation(String raw) {
     final normalized =
-        raw.trim().toLowerCase().replaceAll(RegExp(r'[.!?,;:]+$'), '');
+    raw.trim().toLowerCase().replaceAll(RegExp(r'[.!?,;:]+$'), '');
     if (normalized.isEmpty) return false;
     return _applyConfirmationRegex.hasMatch(normalized);
   }
@@ -628,13 +777,43 @@ class RuleBasedFlowBot {
     return false;
   }
 
+  List<int> _normalizeSelectedRows(
+      List<int>? selectedRows, {
+        required int fallbackRow,
+        required int maxRows,
+      }) {
+    final source = (selectedRows == null || selectedRows.isEmpty)
+        ? <int>[fallbackRow]
+        : selectedRows;
+
+    final normalized = source
+        .map((row) => row.clamp(0, maxRows - 1))
+        .toSet()
+        .toList()
+      ..sort();
+
+    return normalized.isEmpty ? <int>[fallbackRow] : normalized;
+  }
+
   List<String> _splitCommands(String raw) {
-    final normalized = raw
-        .replaceAll('\n', ';')
-        .replaceAll(',', ';')
-        .replaceAll(' y luego ', ';')
-        .replaceAll(' y ', ';');
-    return normalized.split(';');
+    if (raw.trim().isEmpty) return const <String>[];
+
+    var normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+    normalized = normalized
+        .replaceAll(RegExp(r'\s+y luego\s+', caseSensitive: false), ';')
+        .replaceAll(RegExp(r'\s+luego\s+', caseSensitive: false), ';')
+        .replaceAll(RegExp(r'\s+despues\s+', caseSensitive: false), ';')
+        .replaceAll(RegExp(r'\s+después\s+', caseSensitive: false), ';')
+        .replaceAll(RegExp(r'\s+despues de eso\s+', caseSensitive: false), ';')
+        .replaceAll(RegExp(r'\s+después de eso\s+', caseSensitive: false), ';')
+        .replaceAll('\n', ';');
+
+    return normalized
+        .split(';')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
   }
 
   String? _normalizeAlign(String raw) {
@@ -663,37 +842,57 @@ class RuleBasedFlowBot {
     return raw;
   }
 
-  int _columnTokenToIndex(String token) {
+  int? _columnTokenToIndex(String token, {required int maxCols}) {
     final clean = token.trim().toUpperCase();
-    if (clean.isEmpty) return -1;
+    if (clean.isEmpty) return null;
 
     final numeric = int.tryParse(clean);
-    if (numeric != null) return numeric - 1;
+    if (numeric != null) {
+      return _columnNumberToIndex(numeric, maxCols);
+    }
 
     var col = 0;
     for (final code in clean.codeUnits) {
-      if (code < 65 || code > 90) return -1;
+      if (code < 65 || code > 90) return null;
       col = (col * 26) + (code - 64);
     }
-    return col - 1;
+
+    final zeroBased = col - 1;
+    if (zeroBased < 0 || zeroBased >= maxCols) return null;
+    return zeroBased;
+  }
+
+  int? _columnNumberToIndex(int? value, int maxCols) {
+    if (value == null || value <= 0) return null;
+    final zeroBased = value - 1;
+    if (zeroBased >= maxCols) return null;
+    return zeroBased;
+  }
+
+  int? _rowNumberToIndex(int? value, int maxRows) {
+    if (value == null || value <= 0) return null;
+    final zeroBased = value - 1;
+    if (zeroBased >= maxRows) return null;
+    return zeroBased;
   }
 
   static final RegExp _applyConfirmationRegex = RegExp(
     r'^(?:ok|dale|listo|aplicar|aplicar cambios|aceptar|confirmar)$',
     caseSensitive: false,
   );
+
   static final RegExp _setByA1Regex = RegExp(
-    r'^(?:poner|set|escribir)\s+(.+?)\s+(?:en|at)\s+([A-Za-z]+)(\d+)$',
+    r'^(?:poner|pon[eé]|set|escribir|escrib[ií])\s+(.+?)\s+(?:en|at)\s+([A-Za-z]+)(\d+)$',
     caseSensitive: false,
   );
 
   static final RegExp _setByRowColRegex = RegExp(
-    r'^(?:poner|set|escribir)\s+(.+?)\s+(?:en\s+)?fila\s*(\d+)\s*(?:columna|col)\s*(\d+)$',
+    r'^(?:poner|pon[eé]|set|escribir|escrib[ií])\s+(.+?)\s+(?:en\s+)?fila\s*(\d+)\s*(?:columna|col)\s*(\d+)$',
     caseSensitive: false,
   );
 
   static final RegExp _fillRangeRegex = RegExp(
-    r'^(?:rellenar|fill(?:\s+down)?)\s+(.+?)(?:\s+(?:por|x)\s*(\d+))?$',
+    r'^(?:rellenar|completar|fill(?:\s+down)?)\s+(.+?)(?:\s+(?:por|x)\s*(\d+))?$',
     caseSensitive: false,
   );
 
@@ -703,12 +902,12 @@ class RuleBasedFlowBot {
   );
 
   static final RegExp _setWrapRegex = RegExp(
-    r'^(?:wrap|ajuste|ajustar)(?:\s+columna)?\s*([A-Za-z]+|\d+)?\s*(?:a\s*)?(1|2|3)?(?:\s*lineas?)?$',
+    r'^(?:wrap|ajuste|ajustar)(?:\s+columna)?\s*([A-Za-z]+|\d+)?\s*(?:a\s*)?(1|2|3)?(?:\s*lineas?|\s*líneas?)?$',
     caseSensitive: false,
   );
 
   static final RegExp _statusRegex = RegExp(
-    r'^(?:estado|status)\s+(ok|obs|urgente|pendiente)$',
+    r'^(?:estado|status|marcar\s+como)\s+(ok|obs|urgente|pendiente)$',
     caseSensitive: false,
   );
 
@@ -733,7 +932,7 @@ class RuleBasedFlowBot {
   );
 
   static final RegExp _autoIdRegex = RegExp(
-    r'^(?:autoid|id auto|autoid)(?:\s+desde\s*(\d+))?(?:\s+paso\s*(\d+))?$',
+    r'^(?:autoid|id auto|autonumerar)(?:\s+desde\s*(\d+))?(?:\s+paso\s*(\d+))?$',
     caseSensitive: false,
   );
 
@@ -753,7 +952,7 @@ class RuleBasedFlowBot {
   );
 
   static final RegExp _duplicateRowRegex = RegExp(
-    r'^(?:duplicar\s+fila\s*(\d+)?(?:\s*(?:x|por)\s*(\d+))?)$',
+    r'^(?:duplicar(?:me)?\s+fila\s*(\d+)?(?:\s*(?:x|por)\s*(\d+))?)$',
     caseSensitive: false,
   );
 
@@ -783,7 +982,7 @@ class RuleBasedFlowBot {
   );
 
   static final RegExp _setActiveRegex = RegExp(
-    r'^(?:poner|set|escribir)\s+(.+)$',
+    r'^(?:poner|pon[eé]|set|escribir|escrib[ií])\s+(.+)$',
     caseSensitive: false,
   );
 
@@ -806,13 +1005,15 @@ class FlowBotLocalLlmEngine {
   }) async {
     final command = transcript.trim();
     final model = modelPath.trim();
+
     if (command.isEmpty) {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'local_llm',
-        warning: 'Comando vacio.',
+        warning: 'Comando vacío.',
       );
     }
+
     if (model.isEmpty) {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
@@ -820,6 +1021,7 @@ class FlowBotLocalLlmEngine {
         warning: 'No hay modelo local instalado.',
       );
     }
+
     if (kIsWeb) {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
@@ -829,62 +1031,91 @@ class FlowBotLocalLlmEngine {
     }
 
     try {
-      final raw =
-          await _channel.invokeMethod<Object?>('parse', <String, Object?>{
-        'modelPath': model,
-        'command': command,
-        'selectedRow': selectedRow,
-        'selectedCol': selectedCol,
-        'selectedRows': selectedRows,
-      }).timeout(timeout);
+      final raw = await _channel.invokeMethod<Object?>(
+        'parse',
+        <String, Object?>{
+          'modelPath': model,
+          'command': command,
+          'selectedRow': selectedRow,
+          'selectedCol': selectedCol,
+          'selectedRows': selectedRows,
+        },
+      ).timeout(timeout);
 
       if (raw == null) {
         return const FlowBotParseResult(
           actions: <FlowBotAction>[],
           engine: 'local_llm',
-          warning: 'Local LLM no devolvio respuesta.',
+          warning: 'Local LLM no devolvió respuesta.',
         );
       }
 
-      Object? decoded = raw;
-      if (raw is String) {
-        decoded = jsonDecode(raw);
-      }
-      if (decoded is! Map) {
+      final decoded = _decodeLlmPayload(raw);
+      if (decoded == null) {
         return const FlowBotParseResult(
           actions: <FlowBotAction>[],
           engine: 'local_llm',
-          warning: 'Respuesta local invalida.',
+          warning: 'Respuesta local inválida.',
         );
       }
 
-      final actions = FlowBotAction.parseActionsList(decoded['actions']);
-      final warning = (decoded['warning'] ?? '').toString().trim();
+      final actions = FlowBotAction.parseActionsList(
+        decoded['actions'],
+        maxActions: 50,
+      );
+      final warning = _stringOrNull(decoded['warning']);
+
       return FlowBotParseResult(
         actions: actions,
         engine: 'local_llm',
-        warning: warning.isEmpty
-            ? (actions.isEmpty ? 'Local LLM sin acciones aplicables.' : null)
-            : warning,
+        warning: warning ??
+            (actions.isEmpty ? 'Local LLM sin acciones aplicables.' : null),
       );
     } on MissingPluginException {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'local_llm',
-        warning: 'Runtime local LLM no instalado; usando motor offline.',
+        warning: 'Runtime local LLM no instalado; usar motor offline.',
       );
     } on TimeoutException {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'local_llm',
-        warning: 'Local LLM timeout; usando motor offline.',
+        warning: 'Local LLM timeout; usar motor offline.',
       );
     } catch (e) {
-      return FlowBotParseResult(
-        actions: const <FlowBotAction>[],
+      debugPrint('FlowBotLocalLlmEngine.parse error: $e');
+      return const FlowBotParseResult(
+        actions: <FlowBotAction>[],
         engine: 'local_llm',
-        warning: 'Local LLM error: $e',
+        warning: 'Local LLM error; usar motor offline.',
       );
     }
+  }
+
+  Map<String, Object?>? _decodeLlmPayload(Object raw) {
+    Object? decoded = raw;
+
+    if (raw is String) {
+      final text = raw.trim();
+      if (text.isEmpty) return null;
+      try {
+        decoded = jsonDecode(text);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (decoded is Map<String, Object?>) return decoded;
+    if (decoded is Map) {
+      return decoded.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
+  String? _stringOrNull(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
   }
 }

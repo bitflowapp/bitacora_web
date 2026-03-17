@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -94,6 +96,122 @@ void main() {
     expect(text, contains('-38.950000'));
     expect(text, contains('-68.060000'));
     expect(state.debugCellHasGps(0, 0), isTrue);
+  });
+
+  testWidgets('GPS fix in-flight is reused for concurrent calls',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'gps-inflight-test',
+          engineBaseUrl: 'ftp://invalid',
+          engineApiKey: '',
+        ),
+      ),
+    );
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final completer = Completer<Map<String, Object?>>();
+    var calls = 0;
+
+    state.debugSetGpsOutcomeHook((Duration timeout) async {
+      calls++;
+      return completer.future;
+    });
+
+    final first = state.debugGetGpsFixForTest(
+      timeout: const Duration(seconds: 4),
+    ) as Future<Map<String, Object?>>;
+    final second = state.debugGetGpsFixForTest(
+      timeout: const Duration(seconds: 4),
+    ) as Future<Map<String, Object?>>;
+
+    await tester.pump();
+    expect(calls, 1);
+
+    completer.complete(<String, Object?>{
+      'lat': -38.950001,
+      'lng': -68.060001,
+      'accuracyM': 9.0,
+      'timestamp': DateTime(2026, 3, 1, 10, 30, 0).toIso8601String(),
+      'source': 'debug',
+      'provider': 'debug-hook',
+    });
+
+    final firstResult = await first;
+    final secondResult = await second;
+
+    expect(firstResult['ok'], true);
+    expect(secondResult['ok'], true);
+    expect(calls, 1);
+
+    state.debugSetGpsOutcomeHook(null);
+  });
+
+  testWidgets(
+      'GPS metadata keeps timestamp/coords and metadata-only does not overwrite text',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'gps-metadata-test',
+          engineBaseUrl: 'ftp://invalid',
+          engineApiKey: '',
+        ),
+      ),
+    );
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    state.debugSetCellValue(0, 0, 'valor original');
+
+    state.debugApplyGpsFixToCell(
+      0,
+      0,
+      lat: -38.951,
+      lng: -68.061,
+      accuracyM: -7,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(0),
+      writeText: false,
+    );
+
+    await tester.pump();
+
+    expect(state.debugCellText(0, 0), 'valor original');
+    final meta = state.debugCellMetaAt(0, 0) as CellMeta?;
+    expect(meta, isNotNull);
+    expect(meta!.gps, isNotNull);
+    expect(meta.gps!.lat, closeTo(-38.951, 0.000001));
+    expect(meta.gps!.lng, closeTo(-68.061, 0.000001));
+    expect(meta.gps!.accuracyM, 0);
+    expect(meta.gps!.timestamp.millisecondsSinceEpoch, greaterThan(0));
+  });
+
+  testWidgets('GPS timeout error copy is actionable in Spanish',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'gps-copy-test',
+          engineBaseUrl: 'ftp://invalid',
+          engineApiKey: '',
+        ),
+      ),
+    );
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    final message = state.debugGpsErrorMessageForTest(
+      code: 'timeout',
+      targetLabel: 'fila 2, celda B2',
+    ) as String;
+
+    expect(message, contains('No pudimos guardar el GPS en fila 2, celda B2.'));
+    expect(message, contains('No llego una posicion valida a tiempo'));
   });
 
   test('PhotoAttachment serialization keeps meta', () {

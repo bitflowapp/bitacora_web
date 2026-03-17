@@ -113,7 +113,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       final sp = await SharedPreferences.getInstance();
       await sp.setStringList(_kPinnedKey, _pinnedIds.toList()..sort());
     } catch (_) {
-      // Silencioso: si falla persistencia, no rompemos UX.
+      // Silencioso: si falla la persistencia, no rompemos la UX.
     }
   }
 
@@ -144,14 +144,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
-    list.sort(
-        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // mÃ¡s reciente arriba
+    list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt)); // Más reciente arriba
+
     setState(() {
       _items = list;
       _loading = false;
     });
 
-    // Limpieza: si borraron planillas, eliminamos pins huÃ©rfanos.
     if (_pinsLoaded) {
       final ids = list.map((e) => e.id).toSet();
       final orphan = _pinnedIds.where((id) => !ids.contains(id)).toList();
@@ -180,8 +179,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
   void _focusSearch() {
     if (!mounted) return;
     _searchFN.requestFocus();
-    final t = _searchEC.text;
-    _searchEC.selection = TextSelection(baseOffset: 0, extentOffset: t.length);
+    final text = _searchEC.text;
+    _searchEC.selection =
+        TextSelection(baseOffset: 0, extentOffset: text.length);
     _hapticSelect();
   }
 
@@ -234,19 +234,19 @@ class _SheetsScreenState extends State<SheetsScreen> {
                 onTap: () => Navigator.of(ctx).pop('about'),
               ),
               ListTile(
+                leading: const Icon(Icons.support_agent_rounded),
+                title: const Text('Diagnóstico / Soporte'),
+                onTap: () => Navigator.of(ctx).pop('diagnostics'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.privacy_tip_outlined),
                 title: const Text('Privacidad'),
                 onTap: () => Navigator.of(ctx).pop('privacy'),
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_rounded),
-                title: const Text('T\u00e9rminos'),
+                title: const Text('Términos'),
                 onTap: () => Navigator.of(ctx).pop('terms'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('Diagn\u00f3stico / Soporte'),
-                onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
               ListTile(
                 leading: const Icon(Icons.article_outlined),
@@ -260,18 +260,19 @@ class _SheetsScreenState extends State<SheetsScreen> {
     );
 
     if (!mounted || action == null) return;
+
     switch (action) {
       case 'about':
         await _openStaticPage(const AboutScreen());
+        break;
+      case 'diagnostics':
+        await _openStaticPage(DiagnosticsScreen());
         break;
       case 'privacy':
         await _openStaticPage(const PrivacyScreen());
         break;
       case 'terms':
         await _openStaticPage(const TermsScreen());
-        break;
-      case 'diagnostics':
-        await _openStaticPage(DiagnosticsScreen());
         break;
       case 'licenses':
         await Navigator.of(context).push<void>(
@@ -309,51 +310,26 @@ class _SheetsScreenState extends State<SheetsScreen> {
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withValues(alpha: 0.65);
-        final cardBg = theme.cardColor;
+        final divider = theme.dividerColor.withOpacity(0.65);
+        final narrowLayout = MediaQuery.of(ctx).size.width < 560;
 
         Widget tile({
           required IconData icon,
           required String title,
           required String subtitle,
+          required String tag,
           required TemplateKind value,
         }) {
-          return InkWell(
-            borderRadius: BorderRadius.circular(16),
+          return _TemplateTile(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            tag: tag,
+            borderColor: divider,
             onTap: () => Navigator.of(ctx).pop(value),
-            child: Ink(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: divider, width: 0.8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _PillIcon(icon: icon),
-                  const SizedBox(height: 10),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: Text(
-                      subtitle,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           );
         }
 
-        final narrowLayout = MediaQuery.of(ctx).size.width < 560;
         return ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(ctx).size.height * 0.82,
@@ -366,13 +342,27 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
                   child: Row(
                     children: [
-                      Text(
-                        'Galer\u00eda de plantillas',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
+                      Expanded(
+                        child: Text(
+                          'Plantillas listas para arrancar',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Elegí una base pensada para campo, oficina y seguimiento operativo.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.70),
+                      ),
+                    ),
                   ),
                 ),
                 GridView.count(
@@ -382,52 +372,64 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  childAspectRatio: narrowLayout ? 2.15 : 1.18,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                  childAspectRatio: narrowLayout ? 2.15 : 1.12,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   children: [
-                    tile(
-                      icon: Icons.auto_awesome_outlined,
-                      title: 'Plantilla base',
-                      subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
-                      value: TemplateKind.plantilla,
-                    ),
                     tile(
                       icon: Icons.table_rows,
                       title: 'Relevamiento resistividades',
-                      subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                      subtitle:
+                      'Formato técnico con fecha, progresiva, lecturas 1m/3m/5m y observaciones.',
+                      tag: 'Campo',
                       value: TemplateKind.resistividades,
                     ),
                     tile(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Inventario simple',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicaci\u00f3n, Nota',
-                      value: TemplateKind.inventario,
-                    ),
-                    tile(
-                      icon: Icons.check_circle_outline,
-                      title: 'Checklist diario',
-                      subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
-                      value: TemplateKind.checklist,
+                      icon: Icons.straighten_rounded,
+                      title: 'Mediciones técnicas',
+                      subtitle:
+                      'Puntos, parámetros, lectura, tolerancia y estado para trabajo operativo.',
+                      tag: 'Empresa',
+                      value: TemplateKind.medicionesTecnicas,
                     ),
                     tile(
                       icon: Icons.payments_outlined,
                       title: 'Control de gastos',
                       subtitle:
-                          'Fecha, Categor\u00eda, Descripci\u00f3n, Monto, M\u00e9todo',
+                      'Registro simple de fecha, categoría, descripción, monto y método.',
+                      tag: 'Administración',
                       value: TemplateKind.controlGastos,
+                    ),
+                    tile(
+                      icon: Icons.check_circle_outline,
+                      title: 'Checklist diario',
+                      subtitle:
+                      'Seguimiento rápido de tareas, responsables, estado y comentarios.',
+                      tag: 'Operativo',
+                      value: TemplateKind.checklist,
+                    ),
+                    tile(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Inventario simple',
+                      subtitle:
+                      'Items, cantidades, unidad, ubicación y nota para control interno.',
+                      tag: 'Stock',
+                      value: TemplateKind.inventario,
                     ),
                     tile(
                       icon: Icons.account_tree_outlined,
                       title: 'Seguimiento de proyectos',
-                      subtitle: 'Proyecto, Responsable, inicio/fin, avance y estado',
+                      subtitle:
+                      'Proyecto, responsable, fechas clave, avance y estado.',
+                      tag: 'Gestión',
                       value: TemplateKind.seguimientoProyectos,
                     ),
                     tile(
-                      icon: Icons.straighten_rounded,
-                      title: 'Mediciones t\u00e9cnicas',
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'Plantilla base',
                       subtitle:
-                          'Punto, par\u00e1metro, lectura, tolerancia y estado',
-                      value: TemplateKind.medicionesTecnicas,
+                      'Hoja general para tareas, detalle, estado, responsable y fecha.',
+                      tag: 'Flexible',
+                      value: TemplateKind.plantilla,
                     ),
                   ],
                 ),
@@ -528,13 +530,14 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   Future<void> _showSheetActions(SheetMeta it) async {
     final pinned = _pinnedIds.contains(it.id);
+
     final action = await showModalBottomSheet<_SheetAction>(
       context: context,
       showDragHandle: true,
       useSafeArea: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withValues(alpha: 0.55);
+        final divider = theme.dividerColor.withOpacity(0.55);
         final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
 
         Widget actionTile({
@@ -545,9 +548,15 @@ class _SheetsScreenState extends State<SheetsScreen> {
         }) {
           return ListTile(
             leading: _PillIcon(icon: icon, color: iconColor),
-            title: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             onTap: () => Navigator.of(ctx).pop(value),
           );
         }
@@ -600,33 +609,39 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final pinned = _pinnedIds.contains(it.id);
 
     final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    Overlay.of(context).context.findRenderObject() as RenderBox?;
     final rect = overlay == null
         ? RelativeRect.fromLTRB(globalPos.dx, globalPos.dy, 0, 0)
         : RelativeRect.fromRect(
-            Rect.fromLTWH(globalPos.dx, globalPos.dy, 1, 1),
-            Offset.zero & overlay.size,
-          );
+      Rect.fromLTWH(globalPos.dx, globalPos.dy, 1, 1),
+      Offset.zero & overlay.size,
+    );
 
     final action = await showMenu<_SheetAction>(
       context: context,
       position: rect,
       items: [
-        const PopupMenuItem(
-            value: _SheetAction.open, child: Text(AppStrings.open)),
-        PopupMenuItem(
+        const PopupMenuItem<_SheetAction>(
+          value: _SheetAction.open,
+          child: Text(AppStrings.open),
+        ),
+        PopupMenuItem<_SheetAction>(
           value: _SheetAction.pinToggle,
           child: Text(pinned ? 'Desfijar' : 'Fijar'),
         ),
-        const PopupMenuItem(
-            value: _SheetAction.rename, child: Text(AppStrings.rename)),
-        const PopupMenuItem(
+        const PopupMenuItem<_SheetAction>(
+          value: _SheetAction.rename,
+          child: Text(AppStrings.rename),
+        ),
+        const PopupMenuItem<_SheetAction>(
           value: _SheetAction.duplicate,
           child: Text('Duplicar'),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
-            value: _SheetAction.delete, child: Text(AppStrings.delete)),
+        const PopupMenuItem<_SheetAction>(
+          value: _SheetAction.delete,
+          child: Text(AppStrings.delete),
+        ),
       ],
     );
 
@@ -664,6 +679,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final sameDay = local.year == now.year &&
         local.month == now.month &&
         local.day == now.day;
+
     if (sameDay) return 'Hoy ${hhmm(local)}';
 
     final dd = local.day.toString().padLeft(2, '0');
@@ -672,18 +688,17 @@ class _SheetsScreenState extends State<SheetsScreen> {
   }
 
   String get _subtitleText {
-    if (_loading) return 'Cargando planillas...';
-    if (_items.isEmpty) return 'Sin planillas guardadas todav\u00eda';
+    if (_loading) return 'Cargando workspace...';
+    if (_items.isEmpty) return 'Workspace listo para empezar';
 
     final last = _lastUpdatedSheet;
     final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '-';
     final pins = _pinnedIds.length;
 
-    // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas | $pins fijadas | \u00daltima: $lastLabel';
+      return '${_items.length} planillas activas · $pins fijadas · Última edición $lastLabel';
     }
-    return '${_items.length} planillas | \u00daltima: $lastLabel';
+    return '${_items.length} planillas activas · Última edición $lastLabel';
   }
 
   @override
@@ -694,10 +709,10 @@ class _SheetsScreenState extends State<SheetsScreen> {
       return Scaffold(
         body: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 420),
-            child: Padding(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: const LoadingState(message: 'Cargando planillas...'),
+              child: LoadingState(message: 'Cargando planillas...'),
             ),
           ),
         ),
@@ -717,7 +732,6 @@ class _SheetsScreenState extends State<SheetsScreen> {
       }
     }
 
-    // (Redundante si _items ya viene ordenado por updatedAt, pero seguro)
     pinned.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     others.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
@@ -726,52 +740,50 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final noResults = hasAny && !hasAnyFiltered && _query.isNotEmpty;
     final canOpenLast = _lastUpdatedSheet != null;
 
-    // No robamos Ctrl/Cmd+F. Usamos K y /.
     final shortcuts = <ShortcutActivator, Intent>{
       const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-          const _FocusSearchIntent(),
+      const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-          const _FocusSearchIntent(),
+      const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.slash):
-          const _FocusSearchIntent(),
+      const _FocusSearchIntent(),
       const SingleActivator(LogicalKeyboardKey.keyN, control: true):
-          const _NewSheetIntent(),
+      const _NewSheetIntent(),
       const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
-          const _NewSheetIntent(),
+      const _NewSheetIntent(),
       const SingleActivator(LogicalKeyboardKey.keyT, control: true):
-          const _TemplatesIntent(),
+      const _TemplatesIntent(),
       const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
-          const _TemplatesIntent(),
+      const _TemplatesIntent(),
       const SingleActivator(LogicalKeyboardKey.keyL, control: true):
-          const _OpenLastIntent(),
+      const _OpenLastIntent(),
       const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
-          const _OpenLastIntent(),
+      const _OpenLastIntent(),
       const SingleActivator(LogicalKeyboardKey.escape):
-          const _ClearSearchIntent(),
+      const _ClearSearchIntent(),
     };
 
     final appearanceKey = Object.hash(
       theme.brightness,
-      theme.scaffoldBackgroundColor.toARGB32(),
-      theme.dividerColor.toARGB32(),
-      theme.colorScheme.surfaceContainerHighest.toARGB32(),
+      theme.scaffoldBackgroundColor.value,
+      theme.dividerColor.value,
+      theme.colorScheme.surfaceContainerHighest.value,
     );
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
-      final t = Theme.of(context);
-      final text = count == null ? label : '$label | $count';
+      final text = count == null ? label : '$label · $count';
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: _kMaxWidth),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: Text(
                 text,
-                style: t.textTheme.labelLarge?.copyWith(
+                style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.2,
-                  color: t.colorScheme.onSurface.withValues(alpha: 0.70),
+                  color: theme.colorScheme.onSurface.withOpacity(0.70),
                 ),
               ),
             ),
@@ -813,12 +825,15 @@ class _SheetsScreenState extends State<SheetsScreen> {
               onRefresh: _handleRefresh,
               child: CustomScrollView(
                 keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
+                ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   _AppleLargeTitleAppBar(
                     title: AppStrings.sheetsTitle,
                     subtitle: _subtitleText,
+                    itemCount: _items.length,
+                    pinnedCount: _pinnedIds.length,
+                    templateCount: 7,
                     onNew: _newBlank,
                     onTemplates: _pickTemplate,
                     onToggleTheme: widget.onToggleTheme,
@@ -829,7 +844,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _SearchHeaderDelegate(
-                      height: 126,
+                      height: 146,
                       controller: _searchEC,
                       focusNode: _searchFN,
                       onNew: _newBlank,
@@ -856,36 +871,37 @@ class _SheetsScreenState extends State<SheetsScreen> {
                       ),
                     )
                   else ...[
-                    if (pinned.isNotEmpty) ...[
-                      sectionHeader('Fijadas', count: pinned.length),
-                      _SheetsSliverList(
-                        items: pinned,
-                        formatUpdatedAt: _formatUpdatedAt,
-                        onOpen: (id) => _open(id),
-                        onActions: (it) => _showSheetActions(it),
-                        onContextMenu: (it, pos) => _showContextMenu(it, pos),
-                        isPinned: (id) => _pinnedIds.contains(id),
-                        onTogglePinned: (id) => _togglePinned(id),
-                        hapticSelect: _hapticSelect,
-                      ),
-                    ],
-                    if (others.isNotEmpty) ...[
-                      sectionHeader(
+                      if (pinned.isNotEmpty) ...[
+                        sectionHeader('Fijadas', count: pinned.length),
+                        _SheetsSliverList(
+                          items: pinned,
+                          formatUpdatedAt: _formatUpdatedAt,
+                          onOpen: (id) => _open(id),
+                          onActions: (it) => _showSheetActions(it),
+                          onContextMenu: (it, pos) => _showContextMenu(it, pos),
+                          isPinned: (id) => _pinnedIds.contains(id),
+                          onTogglePinned: (id) => _togglePinned(id),
+                          hapticSelect: _hapticSelect,
+                        ),
+                      ],
+                      if (others.isNotEmpty) ...[
+                        sectionHeader(
                           pinned.isNotEmpty ? 'Recientes' : 'Planillas',
-                          count: others.length),
-                      _SheetsSliverList(
-                        items: others,
-                        formatUpdatedAt: _formatUpdatedAt,
-                        onOpen: (id) => _open(id),
-                        onActions: (it) => _showSheetActions(it),
-                        onContextMenu: (it, pos) => _showContextMenu(it, pos),
-                        isPinned: (id) => _pinnedIds.contains(id),
-                        onTogglePinned: (id) => _togglePinned(id),
-                        hapticSelect: _hapticSelect,
-                        bottomPadding: 110,
-                      ),
+                          count: others.length,
+                        ),
+                        _SheetsSliverList(
+                          items: others,
+                          formatUpdatedAt: _formatUpdatedAt,
+                          onOpen: (id) => _open(id),
+                          onActions: (it) => _showSheetActions(it),
+                          onContextMenu: (it, pos) => _showContextMenu(it, pos),
+                          isPinned: (id) => _pinnedIds.contains(id),
+                          onTogglePinned: (id) => _togglePinned(id),
+                          hapticSelect: _hapticSelect,
+                          bottomPadding: 110,
+                        ),
+                      ],
                     ],
-                  ],
                 ],
               ),
             ),
@@ -927,14 +943,14 @@ class _SheetsSliverList extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 6, 12, bottomPadding),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
-          (ctx, i) {
+              (ctx, i) {
             final it = items[i];
             final updated = formatUpdatedAt(it.updatedAt);
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 940),
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: _SheetCard(
                     meta: it,
                     updatedLabel: updated,
@@ -961,6 +977,9 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
   const _AppleLargeTitleAppBar({
     required this.title,
     required this.subtitle,
+    required this.itemCount,
+    required this.pinnedCount,
+    required this.templateCount,
     required this.onNew,
     required this.onTemplates,
     required this.onToggleTheme,
@@ -971,6 +990,9 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
 
   final String title;
   final String subtitle;
+  final int itemCount;
+  final int pinnedCount;
+  final int templateCount;
   final VoidCallback onNew;
   final VoidCallback onTemplates;
   final VoidCallback onToggleTheme;
@@ -980,57 +1002,93 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return SliverToBoxAdapter(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 940),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-            child: AppTopBar(
-              title: title,
-              subtitle: subtitle,
-              actions: [
-                AppButton(
-                  label: AppStrings.newSheet,
-                  icon: Icons.add,
-                  variant: AppButtonVariant.secondary,
-                  size: AppButtonSize.sm,
-                  onPressed: () {
-                    hapticSelect();
-                    onNew();
-                  },
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              children: [
+                AppTopBar(
+                  title: title,
+                  subtitle: subtitle,
+                  actions: [
+                    AppButton(
+                      label: AppStrings.newSheet,
+                      icon: Icons.add,
+                      variant: AppButtonVariant.secondary,
+                      size: AppButtonSize.sm,
+                      onPressed: () {
+                        hapticSelect();
+                        onNew();
+                      },
+                    ),
+                    AppButton(
+                      label: AppStrings.templates,
+                      icon: Icons.view_quilt_outlined,
+                      variant: AppButtonVariant.ghost,
+                      size: AppButtonSize.sm,
+                      onPressed: () {
+                        hapticSelect();
+                        onTemplates();
+                      },
+                    ),
+                    AppButton(
+                      label: isLight ? 'Noche' : 'Día',
+                      icon: isLight
+                          ? Icons.dark_mode_outlined
+                          : Icons.light_mode_outlined,
+                      variant: AppButtonVariant.ghost,
+                      size: AppButtonSize.sm,
+                      onPressed: () {
+                        hapticSelect();
+                        onToggleTheme();
+                      },
+                    ),
+                    AppButton(
+                      label: AppStrings.actions,
+                      icon: Icons.more_horiz_rounded,
+                      variant: AppButtonVariant.secondary,
+                      size: AppButtonSize.sm,
+                      onPressed: () {
+                        hapticSelect();
+                        onMoreInfo();
+                      },
+                    ),
+                  ],
                 ),
-                AppButton(
-                  label: AppStrings.templates,
-                  icon: Icons.view_quilt_outlined,
-                  variant: AppButtonVariant.ghost,
-                  size: AppButtonSize.sm,
-                  onPressed: () {
-                    hapticSelect();
-                    onTemplates();
-                  },
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Planillas listas para campo, oficina y exportación.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.72),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                AppButton(
-                  label: isLight ? 'Noche' : 'D\u00eda',
-                  icon: isLight
-                      ? Icons.dark_mode_outlined
-                      : Icons.light_mode_outlined,
-                  variant: AppButtonVariant.ghost,
-                  size: AppButtonSize.sm,
-                  onPressed: () {
-                    hapticSelect();
-                    onToggleTheme();
-                  },
-                ),
-                AppButton(
-                  label: AppStrings.actions,
-                  icon: Icons.more_horiz_rounded,
-                  variant: AppButtonVariant.secondary,
-                  size: AppButtonSize.sm,
-                  onPressed: () {
-                    hapticSelect();
-                    onMoreInfo();
-                  },
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _HeroMetricChip(
+                      icon: Icons.grid_view_rounded,
+                      label: '$itemCount planillas',
+                    ),
+                    _HeroMetricChip(
+                      icon: Icons.star_rounded,
+                      label: '$pinnedCount fijadas',
+                    ),
+                    _HeroMetricChip(
+                      icon: Icons.view_quilt_outlined,
+                      label: '$templateCount plantillas',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1070,10 +1128,13 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+      BuildContext context,
+      double shrinkOffset,
+      bool overlapsContent,
+      ) {
     final theme = Theme.of(context);
-    final bg = theme.scaffoldBackgroundColor.withValues(alpha: 0.92);
-    final divider = theme.dividerColor.withValues(alpha: 0.55);
+    final bg = theme.scaffoldBackgroundColor.withOpacity(0.94);
+    final divider = theme.dividerColor.withOpacity(0.55);
     final canOpenLast = onOpenLast != null;
 
     return DecoratedBox(
@@ -1137,6 +1198,27 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 28,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: const [
+                        _ShortcutPill(label: 'Ctrl/Cmd + K', hint: 'Buscar'),
+                        SizedBox(width: 8),
+                        _ShortcutPill(label: 'N', hint: 'Nueva'),
+                        SizedBox(width: 8),
+                        _ShortcutPill(label: 'T', hint: 'Plantillas'),
+                        SizedBox(width: 8),
+                        _ShortcutPill(label: 'L', hint: 'Abrir última'),
+                        SizedBox(width: 8),
+                        _ShortcutPill(label: 'Esc', hint: 'Limpiar'),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1188,16 +1270,17 @@ class _SearchBar extends StatelessWidget {
               suffixIcon: value.text.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: AppStrings.clearSearch,
-                      onPressed: () {
-                        controller.clear();
-                        onClearHaptic();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
+                tooltip: AppStrings.clearSearch,
+                onPressed: () {
+                  controller.clear();
+                  onClearHaptic();
+                },
+                icon: const Icon(Icons.close),
+              ),
             ),
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
         );
       },
@@ -1242,8 +1325,10 @@ class _SheetCardState extends State<_SheetCard> {
     final title = widget.meta.title.isNotEmpty
         ? widget.meta.title
         : 'Planilla ${widget.meta.id}';
-    final details =
-        'Actualizada: ${widget.updatedLabel} | Filas: ${widget.meta.rows}';
+
+    final subtitle = widget.meta.rows == 1
+        ? '1 fila cargada'
+        : '${widget.meta.rows} filas cargadas';
 
     return AnimatedScale(
       scale: _pressed ? 0.988 : 1.0,
@@ -1251,11 +1336,12 @@ class _SheetCardState extends State<_SheetCard> {
       curve: Curves.easeOut,
       child: Material(
         color: theme.cardColor,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           side: BorderSide(
-            color: theme.dividerColor.withValues(alpha: 0.60),
-            width: 0.8,
+            color: theme.dividerColor.withOpacity(0.58),
+            width: 0.85,
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -1268,15 +1354,16 @@ class _SheetCardState extends State<_SheetCard> {
             onHighlightChanged: (v) => setState(() => _pressed = v),
             onSecondaryTapDown: (d) => widget.onContextMenu(d.globalPosition),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _PillIcon(
                     icon: Icons.table_chart,
                     color: widget.accent,
                     filled: true,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1288,7 +1375,9 @@ class _SheetCardState extends State<_SheetCard> {
                                 title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: context.appText.titleMedium,
+                                style: context.appText.titleMedium.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ),
                             if (widget.pinned) ...[
@@ -1297,42 +1386,69 @@ class _SheetCardState extends State<_SheetCard> {
                                 Icons.star_rounded,
                                 size: 18,
                                 color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.65),
+                                    .withOpacity(0.62),
                               ),
                             ],
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          details,
+                          subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: context.appText.bodyMuted,
+                          style: context.appText.bodyMuted.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _MetaBadge(
+                              icon: Icons.schedule_rounded,
+                              label: widget.updatedLabel,
+                            ),
+                            _MetaBadge(
+                              icon: Icons.table_rows_rounded,
+                              label: widget.meta.rows == 1
+                                  ? '1 fila'
+                                  : '${widget.meta.rows} filas',
+                            ),
+                            _MetaBadge(
+                              icon: Icons.fingerprint_rounded,
+                              label: widget.meta.id,
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  _PillButton(
-                    tooltip: widget.pinned ? 'Desfijar' : 'Fijar',
-                    semanticsLabel: AppStrings.semTogglePin,
-                    icon: widget.pinned
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    onTap: () {
-                      widget.hapticSelect();
-                      widget.onTogglePinned();
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _PillButton(
-                    tooltip: AppStrings.actions,
-                    semanticsLabel: AppStrings.semOpenSheetActions,
-                    icon: Icons.more_horiz,
-                    onTap: () {
-                      widget.hapticSelect();
-                      widget.onActions();
-                    },
+                  const SizedBox(width: 10),
+                  Column(
+                    children: [
+                      _PillButton(
+                        tooltip: widget.pinned ? 'Desfijar' : 'Fijar',
+                        semanticsLabel: AppStrings.semTogglePin,
+                        icon: widget.pinned
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        onTap: () {
+                          widget.hapticSelect();
+                          widget.onTogglePinned();
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _PillButton(
+                        tooltip: AppStrings.actions,
+                        semanticsLabel: AppStrings.semOpenSheetActions,
+                        icon: Icons.more_horiz,
+                        onTap: () {
+                          widget.hapticSelect();
+                          widget.onActions();
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1368,8 +1484,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bg = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-      theme.brightness == Brightness.dark ? 0.55 : 0.70,
+    final bg = theme.colorScheme.surfaceContainerHighest.withOpacity(
+      theme.brightness == Brightness.dark ? 0.55 : 0.72,
     );
 
     return AnimatedScale(
@@ -1389,8 +1505,10 @@ class _PillButtonState extends State<_PillButton> {
             child: Tooltip(
               message: widget.tooltip,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Icon(widget.icon, size: 20),
               ),
             ),
@@ -1415,22 +1533,220 @@ class _PillIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final c = color ?? theme.colorScheme.primary;
+    final resolvedColor = color ?? theme.colorScheme.primary;
 
     final bg = filled
-        ? c.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14)
-        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-            theme.brightness == Brightness.dark ? 0.55 : 0.70,
-          );
+        ? resolvedColor.withOpacity(
+      theme.brightness == Brightness.dark ? 0.22 : 0.14,
+    )
+        : theme.colorScheme.surfaceContainerHighest.withOpacity(
+      theme.brightness == Brightness.dark ? 0.55 : 0.70,
+    );
 
     return Container(
-      width: 42,
-      height: 42,
+      width: 44,
+      height: 44,
       decoration: ShapeDecoration(
         shape: const StadiumBorder(),
         color: bg,
       ),
-      child: Icon(icon, color: c, size: 20),
+      child: Icon(icon, color: resolvedColor, size: 20),
+    );
+  }
+}
+
+class _HeroMetricChip extends StatelessWidget {
+  const _HeroMetricChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
+          theme.brightness == Brightness.dark ? 0.45 : 0.70,
+        ),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.22),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: theme.colorScheme.onSurface.withOpacity(0.78),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaBadge extends StatelessWidget {
+  const _MetaBadge({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
+          theme.brightness == Brightness.dark ? 0.40 : 0.62,
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: theme.colorScheme.onSurface.withOpacity(0.72),
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShortcutPill extends StatelessWidget {
+  const _ShortcutPill({
+    required this.label,
+    required this.hint,
+  });
+
+  final String label;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(
+          theme.brightness == Brightness.dark ? 0.42 : 0.62,
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label · $hint',
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurface.withOpacity(0.72),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateTile extends StatelessWidget {
+  const _TemplateTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.tag,
+    required this.borderColor,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String tag;
+  final Color borderColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: 0.85),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _PillIcon(icon: icon),
+                const Spacer(),
+                _MetaBadge(
+                  icon: Icons.sell_outlined,
+                  label: tag,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Text(
+                subtitle,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.72),
+                  height: 1.25,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1446,9 +1762,11 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
+        constraints: const BoxConstraints(maxWidth: 580),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
@@ -1456,10 +1774,19 @@ class _Empty extends StatelessWidget {
             children: [
               const EmptyState(
                 title: AppStrings.emptySheetsTitle,
-                message: AppStrings.emptySheetsBody,
+                message:
+                'Creá una hoja nueva o arrancá con una plantilla lista para campo, oficina y seguimiento operativo.',
                 icon: Icons.table_chart_outlined,
               ),
               const SizedBox(height: 14),
+              Text(
+                'Podés empezar en blanco o usar una base ya armada para resistividades, checklist, gastos o mediciones.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.70),
+                ),
+              ),
+              const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
                 runSpacing: 8,
@@ -1508,12 +1835,13 @@ class _NoResults extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 540),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: EmptyState(
             title: AppStrings.noResultsTitle,
-            message: AppStrings.noResultsBody(query),
+            message:
+            '${AppStrings.noResultsBody(query)} Probá buscar por título o ID.',
             icon: Icons.search_off_outlined,
             actionLabel: AppStrings.clearSearch,
             onAction: onClear,
@@ -1523,4 +1851,3 @@ class _NoResults extends StatelessWidget {
     );
   }
 }
-

@@ -3408,315 +3408,260 @@ extension _EditorAttachments on _EditorScreenState {
     BuildContext context,
     _SheetPalette pal,
   ) async {
+    var showAdvanced = false;
+
     await showAppModal<void>(
       context: context,
       title: 'Acciones',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppButton(
-            label: '+ Registro',
-            icon: Icons.add_box_outlined,
-            variant: AppButtonVariant.primary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_startQuickCaptureFlow());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Formulario',
-            icon: Icons.description_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(
-                _openRowFormMode(
-                  rowIndex: _selRow,
-                  createNew: false,
+      child: StatefulBuilder(
+        builder: (modalCtx, setModalState) {
+          void closeThen(VoidCallback run) {
+            Navigator.of(modalCtx).pop();
+            run();
+          }
+
+          Widget actionButton({
+            required String label,
+            required IconData icon,
+            required VoidCallback? onPressed,
+            AppButtonVariant variant = AppButtonVariant.secondary,
+          }) {
+            return AppButton(
+              label: label,
+              icon: icon,
+              variant: variant,
+              onPressed: onPressed,
+            );
+          }
+
+          List<Widget> withSpacing(List<Widget> items) {
+            final out = <Widget>[];
+            for (var i = 0; i < items.length; i++) {
+              if (i > 0) out.add(const SizedBox(height: 8));
+              out.add(items[i]);
+            }
+            return out;
+          }
+
+          final primaryActions = <Widget>[
+            actionButton(
+              label: '+ Registro',
+              icon: Icons.add_box_outlined,
+              variant: AppButtonVariant.primary,
+              onPressed: () =>
+                  closeThen(() => unawaited(_startQuickCaptureFlow())),
+            ),
+            actionButton(
+              label: 'Formulario',
+              icon: Icons.description_outlined,
+              onPressed: () => closeThen(
+                () => unawaited(
+                  _openRowFormMode(
+                    rowIndex: _selRow,
+                    createNew: false,
+                  ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Adjuntar en celda activa',
-            icon: Icons.attach_file_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openAttachmentPanelForCell(_selRow, _selCol));
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Guardar',
-            icon: Icons.check_circle_outline_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_saveLocalNow());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Cola offline',
-            icon: Icons.sync_alt_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openOfflineQueueDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Exportar / Compartir',
-            icon: Icons.ios_share_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openExportMenu());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Ver atajos',
-            icon: Icons.keyboard_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openShortcutsHelp());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Ver tour rapido',
-            icon: Icons.explore_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _reopenEditorTour();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Importar paquete',
-            icon: Icons.file_open_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openImportPackageDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Prueba rÃ¡pida (GPS/Foto/Audio)',
-            icon: Icons.science_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_runAttachmentSmokeTest());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Agregar fila',
-            icon: Icons.add_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _insertRow(_rows.length);
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Acciones por lote',
-            icon: Icons.layers_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openBatchActionsSheet());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Marcar revisado',
-            icon: Icons.verified_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_markSelectedRowsReviewed());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: _reviewFilterMode == _ReviewFilterMode.pending
-                ? 'Quitar vista pendientes'
-                : 'Vista pendientes',
-            icon: _reviewFilterMode == _ReviewFilterMode.pending
-                ? Icons.filter_alt_off_rounded
-                : Icons.pending_actions_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _togglePendingReviewView();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Vista urgentes',
-            icon: Icons.priority_high_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_activateUrgentViewShortcut());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Auto-ID',
-            icon: Icons.tag_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _applyAutoIdQuick();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Ir a errores',
-            icon: Icons.rule_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _jumpToFirstValidationIssue();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Historial',
-            icon: Icons.history_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openHistoryPanel());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Panel columnas',
-            icon: Icons.view_column_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openColumnPanel());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Guardar vista',
-            icon: Icons.bookmark_add_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openSaveViewDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Gestionar vistas',
-            icon: Icons.table_view_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openSavedViewsManager());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Preferencias de editor',
-            icon: Icons.tune_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openEditorDefaultsDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: _mobileCompactModeEnabled
-                ? 'Modo compacto: ON'
-                : 'Modo compacto: OFF',
-            icon: _mobileCompactModeEnabled
-                ? Icons.view_compact_alt_rounded
-                : Icons.view_day_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(
-                _setEditorDefaultRules(
-                  mobileCompactModeEnabled: !_mobileCompactModeEnabled,
+              ),
+            ),
+            actionButton(
+              label: 'Guardar',
+              icon: Icons.check_circle_outline_rounded,
+              onPressed: () => closeThen(() => unawaited(_saveLocalNow())),
+            ),
+            actionButton(
+              label: 'Exportar o compartir',
+              icon: Icons.ios_share_rounded,
+              onPressed: () => closeThen(() => unawaited(_openExportMenu())),
+            ),
+            actionButton(
+              label: 'Adjuntos de celda',
+              icon: Icons.attach_file_rounded,
+              onPressed: () => closeThen(
+                () => unawaited(_openAttachmentPanelForCell(_selRow, _selCol)),
+              ),
+            ),
+            actionButton(
+              label: 'Acciones por lote',
+              icon: Icons.layers_outlined,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openBatchActionsSheet())),
+            ),
+            actionButton(
+              label: 'Marcar revisado',
+              icon: Icons.verified_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_markSelectedRowsReviewed())),
+            ),
+            actionButton(
+              label: _reviewFilterMode == _ReviewFilterMode.pending
+                  ? 'Salir de pendientes'
+                  : 'Ver pendientes',
+              icon: _reviewFilterMode == _ReviewFilterMode.pending
+                  ? Icons.filter_alt_off_rounded
+                  : Icons.pending_actions_rounded,
+              onPressed: () => closeThen(_togglePendingReviewView),
+            ),
+            actionButton(
+              label: 'Pendientes de envio',
+              icon: Icons.sync_alt_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openOfflineQueueDialog())),
+            ),
+          ];
+
+          final advancedActions = <Widget>[
+            actionButton(
+              label: 'Agregar fila',
+              icon: Icons.add_rounded,
+              onPressed: () => closeThen(() => _insertRow(_rows.length)),
+            ),
+            actionButton(
+              label: 'Atajos',
+              icon: Icons.keyboard_rounded,
+              onPressed: () => closeThen(() => unawaited(_openShortcutsHelp())),
+            ),
+            actionButton(
+              label: 'Guia rapida',
+              icon: Icons.explore_outlined,
+              onPressed: () => closeThen(_reopenEditorTour),
+            ),
+            actionButton(
+              label: 'Importar paquete',
+              icon: Icons.file_open_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openImportPackageDialog())),
+            ),
+            actionButton(
+              label: 'Diagnostico rapido',
+              icon: Icons.science_outlined,
+              onPressed: () =>
+                  closeThen(() => unawaited(_runAttachmentSmokeTest())),
+            ),
+            actionButton(
+              label: 'Vista urgentes',
+              icon: Icons.priority_high_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_activateUrgentViewShortcut())),
+            ),
+            actionButton(
+              label: 'Auto-ID',
+              icon: Icons.tag_rounded,
+              onPressed: () => closeThen(_applyAutoIdQuick),
+            ),
+            actionButton(
+              label: 'Ir al primer error',
+              icon: Icons.rule_rounded,
+              onPressed: () => closeThen(_jumpToFirstValidationIssue),
+            ),
+            actionButton(
+              label: 'Historial',
+              icon: Icons.history_rounded,
+              onPressed: () => closeThen(() => unawaited(_openHistoryPanel())),
+            ),
+            actionButton(
+              label: 'Columnas',
+              icon: Icons.view_column_rounded,
+              onPressed: () => closeThen(() => unawaited(_openColumnPanel())),
+            ),
+            actionButton(
+              label: 'Guardar vista',
+              icon: Icons.bookmark_add_outlined,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openSaveViewDialog())),
+            ),
+            actionButton(
+              label: 'Mis vistas',
+              icon: Icons.table_view_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openSavedViewsManager())),
+            ),
+            actionButton(
+              label: 'Preferencias',
+              icon: Icons.tune_rounded,
+              onPressed: () =>
+                  closeThen(() => unawaited(_openEditorDefaultsDialog())),
+            ),
+            actionButton(
+              label: _mobileCompactModeEnabled
+                  ? 'Modo compacto: activo'
+                  : 'Modo compacto: inactivo',
+              icon: _mobileCompactModeEnabled
+                  ? Icons.view_compact_alt_rounded
+                  : Icons.view_day_outlined,
+              onPressed: () => closeThen(
+                () => unawaited(
+                  _setEditorDefaultRules(
+                    mobileCompactModeEnabled: !_mobileCompactModeEnabled,
+                  ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: _zenModeEnabled ? 'Modo Zen: ON' : 'Modo Zen: OFF',
-            icon: _zenModeEnabled
-                ? Icons.visibility_rounded
-                : Icons.visibility_off_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_toggleZenMode());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Deshacer',
-            icon: Icons.undo_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _undoOnce();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Rehacer',
-            icon: Icons.redo_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _redoOnce();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: pal.isLight ? 'Modo oscuro' : 'Modo claro',
-            icon: pal.isLight
-                ? Icons.dark_mode_outlined
-                : Icons.light_mode_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _toggleTheme();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: _engineHasBase ? 'Calcular' : 'Calcular (local)',
-            icon: Icons.functions_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: !_engineBusy
-                ? () {
-                    Navigator.of(context).pop();
-                    unawaited(_computeEngine());
-                  }
-                : null,
-          ),
-        ],
+              ),
+            ),
+            actionButton(
+              label:
+                  _zenModeEnabled ? 'Modo zen: activo' : 'Modo zen: inactivo',
+              icon: _zenModeEnabled
+                  ? Icons.visibility_rounded
+                  : Icons.visibility_off_rounded,
+              onPressed: () => closeThen(() => unawaited(_toggleZenMode())),
+            ),
+            actionButton(
+              label: 'Deshacer',
+              icon: Icons.undo_rounded,
+              onPressed: () => closeThen(_undoOnce),
+            ),
+            actionButton(
+              label: 'Rehacer',
+              icon: Icons.redo_rounded,
+              onPressed: () => closeThen(_redoOnce),
+            ),
+            actionButton(
+              label: pal.isLight ? 'Modo oscuro' : 'Modo claro',
+              icon: pal.isLight
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined,
+              onPressed: () => closeThen(_toggleTheme),
+            ),
+            actionButton(
+              label: _engineHasBase ? 'Recalcular' : 'Recalcular (local)',
+              icon: Icons.functions_rounded,
+              onPressed: !_engineBusy
+                  ? () => closeThen(() => unawaited(_computeEngine()))
+                  : null,
+            ),
+          ];
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ...withSpacing(primaryActions),
+              const SizedBox(height: 10),
+              AppButton(
+                label: showAdvanced ? 'Ocultar avanzado' : 'Ver mas',
+                icon: showAdvanced
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                variant: AppButtonVariant.ghost,
+                onPressed: () {
+                  setModalState(() => showAdvanced = !showAdvanced);
+                },
+              ),
+              if (showAdvanced) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Avanzado',
+                  style: TextStyle(
+                    color: pal.fgMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...withSpacing(advancedActions),
+              ],
+            ],
+          );
+        },
       ),
       actions: [
         AppButton(

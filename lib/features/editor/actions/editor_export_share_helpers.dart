@@ -10,26 +10,73 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     return '.../${parts[parts.length - 2]}/${parts.last}';
   }
 
-  String _exportShareSubject(String name) => 'BitFlow | $name';
+  String _exportShareSubject(String name) =>
+      'BitFlow | ${_formatLabelFromFileName(name)} | $name';
 
   String _exportShareText(String name) =>
-      'Archivo exportado desde BitFlow: $name';
+      '${_formatLabelFromFileName(name)} exportado desde BitFlow: $name';
 
-  String _fileReadyMessage(String label) => 'Archivo guardado: $label';
+  String _fileReadyMessage(String label, {required String name}) =>
+      switch (_exportMessageKind(name)) {
+        _ExportMessageKind.pdf => 'PDF listo para presentar: $label',
+        _ExportMessageKind.zip =>
+          'Paquete completo preparado: $label. Incluye planilla y evidencias.',
+        _ExportMessageKind.xlsx => 'Archivo listo: $label',
+        _ExportMessageKind.other => 'Archivo listo: $label',
+      };
 
-  String _downloadStartedMessage(String name) => 'Descarga iniciada: $name';
+  String _downloadStartedMessage(String name) =>
+      switch (_exportMessageKind(name)) {
+        _ExportMessageKind.pdf => 'PDF listo para presentar: $name',
+        _ExportMessageKind.zip =>
+          'Paquete completo preparado: $name. Incluye planilla y evidencias.',
+        _ExportMessageKind.xlsx => 'Archivo listo: $name',
+        _ExportMessageKind.other => 'Archivo listo: $name',
+      };
 
-  String _shareOpenedMessage(String name) => 'Listo para compartir: $name';
+  String _shareOpenedMessage(String name) => switch (_exportMessageKind(name)) {
+        _ExportMessageKind.pdf => 'PDF listo para compartir: $name',
+        _ExportMessageKind.zip =>
+          'Paquete completo listo para compartir: $name',
+        _ExportMessageKind.xlsx => 'Archivo listo para compartir: $name',
+        _ExportMessageKind.other => 'Archivo listo para compartir: $name',
+      };
 
   String _exportSheetOpenedMessage(String name) =>
-      'Archivo listo para guardar o enviar: $name. El sistema abri\u00f3 las opciones para compartir.';
+      switch (_exportMessageKind(name)) {
+        _ExportMessageKind.pdf =>
+          'PDF listo para presentar: $name. El sistema abrió las opciones para guardar o compartir.',
+        _ExportMessageKind.zip =>
+          'Paquete completo preparado: $name. El sistema abrió las opciones para guardar o compartir.',
+        _ExportMessageKind.xlsx =>
+          'Archivo listo: $name. El sistema abrió las opciones para guardar o compartir.',
+        _ExportMessageKind.other =>
+          'Archivo listo: $name. El sistema abrió las opciones para guardar o compartir.',
+      };
 
   String _shareFallbackSavedMessage({
     required String name,
     String? location,
   }) {
     final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir compartir. El archivo ya qued\u00f3 listo para guardar o enviar: $target';
+    return 'No pudimos abrir la opción de compartir. El archivo ya quedó listo: $target';
+  }
+
+  String _formatLabelFromFileName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.xlsx')) return 'XLSX';
+    if (lower.endsWith('.pdf')) return 'PDF';
+    if (lower.endsWith('.zip')) return 'paquete ZIP';
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'HTML';
+    return 'archivo';
+  }
+
+  _ExportMessageKind _exportMessageKind(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.pdf')) return _ExportMessageKind.pdf;
+    if (lower.endsWith('.zip')) return _ExportMessageKind.zip;
+    if (lower.endsWith('.xlsx')) return _ExportMessageKind.xlsx;
+    return _ExportMessageKind.other;
   }
 
   Future<void> _shareExportParams(ShareParams params) async {
@@ -220,7 +267,11 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       notifySavedFallbackFromShare(savedLocation);
     } else {
       notifySuccess(
-          _fileReadyMessage(savedLocation.isEmpty ? name : savedLocation));
+        _fileReadyMessage(
+          savedLocation.isEmpty ? name : savedLocation,
+          name: name,
+        ),
+      );
     }
   }
 
@@ -349,3 +400,5 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         lower.contains('did not share');
   }
 }
+
+enum _ExportMessageKind { xlsx, pdf, zip, other }

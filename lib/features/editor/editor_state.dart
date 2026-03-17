@@ -73,6 +73,8 @@ const String _kPrefCameraRationaleSeen =
     'bitflow.permission_rationale.camera.v1';
 const String _kPrefMicrophoneRationaleSeen =
     'bitflow.permission_rationale.microphone.v1';
+const String _kPrefLocationRationaleSeen =
+    'bitflow.permission_rationale.location.v1';
 const String _kPrefQuickCaptureQueue = 'bitflow.quick_capture_queue.v1';
 const String _kPrefEditorTourSeen = 'bitflow.editor.tour_seen.v1';
 const String _kPrefEditorTourDismissed = 'bitflow.editor.tour_dismissed.v1';
@@ -168,6 +170,9 @@ typedef _DebugPersistShareTempFileHook = Future<String?> Function({
   required String fileName,
   required Uint8List bytes,
 });
+typedef _DebugGpsOutcomeHook = Future<Map<String, Object?>> Function(
+  Duration timeout,
+);
 
 // ============================== Pantalla principal =========================
 
@@ -297,6 +302,9 @@ class _EditorScreenState extends State<EditorScreen>
   _GpsWriteMode _gpsWriteMode = _GpsWriteMode.pasteActive;
   _GpsFix? _pendingGpsFix;
   bool _gpsPickingTarget = false;
+  bool _gpsRequestInFlight = false;
+  String? _gpsRequestLabel;
+  Future<_GpsOutcome>? _gpsFetchInFlight;
   bool _autoGpsBatchEnabled = false;
   static const String _prefGpsMode = 'bitflow:gps_mode';
   static const String _prefAutoGpsBatch = 'bitflow:auto_gps_batch';
@@ -421,6 +429,7 @@ class _EditorScreenState extends State<EditorScreen>
   _DebugSaveLocationHook? _debugSaveLocationHook;
   _DebugSaveFileHook? _debugSaveFileHook;
   _DebugPersistShareTempFileHook? _debugPersistShareTempFileHook;
+  _DebugGpsOutcomeHook? _debugGpsOutcomeHook;
   WebImageNormalizer? _debugWebImageNormalizer;
   bool _debugForceWebImageNormalization = false;
   bool _debugSkipAttachmentGps = false;
@@ -6092,7 +6101,8 @@ class _EditorScreenState extends State<EditorScreen>
                 chosenScope,
               );
 
-              if (_isFlowBotApplyIntent(text) && initialScopedPreview.isNotEmpty) {
+              if (_isFlowBotApplyIntent(text) &&
+                  initialScopedPreview.isNotEmpty) {
                 Navigator.of(modalCtx)
                     .pop(List<FlowBotAction>.from(initialScopedPreview));
                 return;
@@ -6120,7 +6130,8 @@ class _EditorScreenState extends State<EditorScreen>
                 if (result.actions.isEmpty) {
                   setModalState(() {
                     warning = _flowBotApplyDisabledReason(
-                      preview: _applyScopeToFlowBotActions(preview, chosenScope),
+                      preview:
+                          _applyScopeToFlowBotActions(preview, chosenScope),
                       parsing: false,
                       useLocalLlm: _flowBotUseLocalLlm,
                       localModelReady: localModelReady,
@@ -6567,8 +6578,7 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.check_rounded,
                     dense: true,
                     variant: AppleButtonVariant.filled,
-                    onPressed:
-                        parsing ? null : () => unawaited(confirmApply()),
+                    onPressed: parsing ? null : () => unawaited(confirmApply()),
                   ),
                 ],
               );
@@ -6643,12 +6653,14 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   const SizedBox(height: 10),
                                   TextField(
-                                    key: const ValueKey('flowbot-command-input'),
+                                    key:
+                                        const ValueKey('flowbot-command-input'),
                                     controller: transcriptEC,
                                     minLines: 1,
                                     maxLines: 3,
                                     textInputAction: TextInputAction.done,
-                                    onSubmitted: (_) => unawaited(confirmApply()),
+                                    onSubmitted: (_) =>
+                                        unawaited(confirmApply()),
                                     decoration: InputDecoration(
                                       hintText:
                                           'Ej: poner OK en B2; rellenar listo x 3',
@@ -6923,7 +6935,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 parsing: parsing,
                                 useLocalLlm: _flowBotUseLocalLlm,
                                 localModelReady: localModelReady,
-                                hasTranscript: transcriptEC.text.trim().isNotEmpty,
+                                hasTranscript:
+                                    transcriptEC.text.trim().isNotEmpty,
                                 parseWarning: warning,
                               ),
                               style: TextStyle(
@@ -8073,61 +8086,76 @@ class _EditorScreenState extends State<EditorScreen>
     final rows = _batchTargetRows();
     if (rows.isEmpty || _headers.length < 2) return;
     final targetCol = _resolveBatchTargetColumn();
-    final outcome = await _getGpsFixWithFallback(
-      timeout: const Duration(seconds: 12),
-    );
-    if (!mounted) return;
-    if (!outcome.ok || outcome.fix == null) {
-      _showGpsError(outcome);
-      return;
-    }
-    final fix = outcome.fix!;
-    final gpsMeta = GpsMeta(
-      lat: fix.lat,
-      lng: fix.lng,
-      accuracyM: fix.accuracyM,
-      timestamp: fix.ts,
-      source: fix.source,
-      provider: fix.provider,
-    );
-    final shouldWriteText = _gpsWriteMode != _GpsWriteMode.metadataOnly;
-    final text = _gpsTextForFix(fix);
-    final refsToClear = <_CellRef>[];
-    var applied = 0;
+    final targetLabel = _gpsBatchTargetLabel(rows.length, targetCol);
+    final preflightOk = await _runGpsPreflight(targetLabel);
+    if (!preflightOk) return;
+    if (!_beginGpsRequest(targetLabel)) return;
 
-    for (final r in rows) {
-      if (r < 0 || r >= _rows.length) continue;
-      final ref = _cellRefAt(r, targetCol);
-      if (ref == null) continue;
-      final current = _cellMeta[ref.key];
-      _cellMeta[ref.key] = CellMeta(
-        gps: gpsMeta,
-        photos: current?.photos ?? const <PhotoAttachment>[],
-        audios: current?.audios ?? const <AudioAttachment>[],
+    try {
+      final outcome = await _getGpsFixWithFallback(
+        timeout: const Duration(seconds: 12),
       );
-      if (shouldWriteText) {
-        _rows[r].cells[targetCol] = text;
-        refsToClear.add(_CellRef(r, targetCol));
+      if (!mounted) return;
+      if (!outcome.ok || outcome.fix == null) {
+        _showGpsError(outcome, targetLabel: targetLabel);
+        return;
       }
-      applied++;
-    }
+      final fix = outcome.fix!;
+      final gpsMeta = _gpsMetaFromFix(fix);
+      final shouldWriteText = _gpsWriteMode != _GpsWriteMode.metadataOnly;
+      final text = _gpsTextForFix(fix);
+      final refsToClear = <_CellRef>[];
+      var applied = 0;
 
-    if (applied == 0) return;
-    if (refsToClear.isNotEmpty) {
-      _clearCellDrafts(refsToClear);
+      for (final r in rows) {
+        if (r < 0 || r >= _rows.length) continue;
+        final ref = _cellRefAt(r, targetCol);
+        if (ref == null) continue;
+        final current = _cellMeta[ref.key];
+        _cellMeta[ref.key] = CellMeta(
+          gps: gpsMeta,
+          photos: current?.photos ?? const <PhotoAttachment>[],
+          audios: current?.audios ?? const <AudioAttachment>[],
+        );
+        if (shouldWriteText) {
+          _rows[r].cells[targetCol] = text;
+          refsToClear.add(_CellRef(r, targetCol));
+        }
+        applied++;
+      }
+
+      if (applied == 0) return;
+      if (refsToClear.isNotEmpty) {
+        _clearCellDrafts(refsToClear);
+      }
+      _setSelection(
+        rows.first,
+        targetCol,
+        preserveRowSelection: true,
+        blink: true,
+      );
+      _markDirty(snapshot: true);
+      final msg = _gpsSavedMessage(
+        fix: fix,
+        targetLabel: _gpsBatchTargetLabel(applied, targetCol),
+        wroteText: shouldWriteText,
+      );
+      _engineStatus = msg;
+      _engineStatusIsError = false;
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.gps,
+        ok: true,
+        message:
+            'gps_batch rows=$applied col=${_a1ColumnLabel(targetCol)} lat=${fix.lat} lng=${fix.lng} acc=${fix.accuracyM} source=${fix.source} provider=${fix.provider} wroteText=$shouldWriteText',
+      );
+      _showActionSnack(
+        msg,
+        isError: false,
+        icon: Icons.my_location_rounded,
+      );
+    } finally {
+      _endGpsRequest(targetLabel);
     }
-    _setSelection(
-      rows.first,
-      targetCol,
-      preserveRowSelection: true,
-      blink: true,
-    );
-    _markDirty(snapshot: true);
-    _showActionSnack(
-      'GPS aplicado a $applied fila(s).',
-      isError: false,
-      icon: Icons.my_location_rounded,
-    );
   }
 
   void _duplicateSelectedRows() {
@@ -9182,14 +9210,7 @@ class _EditorScreenState extends State<EditorScreen>
 
       if (gpsFix != null) {
         _cellMeta[gpsRef.key] = CellMeta(
-          gps: GpsMeta(
-            lat: gpsFix.lat,
-            lng: gpsFix.lng,
-            accuracyM: gpsFix.accuracyM,
-            timestamp: gpsFix.ts,
-            source: gpsFix.source,
-            provider: gpsFix.provider,
-          ),
+          gps: _gpsMetaFromFix(gpsFix),
         );
       }
     });
@@ -9264,7 +9285,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (!gpsOutcome.ok) {
       _showActionSnack(
-        'Registro guardado sin GPS (permiso o senal no disponible).',
+        'Guardamos el registro, pero sin GPS (sin permiso o sin senal en este momento).',
         isError: false,
         icon: Icons.gps_off_rounded,
       );
@@ -10562,7 +10583,6 @@ class _EditorScreenState extends State<EditorScreen>
                                           _requestGpsForCell(
                                             _selRow,
                                             _selCol,
-                                            forceWriteText: true,
                                           ),
                                         ),
                                         onJumpTo: () =>
@@ -14434,7 +14454,7 @@ class _EditorScreenState extends State<EditorScreen>
           _CtxAction(
             'Adjuntar GPS',
             Icons.my_location_rounded,
-            () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
+            () => unawaited(_requestGpsForCell(r, c)),
             runOnTap: true,
           ),
         );
@@ -15687,7 +15707,7 @@ class _EditorScreenState extends State<EditorScreen>
 
             Future<void> runGps() async {
               setModalState(() => saving = true);
-              await _requestGpsForCell(targetRow, gpsCol, forceWriteText: true);
+              await _requestGpsForCell(targetRow, gpsCol);
               if (!ctx.mounted) return;
               setModalState(() => saving = false);
             }
@@ -16127,6 +16147,65 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  String _smartPasteCountLabel(int count, String singular, String plural) {
+    final safe = math.max(0, count);
+    final label = safe == 1 ? singular : plural;
+    return '$safe $label';
+  }
+
+  String _smartPasteDetectedMessage(SmartTableParseResult parsed) {
+    return 'Bloque detectado: '
+        '${_smartPasteCountLabel(parsed.rowCount, 'fila', 'filas')} x '
+        '${_smartPasteCountLabel(parsed.columnCount, 'columna', 'columnas')} '
+        '(${_smartTableDelimiterLabel(parsed.delimiter)}).';
+  }
+
+  String _smartPasteResultMessage({
+    required SmartTableParseResult parsed,
+    required bool usedHeaders,
+    required int changedCells,
+    required int changedHeaders,
+    required int addedRows,
+    required int addedColumns,
+  }) {
+    final lines = <String>[_smartPasteDetectedMessage(parsed)];
+    if (usedHeaders) {
+      lines.add('Se usó la primera fila como encabezados.');
+    }
+    if (addedRows > 0 || addedColumns > 0) {
+      final additions = <String>[];
+      if (addedRows > 0) {
+        additions.add(_smartPasteCountLabel(addedRows, 'fila', 'filas'));
+      }
+      if (addedColumns > 0) {
+        additions.add(
+          _smartPasteCountLabel(addedColumns, 'columna', 'columnas'),
+        );
+      }
+      lines.add('Se agregaron ${additions.join(' y ')}.');
+    }
+    if (changedHeaders > 0 && changedCells > 0) {
+      lines.add(
+        'Se actualizaron '
+        '${_smartPasteCountLabel(changedHeaders, 'encabezado', 'encabezados')} '
+        'y ${_smartPasteCountLabel(changedCells, 'celda', 'celdas')}.',
+      );
+    } else if (changedHeaders > 0) {
+      lines.add(
+        'Se actualizaron '
+        '${_smartPasteCountLabel(changedHeaders, 'encabezado', 'encabezados')}.',
+      );
+    } else if (changedCells > 0) {
+      lines.add(
+        'Se actualizaron '
+        '${_smartPasteCountLabel(changedCells, 'celda', 'celdas')}.',
+      );
+    } else if (addedRows > 0 || addedColumns > 0) {
+      lines.add('El bloque quedó listo para editar.');
+    }
+    return lines.join('\n');
+  }
+
   String _smartPasteProgressMessage({
     required int rows,
     required int cols,
@@ -16144,6 +16223,60 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     if (parsed.cells.isEmpty) return const <List<String>>[];
     return parsed.cells.take(maxRows).toList(growable: false);
+  }
+
+  ({int addedColumns, List<_SmartPasteUndoColumn> columns})
+      _ensureSmartPasteEditableColumns({
+    required int startCol,
+    required int requiredColumns,
+  }) {
+    final expansion = planSmartTableExpansion(
+      existingEditableColumns: math.max(0, _headers.length - 1),
+      startCol: startCol,
+      requiredColumns: requiredColumns,
+    );
+    final addedColumns = expansion.addedColumns;
+    if (addedColumns <= 0) {
+      return (
+        addedColumns: 0,
+        columns: const <_SmartPasteUndoColumn>[],
+      );
+    }
+
+    final added = <_SmartPasteUndoColumn>[];
+    for (int i = 0; i < addedColumns; i++) {
+      final insertAt = math.max(0, _headers.length - 1);
+      final colId = _genStableId('c_');
+      _headers.insert(insertAt, '');
+      _colIds.insert(insertAt, colId);
+      for (final row in _rows) {
+        final safeInsertAt = insertAt.clamp(0, row.cells.length);
+        row.cells.insert(safeInsertAt, '');
+      }
+      _columnPrefsById[colId] = const _ColumnPrefs(type: _ColType.text);
+      if (!_columnOrder.contains(colId)) {
+        _columnOrder.add(colId);
+      }
+      added.add(_SmartPasteUndoColumn(colId: colId));
+    }
+
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: _columnPrefsById,
+    );
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: _columnOrder,
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: _frozenColId,
+    );
+
+    return (
+      addedColumns: addedColumns,
+      columns: List<_SmartPasteUndoColumn>.unmodifiable(added),
+    );
   }
 
   Future<_SmartPasteUserChoice?> _showSmartPasteOptionsSheet(
@@ -16180,7 +16313,7 @@ class _EditorScreenState extends State<EditorScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Detecte ${parsed.rowCount}x${parsed.columnCount} (${_smartTableDelimiterLabel(parsed.delimiter)}).',
+                      _smartPasteDetectedMessage(parsed),
                       key: const Key('smart_paste_detect_label'),
                       style: TextStyle(
                         color: pal.fg,
@@ -16274,13 +16407,13 @@ class _EditorScreenState extends State<EditorScreen>
                       value: firstRowIsHeader,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Primera fila es header'),
+                      title: const Text('Usar primera fila como encabezados'),
                       subtitle: firstRowIsHeader
                           ? const Text(
-                              'Mapeo simple: renombrar columnas visibles desde la celda activa.',
+                              'La primera fila renombra columnas; el resto se pega como datos.',
                             )
                           : const Text(
-                              'Se pega toda la tabla como datos.',
+                              'Todo el bloque se pega como datos.',
                             ),
                       onChanged: (value) =>
                           setModalState(() => firstRowIsHeader = value),
@@ -16328,6 +16461,7 @@ class _EditorScreenState extends State<EditorScreen>
     final refsToClear = <_CellRef>[];
     final changedRowIds = <String>{};
     final removedIndexes = <int>[];
+    var removedColumns = false;
 
     for (int i = snapshot.insertedRowIds.length - 1; i >= 0; i--) {
       final rowId = snapshot.insertedRowIds[i];
@@ -16356,9 +16490,46 @@ class _EditorScreenState extends State<EditorScreen>
       changedRowIds.add(cell.rowId);
     }
 
+    if (snapshot.columns.isNotEmpty) {
+      final removedColIds = <String>{
+        for (final column in snapshot.columns) column.colId,
+      };
+      final cellMetaKeysToRemove = <String>[];
+      for (int i = snapshot.columns.length - 1; i >= 0; i--) {
+        final colId = snapshot.columns[i].colId;
+        final colIndex = _colIds.indexOf(colId);
+        if (colIndex < 0 || colIndex >= _headers.length - 1) continue;
+        _headers.removeAt(colIndex);
+        _colIds.removeAt(colIndex);
+        _columnPrefsById.remove(colId);
+        _columnOrder.removeWhere((entry) => entry == colId);
+        for (final row in _rows) {
+          if (colIndex >= 0 && colIndex < row.cells.length) {
+            row.cells.removeAt(colIndex);
+          }
+        }
+        removedColumns = true;
+      }
+      _frozenColId = _normalizeFrozenColId(
+        colIds: _colIds,
+        requested: _frozenColId,
+      );
+      _cellMeta.forEach((key, _) {
+        final ref = CellRef.fromKey(key, defaultSheetId: widget.sheetId);
+        if (ref == null) return;
+        if (removedColIds.contains(ref.colId)) {
+          cellMetaKeysToRemove.add(key);
+        }
+      });
+      for (final key in cellMetaKeysToRemove) {
+        _cellMeta.remove(key);
+      }
+    }
+
     if (removedIndexes.isEmpty &&
         refsToClear.isEmpty &&
-        snapshot.headers.isEmpty) {
+        snapshot.headers.isEmpty &&
+        !removedColumns) {
       _emitActionResult(
         const _ActionResult(
           ok: false,
@@ -16380,7 +16551,9 @@ class _EditorScreenState extends State<EditorScreen>
     for (final rowId in changedRowIds) {
       _bumpRowVersionById(rowId);
     }
-    if (removedIndexes.isNotEmpty || snapshot.headers.isNotEmpty) {
+    if (removedIndexes.isNotEmpty ||
+        snapshot.headers.isNotEmpty ||
+        removedColumns) {
       _bumpGridVersion();
     }
 
@@ -16413,6 +16586,7 @@ class _EditorScreenState extends State<EditorScreen>
     String raw, {
     bool emitFeedback = true,
     bool interactivePreview = true,
+    _SmartPasteUserChoice? forcedChoice,
   }) async {
     _ActionResult fail(String message) {
       final result = _ActionResult(ok: false, message: message);
@@ -16439,6 +16613,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final parsed = parseSmartTable(raw);
+    if (parsed.hasError) {
+      return fail(parsed.errorMessage!);
+    }
     if (parsed.isEmpty) {
       return fail('No se detecto una tabla valida para pegar.');
     }
@@ -16448,12 +16625,11 @@ class _EditorScreenState extends State<EditorScreen>
 
     final startR = _selRow;
     final startC = math.min(_selCol, _headers.length - 2);
-    final maxColsExclusive = _headers.length - 1;
     final selectedRows = _batchTargetRows();
 
-    var mode = _SmartPasteMode.replaceFromActive;
-    var firstRowIsHeader = false;
-    if (interactivePreview && parsed.looksLikeTable) {
+    var mode = forcedChoice?.mode ?? _SmartPasteMode.replaceFromActive;
+    var firstRowIsHeader = forcedChoice?.firstRowIsHeader ?? false;
+    if (forcedChoice == null && interactivePreview && parsed.looksLikeTable) {
       final picked = await _showSmartPasteOptionsSheet(parsed);
       if (picked == null) return fail('Pegado cancelado.');
       mode = picked.mode;
@@ -16462,16 +16638,41 @@ class _EditorScreenState extends State<EditorScreen>
 
     final previousSelRow = _selRow;
     final previousSelCol = _selCol;
+    final columnExpansion = _ensureSmartPasteEditableColumns(
+      startCol: startC,
+      requiredColumns: parsed.columnCount,
+    );
+    final addedColumns = columnExpansion.addedColumns;
+    final addedColumnSnapshots = columnExpansion.columns;
+    void rollbackAddedColumns() {
+      if (addedColumnSnapshots.isEmpty) return;
+      for (int i = addedColumnSnapshots.length - 1; i >= 0; i--) {
+        final colId = addedColumnSnapshots[i].colId;
+        final colIndex = _colIds.indexOf(colId);
+        if (colIndex < 0 || colIndex >= _headers.length - 1) continue;
+        _headers.removeAt(colIndex);
+        _colIds.removeAt(colIndex);
+        _columnPrefsById.remove(colId);
+        _columnOrder.removeWhere((entry) => entry == colId);
+        for (final row in _rows) {
+          if (colIndex >= 0 && colIndex < row.cells.length) {
+            row.cells.removeAt(colIndex);
+          }
+        }
+      }
+      _frozenColId = _normalizeFrozenColId(
+        colIds: _colIds,
+        requested: _frozenColId,
+      );
+    }
+
+    final maxColsExclusive = _headers.length - 1;
     final headerChanges = <_SmartPasteUndoHeader>[];
-    var headerOverflow = false;
     final headerSource =
         firstRowIsHeader && parsed.cells.isNotEmpty ? parsed.cells.first : null;
     if (headerSource != null) {
       final availableCols = math.max(0, maxColsExclusive - startC);
       final applyCols = math.min(headerSource.length, availableCols);
-      if (headerSource.length > applyCols) {
-        headerOverflow = true;
-      }
       for (int dc = 0; dc < applyCols; dc++) {
         final nextHeader = headerSource[dc].trim();
         if (nextHeader.isEmpty) continue;
@@ -16520,6 +16721,7 @@ class _EditorScreenState extends State<EditorScreen>
         changed++;
       }
       if (changed <= 0 && headerChanges.isEmpty) {
+        rollbackAddedColumns();
         return fail('Pegado sin cambios: las celdas ya tenian ese valor.');
       }
       _rememberValueForColumn(startC, normalized);
@@ -16531,7 +16733,7 @@ class _EditorScreenState extends State<EditorScreen>
         _headers[header.col] = header.nextValue;
       }
       _setSelection(selectedRows.first, startC, preserveRowSelection: true);
-      if (headerChanges.isNotEmpty) {
+      if (headerChanges.isNotEmpty || addedColumns > 0) {
         _bumpGridVersion();
       }
       _markDirty(snapshot: true);
@@ -16546,14 +16748,22 @@ class _EditorScreenState extends State<EditorScreen>
       );
       final result = _ActionResult(
         ok: true,
-        message: 'Pegado OK ($changed celdas).',
-        applied: changed + headerChanges.length,
+        message: _smartPasteResultMessage(
+          parsed: parsed,
+          usedHeaders: firstRowIsHeader,
+          changedCells: changed,
+          changedHeaders: headerChanges.length,
+          addedRows: 0,
+          addedColumns: addedColumns,
+        ),
+        applied: changed + headerChanges.length + addedColumns,
         undoToken: 'batch_paste',
       );
       if (emitFeedback) {
         final undoSnapshot = _SmartPasteUndoSnapshot(
           cells: undoCells,
           headers: headerChanges,
+          columns: addedColumnSnapshots,
           insertedRowIds: const <String>[],
           previousSelRow: previousSelRow,
           previousSelCol: previousSelCol,
@@ -16583,6 +16793,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (plan.changedCells <= 0 &&
         headerChanges.isEmpty &&
         plan.insertedRows <= 0) {
+      rollbackAddedColumns();
       return fail(
           'Pegado sin cambios: el bloque coincide con los datos actuales.');
     }
@@ -16633,6 +16844,7 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         cancellable: true,
       )) {
+        rollbackAddedColumns();
         return fail(
           'Ya hay una operacion en curso. Espera a que termine y reintenta el pegado.',
         );
@@ -16683,6 +16895,7 @@ class _EditorScreenState extends State<EditorScreen>
           }
         }
       } on _EditorLongOperationCancelled {
+        rollbackAddedColumns();
         return fail('Pegado cancelado por el usuario (sin cambios).');
       } finally {
         _clearLongOperation();
@@ -16719,7 +16932,7 @@ class _EditorScreenState extends State<EditorScreen>
     for (final rowId in changedRowIds) {
       _bumpRowVersionById(rowId);
     }
-    if (plan.insertedRows > 0 || headerChanges.isNotEmpty) {
+    if (plan.insertedRows > 0 || headerChanges.isNotEmpty || addedColumns > 0) {
       _bumpGridVersion();
     }
     _markDirty(snapshot: true);
@@ -16731,28 +16944,25 @@ class _EditorScreenState extends State<EditorScreen>
       row: startR,
       col: startC,
     );
-
-    if (headerOverflow && mounted) {
-      _showActionSnack(
-        'Se aplicaron encabezados en columnas visibles; el resto fue omitido.',
-        isError: false,
-        icon: Icons.view_column_outlined,
-      );
-    }
-
     final changedCellsCount = plan.changedCells + headerChanges.length;
-    final displayCellsCount =
-        changedCellsCount > 0 ? changedCellsCount : plan.insertedRows;
     final result = _ActionResult(
       ok: true,
-      message: 'Pegado OK ($displayCellsCount celdas).',
-      applied: changedCellsCount + plan.insertedRows,
+      message: _smartPasteResultMessage(
+        parsed: parsed,
+        usedHeaders: firstRowIsHeader,
+        changedCells: plan.changedCells,
+        changedHeaders: headerChanges.length,
+        addedRows: plan.insertedRows,
+        addedColumns: addedColumns,
+      ),
+      applied: changedCellsCount + plan.insertedRows + addedColumns,
       undoToken: 'batch_paste',
     );
     if (emitFeedback) {
       final undoSnapshot = _SmartPasteUndoSnapshot(
         cells: undoCells,
         headers: headerChanges,
+        columns: addedColumnSnapshots,
         insertedRowIds: insertedRowIds,
         previousSelRow: previousSelRow,
         previousSelCol: previousSelCol,
@@ -17719,22 +17929,22 @@ class _EditorScreenState extends State<EditorScreen>
   String _gpsModeLabel(_GpsWriteMode mode) {
     switch (mode) {
       case _GpsWriteMode.pasteActive:
-        return 'Pegar en celda activa';
+        return 'Guardar en celda activa';
       case _GpsWriteMode.pickTarget:
-        return 'Elegir celda destino';
+        return 'Capturar y elegir celda';
       case _GpsWriteMode.metadataOnly:
-        return 'Solo metadata (no texto)';
+        return 'Solo metadata';
     }
   }
 
   String _gpsModeDesc(_GpsWriteMode mode) {
     switch (mode) {
       case _GpsWriteMode.pasteActive:
-        return 'Inserta coordenadas en la celda seleccionada.';
+        return 'Guarda el GPS en la celda seleccionada y actualiza su texto.';
       case _GpsWriteMode.pickTarget:
-        return 'Luego de capturar GPS, elegis la celda destino.';
+        return 'Captura el GPS y luego te deja tocar la celda destino.';
       case _GpsWriteMode.metadataOnly:
-        return 'Guarda GPS en metadata sin tocar el texto.';
+        return 'Guarda coordenadas y hora sin cambiar el texto de la celda.';
     }
   }
 
@@ -17802,6 +18012,146 @@ class _EditorScreenState extends State<EditorScreen>
 
   // _showGpsModePicker movido a dialogs/editor_dialogs.dart
 
+  String _gpsCellTargetLabel(int r, int c) {
+    final cellLabel = CellKey(r, c).a1;
+    return 'fila ${r + 1}, celda $cellLabel';
+  }
+
+  String _gpsBatchTargetLabel(int rowCount, int targetCol) {
+    final rowsLabel = rowCount == 1 ? '1 fila' : '$rowCount filas';
+    return '$rowsLabel en la columna ${_a1ColumnLabel(targetCol)}';
+  }
+
+  String _gpsLoadingStatus(String targetLabel) =>
+      'Buscando ubicacion para $targetLabel...';
+
+  String _gpsSavedMessage({
+    required _GpsFix fix,
+    required String targetLabel,
+    required bool wroteText,
+  }) {
+    final when = _formatDateTimeShort(fix.ts.toLocal());
+    final acc = fix.accuracyM.isFinite && fix.accuracyM > 0
+        ? ' Precision aprox. ${fix.accuracyM.toStringAsFixed(0)} m.'
+        : '';
+    final source = fix.source.toLowerCase();
+    final sourceHint = source.contains('lastknown') || source == 'lastknown'
+        ? ' Se uso la ultima posicion disponible (GPS aproximado).'
+        : '';
+    final mode =
+        wroteText ? '' : ' No cambie el texto; solo actualice la metadata.';
+    return 'GPS guardado en $targetLabel a las $when.$acc$sourceHint$mode';
+  }
+
+  bool _beginGpsRequest(String targetLabel) {
+    if (_gpsRequestInFlight) {
+      final current = (_gpsRequestLabel ?? 'la seleccion').trim();
+      _showActionSnack(
+        'Ya estamos buscando el GPS para $current. Espera unos segundos.',
+        isError: false,
+        icon: Icons.hourglass_top_rounded,
+      );
+      return false;
+    }
+    _gpsRequestInFlight = true;
+    _gpsRequestLabel = targetLabel;
+    _engineStatus = _gpsLoadingStatus(targetLabel);
+    _engineStatusIsError = false;
+    if (mounted) {
+      setState(() {});
+    }
+    return true;
+  }
+
+  void _endGpsRequest(String targetLabel) {
+    _gpsRequestInFlight = false;
+    _gpsRequestLabel = null;
+    final loadingStatus = _gpsLoadingStatus(targetLabel);
+    if (_engineStatus == loadingStatus) {
+      _engineStatus = null;
+      _engineStatusIsError = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<bool> _runGpsPreflight(String targetLabel) async {
+    if (kIsWeb) return true;
+    if (_debugGpsOutcomeHook != null) return true;
+
+    final preflightOk = await _runPermissionPreflight(
+      storageKey: _kPrefLocationRationaleSeen,
+      permissionLabel: 'ubicacion',
+      rationaleTitle: 'Permiso de ubicacion',
+      rationaleMessage:
+          'Usamos el GPS para guardar coordenadas en la fila o celda elegida, junto con fecha y hora.',
+      permission: ph.Permission.locationWhenInUse,
+    );
+    if (!preflightOk) {
+      return false;
+    }
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) return true;
+    } catch (_) {
+      return true;
+    }
+
+    final msg =
+        'No pudimos iniciar el GPS para $targetLabel porque el servicio del dispositivo esta apagado.';
+    _engineStatus = msg;
+    _engineStatusIsError = true;
+    DiagnosticsLog.I.record(
+      type: DiagnosticActionType.gps,
+      ok: false,
+      message: 'gps_service_disabled_preflight target=$targetLabel',
+    );
+    if (mounted) {
+      setState(() {});
+      _showActionSnack(
+        'Activa la ubicacion del dispositivo y vuelve a intentar.',
+        isError: true,
+        icon: Icons.gps_off_rounded,
+        actionLabel: 'Abrir ajustes',
+        onAction: () {
+          unawaited(LocationService.I.openSystemLocationSettings());
+        },
+      );
+    }
+    return false;
+  }
+
+  _GpsOutcome _gpsOutcomeFromDebugPayload(Map<String, Object?> payload) {
+    final lat = (payload['lat'] as num?)?.toDouble();
+    final lng = (payload['lng'] as num?)?.toDouble();
+    if (lat != null && lng != null) {
+      final accuracy = ((payload['accuracyM'] ?? payload['accuracy_m']) as num?)
+              ?.toDouble() ??
+          0;
+      final timestampRaw = payload['timestamp'] ?? payload['ts'];
+      final timestamp = timestampRaw is DateTime
+          ? timestampRaw
+          : DateTime.tryParse((timestampRaw ?? '').toString()) ??
+              DateTime.now();
+      return _GpsOutcome(
+        fix: _GpsFix(
+          lat: lat,
+          lng: lng,
+          accuracyM: accuracy,
+          ts: timestamp,
+          source: (payload['source'] ?? 'debug').toString(),
+          provider: (payload['provider'] ?? 'debug').toString(),
+        ),
+      );
+    }
+    return _GpsOutcome(
+      error: (payload['error'] ?? 'gps_debug_error').toString(),
+      code: (payload['code'] ?? 'unknown').toString(),
+    );
+  }
+
   Future<void> _requestGpsForCell(
     int r,
     int c, {
@@ -17827,30 +18177,42 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final outcome = await _getGpsFixWithFallback(
-      timeout: const Duration(seconds: 12),
-    );
-    if (!mounted) return;
-    if (!outcome.ok || outcome.fix == null) {
-      _showGpsError(outcome);
-      return;
-    }
+    final targetLabel = _gpsCellTargetLabel(r, c);
+    final preflightOk = await _runGpsPreflight(targetLabel);
+    if (!preflightOk) return;
+    if (!_beginGpsRequest(targetLabel)) return;
 
-    final fix = outcome.fix!;
-    if (!forceWriteText && _gpsWriteMode == _GpsWriteMode.pickTarget) {
-      setState(() {
-        _gpsPickingTarget = true;
-        _pendingGpsFix = fix;
-      });
-      _engineStatus = 'Toca la celda destino para pegar GPS.';
-      _engineStatusIsError = false;
-      _showSnack('Toca la celda destino para pegar GPS.', isError: false);
-      return;
-    }
+    try {
+      final outcome = await _getGpsFixWithFallback(
+        timeout: const Duration(seconds: 12),
+      );
+      if (!mounted) return;
+      if (!outcome.ok || outcome.fix == null) {
+        _showGpsError(outcome, targetLabel: targetLabel);
+        return;
+      }
 
-    final shouldWrite =
-        forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
-    _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+      final fix = outcome.fix!;
+      if (!forceWriteText && _gpsWriteMode == _GpsWriteMode.pickTarget) {
+        setState(() {
+          _gpsPickingTarget = true;
+          _pendingGpsFix = fix;
+        });
+        _engineStatus = 'GPS listo. Toca la celda destino para pegarlo.';
+        _engineStatusIsError = false;
+        _showSnack(
+          'GPS listo. Toca la celda destino para pegarlo.',
+          isError: false,
+        );
+        return;
+      }
+
+      final shouldWrite =
+          forceWriteText || _gpsWriteMode != _GpsWriteMode.metadataOnly;
+      _applyGpsFixToCell(r, c, fix, writeText: shouldWrite);
+    } finally {
+      _endGpsRequest(targetLabel);
+    }
   }
 
   bool _tryConsumePendingGps(int r, int c) {
@@ -17880,6 +18242,30 @@ class _EditorScreenState extends State<EditorScreen>
   Future<_GpsOutcome> _getGpsFixWithFallback({
     Duration timeout = const Duration(seconds: 10),
   }) async {
+    final inflight = _gpsFetchInFlight;
+    if (inflight != null) {
+      return inflight;
+    }
+
+    final future = _fetchGpsFixWithFallback(timeout: timeout);
+    _gpsFetchInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_gpsFetchInFlight, future)) {
+        _gpsFetchInFlight = null;
+      }
+    }
+  }
+
+  Future<_GpsOutcome> _fetchGpsFixWithFallback({
+    required Duration timeout,
+  }) async {
+    final debugHook = _debugGpsOutcomeHook;
+    if (debugHook != null) {
+      final payload = await debugHook(timeout);
+      return _gpsOutcomeFromDebugPayload(payload);
+    }
     try {
       if (kIsWeb) {
         final result = await LocationWebService.I.tryGetCurrent(
@@ -17938,7 +18324,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _gpsTextForFix(_GpsFix fix) {
-    return '${formatLatLng(fix.lat, fix.lng)} (+/-${fix.accuracyM.toStringAsFixed(0)}m)';
+    final accuracy = fix.accuracyM;
+    final hasAccuracy = accuracy.isFinite && accuracy > 0;
+    if (!hasAccuracy) {
+      return formatLatLng(fix.lat, fix.lng);
+    }
+    return '${formatLatLng(fix.lat, fix.lng)} (+/-${accuracy.toStringAsFixed(0)}m)';
   }
 
   void _applyGpsFixToCell(
@@ -17968,7 +18359,7 @@ class _EditorScreenState extends State<EditorScreen>
     int c, {
     double lat = -38.95,
     double lng = -68.06,
-    double accuracyM = 12,
+    num accuracyM = 12,
     DateTime? timestamp,
     String source = 'test',
     String provider = 'test',
@@ -17978,12 +18369,47 @@ class _EditorScreenState extends State<EditorScreen>
       final fix = _GpsFix(
         lat: lat,
         lng: lng,
-        accuracyM: accuracyM,
+        accuracyM: accuracyM.toDouble(),
         ts: timestamp ?? DateTime.now(),
         source: source,
         provider: provider,
       );
       _applyGpsFixToCell(r, c, fix, writeText: writeText, announce: false);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<void> debugRequestGpsForCell(
+    int r,
+    int c, {
+    bool forceWriteText = false,
+  }) async {
+    assert(() {
+      return true;
+    }());
+    await _requestGpsForCell(r, c, forceWriteText: forceWriteText);
+  }
+
+  @visibleForTesting
+  Future<void> debugSetGpsModeForTest(String mode) async {
+    final raw = mode.trim().toLowerCase();
+    final next = switch (raw) {
+      'paste' || 'pasteactive' || 'paste_active' => _GpsWriteMode.pasteActive,
+      'pick' || 'picktarget' || 'pick_target' => _GpsWriteMode.pickTarget,
+      'metadata' ||
+      'metadataonly' ||
+      'metadata_only' =>
+        _GpsWriteMode.metadataOnly,
+      _ => _gpsWriteMode,
+    };
+    await _setGpsMode(next);
+  }
+
+  @visibleForTesting
+  void debugSetGpsOutcomeHook(_DebugGpsOutcomeHook? hook) {
+    assert(() {
+      _debugGpsOutcomeHook = hook;
       return true;
     }());
   }
@@ -18036,7 +18462,22 @@ class _EditorScreenState extends State<EditorScreen>
   bool debugCellHasGps(int r, int c) => _cellHasGps(r, c);
 
   @visibleForTesting
+  bool get debugGpsRequestInFlight => _gpsRequestInFlight;
+
+  @visibleForTesting
+  String? debugEngineStatusMessage() => _engineStatus;
+
+  @visibleForTesting
+  String? debugGpsRequestLabel() => _gpsRequestLabel;
+
+  @visibleForTesting
   int get debugRowCount => _rows.length;
+
+  @visibleForTesting
+  int get debugEditableColumnCount => math.max(0, _headers.length - 1);
+
+  @visibleForTesting
+  String debugHeaderText(int c) => _headerLabel(c);
 
   @visibleForTesting
   bool get debugMobileEditorOpen => _mobileEditorOpen;
@@ -18208,6 +18649,68 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  Future<void> debugRunExportSaveFlowForTest({
+    required String name,
+    required String mime,
+    bool share = false,
+    Uint8List? bytes,
+  }) async {
+    try {
+      await _saveExportBytes(
+        name: name,
+        mime: mime,
+        bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
+        share: share,
+      );
+    } catch (e, st) {
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.exportData,
+        operation: share
+            ? 'debug_export_save_flow_share'
+            : 'debug_export_save_flow_save',
+        fallbackMessage: 'No pudimos completar la operación.',
+        stackTrace: st,
+        icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+    }
+  }
+
+  @visibleForTesting
+  Future<Uint8List?> debugBuildZipBundleBytesForTest({
+    bool includeAttachments = true,
+  }) async {
+    final prep = await _prepareExportPayload(
+      includeZip: true,
+      includeAttachments: includeAttachments,
+    );
+    final xlsxBytes = await _buildXlsxBytesForExport(
+      embeddedPhotos: prep.embeddedPhotos,
+      attachments: prep.attachments,
+      exportFileName:
+          buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+    );
+    final pdfBytes = await _buildPdfBytesForExport(
+      includeAttachments: includeAttachments,
+      exportFileName: buildBitFlowPackageReportFileName(sheetName: _sheetName),
+    );
+    if (xlsxBytes == null || pdfBytes == null || pdfBytes.isEmpty) {
+      return null;
+    }
+    return _buildAttachmentsZip(
+      xlsxBytes: xlsxBytes,
+      xlsxFileName: buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
+      pdfBytes: pdfBytes,
+      pdfFileName: buildBitFlowPackageReportFileName(sheetName: _sheetName),
+      photoItems: prep.photoItems,
+      audioItems: prep.audioItems,
+      attachments: prep.attachments,
+      manifest: prep.manifest,
+      packageSheetJson: prep.packageSheetJson,
+    );
+  }
+
+  @visibleForTesting
   void debugOpenInlineSearch() {
     _openInlineSearch();
   }
@@ -18240,6 +18743,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   int get debugSelectedCol => _selCol;
+
+  @visibleForTesting
+  void debugSelectCell(int r, int c) {
+    assert(() {
+      if (r < 0 || r >= _rows.length) return true;
+      if (c < 0 || c >= _headers.length - 1) return true;
+      _setSelection(r, c, preserveRowSelection: true);
+      return true;
+    }());
+  }
 
   @visibleForTesting
   void debugOpenMobileEditorForCell(int r, int c) {
@@ -18281,11 +18794,21 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Map<String, Object?>> debugApplySmartPasteRaw(
     String raw, {
     bool interactivePreview = false,
+    bool firstRowIsHeader = false,
+    String mode = 'replace',
   }) async {
+    final normalizedMode = mode.trim().toLowerCase();
+    final forcedChoice = _SmartPasteUserChoice(
+      mode: normalizedMode == 'insert'
+          ? _SmartPasteMode.insertRows
+          : _SmartPasteMode.replaceFromActive,
+      firstRowIsHeader: firstRowIsHeader,
+    );
     final result = await _pasteTableSmartFromRaw(
       raw,
       emitFeedback: true,
       interactivePreview: interactivePreview,
+      forcedChoice: interactivePreview ? null : forcedChoice,
     );
     return <String, Object?>{
       'ok': result.ok,
@@ -18342,6 +18865,34 @@ class _EditorScreenState extends State<EditorScreen>
       _debugSkipAttachmentGps = skip;
       return true;
     }());
+  }
+
+  @visibleForTesting
+  Future<Map<String, Object?>> debugGetGpsFixForTest({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final outcome = await _getGpsFixWithFallback(timeout: timeout);
+    return <String, Object?>{
+      'ok': outcome.ok,
+      'error': outcome.error,
+      'code': outcome.code,
+      'lat': outcome.fix?.lat,
+      'lng': outcome.fix?.lng,
+      'accuracyM': outcome.fix?.accuracyM,
+      'source': outcome.fix?.source,
+      'provider': outcome.fix?.provider,
+      'ts': outcome.fix?.ts.toIso8601String(),
+    };
+  }
+
+  @visibleForTesting
+  String debugGpsErrorMessageForTest({
+    String? code,
+    String? error,
+    String? targetLabel,
+  }) {
+    final outcome = _GpsOutcome(code: code, error: error);
+    return _gpsErrorMessage(outcome, targetLabel: targetLabel);
   }
 
   @visibleForTesting
@@ -18545,20 +19096,26 @@ class _EditorScreenState extends State<EditorScreen>
     await _loadLocal();
   }
 
+  GpsMeta _gpsMetaFromFix(_GpsFix fix) {
+    final ts = fix.ts.millisecondsSinceEpoch > 0 ? fix.ts : DateTime.now();
+    final accuracy =
+        fix.accuracyM.isFinite && fix.accuracyM >= 0 ? fix.accuracyM : 0.0;
+    return GpsMeta(
+      lat: fix.lat,
+      lng: fix.lng,
+      accuracyM: accuracy,
+      timestamp: ts,
+      source: fix.source,
+      provider: fix.provider,
+    );
+  }
+
   void _setCellGpsMeta(int r, int c, _GpsFix fix, {required bool markDirty}) {
     final ref = _cellRefAt(r, c);
     if (ref == null) return;
     final current = _cellMeta[ref.key];
-    final gps = GpsMeta(
-      lat: fix.lat,
-      lng: fix.lng,
-      accuracyM: fix.accuracyM,
-      timestamp: fix.ts,
-      source: fix.source,
-      provider: fix.provider,
-    );
     final next = CellMeta(
-      gps: gps,
+      gps: _gpsMetaFromFix(fix),
       photos: current?.photos ?? const <PhotoAttachment>[],
       audios: current?.audios ?? const <AudioAttachment>[],
     );
@@ -18593,10 +19150,11 @@ class _EditorScreenState extends State<EditorScreen>
     required bool wroteText,
   }) {
     final cellLabel = _cellLabelRc(cell.row, cell.col);
-    final detail =
-        '${formatLatLng(fix.lat, fix.lng)} +/-${fix.accuracyM.toStringAsFixed(0)}m';
-    final msg =
-        'Guardado en celda $cellLabel (GPS $detail${wroteText ? '' : ', solo metadata'})';
+    final msg = _gpsSavedMessage(
+      fix: fix,
+      targetLabel: _gpsCellTargetLabel(cell.row, cell.col),
+      wroteText: wroteText,
+    );
     _engineStatus = msg;
     _engineStatusIsError = false;
     DiagnosticsLog.I.record(
@@ -18617,22 +19175,73 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
-  void _showGpsError(_GpsOutcome outcome) {
+  ({String? label, VoidCallback? onPressed}) _gpsErrorAction(String code) {
+    if (kIsWeb) {
+      return (label: null, onPressed: null);
+    }
+    switch (code) {
+      case 'permission_denied_forever':
+        return (
+          label: 'Abrir ajustes',
+          onPressed: () {
+            unawaited(LocationService.I.openAppSettings());
+          },
+        );
+      case 'service_disabled':
+        return (
+          label: 'Activar GPS',
+          onPressed: () {
+            unawaited(LocationService.I.openSystemLocationSettings());
+          },
+        );
+      default:
+        return (label: null, onPressed: null);
+    }
+  }
+
+  String _gpsErrorMessage(_GpsOutcome outcome, {String? targetLabel}) {
     final raw = (outcome.error ?? '').trim();
     final lower = raw.toLowerCase();
-    String userMsg;
+    final code = (outcome.code ?? '').trim().toLowerCase();
+    final prefix = (targetLabel ?? '').trim().isEmpty
+        ? 'No pudimos guardar el GPS.'
+        : 'No pudimos guardar el GPS en $targetLabel.';
+
+    late final String reason;
     if (lower.contains('https')) {
-      userMsg = 'GPS requiere HTTPS o localhost.';
-    } else if (lower.contains('deneg')) {
-      userMsg = 'Permiso de ubicacion denegado. Habilitalo en Ajustes.';
-    } else if (lower.contains('timeout')) {
-      userMsg = 'Timeout obteniendo GPS.';
+      reason = 'Este navegador solo permite GPS en HTTPS o localhost.';
+    } else if (code == 'permission_denied_forever') {
+      reason =
+          'El permiso de ubicacion quedo bloqueado. Habilitalo en Ajustes y vuelve a intentar.';
+    } else if (code == 'permission_denied' ||
+        lower.contains('deneg') ||
+        lower.contains('bloquead')) {
+      reason =
+          'BitFlow no pudo usar la ubicacion. Acepta el permiso y vuelve a intentar.';
+    } else if (code == 'service_disabled' ||
+        lower.contains('activa el gps') ||
+        lower.contains('servicio')) {
+      reason =
+          'El GPS del dispositivo esta apagado. Activalo y vuelve a intentar.';
+    } else if (code == 'timeout' || lower.contains('timeout')) {
+      reason =
+          'No llego una posicion valida a tiempo. Acercate a un lugar abierto y probalo otra vez.';
     } else if (lower.contains('no disponible') ||
         lower.contains('unavailable')) {
-      userMsg = 'Ubicacion no disponible.';
+      reason =
+          'No encontramos una ubicacion confiable. Revisa la senal y vuelve a intentar.';
     } else {
-      userMsg = 'No se pudo obtener GPS. Revisa permisos y conexion.';
+      reason = 'Revisa permiso, GPS y senal, y vuelve a intentar.';
     }
+
+    return '$prefix $reason';
+  }
+
+  void _showGpsError(_GpsOutcome outcome, {String? targetLabel}) {
+    final raw = (outcome.error ?? '').trim();
+    final code = (outcome.code ?? '').trim().toLowerCase();
+    final userMsg = _gpsErrorMessage(outcome, targetLabel: targetLabel);
+    final action = _gpsErrorAction(code);
 
     _engineStatus = userMsg;
     _engineStatusIsError = true;
@@ -18644,7 +19253,13 @@ class _EditorScreenState extends State<EditorScreen>
     );
     if (mounted) {
       setState(() {});
-      _showActionSnack(userMsg, isError: true, icon: Icons.gps_off_rounded);
+      _showActionSnack(
+        userMsg,
+        isError: true,
+        icon: Icons.gps_off_rounded,
+        actionLabel: action.label,
+        onAction: action.onPressed,
+      );
     }
   }
 
@@ -18996,6 +19611,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     try {
       _throwIfLongOperationCancelled();
+      final fileName = _buildCommercialExportFileName('xlsx');
       final prep = await _prepareExportPayload(
         includeZip: false,
         includeAttachments: includeAttachments,
@@ -19008,6 +19624,7 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
         attachments: prep.attachments,
+        exportFileName: fileName,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -19023,8 +19640,6 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final fileName = _buildCommercialExportFileName('xlsx');
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
         name: fileName,
@@ -19033,15 +19648,19 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: xlsxBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'Listo para compartir: $fileName'
-            : 'XLSX preparado: $fileName',
+        successMessage: _exportReadyMessage(
+          format: 'xlsx',
+          share: share,
+          fileName: fileName,
+        ),
+        shareSubject: 'BitFlow | Excel | $_sheetName',
+        shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        _exportCancelledMessage(share: share),
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19049,7 +19668,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          _exportCancelledMessage(share: share),
           isError: false,
           icon: Icons.info_outline_rounded,
         );
@@ -19060,9 +19679,7 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_xlsx' : 'export_xlsx',
-          fallbackMessage: share
-              ? 'Compartir XLSX no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar XLSX no esta disponible en este dispositivo.',
+          fallbackMessage: _exportUnsupportedMessage(share: share),
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
@@ -19072,9 +19689,7 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
-        fallbackMessage: share
-            ? 'No pudimos compartir el XLSX. Podes exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el XLSX. Intenta nuevamente en unos segundos.',
+        fallbackMessage: _exportFailureMessage(share: share),
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
@@ -19101,10 +19716,12 @@ class _EditorScreenState extends State<EditorScreen>
     }
     try {
       _throwIfLongOperationCancelled();
+      final fileName = _buildCommercialExportFileName('pdf');
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
 
       final pdfBytes = await _buildPdfBytesForExport(
         includeAttachments: includeAttachments,
+        exportFileName: fileName,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -19120,8 +19737,6 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final fileName = _buildCommercialExportFileName('pdf');
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
         name: fileName,
@@ -19129,15 +19744,19 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: pdfBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'Listo para compartir: $fileName'
-            : 'PDF preparado: $fileName',
+        successMessage: _exportReadyMessage(
+          format: 'pdf',
+          share: share,
+          fileName: fileName,
+        ),
+        shareSubject: 'BitFlow | PDF | $_sheetName',
+        shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        _exportCancelledMessage(share: share),
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19145,7 +19764,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          _exportCancelledMessage(share: share),
           isError: false,
           icon: Icons.info_outline_rounded,
         );
@@ -19156,9 +19775,7 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_pdf' : 'export_pdf',
-          fallbackMessage: share
-              ? 'Compartir PDF no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar PDF no esta disponible en este dispositivo.',
+          fallbackMessage: _exportUnsupportedMessage(share: share),
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
         );
@@ -19168,9 +19785,7 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
-        fallbackMessage: share
-            ? 'No pudimos compartir el PDF. Podes exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el PDF. Intenta nuevamente en unos segundos.',
+        fallbackMessage: _exportFailureMessage(share: share),
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
@@ -19194,6 +19809,13 @@ class _EditorScreenState extends State<EditorScreen>
     }
     try {
       _throwIfLongOperationCancelled();
+      final xlsxFileName = buildBitFlowPackageWorkbookFileName(
+        sheetName: _sheetName,
+      );
+      final pdfFileName = buildBitFlowPackageReportFileName(
+        sheetName: _sheetName,
+      );
+      final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
       final prep = await _prepareExportPayload(
         includeZip: true,
         shouldCancel: _isLongOperationCancelled,
@@ -19205,6 +19827,7 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
         attachments: prep.attachments,
+        exportFileName: xlsxFileName,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -19220,16 +19843,34 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final xlsxFileName = buildBitFlowPackageWorkbookFileName(
-        sheetName: _sheetName,
+      _setLongOperationMessage('Generando reporte PDF...');
+      final pdfBytes = await _buildPdfBytesForExport(
+        includeAttachments: true,
+        exportFileName: pdfFileName,
+        shouldCancel: _isLongOperationCancelled,
       );
+      if (!mounted) return;
+      _throwIfLongOperationCancelled();
+      if (pdfBytes == null) {
+        _reportFlowErrorMessage(
+          'pdf_generation_failed',
+          flow: AppErrorFlow.exportData,
+          operation: 'export_zip_build_pdf',
+          fallbackMessage: 'No se pudo preparar el PDF para exportar ZIP.',
+          icon: Icons.picture_as_pdf_rounded,
+        );
+        return;
+      }
 
       _setLongOperationMessage(AppStrings.progressPackagingAssets);
       final zipBytes = await _buildAttachmentsZip(
         xlsxBytes: xlsxBytes,
         xlsxFileName: xlsxFileName,
+        pdfBytes: pdfBytes,
+        pdfFileName: pdfFileName,
         photoItems: prep.photoItems,
         audioItems: prep.audioItems,
+        attachments: prep.attachments,
         manifest: prep.manifest,
         packageSheetJson: prep.packageSheetJson,
         shouldCancel: _isLongOperationCancelled,
@@ -19247,8 +19888,9 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
-      final evidenceCount = prep.photoItems.length + prep.audioItems.length;
+      final evidenceCount = prep.attachments
+          .where((item) => item.type.trim().toLowerCase() != 'gps')
+          .length;
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       await _saveExportBytes(
@@ -19257,19 +19899,21 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: zipBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'Paquete completo listo para compartir: $fileName'
-            : (evidenceCount > 0
-                ? 'Paquete completo listo: $fileName'
-                : 'Paquete completo listo (sin evidencias adjuntas): $fileName'),
-        shareSubject: 'BitFlow | $_sheetName',
-        shareText: 'Paquete exportado desde BitFlow: $_sheetName',
+        successMessage: _exportReadyMessage(
+          format: 'zip',
+          share: share,
+          fileName: fileName,
+          includeEvidenceHint: evidenceCount > 0,
+        ),
+        shareSubject: 'BitFlow | Paquete completo | $_sheetName',
+        shareText:
+            'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
       _showActionSnack(
-        AppStrings.infoExportCancelled,
+        _exportCancelledMessage(share: share),
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -19277,7 +19921,7 @@ class _EditorScreenState extends State<EditorScreen>
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
         _showActionSnack(
-          AppStrings.infoExportCancelled,
+          _exportCancelledMessage(share: share),
           isError: false,
           icon: Icons.info_outline_rounded,
         );
@@ -19288,9 +19932,7 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_zip' : 'export_zip',
-          fallbackMessage: share
-              ? 'Compartir paquete completo no está disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar paquete completo no está disponible en este dispositivo.',
+          fallbackMessage: _exportUnsupportedMessage(share: share),
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
@@ -19300,9 +19942,7 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
-        fallbackMessage: share
-            ? 'No pudimos compartir el paquete completo. Puedes exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el paquete completo. Intenta nuevamente en unos segundos.',
+        fallbackMessage: _exportFailureMessage(share: share),
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -19796,11 +20436,15 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildXlsxBytesForExport({
     required List<EmbeddedPhoto> embeddedPhotos,
     required List<AttachmentRow> attachments,
+    String? exportFileName,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final dataCols = math.max(0, _headers.length - 1); // sin Photos
     final columns = List<String>.generate(dataCols, (i) => _headerLabel(i));
+    final columnTypes = _buildExportColumnTypes(dataCols);
+    final cover = _buildExportCoverContext();
+    final gpsByRow = _buildGpsByRowForExport();
     final rows = <List<String>>[];
     for (final row in _rows) {
       _throwIfOperationCancelledBy(shouldCancel);
@@ -19816,15 +20460,24 @@ class _EditorScreenState extends State<EditorScreen>
       rows: rows,
       embeddedPhotos: embeddedPhotos,
       attachments: attachments,
+      gpsByRow: gpsByRow,
+      columnTypes: columnTypes,
       sheetName: _sheetName,
       includeIndexColumn: false,
       includeCoverSheet: true,
       includeSummarySheet: true,
+      exportedAt: DateTime.now(),
+      exportFileName: exportFileName,
+      clientName: cover.clientName,
+      projectName: cover.projectName,
+      responsibleName: cover.responsibleName,
+      observations: cover.observations,
     );
   }
 
   Future<Uint8List?> _buildPdfBytesForExport({
     required bool includeAttachments,
+    String? exportFileName,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
@@ -19864,12 +20517,30 @@ class _EditorScreenState extends State<EditorScreen>
       rows.add(values);
     }
 
-    final doc = pw.Document();
+    pw.Font? pdfBaseFont;
+    pw.Font? pdfBoldFont;
+    try {
+      final regular = await rootBundle.load('assets/fonts/roboto-regular.ttf');
+      final bold = await rootBundle.load('assets/fonts/roboto-bold.ttf');
+      pdfBaseFont = pw.Font.ttf(regular);
+      pdfBoldFont = pw.Font.ttf(bold);
+    } catch (_) {}
+
+    final doc = pw.Document(
+      theme: (pdfBaseFont != null && pdfBoldFont != null)
+          ? pw.ThemeData.withFont(
+              base: pdfBaseFont,
+              bold: pdfBoldFont,
+            )
+          : null,
+    );
     final appVersion = await _readAppVersionForExport();
     final buildId = BuildInfo.buildIdLabel;
     final now = DateTime.now().toLocal();
     final exportedAt =
         '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
+    final cover = _buildExportCoverContext();
+    final reportFileName = (exportFileName ?? '').trim();
 
     final attachmentRows = <List<String>>[];
     final evidenceItems = <({
@@ -19877,12 +20548,15 @@ class _EditorScreenState extends State<EditorScreen>
       String kind,
       String caption,
       String date,
+      String detail,
       String? mapUrl,
       Uint8List? thumb,
     })>[];
     var photoCount = 0;
+    var videoCount = 0;
     var audioCount = 0;
     var gpsCount = 0;
+    var fileCount = 0;
 
     if (includeAttachments) {
       final entries = _cellMeta.entries.toList(growable: false);
@@ -19902,15 +20576,17 @@ class _EditorScreenState extends State<EditorScreen>
           attachmentRows.add(<String>[
             cellLabel,
             'GPS',
-            '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}',
+            'Precisión ${gps.accuracyM.toStringAsFixed(1)} m',
             _formatDateTimeShort(gps.timestamp.toLocal()),
           ]);
           evidenceItems.add((
             cell: cellLabel,
             kind: 'GPS',
             caption:
-                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' | ${gps.source}' : ''}',
+                '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
+            detail:
+                'Precisión ${gps.accuracyM.toStringAsFixed(1)} m${gps.source.trim().isNotEmpty ? ' | ${gps.source}' : ''}',
             mapUrl: mapUrl,
             thumb: null,
           ));
@@ -19918,7 +20594,17 @@ class _EditorScreenState extends State<EditorScreen>
 
         for (final photo in meta.photos) {
           _throwIfOperationCancelledBy(shouldCancel);
-          photoCount++;
+          final mime = photo.mime.toLowerCase();
+          final isVideo = mime.startsWith('video/');
+          final isImage = mime.startsWith('image/');
+          final kindLabel = isVideo ? 'Video' : (isImage ? 'Foto' : 'Archivo');
+          if (isVideo) {
+            videoCount++;
+          } else if (isImage) {
+            photoCount++;
+          } else {
+            fileCount++;
+          }
           final caption = photo.caption.trim().isNotEmpty
               ? photo.caption.trim()
               : photo.filename.trim();
@@ -19928,7 +20614,7 @@ class _EditorScreenState extends State<EditorScreen>
           final dateText = _formatDateTimeShort(photo.addedAt.toLocal());
           attachmentRows.add(<String>[
             cellLabel,
-            'Foto',
+            kindLabel,
             caption.isEmpty ? photo.filename : caption,
             dateText,
           ]);
@@ -19944,9 +20630,14 @@ class _EditorScreenState extends State<EditorScreen>
           }
           evidenceItems.add((
             cell: cellLabel,
-            kind: 'Foto',
+            kind: kindLabel,
             caption: caption.isEmpty ? photo.filename : caption,
             date: dateText,
+            detail: [
+              _formatBytes(photo.size),
+              if (photo.lat != null && photo.lon != null)
+                '${photo.lat!.toStringAsFixed(6)}, ${photo.lon!.toStringAsFixed(6)}',
+            ].join(' | '),
             mapUrl: mapUrl,
             thumb: thumb,
           ));
@@ -19967,6 +20658,7 @@ class _EditorScreenState extends State<EditorScreen>
             caption:
                 'Duracion ${(audio.durationMs / 1000).toStringAsFixed(1)}s',
             date: dateText,
+            detail: _formatBytes(audio.size),
             mapUrl: null,
             thumb: null,
           ));
@@ -19974,8 +20666,97 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    final totalAttachments = photoCount + audioCount;
-    final evidencePreview = evidenceItems.take(24).toList(growable: false);
+    final totalAttachments = photoCount + videoCount + audioCount + fileCount;
+    final evidencePreview = evidenceItems.take(18).toList(growable: false);
+
+    doc.addPage(
+      pw.Page(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+        ),
+        build: (context) {
+          pw.Widget infoRow(String label, String value) {
+            return pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 110,
+                    child: pw.Text(
+                      label,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ),
+                  pw.Expanded(
+                    child: pw.Text(
+                      value.isEmpty ? 'No informado' : value,
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
+                color: PdfColors.blueGrey900,
+                child: pw.Text(
+                  'BitFlow',
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 28),
+              pw.Text(
+                'Reporte profesional',
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                _sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim(),
+                style: const pw.TextStyle(fontSize: 15),
+              ),
+              pw.SizedBox(height: 24),
+              infoRow('Fecha', exportedAt),
+              infoRow(
+                'Archivo',
+                reportFileName.isEmpty ? 'No informado' : reportFileName,
+              ),
+              infoRow('Cliente', cover.clientName ?? ''),
+              infoRow('Obra / proyecto', cover.projectName ?? ''),
+              infoRow('Responsable', cover.responsibleName ?? ''),
+              infoRow('Observaciones', cover.observations ?? ''),
+              pw.Spacer(),
+              pw.Text(
+                'BitFlow | Version $appVersion | Build $buildId',
+                style:
+                    const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+              ),
+            ],
+          );
+        },
+      ),
+    );
 
     doc.addPage(
       pw.MultiPage(
@@ -20011,29 +20792,53 @@ class _EditorScreenState extends State<EditorScreen>
           }
 
           final content = <pw.Widget>[
-            pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              'Exportado: $exportedAt',
-              style: const pw.TextStyle(fontSize: 10),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              'Version: $appVersion | Build: $buildId',
-              style: const pw.TextStyle(fontSize: 9),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blueGrey50,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'BitFlow | Reporte profesional',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Planilla: ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                  pw.Text(
+                    'Exportado: $exportedAt',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                  if (reportFileName.isNotEmpty)
+                    pw.Text(
+                      'Archivo: $reportFileName',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                ],
+              ),
             ),
             pw.SizedBox(height: 8),
             pw.Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                metricChip('Filas', '${_rows.length}'),
+                metricChip('Registros', '${_rows.length}'),
                 metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
-                metricChip('Adjuntos', '$totalAttachments'),
+                metricChip('Evidencias', '$totalAttachments'),
                 metricChip('Fotos', '$photoCount'),
+                metricChip('Videos', '$videoCount'),
                 metricChip('Audios', '$audioCount'),
                 metricChip('GPS', '$gpsCount'),
                 if (includeReviewColumns)
@@ -20044,6 +20849,17 @@ class _EditorScreenState extends State<EditorScreen>
           ];
 
           if (headers.isNotEmpty) {
+            content
+              ..add(
+                pw.Text(
+                  'Tabla principal',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              )
+              ..add(pw.SizedBox(height: 6));
             content.add(
               pw.TableHelper.fromTextArray(
                 headers: headers,
@@ -20163,6 +20979,14 @@ class _EditorScreenState extends State<EditorScreen>
                                 maxLines: 2,
                                 style: const pw.TextStyle(fontSize: 8),
                               ),
+                              if (item.detail.trim().isNotEmpty) ...[
+                                pw.SizedBox(height: 2),
+                                pw.Text(
+                                  item.detail,
+                                  maxLines: 2,
+                                  style: const pw.TextStyle(fontSize: 7.5),
+                                ),
+                              ],
                               pw.SizedBox(height: 2),
                               pw.Text(
                                 item.date,
@@ -20222,8 +21046,10 @@ class _EditorScreenState extends State<EditorScreen>
               manifestCells: manifestCells,
               manifestAssets: manifestAssets,
               photoCount: 0,
+              videoCount: 0,
               audioCount: 0,
               gpsCount: 0,
+              fileCount: 0,
             )
           : const <String, dynamic>{};
       return _ExportPrep(
@@ -20245,21 +21071,18 @@ class _EditorScreenState extends State<EditorScreen>
       colIndexById[_colIds[i]] = i;
     }
 
-    CellKey? resolveCellKey(String raw) {
-      final ref = CellRef.fromKey(raw, defaultSheetId: widget.sheetId);
-      if (ref != null) {
-        final r = rowIndexById[ref.rowId];
-        final c = colIndexById[ref.colId];
-        if (r == null || c == null) return null;
-        return CellKey(r, c);
-      }
-      return CellKey.fromKey(raw);
-    }
-
     final entries = _cellMeta.entries.toList();
     entries.sort((a, b) {
-      final ca = resolveCellKey(a.key);
-      final cb = resolveCellKey(b.key);
+      final ca = _resolveExportCellKey(
+        a.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      final cb = _resolveExportCellKey(
+        b.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
       if (ca == null && cb == null) return 0;
       if (ca == null) return 1;
       if (cb == null) return -1;
@@ -20270,12 +21093,17 @@ class _EditorScreenState extends State<EditorScreen>
 
     for (final entry in entries) {
       _throwIfOperationCancelledBy(shouldCancel);
-      final cell = resolveCellKey(entry.key);
+      final cell = _resolveExportCellKey(
+        entry.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
       if (cell == null) continue;
       final meta = entry.value;
       if (meta.isEmpty) continue;
       final cellRef = cell.a1;
       final rowLabel = 'Fila-${cell.row + 1}';
+      final rowNumber = cell.row + 1;
       final cellManifest = <String, dynamic>{};
 
       if (meta.gps != null) {
@@ -20290,6 +21118,9 @@ class _EditorScreenState extends State<EditorScreen>
             description: _gpsNotes(gps),
             addedAt: gps.timestamp,
             relativePath: '',
+            rowNumber: rowNumber,
+            latitude: gps.lat,
+            longitude: gps.lng,
           ),
         );
         if (includeZip) {
@@ -20328,10 +21159,13 @@ class _EditorScreenState extends State<EditorScreen>
               description: _photoNotes(photo),
               addedAt: photo.addedAt,
               relativePath: relPath,
+              rowNumber: rowNumber,
+              latitude: photo.lat,
+              longitude: photo.lon,
             ),
           );
 
-          if (i == 0 && cell.col >= 0 && cell.col < dataCols) {
+          if (i == 0 && isImage && cell.col >= 0 && cell.col < dataCols) {
             final bytes = await _loadPhotoBytesFromAttachment(photo);
             if (bytes != null && bytes.isNotEmpty) {
               embeddedPhotos.add(
@@ -20357,6 +21191,7 @@ class _EditorScreenState extends State<EditorScreen>
               'id': photo.id,
               'kind': manifestKind,
               'cellKey': cellRef,
+              'row': rowNumber,
               'type': itemType,
               'fileName': fileName,
               if (photo.caption.trim().isNotEmpty)
@@ -20364,6 +21199,9 @@ class _EditorScreenState extends State<EditorScreen>
               'mime': photo.mime,
               'size': photo.size,
               'path': relPath,
+              if (photo.lat != null) 'lat': photo.lat,
+              if (photo.lon != null) 'lon': photo.lon,
+              if (photo.accuracyM != null) 'accuracyM': photo.accuracyM,
               'addedAt': photo.addedAt.toIso8601String(),
             };
             manifestPhotos.add(photoManifest);
@@ -20393,6 +21231,7 @@ class _EditorScreenState extends State<EditorScreen>
               description: _audioNotes(audio),
               addedAt: audio.addedAt,
               relativePath: relPath,
+              rowNumber: rowNumber,
             ),
           );
 
@@ -20409,6 +21248,7 @@ class _EditorScreenState extends State<EditorScreen>
               'id': audio.id,
               'kind': 'audio',
               'cellKey': cellRef,
+              'row': rowNumber,
               'fileName': fileName,
               'mime': audio.mime,
               'size': audio.size,
@@ -20430,15 +21270,31 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    final gpsCount = attachments.where((item) => item.type == 'gps').length;
+    final photoCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'foto')
+        .length;
+    final videoCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'video')
+        .length;
+    final audioCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'audio')
+        .length;
+    final fileCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'archivo')
+        .length;
+    final gpsCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'gps')
+        .length;
     final manifest = includeZip
         ? await _buildPackageManifest(
             exportedAtUtc: exportedAtUtc,
             manifestCells: manifestCells,
             manifestAssets: manifestAssets,
-            photoCount: photoItems.length,
-            audioCount: audioItems.length,
+            photoCount: photoCount,
+            videoCount: videoCount,
+            audioCount: audioCount,
             gpsCount: gpsCount,
+            fileCount: fileCount,
           )
         : const <String, dynamic>{};
 
@@ -20455,8 +21311,11 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildAttachmentsZip({
     required Uint8List xlsxBytes,
     required String xlsxFileName,
+    required Uint8List pdfBytes,
+    required String pdfFileName,
     required List<_ZipPhotoItem> photoItems,
     required List<_ZipAudioItem> audioItems,
+    required List<AttachmentRow> attachments,
     required Map<String, dynamic> manifest,
     required Map<String, dynamic> packageSheetJson,
     bool Function()? shouldCancel,
@@ -20465,6 +21324,9 @@ class _EditorScreenState extends State<EditorScreen>
     final archive = Archive();
     archive.addFile(
       ArchiveFile(xlsxFileName, xlsxBytes.length, xlsxBytes),
+    );
+    archive.addFile(
+      ArchiveFile(pdfFileName, pdfBytes.length, pdfBytes),
     );
 
     for (final item in photoItems) {
@@ -20495,8 +21357,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     final readme = _buildPackageReadme(
       xlsxFileName: xlsxFileName,
-      photoCount: photoItems.length,
-      audioCount: audioItems.length,
+      pdfFileName: pdfFileName,
+      attachments: attachments,
     );
     final readmeBytes = Uint8List.fromList(utf8.encode(readme));
     archive.addFile(ArchiveFile('README.txt', readmeBytes.length, readmeBytes));
@@ -20511,12 +21373,20 @@ class _EditorScreenState extends State<EditorScreen>
     required Map<String, Map<String, dynamic>> manifestCells,
     required List<Map<String, dynamic>> manifestAssets,
     required int photoCount,
+    required int videoCount,
     required int audioCount,
     required int gpsCount,
+    required int fileCount,
   }) async {
     final appVersion = await _readAppVersionForExport();
     final nonEmptyCells = _countNonEmptyCells();
-    final totalAttachments = photoCount + audioCount;
+    final totalAttachments = photoCount + videoCount + audioCount + fileCount;
+    final evidencePaths = <String>[
+      'evidencias/fotos',
+      'evidencias/videos',
+      'evidencias/audio',
+      if (fileCount > 0) 'evidencias/archivos',
+    ];
 
     return <String, dynamic>{
       'format': 'bitflow_package_v1',
@@ -20533,19 +21403,18 @@ class _EditorScreenState extends State<EditorScreen>
       },
       'package': {
         'workbook': buildBitFlowPackageWorkbookFileName(sheetName: _sheetName),
-        'evidencePaths': <String>[
-          'evidencias/fotos',
-          'evidencias/videos',
-          'evidencias/audio'
-        ],
+        'report': buildBitFlowPackageReportFileName(sheetName: _sheetName),
+        'evidencePaths': evidencePaths,
       },
       'counts': {
         'rows': _rows.length,
         'cells': nonEmptyCells,
         'attachments': totalAttachments,
         'photos': photoCount,
+        'videos': videoCount,
         'audios': audioCount,
         'gps': gpsCount,
+        'files': fileCount,
       },
       if (manifestCells.isNotEmpty) 'cells': manifestCells,
       if (manifestAssets.isNotEmpty) 'assets': manifestAssets,
@@ -20569,26 +21438,54 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _buildPackageReadme({
     required String xlsxFileName,
-    required int photoCount,
-    required int audioCount,
+    required String pdfFileName,
+    required List<AttachmentRow> attachments,
   }) {
-    final evidenceTotal = photoCount + audioCount;
+    final photoCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'foto')
+        .length;
+    final videoCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'video')
+        .length;
+    final audioCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'audio')
+        .length;
+    final gpsCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'gps')
+        .length;
+    final fileCount = attachments
+        .where((item) => item.type.trim().toLowerCase() == 'archivo')
+        .length;
+    final evidenceTotal = photoCount + videoCount + audioCount + fileCount;
     return [
       'BitFlow - Paquete completo',
       '',
-      'Contenido:',
-      '- $xlsxFileName (planilla principal)',
-      '- evidencias/fotos y evidencias/videos (si existen)',
-      '- evidencias/audio (si existen)',
-      '- manifest.json (índice técnico)',
-      '- sheet.json (snapshot importable)',
+      'Planilla: ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+      'Exportado: ${_formatDateTimeShort(DateTime.now().toLocal())}',
+      '',
+      'Contenido principal:',
+      '- $xlsxFileName',
+      '- $pdfFileName',
+      '- evidencias/fotos/',
+      '- evidencias/videos/',
+      '- evidencias/audio/',
+      if (fileCount > 0) '- evidencias/archivos/',
+      '- manifest.json',
+      '- sheet.json',
       '',
       'Resumen:',
-      '- Evidencias multimedia: $evidenceTotal',
-      '- Fotos/Videos: $photoCount',
+      '- Evidencias totales: $evidenceTotal',
+      '- Fotos: $photoCount',
+      '- Videos: $videoCount',
       '- Audios: $audioCount',
+      '- Ubicaciones GPS: $gpsCount',
+      if (fileCount > 0) '- Archivos relacionados: $fileCount',
       '',
-      'Sugerencia: abrir primero el XLSX y revisar la hoja "Evidencias".',
+      'Uso recomendado:',
+      '- Abrir primero el PDF para presentar o compartir.',
+      '- Abrir el XLSX para seguimiento y edición posterior.',
+      '- Revisar la hoja "Evidencias" para relacionar cada archivo con su celda.',
+      '- Usar sheet.json solo para reimportar en BitFlow.',
     ].join('\n');
   }
 
@@ -21523,34 +22420,42 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _gpsNotes(GpsMeta gps) {
-    return 'lat=${gps.lat.toStringAsFixed(6)}; '
-        'lon=${gps.lng.toStringAsFixed(6)}; '
-        'acc=${gps.accuracyM.toStringAsFixed(0)}m; '
-        'ts=${gps.timestamp.toIso8601String()}; '
-        'source=${gps.source}; '
-        'provider=${gps.provider}';
+    final details = <String>[
+      'Captura GPS',
+      'Precisión ${gps.accuracyM.toStringAsFixed(1)} m',
+      if (gps.source.trim().isNotEmpty) gps.source.trim(),
+      if (gps.provider.trim().isNotEmpty) gps.provider.trim(),
+    ];
+    return details.join(' | ');
   }
 
   String _photoNotes(PhotoAttachment photo) {
+    final mime = photo.mime.toLowerCase();
+    final kind = mime.startsWith('video/')
+        ? 'Video'
+        : (mime.startsWith('image/') ? 'Foto' : 'Archivo');
     final parts = <String>[
-      'addedAt=${photo.addedAt.toIso8601String()}',
-      'size=${_formatBytes(photo.size)}',
+      kind,
+      _formatBytes(photo.size),
     ];
+    if (photo.caption.trim().isNotEmpty) {
+      parts.insert(1, photo.caption.trim());
+    }
     if (photo.lat != null && photo.lon != null) {
       parts.add(
-        'lat=${photo.lat!.toStringAsFixed(6)} lon=${photo.lon!.toStringAsFixed(6)}',
+        '${photo.lat!.toStringAsFixed(6)}, ${photo.lon!.toStringAsFixed(6)}',
       );
     }
     if (photo.accuracyM != null) {
-      parts.add('acc=${photo.accuracyM!.toStringAsFixed(0)}m');
+      parts.add('Precisión ${photo.accuracyM!.toStringAsFixed(1)} m');
     }
     return parts.join('; ');
   }
 
   String _audioNotes(AudioAttachment audio) {
-    return 'addedAt=${audio.addedAt.toIso8601String()}; '
-        'duration=${_formatDuration(Duration(milliseconds: audio.durationMs))}; '
-        'size=${_formatBytes(audio.size)}';
+    return 'Audio; '
+        '${_formatDuration(Duration(milliseconds: audio.durationMs))}; '
+        '${_formatBytes(audio.size)}';
   }
 
   Future<Uint8List?> _loadAudioBytesFromAttachment(
@@ -21601,6 +22506,263 @@ class _EditorScreenState extends State<EditorScreen>
   String _safeFile(String s) {
     final t = s.trim().isEmpty ? 'Hoja' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  }
+
+  String _exportCancelledMessage({required bool share}) {
+    return share ? 'Compartir cancelado.' : 'Operación cancelada.';
+  }
+
+  String _exportReadyMessage({
+    required String format,
+    required bool share,
+    required String fileName,
+    bool includeEvidenceHint = false,
+  }) {
+    switch (format) {
+      case 'pdf':
+        return share
+            ? 'PDF listo para compartir: $fileName'
+            : 'PDF listo para presentar: $fileName';
+      case 'zip':
+        final suffix =
+            includeEvidenceHint ? ' Incluye planilla y evidencias.' : '';
+        return share
+            ? 'Paquete completo listo para compartir: $fileName'
+            : 'Paquete completo preparado: $fileName.$suffix';
+      default:
+        return share
+            ? 'Archivo listo para compartir: $fileName'
+            : 'Archivo listo: $fileName';
+    }
+  }
+
+  String _exportFailureMessage({required bool share}) {
+    if (share) return 'No pudimos completar la operación.';
+    return 'No pudimos completar la operación.';
+  }
+
+  String _exportUnsupportedMessage({required bool share}) {
+    if (share) return 'Compartir no está disponible en este dispositivo.';
+    return 'Esta exportación no está disponible en este dispositivo.';
+  }
+
+  List<String> _buildExportColumnTypes(int dataCols) {
+    return List<String>.generate(
+      dataCols,
+      (index) => _colType(index).name,
+      growable: false,
+    );
+  }
+
+  CellKey? _resolveExportCellKey(
+    String raw, {
+    required Map<String, int> rowIndexById,
+    required Map<String, int> colIndexById,
+  }) {
+    final ref = CellRef.fromKey(raw, defaultSheetId: widget.sheetId);
+    if (ref != null) {
+      final row = rowIndexById[ref.rowId];
+      final col = colIndexById[ref.colId];
+      if (row == null || col == null) return null;
+      return CellKey(row, col);
+    }
+    return CellKey.fromKey(raw);
+  }
+
+  List<GpsExport?> _buildGpsByRowForExport() {
+    if (_rows.isEmpty) return const <GpsExport?>[];
+    final gpsByRow = List<GpsExport?>.filled(_rows.length, null);
+
+    for (int rowIndex = 0; rowIndex < _rows.length; rowIndex++) {
+      final row = _rows[rowIndex];
+      if (row.gpsLat == null || row.gpsLng == null) continue;
+      gpsByRow[rowIndex] = GpsExport(
+        lat: row.gpsLat,
+        lng: row.gpsLng,
+        accuracy: row.gpsAccuracyM,
+        ts: row.gpsTs,
+        isLastKnown: row.gpsIsLastKnown,
+      );
+    }
+
+    final rowIndexById = <String, int>{};
+    for (int i = 0; i < _rows.length; i++) {
+      rowIndexById[_rows[i].id] = i;
+    }
+    final colIndexById = <String, int>{};
+    for (int i = 0; i < _colIds.length; i++) {
+      colIndexById[_colIds[i]] = i;
+    }
+
+    final entries = _cellMeta.entries.toList(growable: false);
+    entries.sort((a, b) {
+      final left = _resolveExportCellKey(
+        a.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      final right = _resolveExportCellKey(
+        b.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      if (left == null && right == null) return 0;
+      if (left == null) return 1;
+      if (right == null) return -1;
+      final rowCmp = left.row.compareTo(right.row);
+      if (rowCmp != 0) return rowCmp;
+      return left.col.compareTo(right.col);
+    });
+
+    for (final entry in entries) {
+      final cell = _resolveExportCellKey(
+        entry.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      if (cell == null ||
+          cell.row < 0 ||
+          cell.row >= gpsByRow.length ||
+          gpsByRow[cell.row] != null) {
+        continue;
+      }
+      final gps = entry.value.gps;
+      if (gps == null) continue;
+      gpsByRow[cell.row] = GpsExport(
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracyM,
+        ts: gps.timestamp,
+        isLastKnown: gps.source.toLowerCase().contains('last'),
+      );
+    }
+
+    if (!gpsByRow.any((item) => item != null && item.hasFix)) {
+      return const <GpsExport?>[];
+    }
+    return gpsByRow;
+  }
+
+  ({
+    String? clientName,
+    String? projectName,
+    String? responsibleName,
+    String? observations,
+  }) _buildExportCoverContext() {
+    final client = _extractExportColumnSummary(
+      const <String>['cliente', 'client', 'empresa'],
+    );
+    final project = _extractExportColumnSummary(
+      const <String>['obra', 'proyecto', 'project', 'frente'],
+    );
+    final responsible = _extractExportColumnSummary(
+          const <String>['responsable', 'encargado', 'supervisor', 'tecnico'],
+        ) ??
+        _extractReviewedBySummary();
+    final observations = _extractObservationsSummary();
+    return (
+      clientName: client,
+      projectName: project,
+      responsibleName: responsible,
+      observations: observations,
+    );
+  }
+
+  String? _extractExportColumnSummary(
+    List<String> aliases, {
+    int maxInlineValues = 2,
+  }) {
+    final column = _findExportColumn(aliases);
+    if (column == null) return null;
+    final values = _collectNonEmptyColumnValues(column);
+    if (values.isEmpty) return null;
+    return _summarizeExportValues(values, maxInlineValues: maxInlineValues);
+  }
+
+  String? _extractReviewedBySummary() {
+    final values = <String>[];
+    for (final row in _rows) {
+      final reviewedBy = (row.reviewedBy ?? '').trim();
+      if (reviewedBy.isEmpty || values.contains(reviewedBy)) continue;
+      values.add(reviewedBy);
+    }
+    if (values.isEmpty) return null;
+    return _summarizeExportValues(values, maxInlineValues: 2);
+  }
+
+  String? _extractObservationsSummary() {
+    final column = _findExportColumn(
+      const <String>['observaciones', 'observacion', 'nota', 'comentario'],
+    );
+    if (column == null) return null;
+    final values = _collectNonEmptyColumnValues(column);
+    if (values.isEmpty) return null;
+    if (values.length == 1) return _truncateExportText(values.first, 180);
+    return '${values.length} observaciones registradas. '
+        'Ejemplo: ${_truncateExportText(values.first, 120)}';
+  }
+
+  int? _findExportColumn(List<String> aliases) {
+    final normalizedAliases = aliases
+        .map(_normalizeExportFieldToken)
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedAliases.isEmpty) return null;
+    final dataCols = math.max(0, _headers.length - 1);
+    for (int c = 0; c < dataCols; c++) {
+      final header = _normalizeExportFieldToken(_headerLabel(c));
+      if (header.isEmpty) continue;
+      for (final alias in normalizedAliases) {
+        if (header == alias || header.contains(alias)) {
+          return c;
+        }
+      }
+    }
+    return null;
+  }
+
+  List<String> _collectNonEmptyColumnValues(int column) {
+    final values = <String>[];
+    for (final row in _rows) {
+      if (column < 0 || column >= row.cells.length) continue;
+      final value = row.cells[column].trim();
+      if (value.isEmpty || values.contains(value)) continue;
+      values.add(value);
+    }
+    return values;
+  }
+
+  String _summarizeExportValues(
+    List<String> values, {
+    required int maxInlineValues,
+  }) {
+    if (values.isEmpty) return '';
+    if (values.length == 1) return _truncateExportText(values.first, 120);
+    final head = values.take(maxInlineValues).map((item) {
+      return _truncateExportText(item, 54);
+    }).join(' | ');
+    final remaining = values.length - maxInlineValues;
+    if (remaining <= 0) return head;
+    return '$head +$remaining más';
+  }
+
+  String _truncateExportText(String raw, int maxChars) {
+    final value = raw.trim();
+    if (value.length <= maxChars) return value;
+    return '${value.substring(0, maxChars - 3).trim()}...';
+  }
+
+  String _normalizeExportFieldToken(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll('ñ', 'n')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
   }
 
   String _buildCommercialExportFileName(String extension) {

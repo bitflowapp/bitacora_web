@@ -99,6 +99,6 @@ flutter:
     - assets/version.json
     - assets/config.json
     - assets/config.example.json
+    - assets/fonts/
     - assets/sfx/
     # - assets/video/gridnote_cells_loop.mp4
-

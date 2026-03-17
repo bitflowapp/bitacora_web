@@ -648,8 +648,9 @@ class _AppHomeState extends State<_AppHome> {
         ),
       if (!RuntimeFlags.isAuthRequired && !_demoNoticeDismissedInSession)
         _TopNoticeItem(
-          message: 'Modo demo activo: login deshabilitado temporalmente.',
+          message: 'Demo activa. El ingreso esta simplificado para pruebas.',
           dismissible: true,
+          compact: true,
           onDismiss: _dismissDemoNotice,
         ),
     ];
@@ -672,6 +673,7 @@ class _AppHomeState extends State<_AppHome> {
                         child: _TopNotice(
                           message: notice.message,
                           dismissible: notice.dismissible,
+                          compact: notice.compact,
                           onDismiss: notice.onDismiss,
                         ),
                       ),
@@ -696,10 +698,12 @@ class _TopNoticeItem {
   const _TopNoticeItem({
     required this.message,
     this.dismissible = false,
+    this.compact = false,
     this.onDismiss,
   });
   final String message;
   final bool dismissible;
+  final bool compact;
   final VoidCallback? onDismiss;
 }
 
@@ -923,50 +927,71 @@ class _TopNotice extends StatelessWidget {
   const _TopNotice({
     required this.message,
     this.dismissible = false,
+    this.compact = false,
     this.onDismiss,
   });
   final String message;
   final bool dismissible;
+  final bool compact;
   final VoidCallback? onDismiss;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: compact
+          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: cs.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 16,
-            offset: Offset(0, 8),
-            color: Color(0x22000000),
-          ),
-        ],
+        color: cs.surface.withValues(alpha: compact ? 0.84 : 0.92),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: compact ? 0.36 : 0.5),
+        ),
+        boxShadow: compact
+            ? const []
+            : const [
+                BoxShadow(
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
+                  color: Color(0x22000000),
+                ),
+              ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18),
-          const SizedBox(width: 10),
+          Icon(
+            Icons.info_outline_rounded,
+            size: compact ? 16 : 18,
+            color: cs.onSurface.withValues(alpha: compact ? 0.68 : 0.84),
+          ),
+          SizedBox(width: compact ? 8 : 10),
           Expanded(
             child: Text(
               message,
-              maxLines: 3,
+              maxLines: compact ? 2 : 3,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(
+                height: compact ? 1.2 : 1.25,
+                fontSize: compact ? 11.6 : null,
+                color: cs.onSurface.withValues(alpha: compact ? 0.72 : 0.9),
+              ),
             ),
           ),
           if (dismissible && onDismiss != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             IconButton(
               onPressed: onDismiss,
-              icon: const Icon(Icons.close_rounded, size: 18),
+              icon: Icon(Icons.close_rounded, size: compact ? 16 : 18),
               tooltip: 'Cerrar aviso',
               visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-              splashRadius: 16,
+              constraints: BoxConstraints.tightFor(
+                width: compact ? 28 : 30,
+                height: compact ? 28 : 30,
+              ),
+              splashRadius: compact ? 14 : 16,
             ),
           ],
         ],

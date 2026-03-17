@@ -1,0 +1,10 @@
+{
+  "id": "wp-codex-bridge",
+  "name": "WhatsApp Codex Bridge",
+  "description": "Runs Codex CLI for allowlisted WhatsApp prefixed messages in the current workspace.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

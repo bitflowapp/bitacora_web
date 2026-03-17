@@ -21,10 +21,7 @@ String buildBitFlowExportFileName({
   final at = (now ?? DateTime.now()).toLocal();
   final ext = extension.trim().toLowerCase().replaceAll('.', '');
   final safeSheet = sanitizeBitFlowSheetName(sheetName);
-  final yyyy = at.year.toString().padLeft(4, '0');
-  final mm = at.month.toString().padLeft(2, '0');
-  final dd = at.day.toString().padLeft(2, '0');
-  return 'BitFlow_$yyyy-$mm-${dd}_$safeSheet.$ext';
+  return 'BitFlow_${safeSheet}_${_buildExportTimestamp(at)}.$ext';
 }
 
 String buildBitFlowBundleExportFileName({
@@ -33,17 +30,17 @@ String buildBitFlowBundleExportFileName({
 }) {
   final at = (now ?? DateTime.now()).toLocal();
   final safeSheet = sanitizeBitFlowSheetName(sheetName);
-  final yyyy = at.year.toString().padLeft(4, '0');
-  final mm = at.month.toString().padLeft(2, '0');
-  final dd = at.day.toString().padLeft(2, '0');
-  final hh = at.hour.toString().padLeft(2, '0');
-  final min = at.minute.toString().padLeft(2, '0');
-  return 'BitFlow_${safeSheet}_$yyyy-$mm-$dd' '_$hh-$min.zip';
+  return 'BitFlow_${safeSheet}_${_buildExportTimestamp(at)}.zip';
 }
 
 String buildBitFlowPackageWorkbookFileName({required String sheetName}) {
   final safeSheet = sanitizeBitFlowSheetName(sheetName);
   return 'BitFlow_$safeSheet.xlsx';
+}
+
+String buildBitFlowPackageReportFileName({required String sheetName}) {
+  final safeSheet = sanitizeBitFlowSheetName(sheetName);
+  return 'BitFlow_$safeSheet.pdf';
 }
 
 String buildBitFlowEvidenceFileName({
@@ -65,4 +62,13 @@ String buildBitFlowEvidenceFileName({
       ? extension.toLowerCase()
       : '.${extension.toLowerCase()}';
   return '${safeKind}_${safeSheet}_${safeRef}_$yyyy-$mm-$dd' '_$hh-$min$ext';
+}
+
+String _buildExportTimestamp(DateTime at) {
+  final yyyy = at.year.toString().padLeft(4, '0');
+  final mm = at.month.toString().padLeft(2, '0');
+  final dd = at.day.toString().padLeft(2, '0');
+  final hh = at.hour.toString().padLeft(2, '0');
+  final min = at.minute.toString().padLeft(2, '0');
+  return '$yyyy-$mm-$dd' '_$hh-$min';
 }

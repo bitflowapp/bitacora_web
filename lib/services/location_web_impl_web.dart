@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:bitacora_web/web/html_compat.dart' as html;
 
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'package:flutter/foundation.dart';
 
 import 'location_service.dart';
@@ -13,7 +13,7 @@ Future<LocationFix> browserCurrentPosition({
   final geo = html.window.navigator.geolocation;
   if (html.window.isSecureContext != true) {
     throw const LocationException(
-      'Geolocalización requiere HTTPS (o localhost).',
+      'El GPS del navegador requiere HTTPS o localhost.',
     );
   }
 
@@ -25,7 +25,7 @@ Future<LocationFix> browserCurrentPosition({
     );
     final coords = pos.coords;
     if (coords == null) {
-      throw const LocationException('Ubicación no disponible.');
+      throw const LocationException('No encontramos una ubicacion confiable.');
     }
     final tsMillis = pos.timestamp?.toInt();
     final ts = tsMillis != null
@@ -55,17 +55,20 @@ Future<LocationFix> browserCurrentPosition({
     switch (err.code) {
       case html.PositionError.PERMISSION_DENIED:
         throw const LocationException(
-          'Permiso de ubicación denegado. Ajustes > Safari > Ubicación.',
+          'Permiso de ubicacion bloqueado en el navegador. Habilitalo y vuelve a intentar.',
         );
       case html.PositionError.POSITION_UNAVAILABLE:
-        throw const LocationException('Ubicación no disponible.');
+        throw const LocationException(
+            'No encontramos una ubicacion confiable.');
       case html.PositionError.TIMEOUT:
-        throw const LocationException('Timeout obteniendo ubicación.');
+        throw const LocationException(
+          'No pudimos obtener la ubicacion a tiempo.',
+        );
       default:
-        throw LocationException(err.message ?? 'Error de geolocalización.');
+        throw LocationException(err.message ?? 'Error de geolocalizacion.');
     }
   } on TimeoutException {
-    throw TimeoutException('Timeout navegador obteniendo ubicación.');
+    throw TimeoutException('Timeout del navegador obteniendo ubicacion.');
   } catch (e) {
     if (e is LocationException || e is TimeoutException) {
       rethrow;
@@ -74,7 +77,7 @@ Future<LocationFix> browserCurrentPosition({
       debugPrint('[web-gps] unexpected error: $e');
     }
     throw const LocationException(
-      'No pudimos obtener la ubicación. Verificá permisos y volvé a intentar.',
+      'No pudimos obtener la ubicacion. Revisa permiso, GPS y senal, y vuelve a intentar.',
     );
   }
 }

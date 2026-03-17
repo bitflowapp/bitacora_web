@@ -130,6 +130,100 @@ void main() {
     }
   }
 
+  String archiveText(Archive archive, String name) {
+    final file = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/') == name,
+    );
+    return utf8.decode(file.content as List<int>);
+  }
+
+  List<String> sharedStrings(Archive archive) {
+    final names =
+        archive.files.map((f) => f.name.replaceAll('\\', '/')).toSet();
+    if (!names.contains('xl/sharedStrings.xml')) return const <String>[];
+    final sharedXml = archiveText(archive, 'xl/sharedStrings.xml');
+    return RegExp(r'<t[^>]*>(.*?)</t>', dotAll: true)
+        .allMatches(sharedXml)
+        .map((m) => m.group(1) ?? '')
+        .toList(growable: false);
+  }
+
+  Map<String, String> sheetXmlByName(Archive archive) {
+    final workbookXml = archiveText(archive, 'xl/workbook.xml');
+    final relsXml = archiveText(archive, 'xl/_rels/workbook.xml.rels');
+
+    final relById = <String, String>{};
+    for (final m in RegExp(
+      r'<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"',
+      caseSensitive: false,
+    ).allMatches(relsXml)) {
+      final id = m.group(1) ?? '';
+      final target = m.group(2) ?? '';
+      if (id.isEmpty || target.isEmpty) continue;
+      relById[id] = normalizeTarget(target);
+    }
+
+    final out = <String, String>{};
+    for (final m in RegExp(
+      r'<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"',
+      caseSensitive: false,
+    ).allMatches(workbookXml)) {
+      final name = m.group(1) ?? '';
+      final relId = m.group(2) ?? '';
+      final target = relById[relId];
+      if (name.isEmpty || target == null) continue;
+      out[name] = target;
+    }
+    return out;
+  }
+
+  List<String> headerRowValuesForSheet(Archive archive, String sheetName) {
+    final map = sheetXmlByName(archive);
+    final sheetPath = map[sheetName];
+    expect(sheetPath, isNotNull, reason: 'Sheet $sheetName should exist');
+    final xml = archiveText(archive, sheetPath!);
+    final shared = sharedStrings(archive);
+
+    final rowMatch = RegExp(
+      r'<row[^>]*r="1"[^>]*>(.*?)</row>',
+      dotAll: true,
+      caseSensitive: false,
+    ).firstMatch(xml);
+    if (rowMatch == null) return const <String>[];
+    final rowXml = rowMatch.group(1) ?? '';
+
+    final values = <String>[];
+    for (final cell in RegExp(r'<c\b[^>]*>.*?</c>', dotAll: true)
+        .allMatches(rowXml)
+        .map((m) => m.group(0) ?? '')) {
+      final type = RegExp(r'\bt="([^"]+)"', caseSensitive: false)
+              .firstMatch(cell)
+              ?.group(1) ??
+          '';
+      if (type == 's') {
+        final raw =
+            RegExp(r'<v>(.*?)</v>', dotAll: true).firstMatch(cell)?.group(1) ??
+                '';
+        final idx = int.tryParse(raw.trim()) ?? -1;
+        values.add((idx >= 0 && idx < shared.length) ? shared[idx] : '');
+        continue;
+      }
+      if (type == 'inlineStr') {
+        values.add(
+          RegExp(r'<t[^>]*>(.*?)</t>', dotAll: true)
+                  .firstMatch(cell)
+                  ?.group(1) ??
+              '',
+        );
+        continue;
+      }
+      values.add(
+        RegExp(r'<v>(.*?)</v>', dotAll: true).firstMatch(cell)?.group(1) ?? '',
+      );
+    }
+    return values;
+  }
+
   test('buildXlsxWithPhotos includes media + drawings and no names', () async {
     final png = makeTinyPng();
     final bytes = await buildXlsxWithPhotos(
@@ -160,6 +254,75 @@ void main() {
 
     expect(bytes, isNotEmpty);
     expectMediaAndDrawings(bytes);
+  });
+
+  test('xlsx includes professional workbook sheets and evidence columns',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Actividad', 'Fecha'],
+      rows: const [
+        ['Inspeccion', '2026-03-10T03:01:00Z'],
+      ],
+      attachments: [
+        AttachmentRow(
+          sheetName: 'Control Diario',
+          cellRef: 'B2',
+          rowLabel: 'Fila-2',
+          type: 'foto',
+          fileName: 'foto_Control_Diario_B2_2026-03-10_03-01.jpg',
+          description: 'Equipo principal',
+          addedAt: DateTime(2026, 3, 10, 3, 1),
+          relativePath:
+              'evidencias/fotos/foto_Control_Diario_B2_2026-03-10_03-01.jpg',
+          rowNumber: 2,
+          latitude: -34.603722,
+          longitude: -58.381592,
+        ),
+      ],
+      includeIndexColumn: false,
+      includeCoverSheet: true,
+      includeSummarySheet: true,
+      exportFileName: 'BitFlow_Control_Diario_2026-03-10_03-01.xlsx',
+      clientName: 'Acme',
+      projectName: 'Obra Norte',
+      responsibleName: 'Inspector Uno',
+      observations: 'Turno mañana',
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sheets = sheetXmlByName(archive);
+    expect(sheets.keys.take(2).toList(), equals(['Caratula', 'Resumen']));
+
+    final planillaPath = sheets['PLANILLA'];
+    expect(planillaPath, isNotNull);
+    final planillaXml = archiveText(archive, planillaPath!);
+    expect(planillaXml.contains('<autoFilter '), isTrue);
+    expect(planillaXml.contains('<pane '), isTrue);
+
+    final headers = headerRowValuesForSheet(archive, 'Evidencias');
+    expect(
+      headers,
+      equals([
+        'Hoja',
+        'Celda',
+        'Fila',
+        'Tipo',
+        'Archivo',
+        'Descripción',
+        'Fecha',
+        'Latitud',
+        'Longitud',
+        'Ruta relativa',
+      ]),
+    );
+
+    final shared = sharedStrings(archive);
+    expect(shared.contains('BitFlow | Exportación profesional'), isTrue);
+    expect(shared.contains('BitFlow | Resumen de exportación'), isTrue);
+    expect(shared.contains('Total de videos'), isTrue);
+
+    final stylesXml = archiveText(archive, 'xl/styles.xml');
+    expect(stylesXml.contains('yyyy-mm-dd hh:mm'), isTrue);
   });
 
   test('re-open with dataB64 preserves bytes and embeds photos', () async {

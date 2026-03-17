@@ -61,7 +61,7 @@ extension _EditorActions on _EditorScreenState {
     )) {
       return;
     }
-    await _requestGpsForCell(_selRow, _selCol, forceWriteText: true);
+    await _requestGpsForCell(_selRow, _selCol);
   }
 
   Future<void> _runAudioForSelection() async {

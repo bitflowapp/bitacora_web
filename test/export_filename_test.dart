@@ -13,7 +13,7 @@ void main() {
       extension: '.xlsx',
       now: DateTime(2026, 2, 13, 10, 12),
     );
-    expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.xlsx');
+    expect(fileName, 'BitFlow_Mi_Hoja_QA_2026-02-13_10-12.xlsx');
   });
 
   test('buildBitFlowBundleExportFileName uses full package pattern', () {
@@ -29,6 +29,13 @@ void main() {
       sheetName: 'Inventario Norte',
     );
     expect(fileName, 'BitFlow_Inventario_Norte.xlsx');
+  });
+
+  test('buildBitFlowPackageReportFileName keeps sheet identity', () {
+    final fileName = buildBitFlowPackageReportFileName(
+      sheetName: 'Inventario Norte',
+    );
+    expect(fileName, 'BitFlow_Inventario_Norte.pdf');
   });
 
   test('buildBitFlowEvidenceFileName uses professional evidence naming', () {

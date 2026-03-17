@@ -136,7 +136,11 @@ docs/bitflow/downloads/BitFlow.apk
 dist/
 
 # Local agent/session workspace files
-.openclaw/
+.openclaw/*
+!.openclaw/extensions/
+.openclaw/extensions/*
+!.openclaw/extensions/wp-codex-bridge/
+!.openclaw/extensions/wp-codex-bridge/**
 logs/
 AGENTS.md
 BOOTSTRAP.md
@@ -147,3 +151,16 @@ TOOLS.md
 USER.md
 memory/
 
+.codex_home/
+.worktrees/
+_worktree_*/
+.trash/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+**/auth.json
+**/history.jsonl
+**/sessions/
+**/.sandbox/
+**/.sandbox-bin/
+**/.sandbox-secrets/

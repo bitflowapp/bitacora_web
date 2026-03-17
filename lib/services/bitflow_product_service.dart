@@ -21,7 +21,7 @@ class BitFlowProductService {
   final ValueNotifier<bool> ready = ValueNotifier<bool>(false);
   final ValueNotifier<bool> syncBusy = ValueNotifier<bool>(false);
   final ValueNotifier<String> syncStatus =
-      ValueNotifier<String>('Local storage only');
+  ValueNotifier<String>('Local storage only');
   final ValueNotifier<DateTime?> lastSyncAt = ValueNotifier<DateTime?>(null);
 
   final LocalBitFlowStorageBackend _localBackend = LocalBitFlowStorageBackend();
@@ -32,10 +32,12 @@ class BitFlowProductService {
   bool _paidFeatureEnforcement = false;
   StreamSubscription<User?>? _authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userDocSub;
+  Future<void>? _syncInFlight;
 
   bool get isInitialized => _initialized;
   bool get firebaseAvailable => _firebaseAvailable;
   bool get cloudSyncEnabled => _cloudBackend != null;
+
   String? get currentUserId => _firebaseAvailable
       ? FirebaseAuth.instance.currentUser?.uid
       : null;
@@ -90,6 +92,7 @@ class BitFlowProductService {
 
   Future<void> _handleAuthChanged(User? user) async {
     await _userDocSub?.cancel();
+
     if (user == null) {
       features.updateEntitlement(BitFlowEntitlement.free);
       syncStatus.value = _firebaseAvailable
@@ -114,11 +117,11 @@ class BitFlowProductService {
   void _applyEntitlement(Map<String, dynamic>? data, {required User user}) {
     final isPremium = data?['isPremium'] == true;
     final trialEndsAt = (data?['trialEndsAt'] as Timestamp?)?.toDate().toUtc();
-    final trialActive = trialEndsAt != null &&
-        DateTime.now().toUtc().isBefore(trialEndsAt);
+    final trialActive =
+        trialEndsAt != null && DateTime.now().toUtc().isBefore(trialEndsAt);
     final providerName = (data?['billingProvider'] ?? '').toString();
     final provider = BitFlowPaymentProvider.values.where(
-      (value) => value.name == providerName,
+          (value) => value.name == providerName,
     );
 
     if (isPremium || trialActive) {
@@ -147,28 +150,54 @@ class BitFlowProductService {
     if (currentWorkspace == null) {
       return sheets.toList(growable: false);
     }
+
     return sheets
-        .where((sheet) => workspaces.workspaceForSheet(sheet.id) == currentWorkspace.id)
+        .where(
+          (sheet) =>
+      workspaces.workspaceForSheet(sheet.id) == currentWorkspace.id,
+    )
         .toList(growable: false);
   }
 
   Future<void> syncNow({String reason = 'manual'}) async {
+    final current = _syncInFlight;
+    if (current != null) {
+      return current;
+    }
+
+    final future = _performSync(reason: reason);
+    _syncInFlight = future;
+
+    try {
+      await future;
+    } finally {
+      if (identical(_syncInFlight, future)) {
+        _syncInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _performSync({required String reason}) async {
     final backend = _cloudBackend;
     final userId = currentUserId;
+
     if (backend == null || userId == null) {
       syncStatus.value = 'Local storage only';
       return;
     }
 
     syncBusy.value = true;
-    syncStatus.value = reason == 'auth' ? 'Syncing account...' : 'Syncing now...';
+    syncStatus.value =
+    reason == 'auth' ? 'Syncing account...' : 'Syncing now...';
+
     try {
-      await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
-      await workspaces.importFromCloud(userId: userId);
-      await workspaces.exportToCloud(userId: userId);
+      await _syncWorkspaceAssignments(userId: userId);
+
+      syncStatus.value = 'Comparing local and cloud sheets...';
 
       final localSheets = await _localBackend.listSheets();
       final remoteSheets = await backend.listSheets();
+
       final localById = <String, BitFlowSheetRecord>{
         for (final record in localSheets) record.sheetId: record,
       };
@@ -176,29 +205,111 @@ class BitFlowProductService {
         for (final record in remoteSheets) record.sheetId: record,
       };
 
-      for (final local in localSheets) {
-        final remote = remoteById[local.sheetId];
-        if (remote == null || !remote.updatedAt.isAfter(local.updatedAt)) {
-          await backend.saveSheet(
-            local.copyWith(ownerUserId: userId, origin: backend.label),
-          );
-        }
-      }
+      final pushed = await _pushLocalSheetsToCloud(
+        backend: backend,
+        userId: userId,
+        localSheets: localSheets,
+        remoteById: remoteById,
+      );
 
-      for (final remote in remoteSheets) {
-        final local = localById[remote.sheetId];
-        if (local == null || remote.updatedAt.isAfter(local.updatedAt)) {
-          await _localBackend.saveSheet(remote.copyWith(origin: _localBackend.label));
-        }
-      }
+      final pulled = await _pullRemoteSheetsToLocal(
+        remoteSheets: remoteSheets,
+        localById: localById,
+      );
 
       lastSyncAt.value = DateTime.now().toUtc();
-      syncStatus.value = 'Synced to account';
-    } catch (error) {
-      syncStatus.value = 'Sync failed: $error';
+      syncStatus.value = _buildSyncCompletedMessage(
+        pushed: pushed,
+        pulled: pulled,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('BitFlowProductService._performSync error: $error');
+      debugPrint('$stackTrace');
+      syncStatus.value = 'Sync failed';
     } finally {
       syncBusy.value = false;
     }
+  }
+
+  Future<void> _syncWorkspaceAssignments({required String userId}) async {
+    syncStatus.value = 'Syncing workspaces...';
+    await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
+    await workspaces.importFromCloud(userId: userId);
+    await workspaces.exportToCloud(userId: userId);
+  }
+
+  Future<int> _pushLocalSheetsToCloud({
+    required BitFlowStorageBackend backend,
+    required String userId,
+    required List<BitFlowSheetRecord> localSheets,
+    required Map<String, BitFlowSheetRecord> remoteById,
+  }) async {
+    if (localSheets.isEmpty) return 0;
+
+    syncStatus.value = 'Uploading local changes...';
+
+    var pushed = 0;
+    for (final local in localSheets) {
+      final remote = remoteById[local.sheetId];
+      final shouldPush =
+          remote == null || !remote.updatedAt.isAfter(local.updatedAt);
+
+      if (!shouldPush) continue;
+
+      await backend.saveSheet(
+        local.copyWith(
+          ownerUserId: userId,
+          origin: backend.label,
+        ),
+      );
+      pushed++;
+    }
+
+    return pushed;
+  }
+
+  Future<int> _pullRemoteSheetsToLocal({
+    required List<BitFlowSheetRecord> remoteSheets,
+    required Map<String, BitFlowSheetRecord> localById,
+  }) async {
+    if (remoteSheets.isEmpty) return 0;
+
+    syncStatus.value = 'Downloading cloud changes...';
+
+    var pulled = 0;
+    for (final remote in remoteSheets) {
+      final local = localById[remote.sheetId];
+      final shouldPull =
+          local == null || remote.updatedAt.isAfter(local.updatedAt);
+
+      if (!shouldPull) continue;
+
+      await _localBackend.saveSheet(
+        remote.copyWith(origin: _localBackend.label),
+      );
+      pulled++;
+    }
+
+    return pulled;
+  }
+
+  String _buildSyncCompletedMessage({
+    required int pushed,
+    required int pulled,
+  }) {
+    if (pushed == 0 && pulled == 0) {
+      return 'Already up to date';
+    }
+
+    final parts = <String>[];
+    if (pushed > 0) {
+      parts.add('$pushed uploaded');
+    }
+    if (pulled > 0) {
+      parts.add('$pulled downloaded');
+    }
+
+    return 'Synced · ${parts.join(' · ')}';
   }
 
   Future<void> handleLocalSheetSaved(String sheetId) async {
@@ -207,12 +318,16 @@ class BitFlowProductService {
       enforcePaidFeatures: _paidFeatureEnforcement,
     );
     await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
+
     final record = await _localBackend.loadSheet(sheetId);
     if (record == null) return;
+
     await _localBackend.refreshShareSnapshots(record);
+
     final backend = _cloudBackend;
     final userId = currentUserId;
     if (backend == null || userId == null) return;
+
     await backend.saveSheet(record.copyWith(ownerUserId: userId));
     syncStatus.value = 'Sheet saved to account';
     lastSyncAt.value = DateTime.now().toUtc();
@@ -220,18 +335,20 @@ class BitFlowProductService {
 
   Future<void> handleLocalSheetDeleted(String sheetId) async {
     await workspaces.removeSheet(sheetId);
+
     final backend = _cloudBackend;
     final userId = currentUserId;
     if (backend == null || userId == null) return;
+
     await backend.deleteSheet(sheetId);
     syncStatus.value = 'Sheet removed from account';
     lastSyncAt.value = DateTime.now().toUtc();
   }
 
   Future<void> handleLocalSheetDuplicated(
-    String sourceSheetId,
-    String duplicatedSheetId,
-  ) async {
+      String sourceSheetId,
+      String duplicatedSheetId,
+      ) async {
     await workspaces.duplicateAssignment(sourceSheetId, duplicatedSheetId);
     await handleLocalSheetSaved(duplicatedSheetId);
   }
@@ -245,21 +362,26 @@ class BitFlowProductService {
       firebaseAvailable: _firebaseAvailable,
       enforcePaidFeatures: _paidFeatureEnforcement,
     );
+
     if (!features.isEnabled(BitFlowFeature.sharing)) {
       throw StateError(
-        features.featureBlockedReason(BitFlowFeature.sharing) ?? 'sharing_locked',
+        features.featureBlockedReason(BitFlowFeature.sharing) ??
+            'sharing_locked',
       );
     }
+
     final localRecord = await _localBackend.loadSheet(meta.id);
     if (localRecord == null) {
       throw StateError('sheet_not_found');
     }
+
     final backend = _cloudBackend ?? _localBackend;
     final share = await backend.createShareLink(
       record: localRecord,
       permission: permission,
       baseUrl: baseUrl,
     );
+
     syncStatus.value = 'Share link ready';
     return share;
   }
@@ -278,32 +400,37 @@ class BitFlowProductService {
   }
 
   Future<String> importSharedSheet(
-    BitFlowShareLink share, {
-    bool preferOriginalSheetId = false,
-  }) async {
+      BitFlowShareLink share, {
+        bool preferOriginalSheetId = false,
+      }) async {
     await ensureInitialized(
       firebaseAvailable: _firebaseAvailable,
       enforcePaidFeatures: _paidFeatureEnforcement,
     );
+
     final decoded = jsonDecode(share.snapshotRawJson);
     if (decoded is! Map) {
       throw const FormatException('shared_payload_invalid');
     }
+
     final normalized = SheetStore.normalizeModel(
       decoded.map((key, value) => MapEntry(key.toString(), value)),
     );
+
     String sheetId;
     final currentUid = currentUserId;
     final canUseOriginalId = preferOriginalSheetId &&
         share.permission == BitFlowSharePermission.edit &&
         currentUid != null &&
         share.ownerUserId == currentUid;
+
     if (canUseOriginalId) {
       sheetId = share.sheetId;
       SheetStore.saveModel(sheetId, normalized);
     } else {
       sheetId = SheetStore.createFromModel(normalized);
     }
+
     await workspaces.assignSheetToCurrentWorkspace(sheetId);
     await handleLocalSheetSaved(sheetId);
     return sheetId;

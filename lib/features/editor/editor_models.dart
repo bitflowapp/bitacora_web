@@ -134,10 +134,17 @@ class _SmartPasteUndoHeader {
   final String nextValue;
 }
 
+class _SmartPasteUndoColumn {
+  const _SmartPasteUndoColumn({required this.colId});
+
+  final String colId;
+}
+
 class _SmartPasteUndoSnapshot {
   const _SmartPasteUndoSnapshot({
     required this.cells,
     required this.headers,
+    required this.columns,
     required this.insertedRowIds,
     required this.previousSelRow,
     required this.previousSelCol,
@@ -145,6 +152,7 @@ class _SmartPasteUndoSnapshot {
 
   final List<_SmartPasteUndoCell> cells;
   final List<_SmartPasteUndoHeader> headers;
+  final List<_SmartPasteUndoColumn> columns;
   final List<String> insertedRowIds;
   final int previousSelRow;
   final int previousSelCol;

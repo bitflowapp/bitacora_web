@@ -32,6 +32,26 @@ void main() {
     expect(parsed.cells[1][2], 'listo');
   });
 
+  test('parseSmartTable preserves trailing empty TSV cells', () {
+    final parsed = parseSmartTable('A\tB\t\n1\t2\t');
+
+    expect(parsed.delimiter, SmartTableDelimiter.tab);
+    expect(parsed.rowCount, 2);
+    expect(parsed.columnCount, 3);
+    expect(parsed.cells[0][2], '');
+    expect(parsed.cells[1][2], '');
+  });
+
+  test('parseSmartTable flags malformed quoted CSV', () {
+    final parsed = parseSmartTable('"obs,1,ok\n2,pendiente');
+
+    expect(parsed.hasError, isTrue);
+    expect(
+      parsed.errorMessage,
+      contains('No pudimos interpretar el formato pegado'),
+    );
+  });
+
   test('planSmartTableBatch applies updates and inserts rows', () {
     final plan = planSmartTableBatch(
       existingRows: <List<String>>[
@@ -100,5 +120,42 @@ void main() {
     expect(plan.rows[1][0], 'new-1');
     expect(plan.rows[2][0], 'new-2');
     expect(plan.rows[3][0], 'old-2');
+  });
+
+  test('planSmartTableBatch preserves data outside the pasted range', () {
+    final plan = planSmartTableBatch(
+      existingRows: <List<String>>[
+        <String>['r0c0', 'r0c1', 'r0c2', 'r0c3'],
+        <String>['r1c0', 'r1c1', 'r1c2', 'r1c3'],
+        <String>['r2c0', 'r2c1', 'r2c2', 'r2c3'],
+      ],
+      inputCells: <List<String>>[
+        <String>['A', 'B'],
+        <String>['C', 'D'],
+      ],
+      startRow: 1,
+      startCol: 1,
+      maxColsExclusive: 4,
+    );
+
+    expect(plan.rows[1][1], 'A');
+    expect(plan.rows[1][2], 'B');
+    expect(plan.rows[2][1], 'C');
+    expect(plan.rows[2][2], 'D');
+    expect(plan.rows[1][0], 'r1c0');
+    expect(plan.rows[0][1], 'r0c1');
+    expect(plan.rows[2][3], 'r2c3');
+  });
+
+  test('planSmartTableExpansion computes added columns from active cell', () {
+    final expansion = planSmartTableExpansion(
+      existingEditableColumns: 14,
+      startCol: 13,
+      requiredColumns: 3,
+    );
+
+    expect(expansion.requiredEditableColumns, 16);
+    expect(expansion.finalEditableColumns, 16);
+    expect(expansion.addedColumns, 2);
   });
 }
