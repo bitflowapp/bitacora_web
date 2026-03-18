@@ -13283,7 +13283,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     key: const ValueKey(
                                         'mobile-fab-action-undo'),
                                     icon: Icons.undo_rounded,
-                                    label: 'Undo',
+                                    label: 'Deshacer',
                                     onTap: _undoOnce,
                                   ),
                                   _MobileFabAction(

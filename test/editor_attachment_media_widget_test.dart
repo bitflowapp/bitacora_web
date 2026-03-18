@@ -29,7 +29,7 @@ void main() {
     return tester.state(find.byType(EditorScreen)) as dynamic;
   }
 
-  testWidgets('ojo queda deshabilitado sin payload valido', (tester) async {
+  testWidgets('ojo desaparece cuando no hay preview valido', (tester) async {
     final state = await pumpEditor(tester, sheetId: 'media-disabled');
     state.debugSetCellMetaForTest(
       0,
@@ -54,10 +54,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final previewInk = tester.widget<InkWell>(
+    expect(
       find.byKey(const ValueKey('attachment-tile-preview-0')),
+      findsNothing,
     );
-    expect(previewInk.onTap, isNull);
   });
 
   testWidgets('tap en ojo abre preview real para imagen', (tester) async {
@@ -201,10 +201,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final viewButton = tester.widget(
+    expect(
       find.byKey(const ValueKey('attachment-panel-view-button')),
-    ) as dynamic;
-    expect(viewButton.onPressed, isNull);
+      findsNothing,
+    );
     expect(
       find.textContaining('no estan disponibles para abrir'),
       findsOneWidget,

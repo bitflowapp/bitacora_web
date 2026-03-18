@@ -380,9 +380,6 @@ class _StartFileBucket extends StatelessWidget {
     required this.isPinned,
     required this.fmt,
     required this.onOpen,
-    required this.onRename,
-    required this.onToggleFavorite,
-    required this.onTogglePinned,
     required this.onMore,
   });
 
@@ -393,9 +390,6 @@ class _StartFileBucket extends StatelessWidget {
   final bool Function(String sheetId) isPinned;
   final String Function(DateTime date) fmt;
   final Future<void> Function(SheetMeta meta) onOpen;
-  final Future<void> Function(SheetMeta meta) onRename;
-  final Future<void> Function(SheetMeta meta) onToggleFavorite;
-  final Future<void> Function(SheetMeta meta) onTogglePinned;
   final Future<void> Function(SheetMeta meta) onMore;
 
   @override
@@ -457,9 +451,6 @@ class _StartFileBucket extends StatelessWidget {
                 pinned: isPinned(bucket.items[i].id),
                 fmt: fmt,
                 onOpen: () => onOpen(bucket.items[i]),
-                onRename: () => onRename(bucket.items[i]),
-                onToggleFavorite: () => onToggleFavorite(bucket.items[i]),
-                onTogglePinned: () => onTogglePinned(bucket.items[i]),
                 onMore: () => onMore(bucket.items[i]),
               ),
               if (i != bucket.items.length - 1) const SizedBox(height: 10),
@@ -479,9 +470,6 @@ class _StartFileItemTile extends StatelessWidget {
     required this.pinned,
     required this.fmt,
     required this.onOpen,
-    required this.onRename,
-    required this.onToggleFavorite,
-    required this.onTogglePinned,
     required this.onMore,
   });
 
@@ -492,9 +480,6 @@ class _StartFileItemTile extends StatelessWidget {
   final bool pinned;
   final String Function(DateTime date) fmt;
   final Future<void> Function() onOpen;
-  final Future<void> Function() onRename;
-  final Future<void> Function() onToggleFavorite;
-  final Future<void> Function() onTogglePinned;
   final Future<void> Function() onMore;
 
   String get _title {
@@ -547,25 +532,21 @@ class _StartFileItemTile extends StatelessWidget {
               Column(
                 children: [
                   _StartTinyIconButton(
-                    icon: pinned ? CupertinoIcons.pin_fill : CupertinoIcons.pin,
-                    colors: colors,
-                    onPressed: () => unawaited(onTogglePinned()),
-                  ),
-                  const SizedBox(height: 6),
-                  _StartTinyIconButton(
-                    icon: favorite
-                        ? CupertinoIcons.star_fill
-                        : CupertinoIcons.star,
-                    colors: colors,
-                    onPressed: () => unawaited(onToggleFavorite()),
-                  ),
-                  const SizedBox(height: 6),
-                  _StartTinyIconButton(
                     buttonKey: ValueKey('start-sheet-more-${sheet.id}'),
                     icon: CupertinoIcons.ellipsis,
                     colors: colors,
                     onPressed: () => unawaited(onMore()),
                   ),
+                  if (pinned || favorite) ...[
+                    const SizedBox(height: 8),
+                    Icon(
+                      pinned
+                          ? CupertinoIcons.pin_fill
+                          : CupertinoIcons.star_fill,
+                      color: colors.textSecondary,
+                      size: 14,
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -595,12 +576,6 @@ class _StartFileItemTile extends StatelessWidget {
                 colors: colors,
                 emphasis: true,
                 onPressed: () => unawaited(onOpen()),
-              ),
-              _StartFileActionChip(
-                icon: CupertinoIcons.pencil,
-                label: 'Renombrar',
-                colors: colors,
-                onPressed: () => unawaited(onRename()),
               ),
             ],
           ),

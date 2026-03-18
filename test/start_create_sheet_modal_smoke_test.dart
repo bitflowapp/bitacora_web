@@ -33,7 +33,12 @@ void main() {
     );
 
     await _pumpFrames(tester);
-    await tester.ensureVisible(find.byKey(const ValueKey('start-primary-new')));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('start-primary-new')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('start-primary-new')));
     await tester.pumpAndSettle();
 

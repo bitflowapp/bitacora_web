@@ -3397,6 +3397,18 @@ class _StartPageState extends State<StartPageV2> {
         onSelected: _openDiagnostics,
       ),
       _MoreSheetItem(
+        icon: CupertinoIcons.search,
+        title: 'Buscar archivos',
+        subtitle: 'Abrir planillas o acciones sin recorrer la home',
+        onSelected: _openQuickSwitcher,
+      ),
+      _MoreSheetItem(
+        icon: CupertinoIcons.square_grid_2x2,
+        title: 'Plantillas',
+        subtitle: 'Modelos listos para relevamiento, inspeccion e inventario',
+        onSelected: _newTemplateSheet,
+      ),
+      _MoreSheetItem(
         icon: CupertinoIcons.arrow_down_doc,
         title: 'Importar datos',
         subtitle: 'Restaurar planillas desde respaldo',
@@ -3522,32 +3534,6 @@ class _StartPageState extends State<StartPageV2> {
     ];
     if (recents.isNotEmpty) return recents;
     return _activeSheets;
-  }
-
-  List<SheetMeta> get _favoriteSheets {
-    final active = _activeSheets
-        .where((m) => _favoriteSheetIds.contains(m.id))
-        .toList(growable: false);
-    active.sort((a, b) {
-      final openedA = _sheetLastOpenedAtMs[a.id] ?? 0;
-      final openedB = _sheetLastOpenedAtMs[b.id] ?? 0;
-      if (openedA != openedB) return openedB.compareTo(openedA);
-      return b.updatedAt.compareTo(a.updatedAt);
-    });
-    return active;
-  }
-
-  List<SheetMeta> get _pinnedSheets {
-    final active = _activeSheets
-        .where((m) => _pinnedSheetIds.contains(m.id))
-        .toList(growable: false);
-    active.sort((a, b) {
-      final openedA = _sheetLastOpenedAtMs[a.id] ?? 0;
-      final openedB = _sheetLastOpenedAtMs[b.id] ?? 0;
-      if (openedA != openedB) return openedB.compareTo(openedA);
-      return b.updatedAt.compareTo(a.updatedAt);
-    });
-    return active;
   }
 
   bool _isFavoriteSheet(String sheetId) => _favoriteSheetIds.contains(sheetId);
@@ -3679,21 +3665,6 @@ class _StartPageState extends State<StartPageV2> {
     return null;
   }
 
-  TemplateKind? _coreTemplateFromId(String raw) {
-    switch (raw.trim()) {
-      case 'plantilla':
-        return TemplateKind.plantilla;
-      case 'resistividades':
-        return TemplateKind.resistividades;
-      case 'inventario':
-        return TemplateKind.inventario;
-      case 'checklist':
-        return TemplateKind.checklist;
-      default:
-        return null;
-    }
-  }
-
   _PackTemplateSpec? _packTemplateFromId(String raw) {
     final wanted = raw.trim();
     if (wanted.isEmpty) return null;
@@ -3701,6 +3672,16 @@ class _StartPageState extends State<StartPageV2> {
       if (template.id == wanted) return template;
     }
     return null;
+  }
+
+  Future<void> _openPrimarySalesFlow() async {
+    final template = _packTemplateFromId('gps_relevamiento_foto') ??
+        _packTemplateFromId('campo_inspeccion_general');
+    if (template != null) {
+      await _createAndOpenPackTemplate(template);
+      return;
+    }
+    await _createAndOpenSheet(template: TemplateKind.resistividades);
   }
 
   Future<void> _openMostRecentSheet() async {
@@ -3722,117 +3703,6 @@ class _StartPageState extends State<StartPageV2> {
       return;
     }
     await _exportSheet(candidate);
-  }
-
-  _StartAutomationAction? _recentTemplateAutomation() {
-    for (final sheet in _recentSheets.take(8)) {
-      final raw = SheetStore.loadRaw(sheet.id);
-      if (raw == null || raw.trim().isEmpty) continue;
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is! Map) continue;
-        final model = decoded.cast<String, dynamic>();
-        final templateId = (model['templateKind'] ?? '').toString().trim();
-        if (templateId.isEmpty) continue;
-
-        final packTemplate = _packTemplateFromId(templateId);
-        if (packTemplate != null) {
-          return _StartAutomationAction(
-            id: 'automation_recent_template_${packTemplate.id}',
-            icon: CupertinoIcons.square_grid_2x2,
-            title: 'Repetir plantilla reciente',
-            subtitle: 'Repetir ${packTemplate.name}',
-            contextLabel: _sheetDisplayTitle(sheet),
-            onSelected: () => _createAndOpenPackTemplate(packTemplate),
-          );
-        }
-
-        final coreTemplate = _coreTemplateFromId(templateId);
-        if (coreTemplate != null) {
-          return _StartAutomationAction(
-            id: 'automation_recent_template_${coreTemplate.name}',
-            icon: CupertinoIcons.square_grid_2x2,
-            title: 'Repetir plantilla reciente',
-            subtitle: 'Repetir ${_sheetDisplayTitle(sheet)}',
-            contextLabel: 'Basado en una planilla creada hace poco',
-            onSelected: () => _createAndOpenSheet(template: coreTemplate),
-          );
-        }
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  List<_StartAutomationAction> _buildAutomationActions() {
-    final actions = <_StartAutomationAction>[];
-    final recents = _recentSheets;
-    final recentTemplateAction = _recentTemplateAutomation();
-
-    if (recents.isNotEmpty) {
-      actions.add(
-        _StartAutomationAction(
-          id: 'automation_continue_latest',
-          icon: CupertinoIcons.play_fill,
-          title: 'Continuar \u00faltimo proyecto',
-          subtitle: _sheetDisplayTitle(recents.first),
-          contextLabel: '\u00daltima planilla abierta',
-          onSelected: () => _open(recents.first),
-        ),
-      );
-    } else {
-      actions.add(
-        _StartAutomationAction(
-          id: 'automation_first_sheet',
-          icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
-          title: 'Crear primera planilla',
-          subtitle:
-              'Empez\u00e1 con una hoja limpia y entr\u00e1 directo a editar',
-          contextLabel: 'Mejor primer paso',
-          onSelected: () => _createAndOpenSheet(),
-        ),
-      );
-    }
-
-    actions.add(
-      _StartAutomationAction(
-        id: 'automation_measurement',
-        icon: CupertinoIcons.waveform_path_ecg,
-        title: 'Crear planilla de medici\u00f3n',
-        subtitle:
-            'Abr\u00ed una plantilla t\u00e9cnica lista para cargar datos en campo',
-        contextLabel: 'Ideal para trabajo t\u00e9cnico',
-        onSelected: () => _createAndOpenSheet(
-          template: TemplateKind.resistividades,
-        ),
-      ),
-    );
-
-    actions.add(
-      _StartAutomationAction(
-        id: 'automation_import',
-        icon: CupertinoIcons.arrow_down_doc,
-        title: 'Importar datos',
-        subtitle:
-            'Tra\u00e9 un ZIP de backup o paquete y segu\u00ed trabajando',
-        contextLabel: 'Desde otro equipo o backup',
-        onSelected: _importBackupZip,
-      ),
-    );
-
-    actions.add(
-      recentTemplateAction ??
-          _StartAutomationAction(
-            id: 'automation_template_gallery',
-            icon: CupertinoIcons.square_grid_2x2,
-            title: 'Abrir plantilla',
-            subtitle:
-                'Explor\u00e1 plantillas de medici\u00f3n, inventario y proyectos',
-            contextLabel: 'Galer\u00eda de plantillas',
-            onSelected: _newTemplateSheet,
-          ),
-    );
-
-    return actions.take(4).toList(growable: false);
   }
 
   Future<void> _openSheetQuickMenu(SheetMeta sheet) async {
@@ -4202,9 +4072,6 @@ class _StartPageState extends State<StartPageV2> {
     ];
     final showInitialLoading = !_prefsLoaded || !_orgLoaded;
     final recentSheets = _recentSheets.take(4).toList(growable: false);
-    final favoriteSheets = _favoriteSheets.take(4).toList(growable: false);
-    final pinnedSheets = _pinnedSheets.take(4).toList(growable: false);
-    final automationActions = _buildAutomationActions();
 
     final mq = MediaQuery.of(context);
     final bottomPad = mq.padding.bottom;
@@ -4213,38 +4080,43 @@ class _StartPageState extends State<StartPageV2> {
     final buildStamp = _buildStamp;
     final activeCount = _activeSheets.length;
     final recentCount = _recentSheets.length;
-    final workspaceName = _currentWorkspace?.name ?? 'Personal';
-    final planLabel = RuntimeFlags.monetizationEnabled
-        ? (_entitlement.isPro ? 'Pro' : 'Free')
-        : 'Libre';
     final headerTitle = activeCount == 0
-        ? 'Listo para trabajar'
+        ? 'Carga de campo sin vueltas'
         : recentCount > 0
-            ? 'Segu\u00ed donde lo dejaste'
-            : 'Tu centro de trabajo diario';
+            ? 'Volve al campo en segundos'
+            : 'Planillas listas para operar';
     final headerDetail = activeCount == 0
-        ? 'Cre\u00e1 una planilla, abr\u00ed una plantilla o import\u00e1 datos sin salir de este inicio.'
+        ? 'Arranca con un relevamiento listo, carga evidencia y exporta sin explicar demasiado el producto.'
         : recentCount > 0
-            ? 'Tus archivos recientes y acciones m\u00e1s \u00fatiles ya est\u00e1n listos para que avances en segundos.'
-            : 'Abr\u00ed, busc\u00e1 o cre\u00e1 una nueva planilla desde un espacio claro para trabajo diario.';
+            ? 'Tus archivos activos quedan a un toque para seguir cargando, revisar evidencia y cerrar la salida.'
+            : 'BitFlow funciona mejor cuando entra directo al trabajo de campo: capturar, validar y exportar.';
     final headerMetrics = <Widget>[
       _StartMetricPill(
-        label: 'Espacio',
-        value: workspaceName,
+        label: 'Uso',
+        value: 'Campo',
         colors: colors,
       ),
       _StartMetricPill(
-        label: 'Recientes',
-        value: '$recentCount listos',
+        label: 'Evidencia',
+        value: 'Foto + GPS',
         colors: colors,
       ),
       _StartMetricPill(
-        label: 'Modo',
-        value: planLabel,
+        label: 'Salida',
+        value: 'ZIP / PDF',
         colors: colors,
       ),
     ];
     final quickActions = <_StartQuickActionSpec>[
+      _StartQuickActionSpec(
+        key: const ValueKey('start-primary-demo-field'),
+        icon: CupertinoIcons.location_solid,
+        title: 'Demo de relevamiento',
+        subtitle:
+            'Ubicacion, estado, foto y exportacion en un flujo listo para mostrar.',
+        shortcut: 'Campo',
+        onPressed: _openPrimarySalesFlow,
+      ),
       _StartQuickActionSpec(
         key: const ValueKey('start-primary-new'),
         icon: CupertinoIcons.plus_rectangle_fill_on_rectangle_fill,
@@ -4263,23 +4135,6 @@ class _StartPageState extends State<StartPageV2> {
         shortcut: 'Ctrl/Cmd + O',
         onPressed: _openMostRecentSheet,
       ),
-      _StartQuickActionSpec(
-        key: const ValueKey('start-primary-search'),
-        icon: CupertinoIcons.search,
-        title: 'Buscar archivos',
-        subtitle:
-            'Paleta para archivos, acciones y navegaci\u00f3n r\u00e1pida',
-        shortcut: 'Ctrl/Cmd + K',
-        onPressed: _openQuickSwitcher,
-      ),
-      _StartQuickActionSpec(
-        key: const ValueKey('start-primary-automate'),
-        icon: CupertinoIcons.square_grid_2x2_fill,
-        title: 'Plantillas',
-        subtitle: 'Modelos listos para mediciones, inventario y proyectos',
-        shortcut: 'Ctrl/Cmd + T',
-        onPressed: _newTemplateSheet,
-      ),
     ];
     final recentWorkPrimaryBucket = _StartBucketSpec(
       title: 'Recientes',
@@ -4287,22 +4142,7 @@ class _StartPageState extends State<StartPageV2> {
       emptyMessage: 'Abr\u00ed una planilla una vez y aparecer\u00e1 ac\u00e1.',
       items: recentSheets,
     );
-    final recentWorkSecondaryBuckets = <_StartBucketSpec>[
-      if (favoriteSheets.isNotEmpty)
-        _StartBucketSpec(
-          title: 'Favoritas',
-          subtitle: 'Archivos a los que volv\u00e9s seguido',
-          emptyMessage: 'Marca una planilla como favorita para tenerla cerca.',
-          items: favoriteSheets,
-        ),
-      if (pinnedSheets.isNotEmpty)
-        _StartBucketSpec(
-          title: 'Fijadas',
-          subtitle: 'Siempre visibles desde el inicio',
-          emptyMessage: 'Fija una planilla para dejarla estable aca.',
-          items: pinnedSheets,
-        ),
-    ];
+    final recentWorkSecondaryBuckets = const <_StartBucketSpec>[];
     String noteForSheet(String sheetId) => (_sheetNotes[sheetId] ?? '').trim();
 
     final isBusy = _busy && _busyMessage.trim().isNotEmpty;
@@ -4414,23 +4254,8 @@ class _StartPageState extends State<StartPageV2> {
                                   isPinned: _isPinnedSheet,
                                   fmt: _fmt,
                                   onOpen: _open,
-                                  onRename: _rename,
-                                  onToggleFavorite: _toggleFavorite,
-                                  onTogglePinned: _togglePinned,
                                   onMore: _openSheetQuickMenu,
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                            child: KeyedSubtree(
-                              key: const ValueKey('start-automation-zone'),
-                              child: _StartSuggestionsSection(
-                                colors: colors,
-                                automationActions: automationActions,
                               ),
                             ),
                           ),

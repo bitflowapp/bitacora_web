@@ -18,6 +18,10 @@ extension _EditorDialogs on _EditorScreenState {
       title: 'Preferencias de editor',
       child: StatefulBuilder(
         builder: (ctx, setModalState) {
+          final showFlowBotLocalModel =
+              kDebugMode ||
+              flowBotUseLocalLlm ||
+              _flowBotLocalModelPath.trim().isNotEmpty;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -61,9 +65,9 @@ extension _EditorDialogs on _EditorScreenState {
                 onChanged: (value) =>
                     setModalState(() => mobileCompactMode = value),
                 activeThumbColor: _palette(ctx).accent,
-                title: const Text('Modo compacto (mobile auto-hide)'),
+                title: const Text('Modo compacto en mobile'),
                 subtitle: const Text(
-                  'Oculta header al hacer scroll para maximizar la grilla.',
+                  'Oculta la barra superior al hacer scroll para dejar mas espacio a la grilla.',
                 ),
               ),
               SwitchListTile(
@@ -80,23 +84,24 @@ extension _EditorDialogs on _EditorScreenState {
                 onChanged: (value) =>
                     setModalState(() => mobileFocusCellMode = value),
                 activeThumbColor: _palette(ctx).accent,
-                title: const Text('Focus cell mode (mobile)'),
+                title: const Text('Centrar celda al editar (mobile)'),
                 subtitle: const Text(
-                  'Al editar, centra la celda activa sin reflow pesado.',
+                  'Mantiene la celda activa visible sin saltos bruscos al editar.',
                 ),
               ),
-              SwitchListTile(
-                value: flowBotUseLocalLlm,
-                onChanged: (value) =>
-                    setModalState(() => flowBotUseLocalLlm = value),
-                activeThumbColor: _palette(ctx).accent,
-                title: const Text('FlowBot Local LLM (sin API)'),
-                subtitle: Text(
-                  _flowBotLocalModelPath.trim().isEmpty
-                      ? 'No hay modelo instalado. Usa motor offline deterministico.'
-                      : 'Modelo local: ${_flowBotLocalModelPath.split(RegExp(r'[\\\\/]')).last}',
+              if (showFlowBotLocalModel)
+                SwitchListTile(
+                  value: flowBotUseLocalLlm,
+                  onChanged: (value) =>
+                      setModalState(() => flowBotUseLocalLlm = value),
+                  activeThumbColor: _palette(ctx).accent,
+                  title: const Text('Motor local de FlowBot (avanzado)'),
+                  subtitle: Text(
+                    _flowBotLocalModelPath.trim().isEmpty
+                        ? 'No hay modelo instalado. Seguimos con el motor offline estable.'
+                        : 'Modelo local: ${_flowBotLocalModelPath.split(RegExp(r'[\\\\/]')).last}',
+                  ),
                 ),
-              ),
             ],
           );
         },

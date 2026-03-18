@@ -201,7 +201,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Micro onboarding (3 pasos)',
+              'Guia rapida (3 pasos)',
               style: TextStyle(
                 color: palette.fg,
                 fontWeight: FontWeight.w800,
@@ -211,8 +211,8 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               compact
-                  ? '30s: abre palette (Ctrl/Cmd+K o rayo), pega con preview+undo y exporta.'
-                  : 'Guia 30s: palette (Ctrl/Cmd+K o rayo), smart paste con undo y exportar.',
+                  ? '30s: usa el rayo, pega con vista previa y exporta.'
+                  : 'En menos de 30 segundos podes abrir acciones, pegar datos y cerrar una salida.',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontSize: 12.2,
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Paleta (Ctrl/Cmd+K / rayo) | Pegado inteligente + Deshacer | Exportar',
+                  'Rayo | Pegar tabla | Deshacer | Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -246,23 +246,23 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             else ...const [
               _TourStepItem(
                 icon: Icons.bolt_rounded,
-                title: '1) Command palette',
+                title: '1) Acciones',
                 body:
-                    'Abrela con Ctrl/Cmd+K en desktop o con el boton rayo en mobile.',
+                    'Abre acciones con el boton rayo en mobile o con Ctrl/Cmd+K en desktop.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.table_chart_rounded,
-                title: '2) Smart paste + Undo',
+                title: '2) Pegar tabla + Deshacer',
                 body:
-                    'Pega TSV/CSV, revisa preview y revierte con Undo si hace falta.',
+                    'Pega TSV/CSV, revisa la vista previa y deshace si hace falta.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.ios_share_rounded,
                 title: '3) Exportar',
                 body:
-                    'Cuando cierres la carga, exporta en XLSX o PDF desde el menu.',
+                    'Cuando cierres la carga, exporta en XLSX, PDF o ZIP segun el cierre que necesites.',
               ),
             ],
             const SizedBox(height: 8),
@@ -634,7 +634,7 @@ class _FlowBotInlineQuickBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'FlowBot rapido',
+              'Acciones sugeridas',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontWeight: FontWeight.w800,

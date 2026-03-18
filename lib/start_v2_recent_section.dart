@@ -10,9 +10,6 @@ class _StartRecentWorkSection extends StatelessWidget {
     required this.isPinned,
     required this.fmt,
     required this.onOpen,
-    required this.onRename,
-    required this.onToggleFavorite,
-    required this.onTogglePinned,
     required this.onMore,
   });
 
@@ -24,9 +21,6 @@ class _StartRecentWorkSection extends StatelessWidget {
   final bool Function(String sheetId) isPinned;
   final String Function(DateTime date) fmt;
   final Future<void> Function(SheetMeta meta) onOpen;
-  final Future<void> Function(SheetMeta meta) onRename;
-  final Future<void> Function(SheetMeta meta) onToggleFavorite;
-  final Future<void> Function(SheetMeta meta) onTogglePinned;
   final Future<void> Function(SheetMeta meta) onMore;
 
   @override
@@ -47,7 +41,7 @@ class _StartRecentWorkSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Mantene visibles tus ultimos archivos, con favoritas y fijadas a mano cuando importan.',
+            'Retoma tus ultimos archivos sin ruido visual ni capas de organizacion antes de abrir.',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: 13,
@@ -73,9 +67,6 @@ class _StartRecentWorkSection extends StatelessWidget {
                         isPinned: isPinned,
                         fmt: fmt,
                         onOpen: onOpen,
-                        onRename: onRename,
-                        onToggleFavorite: onToggleFavorite,
-                        onTogglePinned: onTogglePinned,
                         onMore: onMore,
                       ),
                     ),
@@ -93,9 +84,6 @@ class _StartRecentWorkSection extends StatelessWidget {
                               isPinned: isPinned,
                               fmt: fmt,
                               onOpen: onOpen,
-                              onRename: onRename,
-                              onToggleFavorite: onToggleFavorite,
-                              onTogglePinned: onTogglePinned,
                               onMore: onMore,
                             ),
                             if (i != secondaryBuckets.length - 1)
@@ -131,9 +119,6 @@ class _StartRecentWorkSection extends StatelessWidget {
                         isPinned: isPinned,
                         fmt: fmt,
                         onOpen: onOpen,
-                        onRename: onRename,
-                        onToggleFavorite: onToggleFavorite,
-                        onTogglePinned: onTogglePinned,
                         onMore: onMore,
                       ),
                     ),

@@ -2052,25 +2052,24 @@ extension _EditorAttachments on _EditorScreenState {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      AppButton(
-                        key: const ValueKey('attachment-panel-view-button'),
-                        label: 'Ver',
-                        icon: Icons.visibility_outlined,
-                        variant: AppButtonVariant.secondary,
-                        size: AppButtonSize.sm,
-                        onPressed: canOpenViewer
-                            ? () {
-                                Navigator.of(ctx).pop();
-                                if (hasOpenablePhotos) {
-                                  _openPhotosSheetForCell(r, c);
-                                  return;
-                                }
-                                if (hasOpenableAudios) {
-                                  _openAudiosSheetForCell(r, c);
-                                }
-                              }
-                            : null,
-                      ),
+                      if (canOpenViewer)
+                        AppButton(
+                          key: const ValueKey('attachment-panel-view-button'),
+                          label: 'Ver',
+                          icon: Icons.visibility_outlined,
+                          variant: AppButtonVariant.secondary,
+                          size: AppButtonSize.sm,
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            if (hasOpenablePhotos) {
+                              _openPhotosSheetForCell(r, c);
+                              return;
+                            }
+                            if (hasOpenableAudios) {
+                              _openAudiosSheetForCell(r, c);
+                            }
+                          },
+                        ),
                       AppButton(
                         label: 'Reemplazar',
                         icon: Icons.autorenew_rounded,

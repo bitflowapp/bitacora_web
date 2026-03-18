@@ -175,23 +175,23 @@ class _AttachmentTile extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Semantics(
-                      button: canPreview,
-                      enabled: canPreview,
-                      label: canPreview
-                          ? 'Ver adjunto'
-                          : 'Adjunto sin vista previa disponible',
-                      child: Tooltip(
-                        message: canPreview ? 'Ver' : 'Sin vista previa',
-                        child: _MiniActionButton(
-                          buttonKey: previewKey,
-                          icon: Icons.visibility_outlined,
-                          onPressed: onPreview,
-                          palette: palette,
+                    if (canPreview) ...[
+                      Semantics(
+                        button: true,
+                        enabled: true,
+                        label: 'Ver adjunto',
+                        child: Tooltip(
+                          message: 'Ver',
+                          child: _MiniActionButton(
+                            buttonKey: previewKey,
+                            icon: Icons.visibility_outlined,
+                            onPressed: onPreview,
+                            palette: palette,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                    ],
                     Semantics(
                       button: true,
                       label: 'Renombrar adjunto',

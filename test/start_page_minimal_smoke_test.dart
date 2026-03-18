@@ -7,8 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('StartPage renders productivity control center sections',
-      (tester) async {
+  testWidgets('StartPage renders focused field-work sections', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'bitflow.onboarding_done.v1': true,
       'bitflow.demo_mode_enabled.v1': true,
@@ -33,18 +32,18 @@ void main() {
 
     await _pumpFrames(tester);
 
+    expect(
+      find.byKey(const ValueKey('start-primary-demo-field')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('start-primary-new')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-primary-open-recent')),
         findsOneWidget);
-    expect(find.byKey(const ValueKey('start-primary-search')), findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('start-primary-automate')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-more-button')), findsOneWidget);
     expect(find.text('Acciones principales'), findsOneWidget);
+    expect(find.text('Demo de relevamiento'), findsOneWidget);
     expect(find.text('Nueva planilla'), findsOneWidget);
     expect(find.text('Abrir reciente'), findsOneWidget);
-    expect(find.text('Buscar archivos'), findsOneWidget);
-    expect(find.text('Plantillas'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('start-continue-work')),
@@ -55,16 +54,7 @@ void main() {
 
     expect(find.text('Trabajo reciente'), findsOneWidget);
     expect(find.text('Smoke Sheet A'), findsWidgets);
-
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('start-automation-zone')),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('start-automation-zone')), findsOneWidget);
-    expect(find.text('Sugerencias'), findsOneWidget);
+    expect(find.byKey(const ValueKey('start-automation-zone')), findsNothing);
     expect(find.byKey(const ValueKey('start-pro-disclosure')), findsNothing);
 
     final baseFill = tester

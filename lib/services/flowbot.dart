@@ -32,6 +32,7 @@ const List<String> _kFlowBotActionHints = <String>[
   'fecha',
   'hoy',
   'fila',
+  'nuevo registro',
   'columna',
   'celda',
   'seleccion',
