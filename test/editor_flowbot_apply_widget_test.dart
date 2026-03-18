@@ -1,5 +1,6 @@
 import 'package:bitacora_web/features/editor/editor_screen.dart';
 import 'package:bitacora_web/services/flowbot.dart';
+import 'package:bitacora_web/services/flowbot_quick_store.dart';
 import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -245,6 +246,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Acciones rapidas'), findsOneWidget);
+    expect(find.text('Favoritos'), findsOneWidget);
     expect(find.text('Sugeridas'), findsOneWidget);
     expect(find.text('Recientes'), findsOneWidget);
     expect(find.text('Ejemplos reales'), findsOneWidget);
@@ -262,6 +264,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(state.debugRowCount, 2);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-favorites-other-sheet',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final otherState = tester.state(find.byType(EditorScreen)) as dynamic;
+    await otherState.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+    final otherFab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    otherFab.onPressed?.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -378,6 +404,206 @@ void main() {
     await tester.pump();
     expect(copyApplied, 1);
     expect(state.debugCellText(1, 0), 'A');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot stores recents per sheet and restores them on reopen',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<void> pumpSheet(String sheetId) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorScreen(
+            sheetId: sheetId,
+            initialHeaders: const <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: const <List<String>>[
+              <String>['', '', ''],
+              <String>['', '', ''],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      final fab = tester.widget<FloatingActionButton>(
+        find.byKey(const ValueKey('mobile-fab-main')),
+      );
+      fab.onPressed?.call();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+      await tester.pumpAndSettle();
+    }
+
+    await pumpSheet('flowbot-recents-a');
+    await tester.enterText(
+      find.byKey(const ValueKey('flowbot-command-input')),
+      'poner OK en B2',
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    await pumpSheet('flowbot-recents-a');
+    expect(find.text('Recientes'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('flowbot-history-chip-0')), findsOneWidget);
+    expect(find.text('poner OK en B2'), findsWidgets);
+
+    await pumpSheet('flowbot-recents-b');
+    expect(find.text('poner OK en B2'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot favorites persist across reopen and execute fast',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<dynamic> pumpSheet() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: EditorScreen(
+            sheetId: 'flowbot-favorites-sheet',
+            initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: <List<String>>[
+              <String>['', '', ''],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      final fab = tester.widget<FloatingActionButton>(
+        find.byKey(const ValueKey('mobile-fab-main')),
+      );
+      fab.onPressed?.call();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+      await tester.pumpAndSettle();
+      return state;
+    }
+
+    await pumpSheet();
+    await tester.ensureVisible(
+      find.byKey(
+        const ValueKey('flowbot-suggested-favorite-toggle-duplicate-row'),
+      ),
+    );
+    await tester.tap(
+      find.byKey(
+        const ValueKey('flowbot-suggested-favorite-toggle-duplicate-row'),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-close')));
+    await tester.pumpAndSettle();
+
+    final state = await pumpSheet();
+    expect(find.text('Favoritos'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsOneWidget);
+
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
+    await tester.tap(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 cambio listo'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugRowCount, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot invalid favorite warns clearly and keeps apply disabled',
+      (tester) async {
+    final favoritesRaw = FlowBotQuickStore.encodeFavoritesByContext(
+      <String, List<FlowBotFavoriteShortcut>>{
+        'sheet:flowbot-invalid-favorite-sheet': <FlowBotFavoriteShortcut>[
+          const FlowBotFavoriteShortcut(
+            kind: 'quick_action',
+            label: 'Copiar fila anterior',
+            quickActionId: 'copy-previous-row',
+          ),
+        ],
+      },
+    );
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow.editor.flowbot.favorites_by_context.v1': favoritesRaw,
+    });
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-invalid-favorite-sheet',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['A', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsOneWidget);
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
+    await tester.tap(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
+    expect(find.textContaining('no aplica'), findsWidgets);
+    final applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
 

@@ -92,6 +92,10 @@ const String _kPrefFlowBotUseLocalLlm =
 const String _kPrefFlowBotLocalModelPath =
     'bitflow.editor.flowbot.local_model_path.v1';
 const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
+const String _kPrefFlowBotRecentByContext =
+    'bitflow.editor.flowbot.recent_by_context.v2';
+const String _kPrefFlowBotFavoritesByContext =
+    'bitflow.editor.flowbot.favorites_by_context.v1';
 const String _kPrefFlowBotLastScope = 'bitflow.editor.flowbot.last_scope.v1';
 const String _kPrefFlowBotMacros = 'bitflow.editor.flowbot.macros.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
@@ -649,8 +653,11 @@ class _EditorScreenState extends State<EditorScreen>
   String _flowBotLocalModelPath = '';
   bool _flowBotModelDownloading = false;
   double _flowBotModelDownloadProgress = 0;
-  static const int _maxFlowBotHistoryItems = 12;
+  static const int _maxFlowBotHistoryItems = 6;
+  static const int _maxFlowBotFavoriteItems = 6;
   final List<String> _flowBotHistory = <String>[];
+  final List<FlowBotFavoriteShortcut> _flowBotFavorites =
+      <FlowBotFavoriteShortcut>[];
   final List<FlowBotMacroPreset> _flowBotMacros = <FlowBotMacroPreset>[];
   String _flowBotLastScope = 'seleccion';
   String _lastFlowBotValidCommand = '';
@@ -808,6 +815,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGridDensity());
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadFlowBotHistoryPrefs());
+    unawaited(_loadFlowBotFavoritesPrefs());
     unawaited(_loadFlowBotUiPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
@@ -2368,23 +2376,30 @@ class _EditorScreenState extends State<EditorScreen>
     await _saveEditorDefaultsPrefs();
   }
 
+  String _flowBotPersistenceContextKey() {
+    final sheetId = widget.sheetId.trim();
+    if (sheetId.isNotEmpty) return 'sheet:$sheetId';
+    return 'sheet:${_sheetName.trim()}';
+  }
+
   Future<void> _loadFlowBotHistoryPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kPrefFlowBotHistory);
-      if (raw == null || raw.trim().isEmpty) return;
-      final parsed = jsonDecode(raw);
-      if (parsed is! List) return;
-      final cleaned = <String>[];
-      for (final item in parsed) {
-        final text = item.toString().trim();
-        if (text.isEmpty) continue;
-        if (cleaned
-            .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
-          continue;
-        }
-        cleaned.add(text);
-        if (cleaned.length >= _maxFlowBotHistoryItems) break;
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotRecentByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeRecentByContext(
+        raw,
+        limit: _maxFlowBotHistoryItems,
+      );
+      var cleaned = List<String>.from(decoded[contextKey] ?? const <String>[]);
+      if (cleaned.isEmpty) {
+        final legacyRaw = prefs.getString(_kPrefFlowBotHistory) ?? '';
+        cleaned = FlowBotQuickStore.normalizeRecentCommands(
+          legacyRaw.trim().isEmpty
+              ? const <Object?>[]
+              : (jsonDecode(legacyRaw) as List<Object?>),
+          limit: _maxFlowBotHistoryItems,
+        );
       }
       if (!mounted) {
         _flowBotHistory
@@ -2403,46 +2418,154 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _saveFlowBotHistoryPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kPrefFlowBotHistory, jsonEncode(_flowBotHistory));
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotRecentByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeRecentByContext(
+        raw,
+        limit: _maxFlowBotHistoryItems,
+      );
+      decoded[contextKey] = List<String>.from(_flowBotHistory);
+      await prefs.setString(
+        _kPrefFlowBotRecentByContext,
+        FlowBotQuickStore.encodeRecentByContext(
+          decoded,
+          limit: _maxFlowBotHistoryItems,
+        ),
+      );
     } catch (_) {}
   }
 
-  void _rememberFlowBotHistory(String command) {
-    final text = command.trim();
-    if (text.isEmpty) return;
-    final existingIndex = _flowBotHistory.indexWhere(
-      (item) => item.toLowerCase() == text.toLowerCase(),
+  Future<void> _rememberFlowBotHistory(String command) async {
+    final next = FlowBotQuickStore.rememberRecent(
+      _flowBotHistory,
+      command,
+      limit: _maxFlowBotHistoryItems,
     );
-    if (existingIndex == 0) return;
+    if (listEquals(next, _flowBotHistory)) return;
     if (mounted) {
       setState(() {
-        if (existingIndex > 0) {
-          _flowBotHistory.removeAt(existingIndex);
-        }
-        _flowBotHistory.insert(0, text);
-        if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
-          _flowBotHistory.removeRange(
-            _maxFlowBotHistoryItems,
-            _flowBotHistory.length,
-          );
-        }
+        _flowBotHistory
+          ..clear()
+          ..addAll(next);
       });
     } else {
-      if (existingIndex > 0) {
-        _flowBotHistory.removeAt(existingIndex);
-      }
-      if (_flowBotHistory.isEmpty ||
-          _flowBotHistory.first.toLowerCase() != text.toLowerCase()) {
-        _flowBotHistory.insert(0, text);
-      }
-      if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
-        _flowBotHistory.removeRange(
-          _maxFlowBotHistoryItems,
-          _flowBotHistory.length,
-        );
-      }
+      _flowBotHistory
+        ..clear()
+        ..addAll(next);
     }
-    unawaited(_saveFlowBotHistoryPrefs());
+    await _saveFlowBotHistoryPrefs();
+  }
+
+  Future<void> _loadFlowBotFavoritesPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotFavoritesByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeFavoritesByContext(
+        raw,
+        limit: _maxFlowBotFavoriteItems,
+      );
+      final favorites = List<FlowBotFavoriteShortcut>.from(
+        decoded[contextKey] ?? const <FlowBotFavoriteShortcut>[],
+      );
+      if (!mounted) {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(favorites);
+        return;
+      }
+      setState(() {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(favorites);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveFlowBotFavoritesPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotFavoritesByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeFavoritesByContext(
+        raw,
+        limit: _maxFlowBotFavoriteItems,
+      );
+      decoded[contextKey] =
+          List<FlowBotFavoriteShortcut>.from(_flowBotFavorites);
+      await prefs.setString(
+        _kPrefFlowBotFavoritesByContext,
+        FlowBotQuickStore.encodeFavoritesByContext(
+          decoded,
+          limit: _maxFlowBotFavoriteItems,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  FlowBotFavoriteShortcut _flowBotFavoriteForCommand(String command) {
+    return FlowBotFavoriteShortcut(
+      kind: 'command',
+      label: command.trim(),
+      command: command.trim(),
+    );
+  }
+
+  FlowBotFavoriteShortcut _flowBotFavoriteForAction(
+    _FlowBotQuickActionSpec action,
+  ) {
+    return FlowBotFavoriteShortcut(
+      kind: 'quick_action',
+      label: action.label,
+      quickActionId: action.id,
+      requiresValuePrompt: action.requiresValue,
+    );
+  }
+
+  bool _isFlowBotFavoriteCommand(String command) {
+    return FlowBotQuickStore.containsFavorite(
+      _flowBotFavorites,
+      _flowBotFavoriteForCommand(command),
+    );
+  }
+
+  bool _isFlowBotFavoriteAction(_FlowBotQuickActionSpec action) {
+    return FlowBotQuickStore.containsFavorite(
+      _flowBotFavorites,
+      _flowBotFavoriteForAction(action),
+    );
+  }
+
+  Future<bool> _toggleFlowBotFavoriteEntry(
+    FlowBotFavoriteShortcut entry,
+  ) async {
+    final existed =
+        FlowBotQuickStore.containsFavorite(_flowBotFavorites, entry);
+    final next = FlowBotQuickStore.toggleFavorite(
+      _flowBotFavorites,
+      entry,
+      limit: _maxFlowBotFavoriteItems,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (mounted) {
+      setState(() {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(next);
+      });
+    } else {
+      _flowBotFavorites
+        ..clear()
+        ..addAll(next);
+    }
+    await _saveFlowBotFavoritesPrefs();
+    final label = entry.label.trim().isEmpty ? 'Favorito' : entry.label.trim();
+    _showActionSnack(
+      existed ? 'Favorito quitado: $label' : 'Favorito guardado: $label',
+      isError: false,
+      icon: existed ? Icons.star_border_rounded : Icons.star_rounded,
+    );
+    return !existed;
   }
 
   String _normalizeFlowBotScopeToken(String raw) {
@@ -6415,6 +6538,11 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
     _commitActiveEditors();
     FocusManager.instance.primaryFocus?.unfocus();
+    await Future.wait<void>([
+      _loadFlowBotHistoryPrefs(),
+      _loadFlowBotFavoritesPrefs(),
+    ]);
+    if (!mounted) return;
     final transcriptEC = TextEditingController();
     final speech = SpeechService.I;
 
@@ -6478,7 +6606,6 @@ class _EditorScreenState extends State<EditorScreen>
                 if (result.actions.isNotEmpty) {
                   _lastFlowBotValidCommand = text;
                 }
-                _rememberFlowBotHistory(text);
                 return result;
               } catch (e, st) {
                 flowBotDebugLog('Modal.parse error: $e');
@@ -6631,8 +6758,12 @@ class _EditorScreenState extends State<EditorScreen>
             final primaryQuickActions = suggestedQuickActions
                 .take(compactSheet ? 4 : 6)
                 .toList(growable: false);
-            final recentCommands =
-                _flowBotHistory.take(6).toList(growable: false);
+            final recentCommands = _flowBotHistory
+                .take(_maxFlowBotHistoryItems)
+                .toList(growable: false);
+            final favoriteShortcuts = _flowBotFavorites
+                .take(_maxFlowBotFavoriteItems)
+                .toList(growable: false);
             final exampleCommands = _flowBotContextExamples(flowBotContext);
 
             Widget buildVoiceControls() {
@@ -6811,22 +6942,175 @@ class _EditorScreenState extends State<EditorScreen>
               await parseNow();
             }
 
+            Future<void> runSavedCommand(String command) async {
+              fillCommandText(command);
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                warning = '';
+              });
+              await parseNow();
+            }
+
+            _FlowBotQuickActionSpec? resolveFavoriteAction(
+              FlowBotFavoriteShortcut favorite,
+            ) {
+              if (!favorite.isQuickAction) return null;
+              for (final action in suggestedQuickActions) {
+                if (action.id == favorite.quickActionId) {
+                  return action;
+                }
+              }
+              return null;
+            }
+
+            Future<void> runFavoriteShortcut(
+              FlowBotFavoriteShortcut favorite,
+            ) async {
+              if (favorite.isQuickAction) {
+                final action = resolveFavoriteAction(favorite);
+                if (action == null) {
+                  setModalState(() {
+                    preview = <FlowBotAction>[];
+                    previewSourceText = '';
+                    warning =
+                        'Este favorito no aplica a la hoja o seleccion actual.';
+                  });
+                  return;
+                }
+                await runQuickAction(action);
+                return;
+              }
+              await runSavedCommand(favorite.command);
+            }
+
+            Future<void> toggleActionFavorite(
+              _FlowBotQuickActionSpec action,
+            ) async {
+              await _toggleFlowBotFavoriteEntry(
+                  _flowBotFavoriteForAction(action));
+              if (!modalCtx.mounted) return;
+              setModalState(() {});
+            }
+
+            Future<void> toggleCommandFavorite(String command) async {
+              await _toggleFlowBotFavoriteEntry(
+                _flowBotFavoriteForCommand(command),
+              );
+              if (!modalCtx.mounted) return;
+              setModalState(() {});
+            }
+
+            Widget buildFavoritableChip({
+              required Key pressKey,
+              Key? favoriteKey,
+              required String label,
+              required IconData icon,
+              required Future<void> Function() onRun,
+              Future<void> Function()? onToggleFavorite,
+              required bool isFavorite,
+              bool invalid = false,
+            }) {
+              final fg = invalid ? pal.fgMuted : pal.fg;
+              final bg = invalid
+                  ? pal.mobileInputBg
+                  : isFavorite
+                      ? pal.accent.withValues(alpha: 0.12)
+                      : pal.menuBg;
+              final border = invalid
+                  ? pal.border
+                  : isFavorite
+                      ? pal.accent.withValues(alpha: 0.26)
+                      : pal.border;
+              return Container(
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: border, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Flexible(
+                      child: InkWell(
+                        key: pressKey,
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => unawaited(onRun()),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.max,
+                            children: [
+                              Icon(icon, size: 16, color: fg),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                    color: fg,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (onToggleFavorite != null)
+                      IconButton(
+                        key: favoriteKey,
+                        tooltip:
+                            isFavorite ? 'Quitar favorito' : 'Guardar favorito',
+                        onPressed: () => unawaited(onToggleFavorite()),
+                        icon: Icon(
+                          isFavorite
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
+                          size: 18,
+                          color: isFavorite ? pal.accent : pal.fgMuted,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }
+
             Widget buildActionChip(
               _FlowBotQuickActionSpec action, {
               bool compact = false,
             }) {
-              final key = compact
-                  ? ValueKey('flowbot-quick-primary-${action.id}')
-                  : ValueKey('flowbot-quick-suggested-${action.id}');
-              return ActionChip(
-                key: key,
-                avatar: Icon(action.icon, size: 16, color: pal.fgMuted),
-                label: Text(
-                  action.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onPressed: () => unawaited(runQuickAction(action)),
+              if (compact) {
+                return ActionChip(
+                  key: ValueKey('flowbot-quick-primary-${action.id}'),
+                  avatar: Icon(action.icon, size: 16, color: pal.fgMuted),
+                  label: Text(
+                    action.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => unawaited(runQuickAction(action)),
+                );
+              }
+              final isFavorite = _isFlowBotFavoriteAction(action);
+              return buildFavoritableChip(
+                pressKey: ValueKey('flowbot-quick-suggested-${action.id}'),
+                favoriteKey:
+                    ValueKey('flowbot-suggested-favorite-toggle-${action.id}'),
+                label: action.label,
+                icon: action.icon,
+                onRun: () => runQuickAction(action),
+                onToggleFavorite: () => toggleActionFavorite(action),
+                isFavorite: isFavorite,
               );
             }
 
@@ -6892,6 +7176,78 @@ class _EditorScreenState extends State<EditorScreen>
               );
             }
 
+            Widget buildFavoritesSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Favoritos',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (favoriteShortcuts.isEmpty)
+                    Text(
+                      'Guarda accesos repetidos para usarlos en uno o dos toques.',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (int index = 0;
+                            index < favoriteShortcuts.length;
+                            index++)
+                          Builder(
+                            builder: (_) {
+                              final favorite = favoriteShortcuts[index];
+                              final resolvedAction =
+                                  resolveFavoriteAction(favorite);
+                              final label =
+                                  resolvedAction?.label ?? favorite.label;
+                              final icon = resolvedAction?.icon ??
+                                  (favorite.isQuickAction
+                                      ? Icons.auto_awesome_rounded
+                                      : Icons.history_rounded);
+                              return ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: historyChipMaxWidth,
+                                ),
+                                child: buildFavoritableChip(
+                                  pressKey:
+                                      ValueKey('flowbot-favorite-chip-$index'),
+                                  favoriteKey: ValueKey(
+                                    'flowbot-favorite-toggle-$index',
+                                  ),
+                                  label: label,
+                                  icon: icon,
+                                  invalid: favorite.isQuickAction &&
+                                      resolvedAction == null,
+                                  onRun: () => runFavoriteShortcut(favorite),
+                                  onToggleFavorite: () async {
+                                    await _toggleFlowBotFavoriteEntry(favorite);
+                                    if (!modalCtx.mounted) return;
+                                    setModalState(() {});
+                                  },
+                                  isFavorite: true,
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                ],
+              );
+            }
+
             Widget buildCommandSection({
               required String title,
               required List<String> commands,
@@ -6929,25 +7285,21 @@ class _EditorScreenState extends State<EditorScreen>
                           constraints: BoxConstraints(
                             maxWidth: historyChipMaxWidth,
                           ),
-                          child: ActionChip(
-                            key: ValueKey(
-                              '$keyPrefix-$index',
-                            ),
-                            label: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: historyChipMaxWidth - 28,
-                              ),
-                              child: Text(
-                                commands[index],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                softWrap: false,
-                              ),
-                            ),
-                            onPressed: () {
-                              fillCommandText(commands[index]);
-                              unawaited(parseNow());
-                            },
+                          child: buildFavoritableChip(
+                            pressKey: ValueKey('$keyPrefix-$index'),
+                            favoriteKey:
+                                ValueKey('$keyPrefix-favorite-toggle-$index'),
+                            label: commands[index],
+                            icon: title == 'Ejemplos reales'
+                                ? Icons.lightbulb_outline_rounded
+                                : Icons.history_rounded,
+                            onRun: () => runSavedCommand(commands[index]),
+                            onToggleFavorite: title == 'Ejemplos reales'
+                                ? null
+                                : () => toggleCommandFavorite(commands[index]),
+                            isFavorite: title == 'Ejemplos reales'
+                                ? false
+                                : _isFlowBotFavoriteCommand(commands[index]),
                           ),
                         ),
                     ],
@@ -7302,6 +7654,8 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   buildVoiceControls(),
+                                  const SizedBox(height: 10),
+                                  buildFavoritesSection(),
                                   const SizedBox(height: 10),
                                   buildSuggestedActionsSection(),
                                   const SizedBox(height: 10),
@@ -7660,11 +8014,16 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     try {
+      final appliedCommand = transcriptEC.text.trim();
       flowBotDebugLog(
         'Modal.apply actions=${parsedActions.map((action) => action.toJson()).join(', ')}',
       );
       final applied = await _applyFlowBotActions(parsedActions);
       if (!mounted) return;
+      if (applied > 0 && appliedCommand.isNotEmpty) {
+        await _rememberFlowBotHistory(appliedCommand);
+        _lastFlowBotValidCommand = appliedCommand;
+      }
       final result = _flowBotResultForAppliedChanges(applied);
       _emitActionResult(
         result,
@@ -7714,8 +8073,6 @@ class _EditorScreenState extends State<EditorScreen>
         );
         return;
       }
-      _rememberFlowBotHistory(text);
-      _lastFlowBotValidCommand = text;
       final scoped =
           _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
       flowBotDebugLog(
@@ -7723,6 +8080,10 @@ class _EditorScreenState extends State<EditorScreen>
       );
       final applied = await _applyFlowBotActions(scoped);
       if (!mounted) return;
+      if (applied > 0) {
+        await _rememberFlowBotHistory(text);
+        _lastFlowBotValidCommand = text;
+      }
       _emitActionResult(
         _flowBotResultForAppliedChanges(applied),
         successIcon: Icons.auto_awesome_rounded,
