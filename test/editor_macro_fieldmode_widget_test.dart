@@ -51,6 +51,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
+      find.byKey(const ValueKey('mobile-fab-action-quick-capture')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('mobile-fab-action-new-record')),
       findsOneWidget,
     );
@@ -59,11 +63,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('mobile-fab-action-smart-paste')),
+      find.byKey(const ValueKey('mobile-fab-action-export')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('mobile-fab-action-export')),
+      find.byKey(const ValueKey('mobile-fab-action-smart-paste')),
       findsNothing,
     );
   });

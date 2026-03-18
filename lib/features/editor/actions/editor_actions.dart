@@ -159,8 +159,8 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'quick_capture',
-          label: 'Modo campo (+Registro)',
-          subtitle: 'Alta rapida para relevamiento',
+          label: 'Foto + registro',
+          subtitle: 'Crea una fila nueva, intenta GPS y adjunta evidencia',
           icon: Icons.add_box_outlined,
           onSelected: () => unawaited(_startQuickCaptureFlow()),
         ),

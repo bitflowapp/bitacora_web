@@ -134,4 +134,41 @@ void main() {
     expect(find.text('Exportar reporte PDF igual'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('field mode export defaults to ZIP for evidencia de campo',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EditorScreen(
+            sheetId: 'export_dialog_field_mode_sheet',
+            initialName: 'Relevamiento Campo',
+            initialTemplateKind: 'campo',
+            initialHeaders: <String>['Fecha', 'Estado', 'Fotos'],
+            initialRows: <List<String>>[
+              <String>['17/03/2026', 'OK', ''],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle(const Duration(milliseconds: 800));
+
+    final dynamic state = tester.state(find.byType(EditorScreen));
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+    state.debugOpenExportMenuForTest();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Exportar paquete ZIP'), findsOneWidget);
+    expect(find.text('Compartir paquete ZIP'), findsOneWidget);
+    expect(
+      find.textContaining('Paquete completo (.zip): planilla + evidencias'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

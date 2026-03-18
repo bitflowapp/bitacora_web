@@ -2752,7 +2752,7 @@ class _EditorScreenState extends State<EditorScreen>
       _ActionResult(
         ok: true,
         message: next
-            ? 'Modo campo activado: UI simplificada y movimiento reducido.'
+            ? 'Modo campo activado: menos ruido, captura rapida y salida lista para exportar.'
             : 'Modo campo desactivado.',
       ),
       successIcon: Icons.terrain_rounded,
@@ -10955,43 +10955,6 @@ class _EditorScreenState extends State<EditorScreen>
     return '${local.year}-${_two(local.month)}-${_two(local.day)} ${_two(local.hour)}:${_two(local.minute)}';
   }
 
-  Future<String?> _promptQuickCaptureNote() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Nota corta (opcional)'),
-          content: TextField(
-            controller: controller,
-            maxLength: 140,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Ej: Inspeccion en poste 12',
-            ),
-            onSubmitted: (value) => Navigator.of(ctx).pop(value.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('Omitir'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    return result;
-  }
-
   ({int rowIndex, String rowId, CellRef? photoRef})? _appendQuickCaptureRow({
     required DateTime capturedAt,
     required String note,
@@ -11065,10 +11028,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-
-    final note = await _promptQuickCaptureNote();
-    if (!mounted) return;
-    if (note == null) return;
+    const note = '';
 
     final gpsOutcome = await _getGpsFixWithFallback(
       timeout: const Duration(seconds: 10),
@@ -11122,7 +11082,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
 
     _showActionSnack(
-      'Registro creado en fila ${inserted.rowIndex + 1}.',
+      'Registro listo en fila ${inserted.rowIndex + 1}. Completa estado y exporta al terminar.',
       isError: false,
       icon: Icons.add_task_rounded,
     );
@@ -13205,6 +13165,14 @@ class _EditorScreenState extends State<EditorScreen>
                               ? [
                                   _MobileFabAction(
                                     key: const ValueKey(
+                                        'mobile-fab-action-quick-capture'),
+                                    icon: Icons.add_a_photo_outlined,
+                                    label: 'Foto + registro',
+                                    onTap: () =>
+                                        unawaited(_startQuickCaptureFlow()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
                                         'mobile-fab-action-new-record'),
                                     icon: Icons.add_box_outlined,
                                     label: 'Nuevo registro',
@@ -13222,15 +13190,10 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
-                                        'mobile-fab-action-smart-paste'),
-                                    icon: Icons.table_chart_rounded,
-                                    label: 'Pegar tabla',
-                                    onTap: () => unawaited(
-                                      _pasteTableSmartFromClipboard(
-                                        emitFeedback: true,
-                                        interactivePreview: true,
-                                      ),
-                                    ),
+                                        'mobile-fab-action-export'),
+                                    icon: Icons.ios_share_rounded,
+                                    label: 'Exportar',
+                                    onTap: () => unawaited(_openExportMenu()),
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(

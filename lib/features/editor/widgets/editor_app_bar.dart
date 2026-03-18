@@ -428,10 +428,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 filled: true,
                                 icon: Icons.add_box_outlined,
-                                label: '+ Registro',
+                                label: 'Foto + registro',
                                 semanticsLabel:
-                                    'Crear registro rapido de campo',
-                                tooltip: 'Crear un registro en modo campo',
+                                    'Crear registro rapido con foto',
+                                tooltip:
+                                    'Crear una fila nueva y adjuntar foto de evidencia',
                                 onTap: onQuickCapture,
                               ),
                             ),
@@ -516,7 +517,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                           items: [
                             AppleToolbarItem(
                               icon: Icons.add_box_outlined,
-                              label: '+ Registro',
+                              label: 'Foto + registro',
                               onTap: onQuickCapture,
                             ),
                             AppleToolbarItem(

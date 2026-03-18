@@ -7,8 +7,9 @@ extension _EditorExportDialogs on _EditorScreenState {
     _recomputeValidation();
     final quality = _sheetQuality;
     final evidenceCount = _sheetEvidenceCount();
-    var format =
-        _isValidExportPreset(_lastExportPreset) ? _lastExportPreset : 'pdf';
+    var format = _fieldModeEnabled
+        ? 'zip'
+        : (_isValidExportPreset(_lastExportPreset) ? _lastExportPreset : 'pdf');
     var includeAttachments = true;
 
     await showAppModal<void>(
