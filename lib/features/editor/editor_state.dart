@@ -713,6 +713,7 @@ class _EditorScreenState extends State<EditorScreen>
   final FlowBotLocalModelManager _flowBotLocalModelManager =
       createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
+  _ExportFlowResult? _lastExportFlowResult;
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -10727,18 +10728,14 @@ class _EditorScreenState extends State<EditorScreen>
     final name =
         'BitFlow_offline_diagnostic_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}.json';
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: 'application/json',
         bytes: Uint8List.fromList(utf8.encode(encoded)),
         share: false,
+        includeAttachments: false,
       );
-      if (!mounted) return;
-      _showActionSnack(
-        'Diagnostico de cola exportado.',
-        isError: false,
-        icon: Icons.bug_report_outlined,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       if (!mounted) return;
       _showActionSnack(
@@ -11830,6 +11827,11 @@ class _EditorScreenState extends State<EditorScreen>
         final mobileGridBottomInset = isDesktop
             ? 0.0
             : math.min(requestedMobileGridInset, maxMobileGridInset);
+        final exportResultBottomOffset = isDesktop
+            ? 16.0
+            : (_mobileEditorOpen
+                ? panelH + keyboardInset + mobileEditorSafeBottom + 14
+                : bottomSafe + (_mobileFabMenuOpen ? 248 : 80));
         final autoCollapsedTopChrome = isMobile && keyboardVisible;
         final collapseNonCriticalTopChrome = autoCollapsedTopChrome;
         final showSelectionQuickActions = !_mobileEditorOpen &&
@@ -13257,6 +13259,62 @@ class _EditorScreenState extends State<EditorScreen>
                                     onTap: () => unawaited(_toggleFieldMode()),
                                   ),
                                 ],
+                        ),
+                      if (_lastExportFlowResult != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: exportResultBottomOffset,
+                          child: AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, 0.04),
+                                child: child,
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey(
+                                'export-flow-result-banner-${_lastExportFlowResult!.kind.name}-${_lastExportFlowResult!.fileName}',
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isDesktop ? 560 : mq.size.width,
+                                  ),
+                                  child: _ExportFlowResultBanner(
+                                    palette: pal,
+                                    result: _lastExportFlowResult!,
+                                    title: _exportFlowResultTitle(
+                                      _lastExportFlowResult!,
+                                    ),
+                                    formatLabel: _exportFlowResultFormatLabel(
+                                      _lastExportFlowResult!.format,
+                                    ),
+                                    icon: _exportFlowResultIcon(
+                                      _lastExportFlowResult!,
+                                    ),
+                                    actionLabelBuilder: (action) =>
+                                        _exportFlowResultActionLabel(
+                                      _lastExportFlowResult!,
+                                      action,
+                                    ),
+                                    onAction: (action) => unawaited(
+                                      _handleExportFlowResultAction(
+                                        _lastExportFlowResult!,
+                                        action,
+                                      ),
+                                    ),
+                                    onDismiss: _clearExportFlowResult,
+                                    busy: _longOperation != null || _saving,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       if (_perfHarnessRequested && kDebugMode)
                         _buildPerfOverlay(
@@ -20635,6 +20693,12 @@ class _EditorScreenState extends State<EditorScreen>
   String? debugLastToastMessage() => _lastToastMessage;
 
   @visibleForTesting
+  String? debugLastExportFlowResultKind() => _lastExportFlowResult?.kind.name;
+
+  @visibleForTesting
+  String? debugLastExportFlowResultMessage() => _lastExportFlowResult?.message;
+
+  @visibleForTesting
   Future<void> debugTriggerExportForTest({
     String format = 'xlsx',
     bool share = false,
@@ -20664,16 +20728,67 @@ class _EditorScreenState extends State<EditorScreen>
     required String name,
     required String mime,
     bool share = false,
+    bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
+    _clearExportFlowResult();
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
         share: share,
+        includeAttachments: includeAttachments,
+      );
+      _publishExportFlowResult(result);
+    } on _EditorLongOperationCancelled {
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: name,
+          format: _exportFormatFromFileName(name),
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
+      final format = _exportFormatFromFileName(name);
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share
+              ? 'debug_export_save_flow_share'
+              : 'debug_export_save_flow_save',
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: format,
+          ),
+          stackTrace: st,
+          icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+        );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
@@ -20682,10 +20797,21 @@ class _EditorScreenState extends State<EditorScreen>
             : 'debug_export_save_flow_save',
         fallbackMessage: _exportFailureMessage(
           share: share,
-          format: _exportFormatFromFileName(name),
+          format: format,
         ),
         stackTrace: st,
         icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: name,
+          format: format,
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: format),
+        ),
+        showSnack: false,
       );
     }
   }
@@ -21700,6 +21826,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final fileName = _buildCommercialExportFileName('xlsx');
@@ -21721,47 +21848,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo XLSX.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_xlsx_build',
-          fallbackMessage: 'No se pudo generar el archivo XLSX.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.table_view_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: xlsxBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'xlsx',
-          share: share,
-          fileName: fileName,
-        ),
         shareSubject: 'BitFlow | Excel | $_sheetName',
         shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -21777,6 +21918,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -21789,6 +21939,17 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         stackTrace: st,
         icon: Icons.table_view_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'xlsx'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -21811,6 +21972,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final fileName = _buildCommercialExportFileName('pdf');
@@ -21824,46 +21986,60 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null || pdfBytes.isEmpty) {
+        const fallbackMessage = 'No se pudo generar el archivo PDF.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_pdf_build',
-          fallbackMessage: 'No se pudo generar el archivo PDF.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_outlined,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/pdf',
         bytes: pdfBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'pdf',
-          share: share,
-          fileName: fileName,
-        ),
         shareSubject: 'BitFlow | PDF | $_sheetName',
         shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -21879,6 +22055,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
         );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -21891,6 +22076,17 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'pdf'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -21910,6 +22106,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final xlsxFileName = buildBitFlowPackageWorkbookFileName(
@@ -21936,12 +22133,24 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage =
+            'No se pudo preparar el XLSX para exportar ZIP.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_xlsx',
-          fallbackMessage: 'No se pudo preparar el XLSX para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -21955,12 +22164,23 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null) {
+        const fallbackMessage = 'No se pudo preparar el PDF para exportar ZIP.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_pdf',
-          fallbackMessage: 'No se pudo preparar el PDF para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -21981,52 +22201,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (zipBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo ZIP.';
         _reportFlowErrorMessage(
           'zip_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_archive',
-          fallbackMessage: 'No se pudo generar el archivo ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
-      final evidenceCount = prep.attachments
-          .where((item) => item.type.trim().toLowerCase() != 'gps')
-          .length;
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
+        includeAttachments: true,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'zip',
-          share: share,
-          fileName: fileName,
-          includeEvidenceHint: evidenceCount > 0,
-        ),
         shareSubject: 'BitFlow | Paquete completo | $_sheetName',
         shareText:
             'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
         );
         return;
       }
@@ -22042,6 +22271,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -22054,6 +22292,17 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'zip'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -22107,20 +22356,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_backup_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Backup ZIP listo.',
-        isError: false,
-        icon: Icons.backup_rounded,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -22191,20 +22437,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_reporte_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.html',
         mime: 'text/html',
         bytes: bytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Reporte HTML listo.',
-        isError: false,
-        icon: Icons.description_rounded,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -24705,29 +24948,10 @@ class _EditorScreenState extends State<EditorScreen>
         : 'Exportacion cancelada. No se genero ningun archivo.';
   }
 
-  String _exportReadyMessage({
-    required String format,
-    required bool share,
-    required String fileName,
-    bool includeEvidenceHint = false,
-  }) {
-    switch (format) {
-      case 'pdf':
-        return share
-            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
-            : 'PDF listo: $fileName';
-      case 'zip':
-        final suffix =
-            includeEvidenceHint ? ' Incluye planilla y evidencias.' : '';
-        return share
-            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
-            : 'Paquete ZIP listo: $fileName.$suffix';
-      default:
-        return share
-            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
-            : 'Excel listo: $fileName';
-    }
-  }
+  bool get _isNativeMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   String _exportTargetLabel(String format) {
     switch (format) {
@@ -24750,6 +24974,84 @@ class _EditorScreenState extends State<EditorScreen>
     return 'file';
   }
 
+  List<_ExportFlowResultAction> _exportFlowResultActionsFor({
+    required _ExportFlowResultKind kind,
+    required bool shareRequested,
+    required String? savedPath,
+  }) {
+    final actions = <_ExportFlowResultAction>[];
+    switch (kind) {
+      case _ExportFlowResultKind.saved:
+        if ((savedPath ?? '').trim().isNotEmpty && !kIsWeb) {
+          actions.add(_ExportFlowResultAction.openFile);
+        }
+        if (_canOpenExportResultLocation(savedPath)) {
+          actions.add(_ExportFlowResultAction.openLocation);
+        }
+        if (shareRequested) {
+          actions.add(_ExportFlowResultAction.retryShare);
+        }
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+      case _ExportFlowResultKind.downloadStarted:
+        actions.add(
+          shareRequested
+              ? _ExportFlowResultAction.retryShare
+              : _ExportFlowResultAction.retryCurrent,
+        );
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+      case _ExportFlowResultKind.shareOpened:
+      case _ExportFlowResultKind.systemSheetOpened:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryShare,
+          _ExportFlowResultAction.continueEditing,
+          _ExportFlowResultAction.closeEditor,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.cancelled:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryCurrent,
+          _ExportFlowResultAction.continueEditing,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.error:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryCurrent,
+          _ExportFlowResultAction.continueEditing,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.unsupported:
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+    }
+  }
+
+  _ExportFlowResult _createExportFlowResult({
+    required _ExportFlowResultKind kind,
+    required String fileName,
+    required String format,
+    required String message,
+    required bool shareRequested,
+    required bool includeAttachments,
+    String? savedPath,
+  }) {
+    return _ExportFlowResult(
+      kind: kind,
+      fileName: fileName,
+      format: format,
+      message: message,
+      savedPath: (savedPath ?? '').trim().isEmpty ? null : savedPath!.trim(),
+      actions: _exportFlowResultActionsFor(
+        kind: kind,
+        shareRequested: shareRequested,
+        savedPath: savedPath,
+      ),
+      shareRequested: shareRequested,
+      includeAttachments: includeAttachments,
+    );
+  }
+
   String _exportFailureMessage({
     required bool share,
     required String format,
@@ -24770,6 +25072,272 @@ class _EditorScreenState extends State<EditorScreen>
       return 'Este dispositivo no permite compartir $target desde aqui. Exportalo primero.';
     }
     return 'Este dispositivo no permite generar $target desde aqui.';
+  }
+
+  _ExportFlowResult _buildCancelledExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.cancelled,
+      fileName: fileName,
+      format: format,
+      message: _exportCancelledMessage(share: share),
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  _ExportFlowResult _buildErrorExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+    required String message,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.error,
+      fileName: fileName,
+      format: format,
+      message: message,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  _ExportFlowResult _buildUnsupportedExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.unsupported,
+      fileName: fileName,
+      format: format,
+      message: _exportUnsupportedMessage(share: share, format: format),
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  String _exportFlowResultTitle(_ExportFlowResult result) {
+    switch (result.kind) {
+      case _ExportFlowResultKind.saved:
+        return 'Archivo guardado';
+      case _ExportFlowResultKind.downloadStarted:
+        return 'Descarga iniciada';
+      case _ExportFlowResultKind.shareOpened:
+        return 'Compartir abierto';
+      case _ExportFlowResultKind.systemSheetOpened:
+        return 'Opciones del sistema abiertas';
+      case _ExportFlowResultKind.cancelled:
+        return 'Salida cancelada';
+      case _ExportFlowResultKind.error:
+        return 'Salida no completada';
+      case _ExportFlowResultKind.unsupported:
+        return 'Salida no disponible';
+    }
+  }
+
+  String _exportFlowResultFormatLabel(String format) {
+    switch (format) {
+      case 'pdf':
+        return 'PDF';
+      case 'zip':
+        return 'ZIP';
+      case 'xlsx':
+        return 'XLSX';
+      default:
+        return format.toUpperCase();
+    }
+  }
+
+  IconData _exportFlowResultIcon(_ExportFlowResult result) {
+    switch (result.kind) {
+      case _ExportFlowResultKind.saved:
+        return Icons.download_done_rounded;
+      case _ExportFlowResultKind.downloadStarted:
+        return Icons.download_rounded;
+      case _ExportFlowResultKind.shareOpened:
+        return Icons.ios_share_rounded;
+      case _ExportFlowResultKind.systemSheetOpened:
+        return Icons.open_in_new_rounded;
+      case _ExportFlowResultKind.cancelled:
+        return Icons.info_outline_rounded;
+      case _ExportFlowResultKind.error:
+      case _ExportFlowResultKind.unsupported:
+        return Icons.error_outline_rounded;
+    }
+  }
+
+  String _exportFlowResultActionLabel(
+    _ExportFlowResult result,
+    _ExportFlowResultAction action,
+  ) {
+    switch (action) {
+      case _ExportFlowResultAction.openFile:
+        return 'Abrir archivo';
+      case _ExportFlowResultAction.openLocation:
+        return 'Ver carpeta';
+      case _ExportFlowResultAction.retryCurrent:
+        if (result.kind == _ExportFlowResultKind.cancelled) {
+          return result.shareRequested
+              ? 'Compartir de nuevo'
+              : 'Volver a exportar';
+        }
+        if (result.kind == _ExportFlowResultKind.downloadStarted &&
+            !result.shareRequested) {
+          return 'Exportar otra vez';
+        }
+        return 'Reintentar';
+      case _ExportFlowResultAction.retryShare:
+        return result.kind == _ExportFlowResultKind.systemSheetOpened &&
+                !result.shareRequested
+            ? 'Abrir compartir'
+            : 'Compartir de nuevo';
+      case _ExportFlowResultAction.continueEditing:
+        return 'Seguir editando';
+      case _ExportFlowResultAction.closeEditor:
+        return 'Cerrar editor';
+    }
+  }
+
+  bool _canOpenExportResultLocation(String? path) {
+    return !kIsWeb &&
+        !_isNativeMobilePlatform &&
+        (_parentDirectoryFromPath(path) ?? '').trim().isNotEmpty;
+  }
+
+  Uri _fileUriFromPath(String path) {
+    return Uri.file(path, windows: path.contains('\\'));
+  }
+
+  String? _parentDirectoryFromPath(String? path) {
+    final trimmed = (path ?? '').trim();
+    if (trimmed.isEmpty) return null;
+    final normalized = trimmed.replaceAll('\\', '/');
+    final slashIndex = normalized.lastIndexOf('/');
+    if (slashIndex <= 0) return null;
+    final folder = normalized.substring(0, slashIndex);
+    return trimmed.contains('\\') ? folder.replaceAll('/', '\\') : folder;
+  }
+
+  void _setExportFlowResult(_ExportFlowResult? result) {
+    if (mounted) {
+      setState(() => _lastExportFlowResult = result);
+      return;
+    }
+    _lastExportFlowResult = result;
+  }
+
+  void _clearExportFlowResult() {
+    if (_lastExportFlowResult == null) return;
+    _setExportFlowResult(null);
+  }
+
+  void _publishExportFlowResult(
+    _ExportFlowResult result, {
+    bool showSnack = true,
+  }) {
+    _setExportFlowResult(result);
+    if (!showSnack) return;
+    _showActionSnack(
+      result.message,
+      isError: result.isError,
+      icon: _exportFlowResultIcon(result),
+    );
+  }
+
+  Future<void> _openSavedExportFile(String path) async {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || kIsWeb) return;
+    try {
+      final ok = await launchUrl(
+        _fileUriFromPath(trimmed),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        _showActionSnack(
+          'No pudimos abrir el archivo guardado.',
+          isError: true,
+          icon: Icons.folder_off_rounded,
+        );
+      }
+    } catch (_) {
+      _showActionSnack(
+        'No pudimos abrir el archivo guardado.',
+        isError: true,
+        icon: Icons.folder_off_rounded,
+      );
+    }
+  }
+
+  Future<void> _openSavedExportLocation(String path) async {
+    final folder = _parentDirectoryFromPath(path);
+    if ((folder ?? '').trim().isEmpty || kIsWeb) return;
+    try {
+      final ok = await launchUrl(
+        _fileUriFromPath(folder!),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        _showActionSnack(
+          'No pudimos abrir la carpeta del archivo.',
+          isError: true,
+          icon: Icons.folder_off_rounded,
+        );
+      }
+    } catch (_) {
+      _showActionSnack(
+        'No pudimos abrir la carpeta del archivo.',
+        isError: true,
+        icon: Icons.folder_off_rounded,
+      );
+    }
+  }
+
+  Future<void> _handleExportFlowResultAction(
+    _ExportFlowResult result,
+    _ExportFlowResultAction action,
+  ) async {
+    switch (action) {
+      case _ExportFlowResultAction.openFile:
+        final path = (result.savedPath ?? '').trim();
+        if (path.isEmpty) return;
+        await _openSavedExportFile(path);
+        return;
+      case _ExportFlowResultAction.openLocation:
+        final path = (result.savedPath ?? '').trim();
+        if (path.isEmpty) return;
+        await _openSavedExportLocation(path);
+        return;
+      case _ExportFlowResultAction.retryCurrent:
+        _clearExportFlowResult();
+        _triggerSheetExport(
+          format: result.format,
+          includeAttachments: result.includeAttachments,
+          share: result.shareRequested,
+        );
+        return;
+      case _ExportFlowResultAction.retryShare:
+        _clearExportFlowResult();
+        _triggerSheetExport(
+          format: result.format,
+          includeAttachments: result.includeAttachments,
+          share: true,
+        );
+        return;
+      case _ExportFlowResultAction.continueEditing:
+        _clearExportFlowResult();
+        return;
+      case _ExportFlowResultAction.closeEditor:
+        _clearExportFlowResult();
+        await _handleEditorPopGuard(didPop: false);
+        return;
+    }
   }
 
   List<String> _buildExportColumnTypes(int dataCols) {

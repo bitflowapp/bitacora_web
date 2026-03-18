@@ -96,6 +96,54 @@ class _ActionResult {
   final String? undoToken;
 }
 
+enum _ExportFlowResultKind {
+  saved,
+  downloadStarted,
+  shareOpened,
+  systemSheetOpened,
+  cancelled,
+  error,
+  unsupported,
+}
+
+enum _ExportFlowResultAction {
+  openFile,
+  openLocation,
+  retryCurrent,
+  retryShare,
+  continueEditing,
+  closeEditor,
+}
+
+@immutable
+class _ExportFlowResult {
+  const _ExportFlowResult({
+    required this.kind,
+    required this.fileName,
+    required this.format,
+    required this.message,
+    required this.actions,
+    required this.shareRequested,
+    required this.includeAttachments,
+    this.savedPath,
+  });
+
+  final _ExportFlowResultKind kind;
+  final String fileName;
+  final String format;
+  final String message;
+  final String? savedPath;
+  final List<_ExportFlowResultAction> actions;
+  final bool shareRequested;
+  final bool includeAttachments;
+
+  bool get hasSavedPath => (savedPath ?? '').trim().isNotEmpty;
+
+  bool get isError =>
+      kind == _ExportFlowResultKind.error ||
+      kind == _ExportFlowResultKind.unsupported;
+}
+
 enum _SmartPasteMode { replaceFromActive, insertRows }
 
 class _SmartPasteUserChoice {

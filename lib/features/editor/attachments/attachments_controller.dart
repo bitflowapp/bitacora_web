@@ -1399,7 +1399,14 @@ extension _EditorAttachments on _EditorScreenState {
     final mime = photo.mime.trim().isEmpty
         ? 'application/octet-stream'
         : photo.mime.trim();
-    await _saveExportBytes(name: name, mime: mime, bytes: bytes, share: false);
+    final result = await _saveExportBytes(
+      name: name,
+      mime: mime,
+      bytes: bytes,
+      share: false,
+      includeAttachments: false,
+    );
+    _publishExportFlowResult(result);
   }
 
   Future<void> _openPhotoPreview(
