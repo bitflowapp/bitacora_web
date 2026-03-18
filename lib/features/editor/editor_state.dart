@@ -554,7 +554,17 @@ class _EditorScreenState extends State<EditorScreen>
   final FlowBotLocalModelManager _flowBotLocalModelManager =
       createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
-  _ExportFlowResult? _lastExportFlowResult;
+  EditorExportCloseoutState? _lastExportFlowResult;
+  late final EditorExportResultController _exportResultController =
+      EditorExportResultController(
+    mapper: const EditorExportResultMapper(),
+    onStateChanged: _setExportFlowResult,
+    showFeedback: _showExportFlowFeedback,
+    retryExport: _retryExportFromCloseout,
+    openExternalPath: _openExportResultPath,
+    closeEditor: _closeEditorFromCloseout,
+    resolveCapabilities: _resolveExportFlowResultCapabilities,
+  );
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -11503,7 +11513,7 @@ class _EditorScreenState extends State<EditorScreen>
                             },
                             child: KeyedSubtree(
                               key: ValueKey(
-                                'export-flow-result-banner-${_lastExportFlowResult!.kind.name}-${_lastExportFlowResult!.fileName}',
+                                'export-flow-result-banner-${_lastExportFlowResult!.outcome.kind.name}-${_lastExportFlowResult!.outcome.fileName}',
                               ),
                               child: Center(
                                 child: ConstrainedBox(
@@ -11513,25 +11523,8 @@ class _EditorScreenState extends State<EditorScreen>
                                   child: _ExportFlowResultBanner(
                                     palette: pal,
                                     result: _lastExportFlowResult!,
-                                    title: _exportFlowResultTitle(
-                                      _lastExportFlowResult!,
-                                    ),
-                                    formatLabel: _exportFlowResultFormatLabel(
-                                      _lastExportFlowResult!.format,
-                                    ),
-                                    icon: _exportFlowResultIcon(
-                                      _lastExportFlowResult!,
-                                    ),
-                                    actionLabelBuilder: (action) =>
-                                        _exportFlowResultActionLabel(
-                                      _lastExportFlowResult!,
-                                      action,
-                                    ),
                                     onAction: (action) => unawaited(
-                                      _handleExportFlowResultAction(
-                                        _lastExportFlowResult!,
-                                        action,
-                                      ),
+                                      _handleExportFlowResultAction(action),
                                     ),
                                     onDismiss: _clearExportFlowResult,
                                     busy: _longOperation != null || _saving,
@@ -18577,10 +18570,12 @@ class _EditorScreenState extends State<EditorScreen>
   String? debugLastToastMessage() => _lastToastMessage;
 
   @visibleForTesting
-  String? debugLastExportFlowResultKind() => _lastExportFlowResult?.kind.name;
+  String? debugLastExportFlowResultKind() =>
+      _lastExportFlowResult?.outcome.kind.name;
 
   @visibleForTesting
-  String? debugLastExportFlowResultMessage() => _lastExportFlowResult?.message;
+  String? debugLastExportFlowResultMessage() =>
+      _lastExportFlowResult?.outcome.message;
 
   @visibleForTesting
   Future<void> debugTriggerExportForTest({
@@ -22376,163 +22371,54 @@ class _EditorScreenState extends State<EditorScreen>
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
-  String _exportCancelledMessage({required bool share}) {
-    return share
-        ? 'Compartir cancelado. No se envio ningun archivo.'
-        : 'Exportacion cancelada. No se genero ningun archivo.';
-  }
-
   bool get _isNativeMobilePlatform =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
-  String _exportTargetLabel(String format) {
-    switch (format) {
-      case 'pdf':
-        return 'el PDF';
-      case 'zip':
-        return 'el paquete ZIP';
-      case 'xlsx':
-        return 'el Excel';
-      default:
-        return 'el archivo';
-    }
-  }
-
-  String _exportFormatFromFileName(String fileName) {
-    final lower = fileName.toLowerCase();
-    if (lower.endsWith('.pdf')) return 'pdf';
-    if (lower.endsWith('.zip')) return 'zip';
-    if (lower.endsWith('.xlsx')) return 'xlsx';
-    return 'file';
-  }
-
-  List<_ExportFlowResultAction> _exportFlowResultActionsFor({
-    required _ExportFlowResultKind kind,
-    required bool shareRequested,
-    required String? savedPath,
-  }) {
-    final actions = <_ExportFlowResultAction>[];
-    switch (kind) {
-      case _ExportFlowResultKind.saved:
-        if ((savedPath ?? '').trim().isNotEmpty && !kIsWeb) {
-          actions.add(_ExportFlowResultAction.openFile);
-        }
-        if (_canOpenExportResultLocation(savedPath)) {
-          actions.add(_ExportFlowResultAction.openLocation);
-        }
-        if (shareRequested) {
-          actions.add(_ExportFlowResultAction.retryShare);
-        }
-        actions.add(_ExportFlowResultAction.continueEditing);
-        return actions;
-      case _ExportFlowResultKind.downloadStarted:
-        actions.add(
-          shareRequested
-              ? _ExportFlowResultAction.retryShare
-              : _ExportFlowResultAction.retryCurrent,
-        );
-        actions.add(_ExportFlowResultAction.continueEditing);
-        return actions;
-      case _ExportFlowResultKind.shareOpened:
-      case _ExportFlowResultKind.systemSheetOpened:
-        actions.addAll(const <_ExportFlowResultAction>[
-          _ExportFlowResultAction.retryShare,
-          _ExportFlowResultAction.continueEditing,
-          _ExportFlowResultAction.closeEditor,
-        ]);
-        return actions;
-      case _ExportFlowResultKind.cancelled:
-        actions.addAll(const <_ExportFlowResultAction>[
-          _ExportFlowResultAction.retryCurrent,
-          _ExportFlowResultAction.continueEditing,
-        ]);
-        return actions;
-      case _ExportFlowResultKind.error:
-        actions.addAll(const <_ExportFlowResultAction>[
-          _ExportFlowResultAction.retryCurrent,
-          _ExportFlowResultAction.continueEditing,
-        ]);
-        return actions;
-      case _ExportFlowResultKind.unsupported:
-        actions.add(_ExportFlowResultAction.continueEditing);
-        return actions;
-    }
-  }
-
-  _ExportFlowResult _createExportFlowResult({
-    required _ExportFlowResultKind kind,
-    required String fileName,
-    required String format,
-    required String message,
-    required bool shareRequested,
-    required bool includeAttachments,
-    String? savedPath,
-  }) {
-    return _ExportFlowResult(
-      kind: kind,
-      fileName: fileName,
-      format: format,
-      message: message,
-      savedPath: (savedPath ?? '').trim().isEmpty ? null : savedPath!.trim(),
-      actions: _exportFlowResultActionsFor(
-        kind: kind,
-        shareRequested: shareRequested,
-        savedPath: savedPath,
-      ),
-      shareRequested: shareRequested,
-      includeAttachments: includeAttachments,
-    );
-  }
+  String _exportFormatFromFileName(String fileName) =>
+      EditorExportOutcomeFactory.formatFromFileName(fileName);
 
   String _exportFailureMessage({
     required bool share,
     required String format,
-  }) {
-    final target = _exportTargetLabel(format);
-    if (share) {
-      return 'No pudimos abrir compartir para $target. Intenta de nuevo o exporta el archivo.';
-    }
-    return 'No pudimos dejar listo $target. Intenta de nuevo.';
-  }
+  }) =>
+      EditorExportOutcomeFactory.failureMessage(
+        share: share,
+        format: format,
+      );
 
   String _exportUnsupportedMessage({
     required bool share,
     required String format,
-  }) {
-    final target = _exportTargetLabel(format);
-    if (share) {
-      return 'Este dispositivo no permite compartir $target desde aqui. Exportalo primero.';
-    }
-    return 'Este dispositivo no permite generar $target desde aqui.';
-  }
+  }) =>
+      EditorExportOutcomeFactory.unsupportedMessage(
+        share: share,
+        format: format,
+      );
 
-  _ExportFlowResult _buildCancelledExportFlowResult({
+  EditorExportOutcome _buildCancelledExportFlowResult({
     required String fileName,
     required String format,
     required bool share,
     required bool includeAttachments,
   }) {
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.cancelled,
+    return EditorExportOutcomeFactory.cancelled(
       fileName: fileName,
       format: format,
-      message: _exportCancelledMessage(share: share),
       shareRequested: share,
       includeAttachments: includeAttachments,
     );
   }
 
-  _ExportFlowResult _buildErrorExportFlowResult({
+  EditorExportOutcome _buildErrorExportFlowResult({
     required String fileName,
     required String format,
     required bool share,
     required bool includeAttachments,
     required String message,
   }) {
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.error,
+    return EditorExportOutcomeFactory.error(
       fileName: fileName,
       format: format,
       message: message,
@@ -22541,125 +22427,73 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  _ExportFlowResult _buildUnsupportedExportFlowResult({
+  EditorExportOutcome _buildUnsupportedExportFlowResult({
     required String fileName,
     required String format,
     required bool share,
     required bool includeAttachments,
   }) {
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.unsupported,
+    return EditorExportOutcomeFactory.unsupported(
       fileName: fileName,
       format: format,
-      message: _exportUnsupportedMessage(share: share, format: format),
       shareRequested: share,
       includeAttachments: includeAttachments,
     );
   }
 
-  String _exportFlowResultTitle(_ExportFlowResult result) {
-    switch (result.kind) {
-      case _ExportFlowResultKind.saved:
-        return 'Archivo guardado';
-      case _ExportFlowResultKind.downloadStarted:
-        return 'Descarga iniciada';
-      case _ExportFlowResultKind.shareOpened:
-        return 'Compartir abierto';
-      case _ExportFlowResultKind.systemSheetOpened:
-        return 'Opciones del sistema abiertas';
-      case _ExportFlowResultKind.cancelled:
-        return 'Salida cancelada';
-      case _ExportFlowResultKind.error:
-        return 'Salida no completada';
-      case _ExportFlowResultKind.unsupported:
-        return 'Salida no disponible';
-    }
-  }
-
-  String _exportFlowResultFormatLabel(String format) {
-    switch (format) {
-      case 'pdf':
-        return 'PDF';
-      case 'zip':
-        return 'ZIP';
-      case 'xlsx':
-        return 'XLSX';
-      default:
-        return format.toUpperCase();
-    }
-  }
-
-  IconData _exportFlowResultIcon(_ExportFlowResult result) {
-    switch (result.kind) {
-      case _ExportFlowResultKind.saved:
-        return Icons.download_done_rounded;
-      case _ExportFlowResultKind.downloadStarted:
-        return Icons.download_rounded;
-      case _ExportFlowResultKind.shareOpened:
-        return Icons.ios_share_rounded;
-      case _ExportFlowResultKind.systemSheetOpened:
-        return Icons.open_in_new_rounded;
-      case _ExportFlowResultKind.cancelled:
-        return Icons.info_outline_rounded;
-      case _ExportFlowResultKind.error:
-      case _ExportFlowResultKind.unsupported:
-        return Icons.error_outline_rounded;
-    }
-  }
-
-  String _exportFlowResultActionLabel(
-    _ExportFlowResult result,
-    _ExportFlowResultAction action,
+  EditorExportResultCapabilities _resolveExportFlowResultCapabilities(
+    EditorExportOutcome outcome,
   ) {
-    switch (action) {
-      case _ExportFlowResultAction.openFile:
-        return 'Abrir archivo';
-      case _ExportFlowResultAction.openLocation:
-        return 'Ver carpeta';
-      case _ExportFlowResultAction.retryCurrent:
-        if (result.kind == _ExportFlowResultKind.cancelled) {
-          return result.shareRequested
-              ? 'Compartir de nuevo'
-              : 'Volver a exportar';
-        }
-        if (result.kind == _ExportFlowResultKind.downloadStarted &&
-            !result.shareRequested) {
-          return 'Exportar otra vez';
-        }
-        return 'Reintentar';
-      case _ExportFlowResultAction.retryShare:
-        return result.kind == _ExportFlowResultKind.systemSheetOpened &&
-                !result.shareRequested
-            ? 'Abrir compartir'
-            : 'Compartir de nuevo';
-      case _ExportFlowResultAction.continueEditing:
-        return 'Seguir editando';
-      case _ExportFlowResultAction.closeEditor:
-        return 'Cerrar editor';
-    }
+    final savedPath = (outcome.savedPath ?? '').trim();
+    return EditorExportResultCapabilities(
+      canOpenFile: savedPath.isNotEmpty && !kIsWeb,
+      canOpenLocation: !kIsWeb &&
+          !_isNativeMobilePlatform &&
+          (EditorExportResultController.parentDirectoryFromPath(savedPath) ??
+                  '')
+              .trim()
+              .isNotEmpty,
+    );
   }
 
-  bool _canOpenExportResultLocation(String? path) {
-    return !kIsWeb &&
-        !_isNativeMobilePlatform &&
-        (_parentDirectoryFromPath(path) ?? '').trim().isNotEmpty;
+  Future<bool> _openExportResultPath(String path) async {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || kIsWeb) return false;
+    return launchUrl(
+      EditorExportResultController.fileUriFromPath(trimmed),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
-  Uri _fileUriFromPath(String path) {
-    return Uri.file(path, windows: path.contains('\\'));
+  Future<void> _retryExportFromCloseout({
+    required String format,
+    required bool includeAttachments,
+    required bool share,
+  }) async {
+    _triggerSheetExport(
+      format: format,
+      includeAttachments: includeAttachments,
+      share: share,
+    );
   }
 
-  String? _parentDirectoryFromPath(String? path) {
-    final trimmed = (path ?? '').trim();
-    if (trimmed.isEmpty) return null;
-    final normalized = trimmed.replaceAll('\\', '/');
-    final slashIndex = normalized.lastIndexOf('/');
-    if (slashIndex <= 0) return null;
-    final folder = normalized.substring(0, slashIndex);
-    return trimmed.contains('\\') ? folder.replaceAll('/', '\\') : folder;
+  Future<void> _closeEditorFromCloseout() async {
+    await _handleEditorPopGuard(didPop: false);
   }
 
-  void _setExportFlowResult(_ExportFlowResult? result) {
+  void _showExportFlowFeedback(
+    String message, {
+    required bool isError,
+    IconData? icon,
+  }) {
+    _showActionSnack(
+      message,
+      isError: isError,
+      icon: icon,
+    );
+  }
+
+  void _setExportFlowResult(EditorExportCloseoutState? result) {
     if (mounted) {
       setState(() => _lastExportFlowResult = result);
       return;
@@ -22669,109 +22503,20 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _clearExportFlowResult() {
     if (_lastExportFlowResult == null) return;
-    _setExportFlowResult(null);
+    _exportResultController.dismiss();
   }
 
   void _publishExportFlowResult(
-    _ExportFlowResult result, {
+    EditorExportOutcome result, {
     bool showSnack = true,
   }) {
-    _setExportFlowResult(result);
-    if (!showSnack) return;
-    _showActionSnack(
-      result.message,
-      isError: result.isError,
-      icon: _exportFlowResultIcon(result),
-    );
-  }
-
-  Future<void> _openSavedExportFile(String path) async {
-    final trimmed = path.trim();
-    if (trimmed.isEmpty || kIsWeb) return;
-    try {
-      final ok = await launchUrl(
-        _fileUriFromPath(trimmed),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!ok) {
-        _showActionSnack(
-          'No pudimos abrir el archivo guardado.',
-          isError: true,
-          icon: Icons.folder_off_rounded,
-        );
-      }
-    } catch (_) {
-      _showActionSnack(
-        'No pudimos abrir el archivo guardado.',
-        isError: true,
-        icon: Icons.folder_off_rounded,
-      );
-    }
-  }
-
-  Future<void> _openSavedExportLocation(String path) async {
-    final folder = _parentDirectoryFromPath(path);
-    if ((folder ?? '').trim().isEmpty || kIsWeb) return;
-    try {
-      final ok = await launchUrl(
-        _fileUriFromPath(folder!),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!ok) {
-        _showActionSnack(
-          'No pudimos abrir la carpeta del archivo.',
-          isError: true,
-          icon: Icons.folder_off_rounded,
-        );
-      }
-    } catch (_) {
-      _showActionSnack(
-        'No pudimos abrir la carpeta del archivo.',
-        isError: true,
-        icon: Icons.folder_off_rounded,
-      );
-    }
+    _exportResultController.publish(result, showSnack: showSnack);
   }
 
   Future<void> _handleExportFlowResultAction(
-    _ExportFlowResult result,
-    _ExportFlowResultAction action,
+    EditorExportResultAction action,
   ) async {
-    switch (action) {
-      case _ExportFlowResultAction.openFile:
-        final path = (result.savedPath ?? '').trim();
-        if (path.isEmpty) return;
-        await _openSavedExportFile(path);
-        return;
-      case _ExportFlowResultAction.openLocation:
-        final path = (result.savedPath ?? '').trim();
-        if (path.isEmpty) return;
-        await _openSavedExportLocation(path);
-        return;
-      case _ExportFlowResultAction.retryCurrent:
-        _clearExportFlowResult();
-        _triggerSheetExport(
-          format: result.format,
-          includeAttachments: result.includeAttachments,
-          share: result.shareRequested,
-        );
-        return;
-      case _ExportFlowResultAction.retryShare:
-        _clearExportFlowResult();
-        _triggerSheetExport(
-          format: result.format,
-          includeAttachments: result.includeAttachments,
-          share: true,
-        );
-        return;
-      case _ExportFlowResultAction.continueEditing:
-        _clearExportFlowResult();
-        return;
-      case _ExportFlowResultAction.closeEditor:
-        _clearExportFlowResult();
-        await _handleEditorPopGuard(didPop: false);
-        return;
-    }
+    await _exportResultController.handleAction(action);
   }
 
   List<String> _buildExportColumnTypes(int dataCols) {
