@@ -81,6 +81,7 @@ import 'package:bitacora_web/ui/ui.dart';
 import 'package:bitacora_web/features/editor/validation/validation_rules.dart';
 import 'package:bitacora_web/utils/location_format.dart';
 import 'package:bitacora_web/widgets/apple_ui.dart';
+import 'package:bitacora_web/widgets/attachment_video_preview.dart';
 import 'package:bitacora_web/widgets/command_palette.dart';
 import 'package:bitacora_web/widgets/web_blob_image.dart';
 

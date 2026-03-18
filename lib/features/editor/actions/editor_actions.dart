@@ -367,7 +367,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'audio',
-          label: 'Audio en celda',
+          label: 'Grabar audio en celda',
           subtitle: activeCell,
           shortcut: 'A',
           icon: Icons.mic_none_rounded,

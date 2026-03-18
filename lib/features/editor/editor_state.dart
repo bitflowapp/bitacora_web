@@ -309,6 +309,16 @@ typedef _DebugPersistShareTempFileHook = Future<String?> Function({
 typedef _DebugGpsOutcomeHook = Future<Map<String, Object?>> Function(
   Duration timeout,
 );
+typedef _DebugStartAudioRecordingHook = Future<void> Function({
+  required String sheetId,
+});
+typedef _DebugStopAudioRecordingHook = Future<RecordedAudio?> Function();
+typedef _DebugSaveAudioHook = Future<StoredAudio?> Function({
+  required String sheetId,
+  required String cellKey,
+  required String attachmentId,
+  required RecordedAudio recording,
+});
 
 // ============================== Pantalla principal =========================
 
@@ -569,6 +579,9 @@ class _EditorScreenState extends State<EditorScreen>
   _DebugSaveFileHook? _debugSaveFileHook;
   _DebugPersistShareTempFileHook? _debugPersistShareTempFileHook;
   _DebugGpsOutcomeHook? _debugGpsOutcomeHook;
+  _DebugStartAudioRecordingHook? _debugStartAudioRecordingHook;
+  _DebugStopAudioRecordingHook? _debugStopAudioRecordingHook;
+  _DebugSaveAudioHook? _debugSaveAudioHook;
   WebImageNormalizer? _debugWebImageNormalizer;
   bool _debugForceWebImageNormalization = false;
   bool _debugSkipAttachmentGps = false;
@@ -14218,7 +14231,7 @@ class _EditorScreenState extends State<EditorScreen>
         icon: _audioRecording
             ? Icons.stop_circle_outlined
             : Icons.mic_none_rounded,
-        label: _audioRecording ? 'Detener audio' : 'Audio',
+        label: _audioRecording ? 'Detener audio' : 'Grabar audio',
         onTap: () {
           if (_audioRecording) {
             unawaited(_stopAudioRecording());
@@ -20778,6 +20791,22 @@ class _EditorScreenState extends State<EditorScreen>
   CellMeta? debugCellMetaAt(int r, int c) => _cellMetaAt(r, c);
 
   @visibleForTesting
+  void debugSetCellMetaForTest(int r, int c, CellMeta? meta) {
+    assert(() {
+      if (meta == null || meta.isEmpty) {
+        final ref = _cellRefAt(r, c);
+        if (ref != null) {
+          _cellMeta.remove(ref.key);
+          _bumpGridVersion();
+        }
+        return true;
+      }
+      _setCellMetaEntry(r, c, meta, markDirty: false);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   void debugSetWebImageNormalizer(WebImageNormalizer? normalizer) {
     assert(() {
       _debugWebImageNormalizer = normalizer;
@@ -20789,6 +20818,20 @@ class _EditorScreenState extends State<EditorScreen>
   void debugSetSaveImageHook(_DebugSaveImageHook? hook) {
     assert(() {
       _debugSaveImageHook = hook;
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSetAudioHooks({
+    _DebugStartAudioRecordingHook? start,
+    _DebugStopAudioRecordingHook? stop,
+    _DebugSaveAudioHook? save,
+  }) {
+    assert(() {
+      _debugStartAudioRecordingHook = start;
+      _debugStopAudioRecordingHook = stop;
+      _debugSaveAudioHook = save;
       return true;
     }());
   }
@@ -21135,6 +21178,45 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _gpsErrorMessage(_GpsOutcome outcome, {String? targetLabel}) {
     final raw = (outcome.error ?? '').trim();
+  @visibleForTesting
+  Future<void> debugOpenAttachmentPanelForTest(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    unawaited(_openAttachmentPanelForCell(r, c));
+  }
+
+  @visibleForTesting
+  void debugOpenPhotosSheetForTest(int r, int c) {
+    assert(() {
+      _openPhotosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenAudiosSheetForTest(int r, int c) {
+    assert(() {
+      _openAudiosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<void> debugToggleAudioRecordingForCell(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    if (_audioRecording) {
+      await _stopAudioRecording();
+      return;
+    }
+    await _startAudioRecordingForCell(r, c);
+  }
+
+  @visibleForTesting
+  bool debugIsAudioRecording() => _audioRecording;
+
     final lower = raw.toLowerCase();
     final code = (outcome.code ?? '').trim().toLowerCase();
     final prefix = (targetLabel ?? '').trim().isEmpty
