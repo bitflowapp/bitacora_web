@@ -31,6 +31,7 @@ void main() {
     state.debugOpenExportMenuForTest();
     await tester.pumpAndSettle();
 
+    expect(find.text('Exportar o compartir'), findsOneWidget);
     expect(find.text('Excel (.xlsx)'), findsOneWidget);
     expect(find.text('Reporte PDF (.pdf)'), findsOneWidget);
     expect(find.text('Paquete completo (.ZIP)'), findsOneWidget);
@@ -42,9 +43,9 @@ void main() {
     await tester.tap(find.text('Paquete completo (.ZIP)'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Archivo: BitFlow_'), findsOneWidget);
+    expect(find.textContaining('Vas a generar: BitFlow_'), findsOneWidget);
     expect(
-      find.textContaining('Paquete completo (.zip): planilla + evidencias'),
+      find.textContaining('Paquete ZIP (.zip): cierre recomendado para campo'),
       findsOneWidget,
     );
     expect(find.text('Exportar paquete ZIP'), findsOneWidget);
@@ -92,7 +93,7 @@ void main() {
     expect(exportButton.onPressed, isNull);
     expect(shareButton.onPressed, isNull);
     expect(
-      find.textContaining('Ya hay una operaci\u00f3n en curso'),
+      find.textContaining('Estamos terminando otra salida'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -166,7 +167,7 @@ void main() {
     expect(find.text('Exportar paquete ZIP'), findsOneWidget);
     expect(find.text('Compartir paquete ZIP'), findsOneWidget);
     expect(
-      find.textContaining('Paquete completo (.zip): planilla + evidencias'),
+      find.textContaining('Paquete ZIP (.zip): cierre recomendado para campo'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

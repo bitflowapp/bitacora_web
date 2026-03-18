@@ -20680,7 +20680,10 @@ class _EditorScreenState extends State<EditorScreen>
         operation: share
             ? 'debug_export_save_flow_share'
             : 'debug_export_save_flow_save',
-        fallbackMessage: 'No pudimos completar la operación.',
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: _exportFormatFromFileName(name),
+        ),
         stackTrace: st,
         icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
       );
@@ -21767,7 +21770,10 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_xlsx' : 'export_xlsx',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'xlsx',
+          ),
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
@@ -21777,7 +21783,10 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'xlsx',
+        ),
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
@@ -21863,7 +21872,10 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_pdf' : 'export_pdf',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'pdf',
+          ),
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
         );
@@ -21873,7 +21885,10 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'pdf',
+        ),
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
@@ -22020,7 +22035,10 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_zip' : 'export_zip',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'zip',
+          ),
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
@@ -22030,7 +22048,10 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'zip',
+        ),
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -24679,7 +24700,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _exportCancelledMessage({required bool share}) {
-    return share ? 'Compartir cancelado.' : 'Operación cancelada.';
+    return share
+        ? 'Compartir cancelado. No se envio ningun archivo.'
+        : 'Exportacion cancelada. No se genero ningun archivo.';
   }
 
   String _exportReadyMessage({
@@ -24691,29 +24714,62 @@ class _EditorScreenState extends State<EditorScreen>
     switch (format) {
       case 'pdf':
         return share
-            ? 'PDF listo para compartir: $fileName'
-            : 'PDF listo para presentar: $fileName';
+            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
+            : 'PDF listo: $fileName';
       case 'zip':
         final suffix =
             includeEvidenceHint ? ' Incluye planilla y evidencias.' : '';
         return share
-            ? 'Paquete completo listo para compartir: $fileName'
-            : 'Paquete completo preparado: $fileName.$suffix';
+            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
+            : 'Paquete ZIP listo: $fileName.$suffix';
       default:
         return share
-            ? 'Archivo listo para compartir: $fileName'
-            : 'Archivo listo: $fileName';
+            ? 'Abrimos compartir para $fileName. Completa el envio para terminar.'
+            : 'Excel listo: $fileName';
     }
   }
 
-  String _exportFailureMessage({required bool share}) {
-    if (share) return 'No pudimos completar la operación.';
-    return 'No pudimos completar la operación.';
+  String _exportTargetLabel(String format) {
+    switch (format) {
+      case 'pdf':
+        return 'el PDF';
+      case 'zip':
+        return 'el paquete ZIP';
+      case 'xlsx':
+        return 'el Excel';
+      default:
+        return 'el archivo';
+    }
   }
 
-  String _exportUnsupportedMessage({required bool share}) {
-    if (share) return 'Compartir no está disponible en este dispositivo.';
-    return 'Esta exportación no está disponible en este dispositivo.';
+  String _exportFormatFromFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (lower.endsWith('.zip')) return 'zip';
+    if (lower.endsWith('.xlsx')) return 'xlsx';
+    return 'file';
+  }
+
+  String _exportFailureMessage({
+    required bool share,
+    required String format,
+  }) {
+    final target = _exportTargetLabel(format);
+    if (share) {
+      return 'No pudimos abrir compartir para $target. Intenta de nuevo o exporta el archivo.';
+    }
+    return 'No pudimos dejar listo $target. Intenta de nuevo.';
+  }
+
+  String _exportUnsupportedMessage({
+    required bool share,
+    required String format,
+  }) {
+    final target = _exportTargetLabel(format);
+    if (share) {
+      return 'Este dispositivo no permite compartir $target desde aqui. Exportalo primero.';
+    }
+    return 'Este dispositivo no permite generar $target desde aqui.';
   }
 
   List<String> _buildExportColumnTypes(int dataCols) {

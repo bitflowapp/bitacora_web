@@ -18,40 +18,45 @@ extension _EditorExportShareHelpers on _EditorScreenState {
 
   String _fileReadyMessage(String label, {required String name}) =>
       switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf => 'PDF listo para presentar: $label',
+        _ExportMessageKind.pdf => 'PDF guardado en $label',
         _ExportMessageKind.zip =>
-          'Paquete completo preparado: $label. Incluye planilla y evidencias.',
-        _ExportMessageKind.xlsx => 'Archivo listo: $label',
-        _ExportMessageKind.other => 'Archivo listo: $label',
+          'Paquete ZIP guardado en $label. Incluye planilla y evidencias.',
+        _ExportMessageKind.xlsx => 'Excel guardado en $label',
+        _ExportMessageKind.other => 'Archivo guardado en $label',
       };
 
   String _downloadStartedMessage(String name) =>
       switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf => 'PDF listo para presentar: $name',
+        _ExportMessageKind.pdf => 'Descarga iniciada: $name. Revisa Descargas.',
         _ExportMessageKind.zip =>
-          'Paquete completo preparado: $name. Incluye planilla y evidencias.',
-        _ExportMessageKind.xlsx => 'Archivo listo: $name',
-        _ExportMessageKind.other => 'Archivo listo: $name',
+          'Descarga iniciada: $name. Revisa Descargas. Incluye planilla y evidencias.',
+        _ExportMessageKind.xlsx =>
+          'Descarga iniciada: $name. Revisa Descargas.',
+        _ExportMessageKind.other =>
+          'Descarga iniciada: $name. Revisa Descargas.',
       };
 
   String _shareOpenedMessage(String name) => switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf => 'PDF listo para compartir: $name',
+        _ExportMessageKind.pdf =>
+          'Abrimos compartir para $name. Completa el envio para terminar.',
         _ExportMessageKind.zip =>
-          'Paquete completo listo para compartir: $name',
-        _ExportMessageKind.xlsx => 'Archivo listo para compartir: $name',
-        _ExportMessageKind.other => 'Archivo listo para compartir: $name',
+          'Abrimos compartir para $name. Completa el envio para terminar.',
+        _ExportMessageKind.xlsx =>
+          'Abrimos compartir para $name. Completa el envio para terminar.',
+        _ExportMessageKind.other =>
+          'Abrimos compartir para $name. Completa el envio para terminar.',
       };
 
   String _exportSheetOpenedMessage(String name) =>
       switch (_exportMessageKind(name)) {
         _ExportMessageKind.pdf =>
-          'PDF listo para presentar: $name. El sistema abrió las opciones para guardar o compartir.',
+          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
         _ExportMessageKind.zip =>
-          'Paquete completo preparado: $name. El sistema abrió las opciones para guardar o compartir.',
+          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
         _ExportMessageKind.xlsx =>
-          'Archivo listo: $name. El sistema abrió las opciones para guardar o compartir.',
+          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
         _ExportMessageKind.other =>
-          'Archivo listo: $name. El sistema abrió las opciones para guardar o compartir.',
+          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
       };
 
   String _shareFallbackSavedMessage({
@@ -59,7 +64,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     String? location,
   }) {
     final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir la opción de compartir. El archivo ya quedó listo: $target';
+    return 'No pudimos abrir compartir. Guardamos $name en $target.';
   }
 
   String _formatLabelFromFileName(String name) {
@@ -197,7 +202,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           text: resolvedText,
         );
         if (shared) {
-          notifySuccess();
+          notifySuccess(_shareOpenedMessage(name));
           return;
         }
       }

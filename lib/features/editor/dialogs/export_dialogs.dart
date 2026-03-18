@@ -14,10 +14,11 @@ extension _EditorExportDialogs on _EditorScreenState {
 
     await showAppModal<void>(
       context: context,
-      title: 'Exportar',
+      title: 'Exportar o compartir',
       child: StatefulBuilder(
         builder: (context, setModalState) {
           final exportBusy = _longOperation != null || _saving;
+          final pendingSyncCount = _pendingOfflineCount + _outboxQueuedCount;
           final fileName = format == 'zip'
               ? buildBitFlowBundleExportFileName(sheetName: _sheetName)
               : _buildCommercialExportFileName(format);
@@ -89,15 +90,15 @@ extension _EditorExportDialogs on _EditorScreenState {
                     const SizedBox(height: 10),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Incluir adjuntos'),
+                      title: const Text('Incluir evidencias y adjuntos'),
                       subtitle: Text(
                         switch (format) {
                           'zip' =>
-                            'Incluye Excel, reporte PDF, manifiesto y carpetas de evidencias.',
+                            'Incluye Excel, PDF y todas las evidencias en un solo paquete.',
                           'pdf' =>
-                            'Incluye resumen, tabla principal y evidencias con fotos cuando existan.',
+                            'Incluye tabla principal y fotos cuando existan.',
                           _ =>
-                            'Incluye planilla editable y hoja de evidencias/adjuntos.',
+                            'Incluye planilla editable y una hoja de evidencias.',
                         },
                       ),
                       value: format == 'zip' ? true : includeAttachments,
@@ -109,21 +110,28 @@ extension _EditorExportDialogs on _EditorScreenState {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Archivo: $fileName',
+                      'Vas a generar: $fileName',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 6),
                     Text(
                       switch (format) {
                         'zip' =>
-                          'Paquete completo (.zip): planilla + evidencias en una estructura portable.',
+                          'Paquete ZIP (.zip): cierre recomendado para campo. Lleva planilla, reporte y evidencias en un solo archivo.',
                         'pdf' =>
-                          'Reporte PDF (.pdf): listo para presentar o compartir con clientes y supervisión.',
+                          'Reporte PDF (.pdf): listo para presentar o mandar por mail o mensajeria.',
                         _ =>
-                          'Excel (.xlsx): ideal para seguir editando y hacer seguimiento interno.',
+                          'Excel (.xlsx): ideal para seguir trabajando o consolidar datos.',
                       },
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (pendingSyncCount > 0) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Hay $pendingSyncCount cambio(s) en cola. Esta salida se genera con el estado actual de la planilla.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Container(
                       key: const ValueKey('editor-export-quality-card'),
@@ -234,8 +242,8 @@ extension _EditorExportDialogs on _EditorScreenState {
                       const SizedBox(height: 8),
                       Text(
                         _saving
-                            ? 'Hay un guardado en curso. Espera a que termine para exportar.'
-                            : 'Ya hay una operaci\u00f3n en curso. Espera a que termine para exportar o compartir.',
+                            ? 'Estamos guardando cambios. Espera a que termine para cerrar la salida.'
+                            : 'Estamos terminando otra salida. Espera un momento para exportar o compartir.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
