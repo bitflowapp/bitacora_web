@@ -31,6 +31,8 @@ const bool _kFlutterTestEnv = bool.fromEnvironment('FLUTTER_TEST');
 const bool _kEnableEditorPerfInstrumentation =
     _kDebugEditorPerfInstrumentation || _kDebugGridBuildCounter;
 
+enum _CloseoutPublishChannel { export, attachment }
+
 class EditorStorageFallbackReasonMapping {
   const EditorStorageFallbackReasonMapping({
     required this.storageVariant,
@@ -555,6 +557,7 @@ class _EditorScreenState extends State<EditorScreen>
       createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
   EditorExportCloseoutState? _lastExportFlowResult;
+  _CloseoutPublishChannel? _debugLastCloseoutPublishChannel;
   late final EditorExportResultController _exportResultController =
       EditorExportResultController(
     mapper: const EditorExportResultMapper(),
@@ -8911,7 +8914,7 @@ class _EditorScreenState extends State<EditorScreen>
         share: false,
         includeAttachments: false,
       );
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       if (!mounted) return;
       _showActionSnack(
@@ -11526,7 +11529,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     onAction: (action) => unawaited(
                                       _handleExportFlowResultAction(action),
                                     ),
-                                    onDismiss: _clearExportFlowResult,
+                                    onDismiss: _dismissCloseoutOutcome,
                                     busy: _longOperation != null || _saving,
                                   ),
                                 ),
@@ -18578,6 +18581,10 @@ class _EditorScreenState extends State<EditorScreen>
       _lastExportFlowResult?.outcome.message;
 
   @visibleForTesting
+  String? debugLastCloseoutPublishChannel() =>
+      _debugLastCloseoutPublishChannel?.name;
+
+  @visibleForTesting
   Future<void> debugTriggerExportForTest({
     String format = 'xlsx',
     bool share = false,
@@ -18610,7 +18617,7 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
-    _clearExportFlowResult();
+    _dismissCloseoutOutcome();
     try {
       final result = await _saveExportBytes(
         name: name,
@@ -18619,9 +18626,9 @@ class _EditorScreenState extends State<EditorScreen>
         share: share,
         includeAttachments: includeAttachments,
       );
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildCancelledExportFlowResult(
           fileName: name,
           format: _exportFormatFromFileName(name),
@@ -18633,7 +18640,7 @@ class _EditorScreenState extends State<EditorScreen>
       final format = _exportFormatFromFileName(name);
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildCancelledExportFlowResult(
             fileName: name,
             format: format,
@@ -18657,7 +18664,7 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildUnsupportedExportFlowResult(
             fileName: name,
             format: format,
@@ -18681,7 +18688,7 @@ class _EditorScreenState extends State<EditorScreen>
         stackTrace: st,
         icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
       );
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildErrorExportFlowResult(
           fileName: name,
           format: format,
@@ -18739,6 +18746,29 @@ class _EditorScreenState extends State<EditorScreen>
     } finally {
       _clearLongOperation();
     }
+  }
+
+  @visibleForTesting
+  Future<void> debugRunAttachmentSaveFlowForTest({
+    required String name,
+    required String mime,
+    Uint8List? bytes,
+  }) async {
+    final result = await _saveExportBytes(
+      name: name,
+      mime: mime,
+      bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
+      share: false,
+      includeAttachments: false,
+    );
+    _publishAttachmentOutcome(result);
+  }
+
+  @visibleForTesting
+  Future<void> debugHandleCloseoutActionForTest(
+    EditorExportResultAction action,
+  ) {
+    return _handleExportFlowResultAction(action);
   }
 
   @visibleForTesting
@@ -19573,7 +19603,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
-    _clearExportFlowResult();
+    _dismissCloseoutOutcome();
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -19601,7 +19631,7 @@ class _EditorScreenState extends State<EditorScreen>
           fallbackMessage: fallbackMessage,
           icon: Icons.table_view_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildErrorExportFlowResult(
             fileName: fileName,
             format: 'xlsx',
@@ -19629,10 +19659,10 @@ class _EditorScreenState extends State<EditorScreen>
         shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildCancelledExportFlowResult(
           fileName: _buildCommercialExportFileName('xlsx'),
           format: 'xlsx',
@@ -19643,7 +19673,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildCancelledExportFlowResult(
             fileName: _buildCommercialExportFileName('xlsx'),
             format: 'xlsx',
@@ -19664,7 +19694,7 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildUnsupportedExportFlowResult(
             fileName: _buildCommercialExportFileName('xlsx'),
             format: 'xlsx',
@@ -19685,7 +19715,7 @@ class _EditorScreenState extends State<EditorScreen>
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildErrorExportFlowResult(
           fileName: _buildCommercialExportFileName('xlsx'),
           format: 'xlsx',
@@ -19717,7 +19747,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
-    _clearExportFlowResult();
+    _dismissCloseoutOutcome();
     try {
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
@@ -19737,7 +19767,7 @@ class _EditorScreenState extends State<EditorScreen>
           fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_outlined,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildErrorExportFlowResult(
             fileName: fileName,
             format: 'pdf',
@@ -19764,10 +19794,10 @@ class _EditorScreenState extends State<EditorScreen>
         shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildCancelledExportFlowResult(
           fileName: _buildCommercialExportFileName('pdf'),
           format: 'pdf',
@@ -19778,7 +19808,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildCancelledExportFlowResult(
             fileName: _buildCommercialExportFileName('pdf'),
             format: 'pdf',
@@ -19799,7 +19829,7 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildUnsupportedExportFlowResult(
             fileName: _buildCommercialExportFileName('pdf'),
             format: 'pdf',
@@ -19820,7 +19850,7 @@ class _EditorScreenState extends State<EditorScreen>
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildErrorExportFlowResult(
           fileName: _buildCommercialExportFileName('pdf'),
           format: 'pdf',
@@ -19849,7 +19879,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
-    _clearExportFlowResult();
+    _dismissCloseoutOutcome();
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -19877,7 +19907,7 @@ class _EditorScreenState extends State<EditorScreen>
           fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildErrorExportFlowResult(
             fileName: fileName,
             format: 'zip',
@@ -19913,7 +19943,7 @@ class _EditorScreenState extends State<EditorScreen>
           fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildErrorExportFlowResult(
             fileName: fileName,
             format: 'zip',
@@ -19949,7 +19979,7 @@ class _EditorScreenState extends State<EditorScreen>
           fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildErrorExportFlowResult(
             fileName: fileName,
             format: 'zip',
@@ -19975,10 +20005,10 @@ class _EditorScreenState extends State<EditorScreen>
             'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildCancelledExportFlowResult(
           fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
           format: 'zip',
@@ -19989,7 +20019,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildCancelledExportFlowResult(
             fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
             format: 'zip',
@@ -20010,7 +20040,7 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
-        _publishExportFlowResult(
+        _publishExportOutcome(
           _buildUnsupportedExportFlowResult(
             fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
             format: 'zip',
@@ -20031,7 +20061,7 @@ class _EditorScreenState extends State<EditorScreen>
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
-      _publishExportFlowResult(
+      _publishExportOutcome(
         _buildErrorExportFlowResult(
           fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
           format: 'zip',
@@ -20104,7 +20134,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -20185,7 +20215,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _publishExportFlowResult(result);
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -22501,16 +22531,47 @@ class _EditorScreenState extends State<EditorScreen>
     _lastExportFlowResult = result;
   }
 
-  void _clearExportFlowResult() {
-    if (_lastExportFlowResult == null) return;
-    _exportResultController.dismiss();
-  }
-
-  void _publishExportFlowResult(
-    EditorExportOutcome result, {
+  // Invariante de arquitectura (closeout):
+  // - Solo este entry point puede publicar estado persistente de export/share.
+  // - Los helpers devuelven outcome de dominio y no tocan UI/banner.
+  // - Adjuntos usan el mismo circuito oficial (channel=attachment).
+  void _publishCloseoutOutcome({
+    required EditorExportOutcome outcome,
+    required _CloseoutPublishChannel channel,
     bool showSnack = true,
   }) {
-    _exportResultController.publish(result, showSnack: showSnack);
+    _exportResultController.publish(outcome, showSnack: showSnack);
+    assert(() {
+      _debugLastCloseoutPublishChannel = channel;
+      return true;
+    }());
+  }
+
+  void _publishExportOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    _publishCloseoutOutcome(
+      outcome: outcome,
+      channel: _CloseoutPublishChannel.export,
+      showSnack: showSnack,
+    );
+  }
+
+  void _publishAttachmentOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    _publishCloseoutOutcome(
+      outcome: outcome,
+      channel: _CloseoutPublishChannel.attachment,
+      showSnack: showSnack,
+    );
+  }
+
+  void _dismissCloseoutOutcome() {
+    if (_lastExportFlowResult == null) return;
+    _exportResultController.dismiss();
   }
 
   Future<void> _handleExportFlowResultAction(
