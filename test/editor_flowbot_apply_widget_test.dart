@@ -183,6 +183,7 @@ void main() {
     );
     expect(applyButton.onPressed, isNull);
 
+    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
     await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
     await tester.pump();
     await tester.pumpAndSettle();
@@ -199,6 +200,184 @@ void main() {
 
     expect(find.byKey(const ValueKey('flowbot-apply')), findsNothing);
     expect(state.debugCellText(1, 1), 'OK');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot suggested quick actions preview and apply fast',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-quick-actions-ui-test',
+          initialName: 'Relevamiento demo',
+          initialHeaders: <String>[
+            'Campo 1',
+            'Estado',
+            'Observaciones',
+            'Fotos'
+          ],
+          initialRows: <List<String>>[
+            <String>['A', '', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Acciones rapidas'), findsOneWidget);
+    expect(find.text('Sugeridas'), findsOneWidget);
+    expect(find.text('Recientes'), findsOneWidget);
+    expect(find.text('Ejemplos reales'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('flowbot-quick-primary-duplicate-row')),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 cambio listo'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugRowCount, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot quick action with prompt previews and applies value',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-quick-prompt-ui-test',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    state.debugSelectCell(0, 1);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('flowbot-quick-primary-set-active-cell')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('flowbot-quick-input-set-active-cell')),
+      'OK',
+    );
+    await tester.tap(find.text('Previsualizar'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 cambio listo'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugCellText(0, 1), 'OK');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot applies fill blanks and copy previous row commands',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(1700, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-fill-copy-test',
+          initialHeaders: <String>[
+            'Campo 1',
+            'Estado',
+            'Observaciones',
+            'Fotos'
+          ],
+          initialRows: <List<String>>[
+            <String>['A', 'OK', '', ''],
+            <String>['B', '', '', ''],
+            <String>['C', '', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    state.debugSelectCell(2, 1);
+
+    final fillParsed = await state.debugParseFlowBotCommand(
+      'completar vacios en columna Estado con Pendiente',
+    );
+    expect(fillParsed.actions, isNotEmpty);
+    final fillApplied =
+        await state.debugApplyFlowBotActions(fillParsed.actions);
+    await tester.pump();
+    expect(fillApplied, 2);
+    expect(state.debugCellText(0, 1), 'OK');
+    expect(state.debugCellText(1, 1), 'Pendiente');
+    expect(state.debugCellText(2, 1), 'Pendiente');
+
+    state.debugSelectCell(1, 0);
+    final copyParsed = await state.debugParseFlowBotCommand(
+      'copiar valor de la fila anterior en A2',
+    );
+    expect(copyParsed.actions, hasLength(1));
+    final copyApplied =
+        await state.debugApplyFlowBotActions(copyParsed.actions);
+    await tester.pump();
+    expect(copyApplied, 1);
+    expect(state.debugCellText(1, 0), 'A');
     expect(tester.takeException(), isNull);
   });
 
@@ -248,6 +427,7 @@ void main() {
     );
     expect(applyButton.onPressed, isNull);
 
+    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
     await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
     await tester.pump();
     await tester.pumpAndSettle();

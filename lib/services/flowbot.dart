@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 const List<String> kFlowBotHelpExamples = <String>[
   'poner OK en B2',
   'rellenar columna Estado con Pendiente',
+  'completar vacios con Pendiente',
   'duplicar fila 3',
   'agregar columna Observaciones',
 ];
@@ -54,7 +55,10 @@ enum FlowBotActionType {
   deleteRow,
   addColumn,
   renameColumn,
+  fillBlanks,
+  copyFromPreviousRow,
   attachPhotoToCell,
+  exportXlsx,
   exportPdfPreset,
   pasteTable,
   exportBundle,
@@ -224,8 +228,19 @@ class FlowBotAction {
         if (column == null || (value ?? '').isEmpty) return null;
         return FlowBotAction(type: type, column: column, value: value);
 
+      case FlowBotActionType.fillBlanks:
+        if ((value ?? '').isEmpty) return null;
+        return FlowBotAction(type: type, column: column, value: value);
+
+      case FlowBotActionType.copyFromPreviousRow:
+        if (row == null || col == null) return null;
+        return FlowBotAction(type: type, row: row, col: col);
+
       case FlowBotActionType.attachPhotoToCell:
         return FlowBotAction(type: type, row: row, col: col);
+
+      case FlowBotActionType.exportXlsx:
+        return const FlowBotAction(type: FlowBotActionType.exportXlsx);
 
       case FlowBotActionType.exportPdfPreset:
         return FlowBotAction(type: type, presetId: presetId);
@@ -332,9 +347,27 @@ class FlowBotAction {
       case 'renamecolumn':
         return FlowBotActionType.renameColumn;
 
+      case 'fill_blanks':
+      case 'fillblanks':
+      case 'complete_blanks':
+      case 'completeblanks':
+        return FlowBotActionType.fillBlanks;
+
+      case 'copy_from_previous_row':
+      case 'copyfrompreviousrow':
+      case 'copy_previous':
+      case 'copyprevious':
+        return FlowBotActionType.copyFromPreviousRow;
+
       case 'attach_photo_to_cell':
       case 'attachphoto':
         return FlowBotActionType.attachPhotoToCell;
+
+      case 'export_xlsx':
+      case 'exportxlsx':
+      case 'xlsx':
+      case 'excel':
+        return FlowBotActionType.exportXlsx;
 
       case 'export_pdf_preset':
       case 'exportpdf':
@@ -589,6 +622,19 @@ class RuleBasedFlowBot {
         continue;
       }
 
+      final clearActiveCell = _clearActiveCellRegex.firstMatch(cmd);
+      if (clearActiveCell != null) {
+        actions.add(
+          FlowBotAction(
+            type: FlowBotActionType.setCell,
+            row: clampedSelectedRow,
+            col: clampedSelectedCol,
+            value: '',
+          ),
+        );
+        continue;
+      }
+
       final replaceA1 = _replaceByA1Regex.firstMatch(cmd);
       if (replaceA1 != null) {
         final target = (replaceA1.group(1) ?? '').trim();
@@ -698,6 +744,37 @@ class RuleBasedFlowBot {
           registerIssue(
             'Indica el valor para rellenar la columna "$columnToken".',
           );
+        }
+        continue;
+      }
+
+      final fillBlanks = _fillBlanksRegex.firstMatch(cmd);
+      if (fillBlanks != null) {
+        final columnToken = _cleanupFlowBotValue(
+          (fillBlanks.group(1) ?? '').trim(),
+        );
+        final value = _cleanupFlowBotValue(
+          (fillBlanks.group(2) ?? '').trim(),
+        );
+        final resolvedCol = columnToken.isEmpty
+            ? clampedSelectedCol
+            : _resolveColumnReference(
+                columnToken,
+                headerLabels: safeHeaderLabels,
+                maxCols: safeMaxCols,
+              );
+        if (resolvedCol != null && value.isNotEmpty) {
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.fillBlanks,
+              column: resolvedCol,
+              value: value,
+            ),
+          );
+        } else if (resolvedCol == null) {
+          registerIssue('No encontre la columna "$columnToken".');
+        } else {
+          registerIssue('Indica el valor para completar los vacios.');
         }
         continue;
       }
@@ -882,6 +959,48 @@ class RuleBasedFlowBot {
         continue;
       }
 
+      final copyPrevious = _copyPreviousRowValueRegex.firstMatch(cmd);
+      if (copyPrevious != null) {
+        final target = (copyPrevious.group(1) ?? '').trim();
+        if (clampedSelectedRow <= 0 && target.isEmpty) {
+          registerIssue(
+              'La fila actual no tiene una fila anterior para copiar.');
+          continue;
+        }
+        if (target.isNotEmpty) {
+          final cell = _resolveA1Cell(
+            target,
+            maxRows: safeMaxRows,
+            maxCols: safeMaxCols,
+          );
+          if (cell == null) {
+            registerIssue('La celda $target queda fuera de la hoja editable.');
+            continue;
+          }
+          if (cell.row <= 0) {
+            registerIssue(
+                'La celda $target no tiene fila anterior para copiar.');
+            continue;
+          }
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.copyFromPreviousRow,
+              row: cell.row,
+              col: cell.col,
+            ),
+          );
+        } else {
+          actions.add(
+            FlowBotAction(
+              type: FlowBotActionType.copyFromPreviousRow,
+              row: clampedSelectedRow,
+              col: clampedSelectedCol,
+            ),
+          );
+        }
+        continue;
+      }
+
       final attachPhoto = _attachPhotoRegex.firstMatch(cmd);
       if (attachPhoto != null) {
         final token = (attachPhoto.group(1) ?? '').trim();
@@ -927,6 +1046,14 @@ class RuleBasedFlowBot {
             type: FlowBotActionType.exportPdfPreset,
             presetId: preset.isEmpty ? 'default' : preset,
           ),
+        );
+        continue;
+      }
+
+      final exportXlsx = _exportXlsxRegex.firstMatch(cmd);
+      if (exportXlsx != null) {
+        actions.add(
+          const FlowBotAction(type: FlowBotActionType.exportXlsx),
         );
         continue;
       }
@@ -1252,6 +1379,11 @@ class RuleBasedFlowBot {
     caseSensitive: false,
   );
 
+  static final RegExp _clearActiveCellRegex = RegExp(
+    r'^(?:borrar|limpiar|vaciar)\s+(?:celda\s+actual|celda\s+activa)$',
+    caseSensitive: false,
+  );
+
   static final RegExp _clearSelectionRegex = RegExp(
     r'^(?:limpiar|borrar)\s+(?:seleccion|selección)$',
     caseSensitive: false,
@@ -1269,6 +1401,11 @@ class RuleBasedFlowBot {
 
   static final RegExp _fillNamedColumnRegex = RegExp(
     r'^(?:rellenar|completar)\s+columna\s+(.+?)\s+con\s+(.+)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _fillBlanksRegex = RegExp(
+    r'^(?:completar|rellenar)\s+vacios(?:\s+(?:en|de)\s+columna\s+(.+?))?\s+con\s+(.+)$',
     caseSensitive: false,
   );
 
@@ -1314,6 +1451,16 @@ class RuleBasedFlowBot {
 
   static final RegExp _attachPhotoRegex = RegExp(
     r'^(?:adjuntar\s+foto(?:\s+en\s+([A-Za-z]+\d+))?)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _copyPreviousRowValueRegex = RegExp(
+    r'^(?:copiar(?:\s+valor)?\s+(?:de\s+)?(?:la\s+)?fila\s+anterior(?:\s+(?:en|a)\s+([A-Za-z]+\d+))?)$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _exportXlsxRegex = RegExp(
+    r'^(?:exportar\s+(?:xlsx|excel))$',
     caseSensitive: false,
   );
 

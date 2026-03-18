@@ -298,6 +298,47 @@ void main() {
     expect(row.actions.first.type, FlowBotActionType.clearRow);
   });
 
+  test('parses "completar vacios en columna" command', () {
+    final result = parser.parse(
+      'completar vacios en columna Estado con Pendiente',
+      selectedRow: 0,
+      selectedCol: 1,
+      headerLabels: const <String>['Campo 1', 'Estado', 'Observaciones'],
+      maxRows: 8,
+      maxCols: 3,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.fillBlanks);
+    expect(result.actions.first.column, 1);
+    expect(result.actions.first.value, 'Pendiente');
+  });
+
+  test('parses "copiar valor de la fila anterior" command', () {
+    final result = parser.parse(
+      'copiar valor de la fila anterior en B3',
+      selectedRow: 2,
+      selectedCol: 1,
+      maxRows: 8,
+      maxCols: 3,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.copyFromPreviousRow);
+    expect(result.actions.first.row, 2);
+    expect(result.actions.first.col, 1);
+  });
+
+  test('parses "exportar xlsx"', () {
+    final result = parser.parse(
+      'exportar xlsx',
+      selectedRow: 0,
+      selectedCol: 0,
+      maxRows: 8,
+      maxCols: 3,
+    );
+    expect(result.actions, hasLength(1));
+    expect(result.actions.first.type, FlowBotActionType.exportXlsx);
+  });
+
   test('accepts apply confirmation variants', () {
     expect(parser.isApplyConfirmation('aceptar'), isTrue);
     expect(parser.isApplyConfirmation('aplicar'), isTrue);

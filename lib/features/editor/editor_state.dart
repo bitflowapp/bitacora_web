@@ -178,6 +178,56 @@ class _SheetQualitySnapshot {
   }
 }
 
+class _FlowBotQuickContext {
+  const _FlowBotQuickContext({
+    required this.sheetName,
+    required this.row,
+    required this.col,
+    required this.rowNumber,
+    required this.cellToken,
+    required this.columnLabel,
+    required this.visibleColumnLabels,
+    required this.hasRows,
+    required this.hasPreviousRow,
+    required this.hasBlankCellsInColumn,
+    required this.canExport,
+  });
+
+  final String sheetName;
+  final int row;
+  final int col;
+  final int rowNumber;
+  final String cellToken;
+  final String columnLabel;
+  final List<String> visibleColumnLabels;
+  final bool hasRows;
+  final bool hasPreviousRow;
+  final bool hasBlankCellsInColumn;
+  final bool canExport;
+}
+
+class _FlowBotQuickActionSpec {
+  const _FlowBotQuickActionSpec({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.buildCommand,
+    this.requiresValue = false,
+    this.promptTitle,
+    this.promptLabel,
+    this.promptHint,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final String Function(String? value) buildCommand;
+  final bool requiresValue;
+  final String? promptTitle;
+  final String? promptLabel;
+  final String? promptHint;
+}
+
 class _EditorLongOperationState {
   const _EditorLongOperationState({
     required this.message,
@@ -5670,10 +5720,29 @@ class _EditorScreenState extends State<EditorScreen>
             )
             .toInt();
         return 'Renombrar columna ${_headerLabel(col)} -> "${action.value ?? ''}"';
+      case FlowBotActionType.fillBlanks:
+        final col = (action.column ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Completar vacios en ${_headerLabel(col)} con "${action.value ?? ''}"';
+      case FlowBotActionType.copyFromPreviousRow:
+        final row = (action.row ?? _selRow) + 1;
+        final col = (action.col ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Copiar fila ${math.max(1, row - 1)} -> ${_headerLabel(col)} en fila $row';
       case FlowBotActionType.attachPhotoToCell:
         final row = (action.row ?? _selRow) + 1;
         final col = (action.col ?? _selCol) + 1;
         return 'Adjuntar foto en F$row/C$col';
+      case FlowBotActionType.exportXlsx:
+        return 'Exportar XLSX';
       case FlowBotActionType.exportPdfPreset:
         return 'Exportar PDF (${action.presetId ?? 'default'})';
       case FlowBotActionType.pasteTable:
@@ -5781,6 +5850,22 @@ class _EditorScreenState extends State<EditorScreen>
             '(fila eliminada)',
           );
           break;
+        case FlowBotActionType.fillBlanks:
+          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+          final after = action.value ?? '';
+          for (int row = 0; row < _rows.length; row++) {
+            if (_getCellText(row, col).trim().isNotEmpty) continue;
+            addPatch(row, col, after);
+          }
+          break;
+        case FlowBotActionType.copyFromPreviousRow:
+          final row = (action.row ?? _selRow)
+              .clamp(0, math.max(0, _rows.length - 1))
+              .toInt();
+          final col = (action.col ?? _selCol).clamp(0, dataCols - 1).toInt();
+          if (row <= 0) break;
+          addPatch(row, col, _getCellText(row - 1, col));
+          break;
         case FlowBotActionType.setColumnAlign:
         case FlowBotActionType.setWrap:
         case FlowBotActionType.applyStatus:
@@ -5789,6 +5874,7 @@ class _EditorScreenState extends State<EditorScreen>
         case FlowBotActionType.addColumn:
         case FlowBotActionType.renameColumn:
         case FlowBotActionType.attachPhotoToCell:
+        case FlowBotActionType.exportXlsx:
         case FlowBotActionType.exportPdfPreset:
         case FlowBotActionType.pasteTable:
         case FlowBotActionType.exportBundle:
@@ -5820,6 +5906,42 @@ class _EditorScreenState extends State<EditorScreen>
           fontSize: 10.8,
           fontWeight: FontWeight.w800,
         ),
+      ),
+    );
+  }
+
+  Widget _flowBotContextChip({
+    required String label,
+    required IconData icon,
+    required Color fg,
+    required Color bg,
+    required Color border,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fg,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -6180,6 +6302,30 @@ class _EditorScreenState extends State<EditorScreen>
             lastCol = col.clamp(0, _headers.length - 2);
             lastRow = _selRow.clamp(0, math.max(0, _rows.length - 1));
             break;
+          case FlowBotActionType.fillBlanks:
+            final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+            final value = action.value ?? '';
+            if (value.trim().isEmpty) continue;
+            for (int row = 0; row < _rows.length; row++) {
+              if (_getCellText(row, col).trim().isNotEmpty) continue;
+              _setCell(row, col, value);
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = col;
+            }
+            break;
+          case FlowBotActionType.copyFromPreviousRow:
+            if (_rows.length <= 1) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            final col = (action.col ?? _selCol).clamp(0, dataCols - 1);
+            if (row <= 0) continue;
+            _setCell(row, col, _getCellText(row - 1, col));
+            applied += 1;
+            changed = true;
+            lastRow = row;
+            lastCol = col;
+            break;
           case FlowBotActionType.attachPhotoToCell:
             if (_rows.isEmpty) continue;
             final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
@@ -6189,6 +6335,10 @@ class _EditorScreenState extends State<EditorScreen>
             changed = true;
             lastRow = row;
             lastCol = col;
+            break;
+          case FlowBotActionType.exportXlsx:
+            await _exportXlsxOnly(share: false);
+            applied += 1;
             break;
           case FlowBotActionType.exportPdfPreset:
             final preset = (action.presetId ?? 'default').trim().toLowerCase();
@@ -6475,9 +6625,15 @@ class _EditorScreenState extends State<EditorScreen>
               120.0,
               math.min(media.size.width - 72, compactSheet ? 216.0 : 300.0),
             );
-            final quickCommands = _flowBotHistory.isNotEmpty
-                ? _flowBotHistory.take(6).toList(growable: false)
-                : kFlowBotHelpExamples;
+            final flowBotContext = _flowBotQuickContext();
+            final suggestedQuickActions =
+                _flowBotSuggestedQuickActions(flowBotContext);
+            final primaryQuickActions = suggestedQuickActions
+                .take(compactSheet ? 4 : 6)
+                .toList(growable: false);
+            final recentCommands =
+                _flowBotHistory.take(6).toList(growable: false);
+            final exampleCommands = _flowBotContextExamples(flowBotContext);
 
             Widget buildVoiceControls() {
               if (compactSheet) {
@@ -6600,13 +6756,87 @@ class _EditorScreenState extends State<EditorScreen>
               );
             }
 
-            Widget buildQuickCommandSection() {
-              final hasHistory = _flowBotHistory.isNotEmpty;
+            Future<String?> promptQuickActionValue(
+              _FlowBotQuickActionSpec action,
+            ) async {
+              var draftValue = '';
+              final result = await showAppModal<String>(
+                context: modalCtx,
+                title: action.promptTitle ?? 'Completa la accion',
+                child: TextFormField(
+                  key: ValueKey('flowbot-quick-input-${action.id}'),
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: action.promptLabel ?? 'Valor',
+                    hintText: action.promptHint,
+                  ),
+                  onChanged: (value) => draftValue = value,
+                  onFieldSubmitted: (value) =>
+                      Navigator.of(modalCtx).pop(value.trim()),
+                ),
+                actions: [
+                  AppButton(
+                    label: AppStrings.cancel,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(modalCtx).pop(),
+                  ),
+                  AppButton(
+                    label: 'Previsualizar',
+                    variant: AppButtonVariant.primary,
+                    onPressed: () =>
+                        Navigator.of(modalCtx).pop(draftValue.trim()),
+                  ),
+                ],
+                showClose: false,
+                barrierDismissible: true,
+              );
+              final text = (result ?? '').trim();
+              return text.isEmpty ? null : text;
+            }
+
+            Future<void> runQuickAction(_FlowBotQuickActionSpec action) async {
+              String? promptValue;
+              if (action.requiresValue) {
+                promptValue = await promptQuickActionValue(action);
+                if (promptValue == null || !modalCtx.mounted) return;
+              }
+              final command = action.buildCommand(promptValue).trim();
+              if (command.isEmpty) return;
+              fillCommandText(command);
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                warning = '';
+              });
+              await parseNow();
+            }
+
+            Widget buildActionChip(
+              _FlowBotQuickActionSpec action, {
+              bool compact = false,
+            }) {
+              final key = compact
+                  ? ValueKey('flowbot-quick-primary-${action.id}')
+                  : ValueKey('flowbot-quick-suggested-${action.id}');
+              return ActionChip(
+                key: key,
+                avatar: Icon(action.icon, size: 16, color: pal.fgMuted),
+                label: Text(
+                  action.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onPressed: () => unawaited(runQuickAction(action)),
+              );
+            }
+
+            Widget buildQuickActionStrip() {
+              if (primaryQuickActions.isEmpty) return const SizedBox.shrink();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hasHistory ? 'Ultimos comandos' : 'Comandos sugeridos',
+                    'Acciones rapidas',
                     style: TextStyle(
                       color: pal.fg,
                       fontSize: 12,
@@ -6618,30 +6848,104 @@ class _EditorScreenState extends State<EditorScreen>
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      for (int index = 0; index < quickCommands.length; index++)
+                      for (final action in primaryQuickActions)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: historyChipMaxWidth,
+                          ),
+                          child: buildActionChip(action, compact: true),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildSuggestedActionsSection() {
+              if (suggestedQuickActions.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sugeridas',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final action in suggestedQuickActions)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: historyChipMaxWidth,
+                          ),
+                          child: buildActionChip(action),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildCommandSection({
+              required String title,
+              required List<String> commands,
+              required String keyPrefix,
+              String? emptyLabel,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (commands.isEmpty &&
+                          (emptyLabel ?? '').trim().isNotEmpty)
+                        Text(
+                          emptyLabel!,
+                          style: TextStyle(
+                            color: pal.fgMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      for (int index = 0; index < commands.length; index++)
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             maxWidth: historyChipMaxWidth,
                           ),
                           child: ActionChip(
                             key: ValueKey(
-                              hasHistory
-                                  ? 'flowbot-history-chip-$index'
-                                  : 'flowbot-example-chip-$index',
+                              '$keyPrefix-$index',
                             ),
                             label: ConstrainedBox(
                               constraints: BoxConstraints(
                                 maxWidth: historyChipMaxWidth - 28,
                               ),
                               child: Text(
-                                quickCommands[index],
+                                commands[index],
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 softWrap: false,
                               ),
                             ),
                             onPressed: () {
-                              fillCommandText(quickCommands[index]);
+                              fillCommandText(commands[index]);
                               unawaited(parseNow());
                             },
                           ),
@@ -6887,13 +7191,82 @@ class _EditorScreenState extends State<EditorScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Pedi un cambio puntual, revisa la vista previa y aplica solo cuando se vea bien.',
+                                    'Toca una accion sugerida o escribe un cambio puntual. Preview en un tap, aplicar en el segundo.',
                                     style: TextStyle(
                                       color: pal.fgMuted,
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: pal.mobileInputBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: pal.border,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: [
+                                            _flowBotContextChip(
+                                              label: flowBotContext.sheetName,
+                                              icon: Icons.table_chart_outlined,
+                                              fg: pal.fg,
+                                              bg: pal.menuBg,
+                                              border: pal.border,
+                                            ),
+                                            _flowBotContextChip(
+                                              label:
+                                                  'Celda ${flowBotContext.cellToken}',
+                                              icon: Icons.crop_free_rounded,
+                                              fg: pal.fg,
+                                              bg: pal.menuBg,
+                                              border: pal.border,
+                                            ),
+                                            _flowBotContextChip(
+                                              label:
+                                                  'Fila ${flowBotContext.rowNumber}',
+                                              icon: Icons.table_rows_rounded,
+                                              fg: pal.fg,
+                                              bg: pal.menuBg,
+                                              border: pal.border,
+                                            ),
+                                            _flowBotContextChip(
+                                              label: flowBotContext.columnLabel,
+                                              icon: Icons.view_column_outlined,
+                                              fg: pal.fg,
+                                              bg: pal.menuBg,
+                                              border: pal.border,
+                                            ),
+                                          ],
+                                        ),
+                                        if (flowBotContext.visibleColumnLabels
+                                            .isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Columnas visibles: ${flowBotContext.visibleColumnLabels.join(' · ')}',
+                                            style: TextStyle(
+                                              color: pal.fgMuted,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  buildQuickActionStrip(),
                                   const SizedBox(height: 10),
                                   TextField(
                                     key:
@@ -6929,11 +7302,22 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   buildVoiceControls(),
-                                  if (_flowBotHistory.isNotEmpty ||
-                                      preview.isEmpty) ...[
-                                    const SizedBox(height: 10),
-                                    buildQuickCommandSection(),
-                                  ],
+                                  const SizedBox(height: 10),
+                                  buildSuggestedActionsSection(),
+                                  const SizedBox(height: 10),
+                                  buildCommandSection(
+                                    title: 'Recientes',
+                                    commands: recentCommands,
+                                    keyPrefix: 'flowbot-history-chip',
+                                    emptyLabel:
+                                        'Todavia no usaste acciones recientes.',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  buildCommandSection(
+                                    title: 'Ejemplos reales',
+                                    commands: exampleCommands,
+                                    keyPrefix: 'flowbot-example-chip',
+                                  ),
                                   const SizedBox(height: 8),
                                   Container(
                                     key: const ValueKey('flowbot-status'),
@@ -7600,6 +7984,193 @@ class _EditorScreenState extends State<EditorScreen>
     if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
     final col = _headerLabel(_selCol);
     return '$col | fila ${_selRow + 1}';
+  }
+
+  String _flowBotColumnToken(int col) {
+    var current = col + 1;
+    final out = StringBuffer();
+    while (current > 0) {
+      current -= 1;
+      out.writeCharCode(65 + (current % 26));
+      current ~/= 26;
+    }
+    return out.toString().split('').reversed.join();
+  }
+
+  String _flowBotCellToken(int row, int col) {
+    return '${_flowBotColumnToken(col)}${row + 1}';
+  }
+
+  bool _flowBotColumnHasBlankCells(int col) {
+    if (col < 0 || col >= _headers.length - 1) return false;
+    for (final row in _rows) {
+      if (col >= row.cells.length) return true;
+      if (row.cells[col].trim().isEmpty) return true;
+    }
+    return false;
+  }
+
+  _FlowBotQuickContext _flowBotQuickContext() {
+    final dataCols = math.max(0, _headers.length - 1);
+    final targetCol =
+        dataCols <= 0 ? 0 : _resolveBatchTargetColumn().clamp(0, dataCols - 1);
+    final targetRow = _rows.isEmpty ? 0 : _selRow.clamp(0, _rows.length - 1);
+    final visibleColumnLabels = _visibleDataColumnIndexes()
+        .map(_headerLabel)
+        .where((label) => label.trim().isNotEmpty)
+        .take(6)
+        .toList(growable: false);
+
+    return _FlowBotQuickContext(
+      sheetName: _sheetName.trim().isEmpty ? 'Planilla actual' : _sheetName,
+      row: targetRow,
+      col: targetCol,
+      rowNumber: targetRow + 1,
+      cellToken: _flowBotCellToken(targetRow, targetCol),
+      columnLabel: dataCols <= 0 ? 'Columna actual' : _headerLabel(targetCol),
+      visibleColumnLabels: visibleColumnLabels,
+      hasRows: _rows.isNotEmpty,
+      hasPreviousRow: targetRow > 0 && _rows.isNotEmpty,
+      hasBlankCellsInColumn:
+          dataCols > 0 && _flowBotColumnHasBlankCells(targetCol),
+      canExport: _rows.isNotEmpty && dataCols > 0,
+    );
+  }
+
+  List<String> _flowBotContextExamples(_FlowBotQuickContext context) {
+    final examples = <String>[
+      'poner OK en ${context.cellToken}',
+      'rellenar columna ${context.columnLabel} con Pendiente',
+      'agregar columna Observaciones',
+    ];
+    if (context.hasBlankCellsInColumn) {
+      examples.insert(
+        2,
+        'completar vacios en columna ${context.columnLabel} con Pendiente',
+      );
+    }
+    if (context.hasPreviousRow) {
+      examples.insert(
+        2,
+        'copiar valor de la fila anterior en ${context.cellToken}',
+      );
+    }
+    return examples.take(4).toList(growable: false);
+  }
+
+  List<_FlowBotQuickActionSpec> _flowBotSuggestedQuickActions(
+    _FlowBotQuickContext context,
+  ) {
+    final actions = <_FlowBotQuickActionSpec>[];
+    final hasEditableColumns = _headers.length > 1;
+    if (hasEditableColumns) {
+      actions.addAll(<_FlowBotQuickActionSpec>[
+        _FlowBotQuickActionSpec(
+          id: 'set-active-cell',
+          label: 'Poner valor en ${context.cellToken}',
+          icon: Icons.edit_note_rounded,
+          requiresValue: true,
+          promptTitle: 'Valor para ${context.cellToken}',
+          promptLabel: 'Valor',
+          promptHint: 'Ej: OK',
+          buildCommand: (value) =>
+              'poner ${value ?? ''} en ${context.cellToken}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'clear-active-cell',
+          label: 'Borrar ${context.cellToken}',
+          icon: Icons.backspace_outlined,
+          buildCommand: (_) => 'borrar ${context.cellToken}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'duplicate-row',
+          label: 'Duplicar fila ${context.rowNumber}',
+          icon: Icons.copy_all_rounded,
+          buildCommand: (_) => 'duplicar fila ${context.rowNumber}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'delete-row',
+          label: 'Eliminar fila ${context.rowNumber}',
+          icon: Icons.delete_outline_rounded,
+          buildCommand: (_) => 'eliminar fila ${context.rowNumber}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'fill-current-column',
+          label: 'Rellenar ${context.columnLabel}',
+          icon: Icons.vertical_align_center_rounded,
+          requiresValue: true,
+          promptTitle: 'Rellenar columna ${context.columnLabel}',
+          promptLabel: 'Valor para toda la columna',
+          promptHint: 'Ej: Pendiente',
+          buildCommand: (value) =>
+              'rellenar columna ${context.columnLabel} con ${value ?? ''}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'add-column',
+          label: 'Agregar columna',
+          icon: Icons.add_box_outlined,
+          requiresValue: true,
+          promptTitle: 'Nueva columna',
+          promptLabel: 'Nombre de columna',
+          promptHint: 'Ej: Observaciones',
+          buildCommand: (value) => 'agregar columna ${value ?? ''}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'rename-column',
+          label: 'Renombrar ${context.columnLabel}',
+          icon: Icons.drive_file_rename_outline_rounded,
+          requiresValue: true,
+          promptTitle: 'Renombrar columna ${context.columnLabel}',
+          promptLabel: 'Nuevo nombre',
+          promptHint: 'Ej: Progresiva',
+          buildCommand: (value) =>
+              'renombrar columna ${context.columnLabel} a ${value ?? ''}',
+        ),
+      ]);
+      if (context.hasBlankCellsInColumn) {
+        actions.add(
+          _FlowBotQuickActionSpec(
+            id: 'fill-blanks',
+            label: 'Completar vacios',
+            icon: Icons.playlist_add_check_circle_outlined,
+            requiresValue: true,
+            promptTitle: 'Completar vacios en ${context.columnLabel}',
+            promptLabel: 'Valor para vacios',
+            promptHint: 'Ej: Pendiente',
+            buildCommand: (value) =>
+                'completar vacios en columna ${context.columnLabel} con ${value ?? ''}',
+          ),
+        );
+      }
+      if (context.hasPreviousRow) {
+        actions.add(
+          _FlowBotQuickActionSpec(
+            id: 'copy-previous-row',
+            label: 'Copiar fila anterior',
+            icon: Icons.arrow_upward_rounded,
+            buildCommand: (_) =>
+                'copiar valor de la fila anterior en ${context.cellToken}',
+          ),
+        );
+      }
+    }
+    if (context.canExport) {
+      actions.addAll(<_FlowBotQuickActionSpec>[
+        _FlowBotQuickActionSpec(
+          id: 'export-xlsx',
+          label: 'Exportar XLSX',
+          icon: Icons.grid_on_outlined,
+          buildCommand: (_) => 'exportar xlsx',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'export-pdf',
+          label: 'Exportar PDF',
+          icon: Icons.picture_as_pdf_outlined,
+          buildCommand: (_) => 'exportar pdf',
+        ),
+      ]);
+    }
+    return actions;
   }
 
   int? _statusColumnForBatchActions() {

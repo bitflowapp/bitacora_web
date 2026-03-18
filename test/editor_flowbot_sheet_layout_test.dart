@@ -91,7 +91,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ultimos comandos'), findsOneWidget);
+    expect(find.text('Recientes'), findsOneWidget);
 
     final chip = find.byKey(const ValueKey('flowbot-history-chip-0'));
     expect(chip, findsOneWidget);
