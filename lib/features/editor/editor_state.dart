@@ -232,6 +232,32 @@ class _FlowBotQuickActionSpec {
   final String? promptHint;
 }
 
+class _FlowBotTemplateFavoriteSpec {
+  const _FlowBotTemplateFavoriteSpec({
+    required this.quickActionId,
+    required this.label,
+  });
+
+  final String quickActionId;
+  final String label;
+}
+
+class _FlowBotInlineQuickActionView {
+  const _FlowBotInlineQuickActionView({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.action,
+    required this.source,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final _FlowBotQuickActionSpec action;
+  final String source;
+}
+
 class _EditorLongOperationState {
   const _EditorLongOperationState({
     required this.message,
@@ -291,6 +317,7 @@ class EditorScreen extends StatefulWidget {
     super.key,
     required this.sheetId,
     this.initialName,
+    this.initialTemplateKind,
     this.initialHeaders,
     this.initialRows,
     this.engineBaseUrl,
@@ -304,6 +331,7 @@ class EditorScreen extends StatefulWidget {
 
   final String sheetId;
   final String? initialName;
+  final String? initialTemplateKind;
   final List<String>? initialHeaders;
   final List<List<String>>? initialRows;
   final String? engineBaseUrl;
@@ -340,6 +368,7 @@ class _EditorScreenState extends State<EditorScreen>
   // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
+  String _sheetTemplateKind = '';
   DateTime? _lastSavedAt;
 
   late List<String> _headers;
@@ -729,6 +758,7 @@ class _EditorScreenState extends State<EditorScreen>
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
         : 'Hoja';
+    _sheetTemplateKind = (widget.initialTemplateKind ?? '').trim();
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -1627,6 +1657,7 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = (loaded.name?.trim().isNotEmpty ?? false)
           ? loaded.name!.trim()
           : _sheetName;
+      _sheetTemplateKind = (loaded.templateKind ?? _sheetTemplateKind).trim();
       _headers = loadedHeaders;
       _colIds = colIds;
       _columnPrefsById = columnPrefs;
@@ -1748,6 +1779,8 @@ class _EditorScreenState extends State<EditorScreen>
       columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
       columnOrder: List<String>.from(_columnOrder),
       frozenColId: _frozenColId,
+      templateKind:
+          _sheetTemplateKind.trim().isEmpty ? null : _sheetTemplateKind.trim(),
     );
   }
 
@@ -2376,22 +2409,48 @@ class _EditorScreenState extends State<EditorScreen>
     await _saveEditorDefaultsPrefs();
   }
 
-  String _flowBotPersistenceContextKey() {
+  String _flowBotSheetContextKey() {
     final sheetId = widget.sheetId.trim();
     if (sheetId.isNotEmpty) return 'sheet:$sheetId';
     return 'sheet:${_sheetName.trim()}';
   }
 
+  String? _flowBotTemplateContextKey() {
+    final templateKind = _sheetTemplateKind.trim();
+    if (templateKind.isEmpty) return null;
+    return 'template:$templateKind';
+  }
+
+  String _flowBotPersistenceContextKey() {
+    return _flowBotTemplateContextKey() ?? _flowBotSheetContextKey();
+  }
+
+  List<String> _flowBotFallbackContextKeys() {
+    final ordered = <String>[
+      if (_flowBotTemplateContextKey() != null) _flowBotTemplateContextKey()!,
+      _flowBotSheetContextKey(),
+    ];
+    return LinkedHashSet<String>.from(ordered).toList(growable: false);
+  }
+
   Future<void> _loadFlowBotHistoryPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final contextKey = _flowBotPersistenceContextKey();
       final raw = prefs.getString(_kPrefFlowBotRecentByContext) ?? '';
       final decoded = FlowBotQuickStore.decodeRecentByContext(
         raw,
         limit: _maxFlowBotHistoryItems,
       );
-      var cleaned = List<String>.from(decoded[contextKey] ?? const <String>[]);
+      final templateContextKey = _flowBotTemplateContextKey();
+      final sheetContextKey = _flowBotSheetContextKey();
+      List<String> cleaned = const <String>[];
+      for (final contextKey in _flowBotFallbackContextKeys()) {
+        final stored = decoded[contextKey] ?? const <String>[];
+        if (stored.isNotEmpty) {
+          cleaned = List<String>.from(stored);
+          break;
+        }
+      }
       if (cleaned.isEmpty) {
         final legacyRaw = prefs.getString(_kPrefFlowBotHistory) ?? '';
         cleaned = FlowBotQuickStore.normalizeRecentCommands(
@@ -2399,6 +2458,19 @@ class _EditorScreenState extends State<EditorScreen>
               ? const <Object?>[]
               : (jsonDecode(legacyRaw) as List<Object?>),
           limit: _maxFlowBotHistoryItems,
+        );
+      }
+      if (templateContextKey != null &&
+          cleaned.isNotEmpty &&
+          (decoded[templateContextKey] ?? const <String>[]).isEmpty &&
+          (decoded[sheetContextKey] ?? const <String>[]).isNotEmpty) {
+        decoded[templateContextKey] = List<String>.from(cleaned);
+        await prefs.setString(
+          _kPrefFlowBotRecentByContext,
+          FlowBotQuickStore.encodeRecentByContext(
+            decoded,
+            limit: _maxFlowBotHistoryItems,
+          ),
         );
       }
       if (!mounted) {
@@ -2459,15 +2531,38 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _loadFlowBotFavoritesPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final contextKey = _flowBotPersistenceContextKey();
       final raw = prefs.getString(_kPrefFlowBotFavoritesByContext) ?? '';
       final decoded = FlowBotQuickStore.decodeFavoritesByContext(
         raw,
         limit: _maxFlowBotFavoriteItems,
       );
-      final favorites = List<FlowBotFavoriteShortcut>.from(
-        decoded[contextKey] ?? const <FlowBotFavoriteShortcut>[],
-      );
+      final templateContextKey = _flowBotTemplateContextKey();
+      final sheetContextKey = _flowBotSheetContextKey();
+      List<FlowBotFavoriteShortcut> favorites =
+          const <FlowBotFavoriteShortcut>[];
+      for (final contextKey in _flowBotFallbackContextKeys()) {
+        final stored = decoded[contextKey] ?? const <FlowBotFavoriteShortcut>[];
+        if (stored.isNotEmpty) {
+          favorites = List<FlowBotFavoriteShortcut>.from(stored);
+          break;
+        }
+      }
+      if (templateContextKey != null &&
+          favorites.isNotEmpty &&
+          (decoded[templateContextKey] ?? const <FlowBotFavoriteShortcut>[])
+              .isEmpty &&
+          (decoded[sheetContextKey] ?? const <FlowBotFavoriteShortcut>[])
+              .isNotEmpty) {
+        decoded[templateContextKey] =
+            List<FlowBotFavoriteShortcut>.from(favorites);
+        await prefs.setString(
+          _kPrefFlowBotFavoritesByContext,
+          FlowBotQuickStore.encodeFavoritesByContext(
+            decoded,
+            limit: _maxFlowBotFavoriteItems,
+          ),
+        );
+      }
       if (!mounted) {
         _flowBotFavorites
           ..clear()
@@ -6735,14 +6830,28 @@ class _EditorScreenState extends State<EditorScreen>
               preview: scopedPreview,
               parsing: parsing,
             );
+            final applyDisabledReason = _flowBotApplyDisabledReason(
+              preview: scopedPreview,
+              parsing: parsing,
+              useLocalLlm: _flowBotUseLocalLlm,
+              localModelReady: localModelReady,
+              hasTranscript: transcriptEC.text.trim().isNotEmpty,
+              parseWarning: warning,
+            );
 
             final media = MediaQuery.of(modalCtx);
             final compactSheet = media.size.width < 520;
+            final ultraCompactSheet =
+                media.size.width < 360 || media.size.height < 660;
             final bottomInset = media.viewInsets.bottom;
+            final availableSheetHeight = media.size.height -
+                media.padding.top -
+                media.padding.bottom -
+                20;
             final maxSheetHeight = math.max(
               320.0,
               math.min(
-                media.size.height * 0.92,
+                availableSheetHeight,
                 compactSheet ? 700.0 : 760.0,
               ),
             );
@@ -6755,7 +6864,26 @@ class _EditorScreenState extends State<EditorScreen>
             final flowBotContext = _flowBotQuickContext();
             final suggestedQuickActions =
                 _flowBotSuggestedQuickActions(flowBotContext);
-            final primaryQuickActions = suggestedQuickActions
+            final userFavoriteIdentityKeys = _flowBotFavorites
+                .map((favorite) => favorite.identityKey)
+                .toSet();
+            final templateSuggestedFavorites =
+                _flowBotTemplateSuggestedFavorites()
+                    .where((favorite) => !userFavoriteIdentityKeys
+                        .contains(favorite.identityKey))
+                    .toList(growable: false);
+            final templateSuggestedQuickActionIds = templateSuggestedFavorites
+                .where((favorite) => favorite.isQuickAction)
+                .map((favorite) => favorite.quickActionId)
+                .toSet();
+            final sectionSuggestedQuickActions = suggestedQuickActions
+                .where((action) =>
+                    !userFavoriteIdentityKeys.contains(
+                      _flowBotFavoriteForAction(action).identityKey,
+                    ) &&
+                    !templateSuggestedQuickActionIds.contains(action.id))
+                .toList(growable: false);
+            final primaryQuickActions = sectionSuggestedQuickActions
                 .take(compactSheet ? 4 : 6)
                 .toList(growable: false);
             final recentCommands = _flowBotHistory
@@ -7146,7 +7274,9 @@ class _EditorScreenState extends State<EditorScreen>
             }
 
             Widget buildSuggestedActionsSection() {
-              if (suggestedQuickActions.isEmpty) return const SizedBox.shrink();
+              if (sectionSuggestedQuickActions.isEmpty) {
+                return const SizedBox.shrink();
+              }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -7163,12 +7293,79 @@ class _EditorScreenState extends State<EditorScreen>
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      for (final action in suggestedQuickActions)
+                      for (final action in sectionSuggestedQuickActions)
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             maxWidth: historyChipMaxWidth,
                           ),
                           child: buildActionChip(action),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildTemplateSuggestedFavoritesSection() {
+              if (templateSuggestedFavorites.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Favoritos recomendados',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (int index = 0;
+                          index < templateSuggestedFavorites.length;
+                          index++)
+                        Builder(
+                          builder: (_) {
+                            final favorite = templateSuggestedFavorites[index];
+                            final resolvedAction =
+                                resolveFavoriteAction(favorite);
+                            final label =
+                                resolvedAction?.label ?? favorite.label;
+                            final icon = resolvedAction?.icon ??
+                                (favorite.isQuickAction
+                                    ? Icons.auto_awesome_rounded
+                                    : Icons.lightbulb_outline_rounded);
+                            return ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: historyChipMaxWidth,
+                              ),
+                              child: buildFavoritableChip(
+                                pressKey: ValueKey(
+                                  'flowbot-template-favorite-chip-$index',
+                                ),
+                                favoriteKey: resolvedAction == null
+                                    ? null
+                                    : ValueKey(
+                                        'flowbot-template-favorite-toggle-$index',
+                                      ),
+                                label: label,
+                                icon: icon,
+                                invalid: favorite.isQuickAction &&
+                                    resolvedAction == null,
+                                onRun: () => runFavoriteShortcut(favorite),
+                                onToggleFavorite: resolvedAction == null
+                                    ? null
+                                    : () =>
+                                        toggleActionFavorite(resolvedAction),
+                                isFavorite: false,
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),
@@ -7494,501 +7691,510 @@ class _EditorScreenState extends State<EditorScreen>
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: 720,
-                      maxHeight: maxSheetHeight,
                     ),
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        10,
-                        12,
-                        compactSheet ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: pal.menuBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: pal.borderStrong, width: 1),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.max,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.auto_awesome_rounded, color: pal.fg),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'FlowBot',
-                                  style: TextStyle(
-                                    color: pal.fg,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                key: const ValueKey('flowbot-close'),
-                                tooltip: 'Cerrar',
-                                onPressed: () => Navigator.of(modalCtx).pop(),
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  color: pal.fgMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Toca una accion sugerida o escribe un cambio puntual. Preview en un tap, aplicar en el segundo.',
-                                    style: TextStyle(
-                                      color: pal.fgMuted,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: pal.mobileInputBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: pal.border,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 6,
-                                          children: [
-                                            _flowBotContextChip(
-                                              label: flowBotContext.sheetName,
-                                              icon: Icons.table_chart_outlined,
-                                              fg: pal.fg,
-                                              bg: pal.menuBg,
-                                              border: pal.border,
-                                            ),
-                                            _flowBotContextChip(
-                                              label:
-                                                  'Celda ${flowBotContext.cellToken}',
-                                              icon: Icons.crop_free_rounded,
-                                              fg: pal.fg,
-                                              bg: pal.menuBg,
-                                              border: pal.border,
-                                            ),
-                                            _flowBotContextChip(
-                                              label:
-                                                  'Fila ${flowBotContext.rowNumber}',
-                                              icon: Icons.table_rows_rounded,
-                                              fg: pal.fg,
-                                              bg: pal.menuBg,
-                                              border: pal.border,
-                                            ),
-                                            _flowBotContextChip(
-                                              label: flowBotContext.columnLabel,
-                                              icon: Icons.view_column_outlined,
-                                              fg: pal.fg,
-                                              bg: pal.menuBg,
-                                              border: pal.border,
-                                            ),
-                                          ],
-                                        ),
-                                        if (flowBotContext.visibleColumnLabels
-                                            .isNotEmpty) ...[
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Columnas visibles: ${flowBotContext.visibleColumnLabels.join(' · ')}',
-                                            style: TextStyle(
-                                              color: pal.fgMuted,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  buildQuickActionStrip(),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    key:
-                                        const ValueKey('flowbot-command-input'),
-                                    controller: transcriptEC,
-                                    minLines: 1,
-                                    maxLines: 3,
-                                    textInputAction: TextInputAction.done,
-                                    onChanged: (value) {
-                                      final trimmed = value.trim();
-                                      if (trimmed == previewSourceText) return;
-                                      setModalState(() {
-                                        preview = <FlowBotAction>[];
-                                        previewSourceText = '';
-                                        warning = '';
-                                      });
-                                    },
-                                    onSubmitted: (_) {
-                                      FocusManager.instance.primaryFocus
-                                          ?.unfocus();
-                                      if (canApply) {
-                                        unawaited(confirmApply());
-                                      } else {
-                                        unawaited(parseNow());
-                                      }
-                                    },
-                                    decoration: InputDecoration(
-                                      hintText:
-                                          'Ej: poner OK en B2; rellenar listo x 3',
-                                      filled: true,
-                                      fillColor: pal.mobileInputBg,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  buildVoiceControls(),
-                                  const SizedBox(height: 10),
-                                  buildFavoritesSection(),
-                                  const SizedBox(height: 10),
-                                  buildSuggestedActionsSection(),
-                                  const SizedBox(height: 10),
-                                  buildCommandSection(
-                                    title: 'Recientes',
-                                    commands: recentCommands,
-                                    keyPrefix: 'flowbot-history-chip',
-                                    emptyLabel:
-                                        'Todavia no usaste acciones recientes.',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  buildCommandSection(
-                                    title: 'Ejemplos reales',
-                                    commands: exampleCommands,
-                                    keyPrefix: 'flowbot-example-chip',
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    key: const ValueKey('flowbot-status'),
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: scopedPreview.isEmpty
-                                          ? pal.mobileInputBg
-                                          : pal.accent.withValues(alpha: 0.08),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: scopedPreview.isEmpty
-                                            ? pal.border
-                                            : pal.accent
-                                                .withValues(alpha: 0.25),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      statusText,
-                                      style: TextStyle(
-                                        color: scopedPreview.isEmpty
-                                            ? pal.fgMuted
-                                            : pal.fg,
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  if (warning.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      key: const ValueKey('flowbot-warning'),
-                                      warning,
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Vista previa',
+                    child: SizedBox(
+                      height: maxSheetHeight,
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          10,
+                          12,
+                          compactSheet ? 10 : 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: pal.menuBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: pal.borderStrong, width: 1),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.max,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.auto_awesome_rounded, color: pal.fg),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'FlowBot',
                                     style: TextStyle(
                                       color: pal.fg,
-                                      fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (previewPatches.isEmpty)
+                                ),
+                                IconButton(
+                                  key: const ValueKey('flowbot-close'),
+                                  tooltip: 'Cerrar',
+                                  onPressed: () => Navigator.of(modalCtx).pop(),
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: pal.fgMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Text(
-                                      scopedPreview.isEmpty
-                                          ? 'Sin preview de celdas.'
-                                          : 'Sin preview de celdas para este cambio; revisa las acciones detectadas.',
+                                      'Toca una accion sugerida o escribe un cambio puntual. Preview en un tap, aplicar en el segundo.',
                                       style: TextStyle(
                                         color: pal.fgMuted,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                    )
-                                  else if (compactSheet) ...[
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: pal.mobileInputBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: pal.border,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: [
+                                              _flowBotContextChip(
+                                                label: flowBotContext.sheetName,
+                                                icon:
+                                                    Icons.table_chart_outlined,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    'Celda ${flowBotContext.cellToken}',
+                                                icon: Icons.crop_free_rounded,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    'Fila ${flowBotContext.rowNumber}',
+                                                icon: Icons.table_rows_rounded,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    flowBotContext.columnLabel,
+                                                icon:
+                                                    Icons.view_column_outlined,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                            ],
+                                          ),
+                                          if (flowBotContext.visibleColumnLabels
+                                              .isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Columnas visibles: ${flowBotContext.visibleColumnLabels.join(' · ')}',
+                                              style: TextStyle(
+                                                color: pal.fgMuted,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    buildQuickActionStrip(),
+                                    const SizedBox(height: 10),
+                                    TextField(
+                                      key: const ValueKey(
+                                          'flowbot-command-input'),
+                                      controller: transcriptEC,
+                                      minLines: 1,
+                                      maxLines: 3,
+                                      textInputAction: TextInputAction.done,
+                                      onChanged: (value) {
+                                        final trimmed = value.trim();
+                                        if (trimmed == previewSourceText) {
+                                          return;
+                                        }
+                                        setModalState(() {
+                                          preview = <FlowBotAction>[];
+                                          previewSourceText = '';
+                                          warning = '';
+                                        });
+                                      },
+                                      onSubmitted: (_) {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        if (canApply) {
+                                          unawaited(confirmApply());
+                                        } else {
+                                          unawaited(parseNow());
+                                        }
+                                      },
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Ej: poner OK en B2; rellenar listo x 3',
+                                        filled: true,
+                                        fillColor: pal.mobileInputBg,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    buildVoiceControls(),
+                                    const SizedBox(height: 10),
+                                    buildFavoritesSection(),
+                                    const SizedBox(height: 10),
+                                    buildTemplateSuggestedFavoritesSection(),
+                                    if (templateSuggestedFavorites.isNotEmpty)
+                                      const SizedBox(height: 10),
+                                    buildSuggestedActionsSection(),
+                                    const SizedBox(height: 10),
+                                    buildCommandSection(
+                                      title: 'Recientes',
+                                      commands: recentCommands,
+                                      keyPrefix: 'flowbot-history-chip',
+                                      emptyLabel:
+                                          'Todavia no usaste acciones recientes.',
+                                    ),
+                                    const SizedBox(height: 10),
+                                    buildCommandSection(
+                                      title: 'Ejemplos reales',
+                                      commands: exampleCommands,
+                                      keyPrefix: 'flowbot-example-chip',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      key: const ValueKey('flowbot-status'),
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: scopedPreview.isEmpty
+                                            ? pal.mobileInputBg
+                                            : pal.accent
+                                                .withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: scopedPreview.isEmpty
+                                              ? pal.border
+                                              : pal.accent
+                                                  .withValues(alpha: 0.25),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        statusText,
+                                        style: TextStyle(
+                                          color: scopedPreview.isEmpty
+                                              ? pal.fgMuted
+                                              : pal.fg,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (warning.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        key: const ValueKey('flowbot-warning'),
+                                        warning,
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 10),
                                     Text(
-                                      'Resumen',
+                                      'Vista previa',
                                       style: TextStyle(
                                         color: pal.fg,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ] else
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Resumen',
-                                          style: TextStyle(
-                                            color: pal.fg,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                          ),
+                                    const SizedBox(height: 4),
+                                    if (previewPatches.isEmpty)
+                                      Text(
+                                        scopedPreview.isEmpty
+                                            ? 'Sin preview de celdas.'
+                                            : 'Sin preview de celdas para este cambio; revisa las acciones detectadas.',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
+                                      )
+                                    else if (compactSheet) ...[
+                                      Text(
+                                        'Resumen',
+                                        style: TextStyle(
+                                          color: pal.fg,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ] else
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Resumen',
                                             style: TextStyle(
-                                              color: pal.fgMuted,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
+                                              color: pal.fg,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  const SizedBox(height: 6),
-                                  if (_flowBotActionsSupportScope(preview))
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        for (final option in const <String>[
-                                          'celda',
-                                          'seleccion',
-                                          'fila',
-                                          'columna',
-                                        ])
-                                          ChoiceChip(
-                                            label: Text(
-                                              option == 'seleccion'
-                                                  ? 'seleccion'
-                                                  : option,
-                                            ),
-                                            selected: chosenScope == option,
-                                            onSelected: (selected) {
-                                              if (!selected) return;
-                                              setModalState(
-                                                () => chosenScope = option,
-                                              );
-                                              unawaited(
-                                                _setFlowBotLastScope(option),
-                                              );
-                                            },
-                                          ),
-                                      ],
-                                    ),
-                                  if (_flowBotActionsSupportScope(preview))
-                                    const SizedBox(height: 6),
-                                  Container(
-                                    constraints: BoxConstraints(
-                                      maxHeight: previewMaxHeight,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: pal.mobileInputBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: pal.border,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: previewPatches.isEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.all(10),
+                                          const SizedBox(width: 8),
+                                          Expanded(
                                             child: Text(
-                                              scopedPreview.isEmpty
-                                                  ? 'Analiza un comando para revisar las celdas que van a cambiar.'
-                                                  : 'Esta propuesta no cambia celdas puntuales. Revisa la lista de acciones.',
+                                              '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
                                               style: TextStyle(
                                                 color: pal.fgMuted,
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w600,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
-                                          )
-                                        : SingleChildScrollView(
-                                            padding: const EdgeInsets.all(8),
-                                            child: Table(
-                                              defaultVerticalAlignment:
-                                                  TableCellVerticalAlignment
-                                                      .middle,
-                                              columnWidths: const <int,
-                                                  TableColumnWidth>{
-                                                0: IntrinsicColumnWidth(),
-                                                1: IntrinsicColumnWidth(),
-                                                2: FlexColumnWidth(),
-                                                3: FlexColumnWidth(),
+                                          ),
+                                        ],
+                                      ),
+                                    const SizedBox(height: 6),
+                                    if (_flowBotActionsSupportScope(preview))
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          for (final option in const <String>[
+                                            'celda',
+                                            'seleccion',
+                                            'fila',
+                                            'columna',
+                                          ])
+                                            ChoiceChip(
+                                              label: Text(
+                                                option == 'seleccion'
+                                                    ? 'seleccion'
+                                                    : option,
+                                              ),
+                                              selected: chosenScope == option,
+                                              onSelected: (selected) {
+                                                if (!selected) return;
+                                                setModalState(
+                                                  () => chosenScope = option,
+                                                );
+                                                unawaited(
+                                                  _setFlowBotLastScope(option),
+                                                );
                                               },
-                                              children: [
-                                                TableRow(
-                                                  children: [
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Fila',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Col',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Antes',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Despues',
-                                                      pal.fgMuted,
-                                                    ),
-                                                  ],
+                                            ),
+                                        ],
+                                      ),
+                                    if (_flowBotActionsSupportScope(preview))
+                                      const SizedBox(height: 6),
+                                    Container(
+                                      constraints: BoxConstraints(
+                                        maxHeight: previewMaxHeight,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: pal.mobileInputBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: pal.border,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: previewPatches.isEmpty
+                                          ? Padding(
+                                              padding: const EdgeInsets.all(10),
+                                              child: Text(
+                                                scopedPreview.isEmpty
+                                                    ? 'Analiza un comando para revisar las celdas que van a cambiar.'
+                                                    : 'Esta propuesta no cambia celdas puntuales. Revisa la lista de acciones.',
+                                                style: TextStyle(
+                                                  color: pal.fgMuted,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
-                                                for (final patch
-                                                    in previewPatches.take(5))
+                                              ),
+                                            )
+                                          : SingleChildScrollView(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Table(
+                                                defaultVerticalAlignment:
+                                                    TableCellVerticalAlignment
+                                                        .middle,
+                                                columnWidths: const <int,
+                                                    TableColumnWidth>{
+                                                  0: IntrinsicColumnWidth(),
+                                                  1: IntrinsicColumnWidth(),
+                                                  2: FlexColumnWidth(),
+                                                  3: FlexColumnWidth(),
+                                                },
+                                                children: [
                                                   TableRow(
                                                     children: [
-                                                      _flowBotPreviewDataCell(
-                                                        '${patch.row + 1}',
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Fila',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        _headerLabel(
-                                                          patch.col.clamp(
-                                                            0,
-                                                            math.max(
-                                                              0,
-                                                              _headers.length -
-                                                                  2,
-                                                            ),
-                                                          ),
-                                                        ),
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Col',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        patch.before.isEmpty
-                                                            ? '""'
-                                                            : patch.before,
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Antes',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        patch.after.isEmpty
-                                                            ? '""'
-                                                            : patch.after,
-                                                        pal.fg,
-                                                        highlighted: true,
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Despues',
+                                                        pal.fgMuted,
                                                       ),
                                                     ],
                                                   ),
-                                              ],
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Acciones detectadas',
-                                    style: TextStyle(
-                                      color: pal.fg,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  if (scopedPreview.isEmpty)
-                                    Text(
-                                      'Sin acciones detectadas.',
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    )
-                                  else
-                                    ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxHeight: actionsMaxHeight,
-                                      ),
-                                      child: ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: scopedPreview.length,
-                                        itemBuilder: (itemCtx, index) {
-                                          final action = scopedPreview[index];
-                                          return ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              Icons.bolt_rounded,
-                                              size: 16,
-                                              color: pal.fgMuted,
-                                            ),
-                                            title: Text(
-                                              _flowBotActionLabel(action),
-                                              style: TextStyle(
-                                                color: pal.fg,
-                                                fontSize: 12.2,
-                                                fontWeight: FontWeight.w600,
+                                                  for (final patch
+                                                      in previewPatches.take(5))
+                                                    TableRow(
+                                                      children: [
+                                                        _flowBotPreviewDataCell(
+                                                          '${patch.row + 1}',
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          _headerLabel(
+                                                            patch.col.clamp(
+                                                              0,
+                                                              math.max(
+                                                                0,
+                                                                _headers.length -
+                                                                    2,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          patch.before.isEmpty
+                                                              ? '""'
+                                                              : patch.before,
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          patch.after.isEmpty
+                                                              ? '""'
+                                                              : patch.after,
+                                                          pal.fg,
+                                                          highlighted: true,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                ],
                                               ),
                                             ),
-                                          );
-                                        },
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Acciones detectadas',
+                                      style: TextStyle(
+                                        color: pal.fg,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                  const SizedBox(height: 10),
-                                  buildAdvancedPanel(),
-                                ],
+                                    const SizedBox(height: 4),
+                                    if (scopedPreview.isEmpty)
+                                      Text(
+                                        'Sin acciones detectadas.',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      )
+                                    else
+                                      ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxHeight: actionsMaxHeight,
+                                        ),
+                                        child: ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: scopedPreview.length,
+                                          itemBuilder: (itemCtx, index) {
+                                            final action = scopedPreview[index];
+                                            return ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(
+                                                Icons.bolt_rounded,
+                                                size: 16,
+                                                color: pal.fgMuted,
+                                              ),
+                                              title: Text(
+                                                _flowBotActionLabel(action),
+                                                style: TextStyle(
+                                                  color: pal.fg,
+                                                  fontSize: 12.2,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                    buildAdvancedPanel(),
+                                    if (compactSheet && ultraCompactSheet) ...[
+                                      const SizedBox(height: 10),
+                                      buildFooterActions(),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          buildFooterActions(),
-                          if (!canApply) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              _flowBotApplyDisabledReason(
-                                preview: scopedPreview,
-                                parsing: parsing,
-                                useLocalLlm: _flowBotUseLocalLlm,
-                                localModelReady: localModelReady,
-                                hasTranscript:
-                                    transcriptEC.text.trim().isNotEmpty,
-                                parseWarning: warning,
+                            if (!compactSheet || !ultraCompactSheet) ...[
+                              const SizedBox(height: 10),
+                              buildFooterActions(),
+                            ],
+                            if (!canApply && !compactSheet) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                applyDisabledReason,
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              style: TextStyle(
-                                color: pal.fgMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -8532,6 +8738,226 @@ class _EditorScreenState extends State<EditorScreen>
       ]);
     }
     return actions;
+  }
+
+  List<FlowBotFavoriteShortcut> _flowBotTemplateSuggestedFavorites() {
+    final templateKind = _sheetTemplateKind.trim().toLowerCase();
+    if (templateKind.isEmpty) return const <FlowBotFavoriteShortcut>[];
+    final catalog = <String, List<_FlowBotTemplateFavoriteSpec>>{
+      'campo': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'duplicate-row',
+          label: 'Duplicar fila actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+      ],
+      'inventario': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'set-active-cell',
+          label: 'Poner valor en celda actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'add-column',
+          label: 'Agregar columna',
+        ),
+      ],
+      'rendicion': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-pdf',
+          label: 'Exportar PDF',
+        ),
+      ],
+      'gastos': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-xlsx',
+          label: 'Exportar XLSX',
+        ),
+      ],
+      'proyectos': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'rename-column',
+          label: 'Renombrar columna',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-xlsx',
+          label: 'Exportar XLSX',
+        ),
+      ],
+      'mediciones': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-pdf',
+          label: 'Exportar PDF',
+        ),
+      ],
+    };
+    final specs =
+        catalog[templateKind] ?? const <_FlowBotTemplateFavoriteSpec>[];
+    return specs
+        .map(
+          (spec) => FlowBotFavoriteShortcut(
+            kind: 'quick_action',
+            label: spec.label,
+            quickActionId: spec.quickActionId,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  _FlowBotQuickActionSpec? _resolveFlowBotQuickActionFromFavorite(
+    FlowBotFavoriteShortcut favorite,
+    List<_FlowBotQuickActionSpec> suggestedActions,
+  ) {
+    if (!favorite.isQuickAction) return null;
+    for (final action in suggestedActions) {
+      if (action.id == favorite.quickActionId) return action;
+    }
+    return null;
+  }
+
+  List<_FlowBotInlineQuickActionView> _flowBotInlineQuickActions(
+    _FlowBotQuickContext context,
+  ) {
+    final suggestedActions = _flowBotSuggestedQuickActions(context);
+    if (suggestedActions.isEmpty) {
+      return const <_FlowBotInlineQuickActionView>[];
+    }
+
+    final views = <_FlowBotInlineQuickActionView>[];
+    final seen = <String>{};
+
+    void addAction(
+      _FlowBotQuickActionSpec action, {
+      required String source,
+    }) {
+      if (!seen.add(action.id)) return;
+      views.add(
+        _FlowBotInlineQuickActionView(
+          id: action.id,
+          label: action.label,
+          icon: action.icon,
+          action: action,
+          source: source,
+        ),
+      );
+    }
+
+    for (final favorite in _flowBotFavorites) {
+      final resolved =
+          _resolveFlowBotQuickActionFromFavorite(favorite, suggestedActions);
+      if (resolved == null) continue;
+      addAction(resolved, source: 'user');
+      if (views.length >= 4) return views;
+    }
+
+    for (final favorite in _flowBotTemplateSuggestedFavorites()) {
+      final resolved =
+          _resolveFlowBotQuickActionFromFavorite(favorite, suggestedActions);
+      if (resolved == null) continue;
+      addAction(resolved, source: 'template');
+      if (views.length >= 4) return views;
+    }
+
+    for (final action in suggestedActions) {
+      addAction(action, source: 'context');
+      if (views.length >= 4) break;
+    }
+
+    return views;
+  }
+
+  Future<String?> _promptFlowBotQuickActionValueInline(
+    BuildContext context, {
+    required _FlowBotQuickActionSpec action,
+  }) async {
+    var draftValue = '';
+    final result = await showAppModal<String>(
+      context: context,
+      title: action.promptTitle ?? 'Completa la accion',
+      child: TextFormField(
+        key: ValueKey('flowbot-inline-input-${action.id}'),
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: action.promptLabel ?? 'Valor',
+          hintText: action.promptHint,
+        ),
+        onChanged: (value) => draftValue = value,
+        onFieldSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: 'Aplicar',
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(draftValue.trim()),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final text = (result ?? '').trim();
+    return text.isEmpty ? null : text;
+  }
+
+  Future<void> _runInlineFlowBotQuickAction(
+    BuildContext context,
+    _FlowBotQuickActionSpec action,
+  ) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    String? promptValue;
+    if (action.requiresValue) {
+      promptValue = await _promptFlowBotQuickActionValueInline(
+        context,
+        action: action,
+      );
+      if (promptValue == null || !mounted) return;
+    }
+    final command = action.buildCommand(promptValue).trim();
+    if (command.isEmpty) return;
+    await _runFlowBotCommandDirect(command);
   }
 
   int? _statusColumnForBatchActions() {
@@ -11328,6 +11754,12 @@ class _EditorScreenState extends State<EditorScreen>
         final showSelectionQuickActions = !_mobileEditorOpen &&
             !keyboardVisible &&
             (_selRow >= 0 && _selCol >= 0);
+        final showInlineFlowBotBar = showSelectionQuickActions &&
+            mq.size.width >= 360 &&
+            mq.size.height >= 700;
+        final inlineFlowBotActions = showInlineFlowBotBar
+            ? _flowBotInlineQuickActions(_flowBotQuickContext())
+            : const <_FlowBotInlineQuickActionView>[];
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
         final visibleRows = _visibleRowIndexes();
@@ -11843,40 +12275,58 @@ class _EditorScreenState extends State<EditorScreen>
                                       key: const ValueKey(
                                         'selection-quick-actions-open',
                                       ),
-                                      child: _SelectionQuickActionsBar(
-                                        palette: pal,
-                                        selectionLabel:
-                                            _selectionLabelForQuickActions(),
-                                        selectedRowsCount:
-                                            _batchTargetRows().length,
-                                        canMarkStatus: canMarkSelectionStatus,
-                                        onApplyValue: () =>
-                                            unawaited(_promptBatchApplyValue()),
-                                        onFillDown: () => unawaited(
-                                          _promptFillDown(
-                                            context,
-                                            _selRow,
-                                            _selCol,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _SelectionQuickActionsBar(
+                                            palette: pal,
+                                            selectionLabel:
+                                                _selectionLabelForQuickActions(),
+                                            selectedRowsCount:
+                                                _batchTargetRows().length,
+                                            canMarkStatus:
+                                                canMarkSelectionStatus,
+                                            onApplyValue: () => unawaited(
+                                                _promptBatchApplyValue()),
+                                            onFillDown: () => unawaited(
+                                              _promptFillDown(
+                                                context,
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onDuplicateRows:
+                                                _duplicateSelectedRows,
+                                            onAttachPhoto: () => unawaited(
+                                              _startPhotoFlowForCell(
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onAttachGps: () => unawaited(
+                                              _requestGpsForCell(
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onJumpTo: () =>
+                                                unawaited(_openJumpToDialog()),
+                                            onMarkStatus: (value) => unawaited(
+                                              _applyStatusToSelectedRows(value),
+                                            ),
                                           ),
-                                        ),
-                                        onDuplicateRows: _duplicateSelectedRows,
-                                        onAttachPhoto: () => unawaited(
-                                          _startPhotoFlowForCell(
-                                            _selRow,
-                                            _selCol,
-                                          ),
-                                        ),
-                                        onAttachGps: () => unawaited(
-                                          _requestGpsForCell(
-                                            _selRow,
-                                            _selCol,
-                                          ),
-                                        ),
-                                        onJumpTo: () =>
-                                            unawaited(_openJumpToDialog()),
-                                        onMarkStatus: (value) => unawaited(
-                                          _applyStatusToSelectedRows(value),
-                                        ),
+                                          if (inlineFlowBotActions.isNotEmpty)
+                                            _FlowBotInlineQuickBar(
+                                              palette: pal,
+                                              actions: inlineFlowBotActions,
+                                              onRun: (action) => unawaited(
+                                                _runInlineFlowBotQuickAction(
+                                                  context,
+                                                  action,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     )
                                   : const SizedBox.shrink(
@@ -20228,6 +20678,14 @@ class _EditorScreenState extends State<EditorScreen>
       _setSelection(r, c, preserveRowSelection: true);
       return true;
     }());
+  }
+
+  @visibleForTesting
+  List<String> debugFlowBotInlineActionIds() {
+    final context = _flowBotQuickContext();
+    return _flowBotInlineQuickActions(
+      context,
+    ).map((action) => action.id).toList(growable: false);
   }
 
   @visibleForTesting

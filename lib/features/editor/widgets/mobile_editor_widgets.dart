@@ -599,6 +599,147 @@ class _SelectionQuickActionsBar extends StatefulWidget {
       _SelectionQuickActionsBarState();
 }
 
+class _FlowBotInlineQuickBar extends StatelessWidget {
+  const _FlowBotInlineQuickBar({
+    required this.palette,
+    required this.actions,
+    required this.onRun,
+  });
+
+  final _SheetPalette palette;
+  final List<_FlowBotInlineQuickActionView> actions;
+  final ValueChanged<_FlowBotQuickActionSpec> onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: GlassSurface(
+        key: const ValueKey('flowbot-inline-bar'),
+        radius: 16,
+        blurSigma: palette.isLight ? 10 : 9,
+        backgroundColor:
+            palette.menuBg.withValues(alpha: palette.isLight ? 0.78 : 0.58),
+        borderColor: palette.borderStrong
+            .withValues(alpha: palette.isLight ? 0.52 : 0.82),
+        shadowColor:
+            Colors.black.withValues(alpha: palette.isLight ? 0.08 : 0.24),
+        shadowBlur: 14,
+        shadowOffset: const Offset(0, 7),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'FlowBot rapido',
+              style: TextStyle(
+                color: palette.fgMuted,
+                fontWeight: FontWeight.w800,
+                fontSize: 12.6,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (int index = 0; index < actions.length; index++) ...[
+                    _FlowBotInlineActionChip(
+                      key: ValueKey('flowbot-inline-action-$index'),
+                      palette: palette,
+                      action: actions[index],
+                      onTap: () => onRun(actions[index].action),
+                    ),
+                    if (index < actions.length - 1) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FlowBotInlineActionChip extends StatelessWidget {
+  const _FlowBotInlineActionChip({
+    super.key,
+    required this.palette,
+    required this.action,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final _FlowBotInlineQuickActionView action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceLabel = switch (action.source) {
+      'user' => 'Favorito',
+      'template' => 'Rubro',
+      _ => 'Contexto',
+    };
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 116, maxWidth: 180),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: palette.hintBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: palette.border,
+            width: palette.hairline,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(action.icon, size: 16, color: palette.fg),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    sourceLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.fgMuted,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              action.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.fg,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.6,
+                height: 1.05,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   bool _expanded = false;
 
@@ -1069,6 +1210,10 @@ class _MobileExpandableFabMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduceMotion =
         forceReducedMotion || MediaQuery.of(context).disableAnimations;
+    final maxPanelHeight = math.min(
+      320.0,
+      MediaQuery.of(context).size.height * 0.5,
+    );
     final openDuration = reduceMotion ? Duration.zero : AppMotion.quick;
     return Stack(
       children: [
@@ -1109,26 +1254,31 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                             width: palette.hairline,
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final action in actions)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: AppButton(
-                                  key: action.key,
-                                  label: action.label,
-                                  icon: action.icon,
-                                  size: AppButtonSize.sm,
-                                  variant: AppButtonVariant.secondary,
-                                  onPressed: () {
-                                    AppHaptics.light();
-                                    onDismiss();
-                                    action.onTap();
-                                  },
-                                ),
-                              ),
-                          ],
+                        child: SizedBox(
+                          height: maxPanelHeight,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final action in actions)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: AppButton(
+                                      key: action.key,
+                                      label: action.label,
+                                      icon: action.icon,
+                                      size: AppButtonSize.sm,
+                                      variant: AppButtonVariant.secondary,
+                                      onPressed: () {
+                                        AppHaptics.light();
+                                        onDismiss();
+                                        action.onTap();
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
               ),

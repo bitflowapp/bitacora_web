@@ -629,6 +629,7 @@ class _AppHomeState extends State<_AppHome> {
             sheetId:
                 'demo_${template.slug}_${DateTime.now().millisecondsSinceEpoch}',
             initialName: template.sheetName,
+            initialTemplateKind: template.slug,
             initialHeaders: template.headers,
             initialRows: template.rows,
           ),

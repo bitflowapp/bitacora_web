@@ -275,6 +275,7 @@ class _SheetModel {
     this.columnPrefsById = const <String, _ColumnPrefs>{},
     this.columnOrder = const <String>[],
     this.frozenColId,
+    this.templateKind,
   });
 
   final String? name;
@@ -286,6 +287,7 @@ class _SheetModel {
   final Map<String, _ColumnPrefs> columnPrefsById;
   final List<String> columnOrder;
   final String? frozenColId;
+  final String? templateKind;
 
   Map<String, dynamic> toJson() => {
         'name': name,
@@ -303,6 +305,8 @@ class _SheetModel {
           ),
         if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
         if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
+        if (templateKind?.trim().isNotEmpty ?? false)
+          'templateKind': templateKind,
       };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
@@ -363,6 +367,8 @@ class _SheetModel {
 
     final frozenRaw = (map['frozenColId'] ?? '').toString().trim();
     final frozenColId = frozenRaw.isEmpty ? null : frozenRaw;
+    final templateRaw = (map['templateKind'] ?? '').toString().trim();
+    final templateKind = templateRaw.isEmpty ? null : templateRaw;
 
     return _SheetModel(
       name: name,
@@ -374,6 +380,7 @@ class _SheetModel {
       columnPrefsById: columnPrefsById,
       columnOrder: columnOrder,
       frozenColId: frozenColId,
+      templateKind: templateKind,
     );
   }
 }

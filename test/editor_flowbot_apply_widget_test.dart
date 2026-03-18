@@ -350,6 +350,163 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('FlowBot inline bar executes a simple action from the editor',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-inline-simple',
+          initialTemplateKind: 'campo',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-inline-bar')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('flowbot-inline-action-0')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugRowCount, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot inline bar opens a minimal prompt for value actions',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-inline-prompt',
+          initialTemplateKind: 'inventario',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    state.debugSelectCell(0, 1);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-inline-action-0')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('flowbot-inline-input-set-active-cell')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('flowbot-inline-input-set-active-cell')),
+      'OK',
+    );
+    await tester.pump();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugCellText(0, 1), 'OK');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot inline bar changes with selection and template',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<dynamic> pumpSheet({
+      required String sheetId,
+      required String templateKind,
+      required List<List<String>> rows,
+    }) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorScreen(
+            sheetId: sheetId,
+            initialTemplateKind: templateKind,
+            initialHeaders: const <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: rows,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      return state;
+    }
+
+    final campoState = await pumpSheet(
+      sheetId: 'flowbot-inline-campo',
+      templateKind: 'campo',
+      rows: const <List<String>>[
+        <String>['A', '', ''],
+        <String>['', '', ''],
+      ],
+    );
+    campoState.debugSelectCell(0, 1);
+    await tester.pumpAndSettle();
+    expect(
+      List<String>.from(campoState.debugFlowBotInlineActionIds()),
+      isNot(contains('copy-previous-row')),
+    );
+
+    campoState.debugSelectCell(1, 1);
+    await tester.pumpAndSettle();
+    expect(
+      List<String>.from(campoState.debugFlowBotInlineActionIds()),
+      contains('copy-previous-row'),
+    );
+
+    final inventarioState = await pumpSheet(
+      sheetId: 'flowbot-inline-inventario',
+      templateKind: 'inventario',
+      rows: const <List<String>>[
+        <String>['A', '', ''],
+      ],
+    );
+    expect(
+      List<String>.from(inventarioState.debugFlowBotInlineActionIds()),
+      isNot(contains('copy-previous-row')),
+    );
+    expect(
+      List<String>.from(inventarioState.debugFlowBotInlineActionIds()),
+      contains('set-active-cell'),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FlowBot applies fill blanks and copy previous row commands',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -469,6 +626,177 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('FlowBot prefers template context for recents across sheets',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<void> pumpSheet(String sheetId) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorScreen(
+            sheetId: sheetId,
+            initialTemplateKind: 'campo',
+            initialHeaders: const <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: const <List<String>>[
+              <String>['', '', ''],
+              <String>['', '', ''],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      final fab = tester.widget<FloatingActionButton>(
+        find.byKey(const ValueKey('mobile-fab-main')),
+      );
+      fab.onPressed?.call();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+      await tester.pumpAndSettle();
+    }
+
+    await pumpSheet('flowbot-template-a');
+    await tester.enterText(
+      find.byKey(const ValueKey('flowbot-command-input')),
+      'poner OK en B2',
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pumpAndSettle();
+
+    await pumpSheet('flowbot-template-b');
+    expect(find.text('Recientes'), findsOneWidget);
+    expect(find.text('poner OK en B2'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('flowbot-history-chip-0')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot shows template suggested favorites by rubro',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<void> pumpSheet({
+      required String sheetId,
+      required String templateKind,
+    }) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorScreen(
+            sheetId: sheetId,
+            initialTemplateKind: templateKind,
+            initialHeaders: const <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: const <List<String>>[
+              <String>['', '', ''],
+              <String>['', '', ''],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      final fab = tester.widget<FloatingActionButton>(
+        find.byKey(const ValueKey('mobile-fab-main')),
+      );
+      fab.onPressed?.call();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+      await tester.pumpAndSettle();
+    }
+
+    await pumpSheet(sheetId: 'flowbot-template-campo', templateKind: 'campo');
+    expect(find.text('Favoritos recomendados'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('flowbot-template-favorite-chip-0')),
+        matching: find.textContaining('Duplicar fila'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('flowbot-template-favorite-chip-1')),
+        matching: find.text('Completar vacios'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('flowbot-template-favorite-chip-2')),
+        matching: find.textContaining('Copiar fila anterior'),
+      ),
+      findsOneWidget,
+    );
+
+    await pumpSheet(
+      sheetId: 'flowbot-template-inventario',
+      templateKind: 'inventario',
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('flowbot-template-favorite-chip-0')),
+        matching: find.textContaining('Poner valor en'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Copiar fila anterior'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('flowbot-template-favorite-chip-2')),
+        matching: find.text('Agregar columna'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FlowBot favorites persist across reopen and execute fast',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -543,6 +871,212 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'FlowBot hides duplicate template suggestion when user already favorited it',
+      (tester) async {
+    final favoritesRaw = FlowBotQuickStore.encodeFavoritesByContext(
+      <String, List<FlowBotFavoriteShortcut>>{
+        'template:campo': <FlowBotFavoriteShortcut>[
+          const FlowBotFavoriteShortcut(
+            kind: 'quick_action',
+            label: 'Duplicar fila actual',
+            quickActionId: 'duplicate-row',
+          ),
+        ],
+      },
+    );
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow.editor.flowbot.favorites_by_context.v1': favoritesRaw,
+    });
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-template-user-favorite',
+          initialTemplateKind: 'campo',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Favoritos'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsOneWidget);
+    expect(find.text('Favoritos recomendados'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-2')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot favorites stay isolated between different templates',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Future<void> pumpSheet({
+      required String sheetId,
+      required String templateKind,
+    }) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorScreen(
+            sheetId: sheetId,
+            initialTemplateKind: templateKind,
+            initialHeaders: const <String>['Campo 1', 'Estado', 'Fotos'],
+            initialRows: const <List<String>>[
+              <String>['', '', ''],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final state = tester.state(find.byType(EditorScreen)) as dynamic;
+      await state.debugSetFieldMode(true);
+      await tester.pumpAndSettle();
+      final fab = tester.widget<FloatingActionButton>(
+        find.byKey(const ValueKey('mobile-fab-main')),
+      );
+      fab.onPressed?.call();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+      await tester.pumpAndSettle();
+    }
+
+    await pumpSheet(sheetId: 'flowbot-fav-campo-a', templateKind: 'campo');
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('flowbot-template-favorite-toggle-0')),
+    );
+    await tester
+        .tap(find.byKey(const ValueKey('flowbot-template-favorite-toggle-0')));
+    await tester.pumpAndSettle();
+
+    await pumpSheet(sheetId: 'flowbot-fav-campo-b', templateKind: 'campo');
+    expect(
+        find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsOneWidget);
+
+    await pumpSheet(
+      sheetId: 'flowbot-fav-inventario-a',
+      templateKind: 'inventario',
+    );
+    expect(find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'FlowBot migrates sheet-scoped persisted data into template context safely',
+      (tester) async {
+    final oldRecents = FlowBotQuickStore.encodeRecentByContext(
+      <String, List<String>>{
+        'sheet:flowbot-migrate-sheet': <String>['poner OK en B2'],
+      },
+    );
+    final oldFavorites = FlowBotQuickStore.encodeFavoritesByContext(
+      <String, List<FlowBotFavoriteShortcut>>{
+        'sheet:flowbot-migrate-sheet': <FlowBotFavoriteShortcut>[
+          const FlowBotFavoriteShortcut(
+            kind: 'quick_action',
+            label: 'Duplicar fila actual',
+            quickActionId: 'duplicate-row',
+          ),
+        ],
+      },
+    );
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow.editor.flowbot.recent_by_context.v2': oldRecents,
+      'bitflow.editor.flowbot.favorites_by_context.v1': oldFavorites,
+    });
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-migrate-sheet',
+          initialTemplateKind: 'campo',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('poner OK en B2'), findsWidgets);
+    expect(
+        find.byKey(const ValueKey('flowbot-favorite-chip-0')), findsOneWidget);
+
+    final prefs = await SharedPreferences.getInstance();
+    final migratedRecentsRaw =
+        prefs.getString('bitflow.editor.flowbot.recent_by_context.v2') ?? '';
+    final migratedFavoritesRaw =
+        prefs.getString('bitflow.editor.flowbot.favorites_by_context.v1') ?? '';
+    final migratedRecents = FlowBotQuickStore.decodeRecentByContext(
+      migratedRecentsRaw,
+    );
+    final migratedFavorites = FlowBotQuickStore.decodeFavoritesByContext(
+      migratedFavoritesRaw,
+    );
+
+    expect(
+      migratedRecents['template:campo'],
+      contains('poner OK en B2'),
+    );
+    expect(
+      migratedFavorites['template:campo']?.single.quickActionId,
+      'duplicate-row',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FlowBot invalid favorite warns clearly and keeps apply disabled',
       (tester) async {
     final favoritesRaw = FlowBotQuickStore.encodeFavoritesByContext(
@@ -596,6 +1130,58 @@ void main() {
         .ensureVisible(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
     await tester.tap(find.byKey(const ValueKey('flowbot-favorite-chip-0')));
     await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
+    expect(find.textContaining('no aplica'), findsWidgets);
+    final applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'FlowBot invalid template suggestion warns clearly and keeps apply disabled',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-invalid-template-suggestion',
+          initialTemplateKind: 'campo',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['A', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('flowbot-template-favorite-chip-1')),
+    );
+    await tester
+        .tap(find.byKey(const ValueKey('flowbot-template-favorite-chip-1')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
