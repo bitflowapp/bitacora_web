@@ -31,7 +31,7 @@ void main() {
     state.debugOpenRowFormForTest(rowIndex: 0);
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Formulario - fila 1'), findsOneWidget);
+    expect(find.textContaining('Editar fila 1'), findsOneWidget);
     expect(find.byKey(const ValueKey('row-form-quality')), findsOneWidget);
     expect(find.textContaining('Obligatorio'), findsWidgets);
 
@@ -55,6 +55,6 @@ void main() {
       find.byKey(const ValueKey('row-form-save')),
     );
     expect(saveButton.onPressed, isNotNull);
-    expect(find.text('Formulario listo para guardar.'), findsOneWidget);
+    expect(find.text('Fila lista para guardar.'), findsOneWidget);
   });
 }

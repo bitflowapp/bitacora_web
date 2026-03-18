@@ -179,9 +179,9 @@ class _AttachmentTile extends StatelessWidget {
                       Semantics(
                         button: true,
                         enabled: true,
-                        label: 'Ver adjunto',
+                        label: 'Abrir adjunto',
                         child: Tooltip(
-                          message: 'Ver',
+                          message: 'Abrir',
                           child: _MiniActionButton(
                             buttonKey: previewKey,
                             icon: Icons.visibility_outlined,

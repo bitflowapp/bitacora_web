@@ -15,7 +15,7 @@ class AppStrings {
   static const quickActions = 'Acciones r\u00e1pidas';
   static const more = 'M\u00e1s...';
   static const moreActions = 'M\u00e1s acciones';
-  static const quickActionApplyValue = 'Pegar valor';
+  static const quickActionApplyValue = 'Aplicar valor';
   static const quickActionFillDown = 'Rellenar';
   static const quickActionDuplicateRow = 'Duplicar fila';
   static const quickActionAttachPhoto = 'Adjuntar foto';

@@ -13183,17 +13183,17 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
-                                        'mobile-fab-action-flowbot'),
-                                    icon: Icons.auto_awesome_rounded,
-                                    label: 'FlowBot',
-                                    onTap: () => unawaited(_openFlowBotSheet()),
-                                  ),
-                                  _MobileFabAction(
-                                    key: const ValueKey(
                                         'mobile-fab-action-export'),
                                     icon: Icons.ios_share_rounded,
                                     label: 'Exportar',
                                     onTap: () => unawaited(_openExportMenu()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
+                                        'mobile-fab-action-flowbot'),
+                                    icon: Icons.auto_awesome_rounded,
+                                    label: 'FlowBot',
+                                    onTap: () => unawaited(_openFlowBotSheet()),
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
@@ -14280,22 +14280,22 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.calculate_outlined,
-        label: 'Calc',
+        label: 'Calcular',
         onTap: () => _applyCalcToCell(r, c),
       ),
       _MobileAction(
         icon: Icons.photo_camera_outlined,
-        label: 'Foto',
+        label: 'Adjuntar foto',
         onTap: () => _startPhotoFlowForCell(r, c),
       ),
       _MobileAction(
         icon: Icons.videocam_outlined,
-        label: 'Video',
+        label: 'Adjuntar video',
         onTap: () => unawaited(_attachVideoForCell(r, c)),
       ),
       _MobileAction(
         icon: Icons.attach_file_rounded,
-        label: 'Archivo',
+        label: 'Adjuntar archivo',
         onTap: () => unawaited(_attachDocumentForCell(r, c)),
       ),
       _MobileAction(
@@ -14313,7 +14313,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.my_location_outlined,
-        label: 'GPS -> Pegar',
+        label: 'Adjuntar GPS',
         onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
       ),
       _MobileAction(
@@ -14452,7 +14452,7 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               ListTile(
                 leading: const Icon(Icons.check_rounded),
-                title: const Text('Listo'),
+                title: const Text('Guardar y cerrar'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _commitMobileEdit();
@@ -14495,15 +14495,16 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Fotos de esta celda'),
+                  title: const Text('Adjuntar foto en esta celda'),
                   onTap: () {
-                    _startCellPhotoPickFromSheet(row, _mobileCol);
+                    Navigator.pop(ctx);
+                    unawaited(_startCellPhotoPickFromSheet(row, _mobileCol));
                   },
                 ),
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('Adjuntar video'),
+                  title: const Text('Adjuntar video en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachVideoForCell(row, _mobileCol));
@@ -14512,7 +14513,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.attach_file_rounded),
-                  title: const Text('Adjuntar archivo'),
+                  title: const Text('Adjuntar archivo en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachDocumentForCell(row, _mobileCol));
@@ -14527,7 +14528,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   title: Text(
                     _audioRecording
-                        ? 'Detener grabacion'
+                        ? 'Detener audio'
                         : 'Grabar audio en esta celda',
                   ),
                   onTap: () {
@@ -14542,7 +14543,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0 && _cellHasAudios(row, _mobileCol))
                 ListTile(
                   leading: const Icon(Icons.graphic_eq_rounded),
-                  title: const Text('Audios de esta celda'),
+                  title: const Text('Ver audios de esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     _openAudiosSheetForCell(row, _mobileCol);
@@ -14551,18 +14552,18 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('GPS -> Pegar en esta celda'),
+                  title: const Text('Adjuntar GPS en esta celda'),
                   onTap: () {
+                    Navigator.pop(ctx);
                     unawaited(
                       _requestGpsForCell(row, _mobileCol, forceWriteText: true),
                     );
-                    Navigator.pop(ctx);
                   },
                 ),
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.tune_rounded),
-                  title: const Text('Modo GPS...'),
+                  title: const Text('Ajuste de GPS'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_showGpsModePicker());
@@ -17650,7 +17651,7 @@ class _EditorScreenState extends State<EditorScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            'Formulario - fila ${targetRow + 1}',
+                            'Editar fila ${targetRow + 1}',
                             style: TextStyle(
                               color: pal.fg,
                               fontWeight: FontWeight.w900,
@@ -17685,7 +17686,7 @@ class _EditorScreenState extends State<EditorScreen>
                           onPressed: saving ? null : runGps,
                         ),
                         AppButton(
-                          label: 'Timestamp',
+                          label: 'Fecha y hora',
                           icon: Icons.schedule_rounded,
                           size: AppButtonSize.sm,
                           variant: AppButtonVariant.ghost,
@@ -17722,7 +17723,7 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                       child: Text(
                         formIssues.isEmpty
-                            ? 'Formulario listo para guardar.'
+                            ? 'Fila lista para guardar.'
                             : pendingRequired > 0
                                 ? '$pendingRequired campo(s) obligatorio(s) pendiente(s) y ${formIssues.length} validacion(es) por corregir.'
                                 : '${formIssues.length} validacion(es) por corregir antes de guardar.',

@@ -211,8 +211,8 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               compact
-                  ? '30s: usa el rayo, pega con vista previa y exporta.'
-                  : 'En menos de 30 segundos podes abrir acciones, pegar datos y cerrar una salida.',
+                  ? '30s: abre el rayo, usa Foto + registro y exporta.'
+                  : 'En menos de 30 segundos podes abrir acciones, cargar una fila con evidencia y cerrar una salida.',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontSize: 12.2,
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Rayo | Pegar tabla | Deshacer | Exportar',
+                  'Rayo | Foto + registro | Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -252,17 +252,17 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
               ),
               SizedBox(height: 6),
               _TourStepItem(
-                icon: Icons.table_chart_rounded,
-                title: '2) Pegar tabla + Deshacer',
+                icon: Icons.add_a_photo_outlined,
+                title: '2) Foto + registro',
                 body:
-                    'Pega TSV/CSV, revisa la vista previa y deshace si hace falta.',
+                    'Crea una fila nueva, adjunta evidencia y completa el estado sin salir del flujo.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.ios_share_rounded,
                 title: '3) Exportar',
                 body:
-                    'Cuando cierres la carga, exporta en XLSX, PDF o ZIP segun el cierre que necesites.',
+                    'Cuando cierres la carga, exporta o comparte ZIP, Excel o PDF segun el cierre que necesites.',
               ),
             ],
             const SizedBox(height: 8),
@@ -751,16 +751,6 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         onTap: widget.onApplyValue,
       ),
       _QuickActionItem(
-        label: AppStrings.quickActionFillDown,
-        icon: Icons.vertical_align_bottom_rounded,
-        onTap: widget.onFillDown,
-      ),
-      _QuickActionItem(
-        label: AppStrings.quickActionDuplicateRow,
-        icon: Icons.copy_all_outlined,
-        onTap: widget.onDuplicateRows,
-      ),
-      _QuickActionItem(
         label: AppStrings.quickActionAttachPhoto,
         icon: Icons.photo_camera_outlined,
         onTap: widget.onAttachPhoto,
@@ -769,6 +759,16 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         label: AppStrings.quickActionAttachGps,
         icon: Icons.my_location_rounded,
         onTap: widget.onAttachGps,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionFillDown,
+        icon: Icons.vertical_align_bottom_rounded,
+        onTap: widget.onFillDown,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionDuplicateRow,
+        icon: Icons.copy_all_outlined,
+        onTap: widget.onDuplicateRows,
       ),
       _QuickActionItem(
         label: AppStrings.quickActionGoTo,
@@ -889,7 +889,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   }
 
   String _compactLabelFor(String label) {
-    if (label == AppStrings.quickActionApplyValue) return 'Pegar';
+    if (label == AppStrings.quickActionApplyValue) return 'Valor';
     if (label == AppStrings.quickActionFillDown) return 'Rellenar';
     if (label == AppStrings.quickActionDuplicateRow) return 'Duplicar';
     if (label == AppStrings.quickActionAttachPhoto) return 'Foto';

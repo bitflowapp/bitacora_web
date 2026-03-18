@@ -70,5 +70,13 @@ void main() {
       find.byKey(const ValueKey('mobile-fab-action-smart-paste')),
       findsNothing,
     );
+
+    final exportTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mobile-fab-action-export')),
+    );
+    final flowBotTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mobile-fab-action-flowbot')),
+    );
+    expect(exportTop.dy, lessThan(flowBotTop.dy));
   });
 }

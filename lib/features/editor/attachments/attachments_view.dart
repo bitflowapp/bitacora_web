@@ -18,6 +18,7 @@ class _AttachmentsSheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final countLabel = count == 1 ? '1 foto' : '$count fotos';
     return Row(
       children: [
         Expanded(
@@ -33,7 +34,7 @@ class _AttachmentsSheetHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '$count item(s)',
+          countLabel,
           style: TextStyle(
             color: palette.fgMuted,
             fontWeight: FontWeight.w700,
@@ -42,7 +43,7 @@ class _AttachmentsSheetHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         AppButton(
-          label: 'Agregar',
+          label: 'Adjuntar foto',
           icon: Icons.add_photo_alternate_outlined,
           variant: AppButtonVariant.secondary,
           size: AppButtonSize.sm,

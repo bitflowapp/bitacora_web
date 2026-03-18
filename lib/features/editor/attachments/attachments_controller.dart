@@ -2055,7 +2055,7 @@ extension _EditorAttachments on _EditorScreenState {
                       if (canOpenViewer)
                         AppButton(
                           key: const ValueKey('attachment-panel-view-button'),
-                          label: 'Ver',
+                          label: 'Abrir evidencia',
                           icon: Icons.visibility_outlined,
                           variant: AppButtonVariant.secondary,
                           size: AppButtonSize.sm,
@@ -2071,7 +2071,7 @@ extension _EditorAttachments on _EditorScreenState {
                           },
                         ),
                       AppButton(
-                        label: 'Reemplazar',
+                        label: 'Reemplazar foto',
                         icon: Icons.autorenew_rounded,
                         variant: AppButtonVariant.secondary,
                         size: AppButtonSize.sm,
@@ -2081,7 +2081,7 @@ extension _EditorAttachments on _EditorScreenState {
                         },
                       ),
                       AppButton(
-                        label: 'Eliminar',
+                        label: 'Eliminar evidencia',
                         icon: Icons.delete_outline_rounded,
                         variant: AppButtonVariant.ghost,
                         size: AppButtonSize.sm,
@@ -3743,40 +3743,49 @@ extension _EditorAttachments on _EditorScreenState {
 
           final primaryActions = <Widget>[
             actionButton(
-              label: '+ Registro',
-              icon: Icons.add_box_outlined,
+              label: 'Foto + registro',
+              icon: Icons.add_a_photo_outlined,
               variant: AppButtonVariant.primary,
               onPressed: () =>
                   closeThen(() => unawaited(_startQuickCaptureFlow())),
             ),
             actionButton(
-              label: 'Formulario',
+              label: 'Editar fila',
               icon: Icons.description_outlined,
-              onPressed: () => closeThen(
-                () => unawaited(
-                  _openRowFormMode(
-                    rowIndex: _selRow,
-                    createNew: false,
-                  ),
-                ),
-              ),
+              onPressed: _selRow >= 0
+                  ? () => closeThen(
+                        () => unawaited(
+                          _openRowFormMode(
+                            rowIndex: _selRow,
+                            createNew: false,
+                          ),
+                        ),
+                      )
+                  : null,
+            ),
+            actionButton(
+              label: 'Exportar / compartir',
+              icon: Icons.ios_share_rounded,
+              onPressed: () => closeThen(() => unawaited(_openExportMenu())),
             ),
             actionButton(
               label: 'Guardar',
               icon: Icons.check_circle_outline_rounded,
               onPressed: () => closeThen(() => unawaited(_saveLocalNow())),
             ),
+          ];
+
+          final advancedActions = <Widget>[
             actionButton(
-              label: 'Exportar o compartir',
-              icon: Icons.ios_share_rounded,
-              onPressed: () => closeThen(() => unawaited(_openExportMenu())),
-            ),
-            actionButton(
-              label: 'Adjuntos de celda',
+              label: 'Evidencia de la celda',
               icon: Icons.attach_file_rounded,
-              onPressed: () => closeThen(
-                () => unawaited(_openAttachmentPanelForCell(_selRow, _selCol)),
-              ),
+              onPressed: (_selRow >= 0 && _selCol >= 0)
+                  ? () => closeThen(
+                        () => unawaited(
+                          _openAttachmentPanelForCell(_selRow, _selCol),
+                        ),
+                      )
+                  : null,
             ),
             actionButton(
               label: 'Acciones por lote',
@@ -3800,14 +3809,11 @@ extension _EditorAttachments on _EditorScreenState {
               onPressed: () => closeThen(_togglePendingReviewView),
             ),
             actionButton(
-              label: 'Pendientes de envio',
+              label: 'Cola de envio',
               icon: Icons.sync_alt_rounded,
               onPressed: () =>
                   closeThen(() => unawaited(_openOfflineQueueDialog())),
             ),
-          ];
-
-          final advancedActions = <Widget>[
             actionButton(
               label: 'Agregar fila',
               icon: Icons.add_rounded,
@@ -3935,7 +3941,7 @@ extension _EditorAttachments on _EditorScreenState {
               ...withSpacing(primaryActions),
               const SizedBox(height: 10),
               AppButton(
-                label: showAdvanced ? 'Ocultar avanzado' : 'Ver mas',
+                label: showAdvanced ? 'Ocultar avanzado' : 'Opciones avanzadas',
                 icon: showAdvanced
                     ? Icons.expand_less_rounded
                     : Icons.expand_more_rounded,
