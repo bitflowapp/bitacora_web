@@ -4,29 +4,22 @@ class _ExportFlowResultBanner extends StatelessWidget {
   const _ExportFlowResultBanner({
     required this.palette,
     required this.result,
-    required this.title,
-    required this.formatLabel,
-    required this.icon,
-    required this.actionLabelBuilder,
     required this.onAction,
     required this.onDismiss,
     this.busy = false,
   });
 
   final _SheetPalette palette;
-  final _ExportFlowResult result;
-  final String title;
-  final String formatLabel;
-  final IconData icon;
-  final String Function(_ExportFlowResultAction action) actionLabelBuilder;
-  final ValueChanged<_ExportFlowResultAction> onAction;
+  final EditorExportCloseoutState result;
+  final ValueChanged<EditorExportResultAction> onAction;
   final VoidCallback onDismiss;
   final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isError = result.isError;
+    final banner = result.banner;
+    final isError = banner.isError;
     final bg = isError
         ? scheme.errorContainer.withValues(alpha: palette.isLight ? 0.74 : 0.3)
         : palette.menuBg.withValues(alpha: palette.isLight ? 0.96 : 0.82);
@@ -36,7 +29,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
     final accent = isError ? scheme.error : palette.fg;
     final labelColor = isError ? scheme.onErrorContainer : palette.fgMuted;
     final detailColor = isError ? scheme.onErrorContainer : palette.fg;
-    final location = (result.savedPath ?? '').trim();
+    final location = (banner.savedPath ?? '').trim();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -61,7 +54,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
                         accent.withValues(alpha: palette.isLight ? 0.1 : 0.18),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, size: 18, color: accent),
+                  child: Icon(banner.icon, size: 18, color: accent),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -74,7 +67,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
-                            title,
+                            banner.title,
                             style: TextStyle(
                               color: detailColor,
                               fontSize: 13.5,
@@ -93,7 +86,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              formatLabel,
+                              banner.formatLabel,
                               style: TextStyle(
                                 color: accent,
                                 fontSize: 11.2,
@@ -105,9 +98,9 @@ class _ExportFlowResultBanner extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Tooltip(
-                        message: result.fileName,
+                        message: banner.fileName,
                         child: Text(
-                          result.fileName,
+                          banner.fileName,
                           key: const ValueKey('export-flow-result-file'),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -136,7 +129,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              result.message,
+              banner.message,
               key: const ValueKey('export-flow-result-message'),
               style: TextStyle(
                 color: labelColor,
@@ -163,18 +156,18 @@ class _ExportFlowResultBanner extends StatelessWidget {
                 ),
               ),
             ],
-            if (result.actions.isNotEmpty) ...[
+            if (banner.actions.isNotEmpty) ...[
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final action in result.actions)
+                  for (final action in banner.actions)
                     TextButton(
                       key: ValueKey(
-                        'export-flow-result-action-${action.name}',
+                        'export-flow-result-action-${action.action.name}',
                       ),
-                      onPressed: busy ? null : () => onAction(action),
+                      onPressed: busy ? null : () => onAction(action.action),
                       style: TextButton.styleFrom(
                         minimumSize: const Size(0, 34),
                         padding: const EdgeInsets.symmetric(
@@ -190,7 +183,7 @@ class _ExportFlowResultBanner extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        actionLabelBuilder(action),
+                        action.label,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
