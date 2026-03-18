@@ -42,6 +42,30 @@ void main() {
     );
   });
 
+  test('recent commands drop conversational noise and failed chatter', () {
+    final encoded = FlowBotQuickStore.encodeRecentByContext(
+      <String, List<String>>{
+        'sheet:a': <String>[
+          'hola hola',
+          'poner OK en B2',
+          'gracias',
+          'duplicar fila 3',
+        ],
+      },
+      limit: 6,
+    );
+
+    final decoded = FlowBotQuickStore.decodeRecentByContext(encoded, limit: 6);
+    expect(decoded['sheet:a'], <String>['poner OK en B2', 'duplicar fila 3']);
+
+    final remembered = FlowBotQuickStore.rememberRecent(
+      <String>['poner OK en B2'],
+      'hola hola',
+      limit: 6,
+    );
+    expect(remembered, <String>['poner OK en B2']);
+  });
+
   test('favorites persist by context and toggle cleanly', () {
     final entry = FlowBotFavoriteShortcut(
       kind: 'quick_action',

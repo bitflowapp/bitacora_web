@@ -12,24 +12,142 @@ const List<String> kFlowBotHelpExamples = <String>[
   'agregar columna Observaciones',
 ];
 
+const List<String> _kFlowBotActionHints = <String>[
+  'poner',
+  'escribir',
+  'reemplazar',
+  'rellenar',
+  'completar',
+  'borrar',
+  'limpiar',
+  'duplicar',
+  'eliminar',
+  'agregar',
+  'renombrar',
+  'copiar',
+  'exportar',
+  'adjuntar',
+  'pegar',
+  'autonumerar',
+  'fecha',
+  'hoy',
+  'fila',
+  'columna',
+  'celda',
+  'seleccion',
+  'xlsx',
+  'pdf',
+  'gps',
+  'foto',
+];
+
+const List<String> _kFlowBotNoiseHints = <String>[
+  'hola',
+  'buenas',
+  'buen dia',
+  'buenos dias',
+  'gracias',
+  'como estas',
+  'que tal',
+  'todo bien',
+  'probando',
+  'prueba microfono',
+  'hola hola',
+  'jaja',
+  'jeje',
+];
+
 void flowBotDebugLog(String message) {
   if (!kDebugMode) return;
   debugPrint('[FlowBot] $message');
 }
 
-String flowBotNoActionsMessage({String? reason}) {
+String flowBotNoActionsMessage({
+  String? reason,
+  List<String>? examples,
+}) {
   final normalizedReason = (reason ?? '').trim();
   final prefix = normalizedReason.isEmpty
-      ? 'Sin acciones detectadas.'
+      ? 'No hay cambios listos.'
       : _flowBotEnsureTrailingPunctuation(normalizedReason);
-  final examples =
-      kFlowBotHelpExamples.map((example) => '"$example"').join(', ');
-  return '$prefix Prueba con: $examples.';
+  final preferredExamples = flowBotPreferredExamples(examples: examples);
+  if (preferredExamples.isEmpty) return prefix;
+  final renderedExamples =
+      preferredExamples.map((example) => '"$example"').join(', ');
+  return '$prefix Prueba con: $renderedExamples.';
+}
+
+List<String> flowBotPreferredExamples({
+  List<String>? examples,
+  int limit = 3,
+}) {
+  final source = <String>[
+    ...(examples ?? const <String>[]),
+    ...kFlowBotHelpExamples,
+  ];
+  final cleaned = <String>[];
+  for (final item in source) {
+    final text = item.trim();
+    if (text.isEmpty) continue;
+    if (cleaned
+        .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
+      continue;
+    }
+    cleaned.add(text);
+    if (cleaned.length >= limit) break;
+  }
+  return cleaned;
+}
+
+String flowBotNoActionsReason(String? warning) {
+  final trimmed = (warning ?? '').trim();
+  if (trimmed.isEmpty) return '';
+  final splitIndex = trimmed.toLowerCase().indexOf('prueba con:');
+  if (splitIndex < 0) return trimmed;
+  return trimmed.substring(0, splitIndex).trim();
+}
+
+bool flowBotLooksActionableInput(String raw) {
+  final normalized = raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.isEmpty) return false;
+  if (RegExp(r'\b[a-z]{1,3}\d+\b', caseSensitive: false).hasMatch(normalized)) {
+    return true;
+  }
+  if (RegExp(r'\bfila\s+\d+\b').hasMatch(normalized) ||
+      RegExp(r'\bcolumna\s+[a-z0-9 ]+\b').hasMatch(normalized)) {
+    return true;
+  }
+  for (final hint in _kFlowBotActionHints) {
+    if (normalized.contains(hint)) return true;
+  }
+  return false;
+}
+
+bool flowBotLooksConversationalNoise(String raw) {
+  final normalized = raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.isEmpty) return false;
+  if (flowBotLooksActionableInput(normalized)) return false;
+  for (final hint in _kFlowBotNoiseHints) {
+    if (normalized.contains(hint)) return true;
+  }
+  final words = normalized
+      .split(' ')
+      .map((word) => word.trim())
+      .where((word) => word.isNotEmpty)
+      .toList(growable: false);
+  if (words.length <= 3) return true;
+  if (words.length <= 6 &&
+      !RegExp(r'\d').hasMatch(normalized) &&
+      !normalized.contains('columna') &&
+      !normalized.contains('fila')) {
+    return true;
+  }
+  return false;
 }
 
 String _flowBotEnsureTrailingPunctuation(String text) {
   final trimmed = text.trim();
-  if (trimmed.isEmpty) return 'Sin acciones detectadas.';
+  if (trimmed.isEmpty) return 'No hay cambios listos.';
   if (trimmed.endsWith('.') ||
       trimmed.endsWith('!') ||
       trimmed.endsWith('?') ||
@@ -446,7 +564,17 @@ class RuleBasedFlowBot {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'rule_based',
-        warning: 'Comando vacío.',
+        warning: 'No hay cambios listos.',
+      );
+    }
+
+    if (flowBotLooksConversationalNoise(input)) {
+      return FlowBotParseResult(
+        actions: const <FlowBotAction>[],
+        engine: 'rule_based',
+        warning: flowBotNoActionsMessage(
+          reason: 'No parece una accion de planilla.',
+        ),
       );
     }
 
@@ -1513,7 +1641,7 @@ class FlowBotLocalLlmEngine {
       return const FlowBotParseResult(
         actions: <FlowBotAction>[],
         engine: 'local_llm',
-        warning: 'Comando vacío.',
+        warning: 'No hay cambios listos.',
       );
     }
 

@@ -697,6 +697,10 @@ class _EditorScreenState extends State<EditorScreen>
   double _flowBotModelDownloadProgress = 0;
   static const int _maxFlowBotHistoryItems = 6;
   static const int _maxFlowBotFavoriteItems = 6;
+  static const bool _flowBotShowDebugTools = bool.fromEnvironment(
+    'BITFLOW_SHOW_FLOWBOT_DEBUG_TOOLS',
+    defaultValue: false,
+  );
   final List<String> _flowBotHistory = <String>[];
   final List<FlowBotFavoriteShortcut> _flowBotFavorites =
       <FlowBotFavoriteShortcut>[];
@@ -6221,14 +6225,16 @@ class _EditorScreenState extends State<EditorScreen>
     final normalizedWarning = (parseWarning ?? '').trim();
     if (parsing) return 'Analizando comando...';
     if (preview.isNotEmpty) return '';
-    if (normalizedWarning.isNotEmpty) return normalizedWarning;
+    if (normalizedWarning.isNotEmpty) {
+      return flowBotNoActionsReason(normalizedWarning);
+    }
     if (!hasTranscript) {
-      return 'Escribe un cambio puntual antes de aplicar.';
+      return 'Elegi una accion rapida o escribe una instruccion valida.';
     }
     if (useLocalLlm && !localModelReady) {
-      return 'Descarga el modelo local o vuelve al motor offline.';
+      return 'Elegi una accion rapida o escribe una instruccion valida.';
     }
-    return flowBotNoActionsMessage();
+    return 'Elegi una accion rapida o escribe una instruccion valida.';
   }
 
   String _flowBotStatusText({
@@ -6236,7 +6242,7 @@ class _EditorScreenState extends State<EditorScreen>
     required bool parsing,
   }) {
     if (parsing) return 'Analizando...';
-    if (preview.isEmpty) return 'Sin acciones detectadas';
+    if (preview.isEmpty) return 'No hay cambios listos';
     if (preview.length == 1) return '1 cambio listo';
     return '${preview.length} cambios listos';
   }
@@ -6708,7 +6714,16 @@ class _EditorScreenState extends State<EditorScreen>
                   preview = result.actions;
                   previewSourceText = text;
                   parsing = false;
-                  warning = result.warning ?? '';
+                  warning = result.actions.isEmpty
+                      ? flowBotNoActionsMessage(
+                          reason: flowBotNoActionsReason(result.warning),
+                          examples: flowBotPreferredExamples(
+                            examples: _flowBotContextExamples(
+                              _flowBotQuickContext(),
+                            ),
+                          ),
+                        )
+                      : result.warning ?? '';
                   activeEngine = result.engine;
                 });
                 if (result.actions.isNotEmpty) {
@@ -6875,6 +6890,9 @@ class _EditorScreenState extends State<EditorScreen>
               math.min(media.size.width - 72, compactSheet ? 216.0 : 300.0),
             );
             final flowBotContext = _flowBotQuickContext();
+            final contextHelpExamples = flowBotPreferredExamples(
+              examples: _flowBotContextExamples(flowBotContext),
+            );
             final suggestedQuickActions =
                 _flowBotSuggestedQuickActions(flowBotContext);
             final userFavoriteIdentityKeys = _flowBotFavorites
@@ -7518,7 +7536,140 @@ class _EditorScreenState extends State<EditorScreen>
               );
             }
 
+            Widget buildNoActionsHelp() {
+              if (scopedPreview.isNotEmpty || parsing) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                key: const ValueKey('flowbot-empty-help'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: pal.mobileInputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: pal.border,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Elegi una accion rapida o escribe una instruccion valida.',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (int index = 0;
+                            index < contextHelpExamples.length;
+                            index++)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: historyChipMaxWidth,
+                            ),
+                            child: buildFavoritableChip(
+                              pressKey:
+                                  ValueKey('flowbot-empty-help-chip-$index'),
+                              label: contextHelpExamples[index],
+                              icon: Icons.bolt_rounded,
+                              onRun: () => runSavedCommand(
+                                contextHelpExamples[index],
+                              ),
+                              isFavorite: false,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildInputFallbackSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Instruccion libre (opcional)',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Usala solo si no ves un atajo arriba.',
+                    style: TextStyle(
+                      color: pal.fgMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const ValueKey('flowbot-command-input'),
+                    controller: transcriptEC,
+                    minLines: 1,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      final trimmed = value.trim();
+                      if (trimmed == previewSourceText) {
+                        return;
+                      }
+                      setModalState(() {
+                        preview = <FlowBotAction>[];
+                        previewSourceText = '';
+                        warning = '';
+                      });
+                    },
+                    onSubmitted: (_) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      if (canApply) {
+                        unawaited(confirmApply());
+                      } else {
+                        unawaited(parseNow());
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Ej: poner OK en ${flowBotContext.cellToken}',
+                      filled: true,
+                      fillColor: pal.mobileInputBg,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  buildVoiceControls(),
+                ],
+              );
+            }
+
             Widget buildAdvancedPanel() {
+              if (!(kDebugMode && _flowBotShowDebugTools)) {
+                return const SizedBox.shrink();
+              }
+              if (!showAdvancedOptions) {
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: AppleButton(
+                    key: const ValueKey('flowbot-advanced-toggle'),
+                    label: 'Opciones de modelo (debug)',
+                    icon: Icons.science_outlined,
+                    dense: true,
+                    variant: AppleButtonVariant.ghost,
+                    onPressed: () =>
+                        setModalState(() => showAdvancedOptions = true),
+                  ),
+                );
+              }
               return Container(
                 key: const ValueKey('flowbot-advanced-panel'),
                 padding: const EdgeInsets.all(10),
@@ -7540,22 +7691,11 @@ class _EditorScreenState extends State<EditorScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Opciones avanzadas',
+                                'Opciones de modelo (debug)',
                                 style: TextStyle(
                                   color: pal.fg,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                activeEngine == 'local_llm'
-                                    ? 'Motor activo: Local LLM'
-                                    : 'Motor activo: Offline deterministico',
-                                style: TextStyle(
-                                  color: pal.fgMuted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -7564,75 +7704,70 @@ class _EditorScreenState extends State<EditorScreen>
                         const SizedBox(width: 8),
                         AppleButton(
                           key: const ValueKey('flowbot-advanced-toggle'),
-                          label: showAdvancedOptions ? 'Ocultar' : 'Mostrar',
-                          icon: showAdvancedOptions
-                              ? Icons.expand_less_rounded
-                              : Icons.expand_more_rounded,
+                          label: 'Ocultar',
+                          icon: Icons.expand_less_rounded,
                           dense: true,
                           variant: AppleButtonVariant.ghost,
-                          onPressed: () => setModalState(
-                            () => showAdvancedOptions = !showAdvancedOptions,
-                          ),
+                          onPressed: () =>
+                              setModalState(() => showAdvancedOptions = false),
                         ),
                       ],
                     ),
-                    if (showAdvancedOptions) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        activeEngine == 'local_llm'
-                            ? (localModelReady
-                                ? 'Modelo local listo para comandos mas flexibles.'
-                                : 'Descarga el modelo si queres probar el motor local.')
-                            : 'El modo offline es el mas estable para una demo rapida.',
-                        style: TextStyle(
-                          color: pal.fgMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    Text(
+                      activeEngine == 'local_llm'
+                          ? (localModelReady
+                              ? 'Motor activo: Local LLM listo.'
+                              : 'Local LLM activo sin modelo local listo.')
+                          : 'Motor activo: parser offline deterministico.',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppleButton(
+                          label: _flowBotUseLocalLlm
+                              ? 'Usar motor offline'
+                              : 'Usar Local LLM',
+                          icon: Icons.settings_suggest_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: () => unawaited(toggleFlowBotEngine()),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          AppleButton(
-                            label: _flowBotUseLocalLlm
-                                ? 'Usar motor offline'
-                                : 'Usar Local LLM',
-                            icon: Icons.settings_suggest_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.ghost,
-                            onPressed: () => unawaited(toggleFlowBotEngine()),
-                          ),
-                          AppleButton(
-                            label: _flowBotModelDownloading
-                                ? 'Descargando...'
-                                : (localModelReady
-                                    ? 'Actualizar modelo'
-                                    : 'Descargar modelo'),
-                            icon: _flowBotModelDownloading
-                                ? Icons.downloading_rounded
-                                : Icons.download_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.ghost,
-                            onPressed: _flowBotModelDownloading
-                                ? null
-                                : () => unawaited(refreshLocalModelReady()),
-                          ),
-                        ],
-                      ),
-                      if (_flowBotModelDownloading) ...[
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: _flowBotModelDownloadProgress > 0
-                              ? _flowBotModelDownloadProgress
-                              : null,
-                          minHeight: 4,
-                          borderRadius: BorderRadius.circular(999),
-                          backgroundColor: pal.cellText.withValues(alpha: 0.08),
-                          color: pal.accent,
+                        AppleButton(
+                          label: _flowBotModelDownloading
+                              ? 'Descargando...'
+                              : (localModelReady
+                                  ? 'Actualizar modelo'
+                                  : 'Descargar modelo'),
+                          icon: _flowBotModelDownloading
+                              ? Icons.downloading_rounded
+                              : Icons.download_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: _flowBotModelDownloading
+                              ? null
+                              : () => unawaited(refreshLocalModelReady()),
                         ),
                       ],
+                    ),
+                    if (_flowBotModelDownloading) ...[
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: _flowBotModelDownloadProgress > 0
+                            ? _flowBotModelDownloadProgress
+                            : null,
+                        minHeight: 4,
+                        borderRadius: BorderRadius.circular(999),
+                        backgroundColor: pal.cellText.withValues(alpha: 0.08),
+                        color: pal.accent,
+                      ),
                     ],
                   ],
                 ),
@@ -7658,9 +7793,13 @@ class _EditorScreenState extends State<EditorScreen>
                         AppleButton(
                           key: const ValueKey('flowbot-apply'),
                           label: 'Aplicar cambios',
-                          icon: Icons.check_rounded,
+                          icon: canApply
+                              ? Icons.check_rounded
+                              : Icons.block_rounded,
                           dense: true,
-                          variant: AppleButtonVariant.filled,
+                          variant: canApply
+                              ? AppleButtonVariant.filled
+                              : AppleButtonVariant.ghost,
                           onPressed:
                               canApply ? () => unawaited(confirmApply()) : null,
                         ),
@@ -7683,9 +7822,11 @@ class _EditorScreenState extends State<EditorScreen>
                   AppleButton(
                     key: const ValueKey('flowbot-apply'),
                     label: 'Aplicar cambios',
-                    icon: Icons.check_rounded,
+                    icon: canApply ? Icons.check_rounded : Icons.block_rounded,
                     dense: true,
-                    variant: AppleButtonVariant.filled,
+                    variant: canApply
+                        ? AppleButtonVariant.filled
+                        : AppleButtonVariant.ghost,
                     onPressed:
                         canApply ? () => unawaited(confirmApply()) : null,
                   ),
@@ -7754,7 +7895,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Toca una accion sugerida o escribe un cambio puntual. Preview en un tap, aplicar en el segundo.',
+                                      'Empieza por un favorito o una accion sugerida. Si no aparece, usa la instruccion libre.',
                                       style: TextStyle(
                                         color: pal.fgMuted,
                                         fontSize: 11.5,
@@ -7834,43 +7975,6 @@ class _EditorScreenState extends State<EditorScreen>
                                     const SizedBox(height: 10),
                                     buildQuickActionStrip(),
                                     const SizedBox(height: 10),
-                                    TextField(
-                                      key: const ValueKey(
-                                          'flowbot-command-input'),
-                                      controller: transcriptEC,
-                                      minLines: 1,
-                                      maxLines: 3,
-                                      textInputAction: TextInputAction.done,
-                                      onChanged: (value) {
-                                        final trimmed = value.trim();
-                                        if (trimmed == previewSourceText) {
-                                          return;
-                                        }
-                                        setModalState(() {
-                                          preview = <FlowBotAction>[];
-                                          previewSourceText = '';
-                                          warning = '';
-                                        });
-                                      },
-                                      onSubmitted: (_) {
-                                        FocusManager.instance.primaryFocus
-                                            ?.unfocus();
-                                        if (canApply) {
-                                          unawaited(confirmApply());
-                                        } else {
-                                          unawaited(parseNow());
-                                        }
-                                      },
-                                      decoration: InputDecoration(
-                                        hintText:
-                                            'Ej: poner OK en B2; rellenar listo x 3',
-                                        filled: true,
-                                        fillColor: pal.mobileInputBg,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    buildVoiceControls(),
-                                    const SizedBox(height: 10),
                                     buildFavoritesSection(),
                                     const SizedBox(height: 10),
                                     buildTemplateSuggestedFavoritesSection(),
@@ -7885,6 +7989,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       emptyLabel:
                                           'Todavia no usaste acciones recientes.',
                                     ),
+                                    const SizedBox(height: 10),
+                                    buildInputFallbackSection(),
                                     const SizedBox(height: 10),
                                     buildCommandSection(
                                       title: 'Ejemplos reales',
@@ -7924,6 +8030,8 @@ class _EditorScreenState extends State<EditorScreen>
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 8),
+                                    buildNoActionsHelp(),
                                     if (warning.trim().isNotEmpty) ...[
                                       const SizedBox(height: 8),
                                       Text(
@@ -8144,7 +8252,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     const SizedBox(height: 4),
                                     if (scopedPreview.isEmpty)
                                       Text(
-                                        'Sin acciones detectadas.',
+                                        'No hay cambios listos.',
                                         style: TextStyle(
                                           color: pal.fgMuted,
                                           fontSize: 11.5,
@@ -21073,6 +21181,45 @@ class _EditorScreenState extends State<EditorScreen>
     await _loadLocal();
   }
 
+  @visibleForTesting
+  Future<void> debugOpenAttachmentPanelForTest(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    unawaited(_openAttachmentPanelForCell(r, c));
+  }
+
+  @visibleForTesting
+  void debugOpenPhotosSheetForTest(int r, int c) {
+    assert(() {
+      _openPhotosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenAudiosSheetForTest(int r, int c) {
+    assert(() {
+      _openAudiosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<void> debugToggleAudioRecordingForCell(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    if (_audioRecording) {
+      await _stopAudioRecording();
+      return;
+    }
+    await _startAudioRecordingForCell(r, c);
+  }
+
+  @visibleForTesting
+  bool debugIsAudioRecording() => _audioRecording;
+
   GpsMeta _gpsMetaFromFix(_GpsFix fix) {
     final ts = fix.ts.millisecondsSinceEpoch > 0 ? fix.ts : DateTime.now();
     final accuracy =
@@ -21178,45 +21325,6 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _gpsErrorMessage(_GpsOutcome outcome, {String? targetLabel}) {
     final raw = (outcome.error ?? '').trim();
-  @visibleForTesting
-  Future<void> debugOpenAttachmentPanelForTest(int r, int c) async {
-    assert(() {
-      return true;
-    }());
-    unawaited(_openAttachmentPanelForCell(r, c));
-  }
-
-  @visibleForTesting
-  void debugOpenPhotosSheetForTest(int r, int c) {
-    assert(() {
-      _openPhotosSheetForCell(r, c);
-      return true;
-    }());
-  }
-
-  @visibleForTesting
-  void debugOpenAudiosSheetForTest(int r, int c) {
-    assert(() {
-      _openAudiosSheetForCell(r, c);
-      return true;
-    }());
-  }
-
-  @visibleForTesting
-  Future<void> debugToggleAudioRecordingForCell(int r, int c) async {
-    assert(() {
-      return true;
-    }());
-    if (_audioRecording) {
-      await _stopAudioRecording();
-      return;
-    }
-    await _startAudioRecordingForCell(r, c);
-  }
-
-  @visibleForTesting
-  bool debugIsAudioRecording() => _audioRecording;
-
     final lower = raw.toLowerCase();
     final code = (outcome.code ?? '').trim().toLowerCase();
     final prefix = (targetLabel ?? '').trim().isEmpty

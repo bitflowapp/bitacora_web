@@ -1244,7 +1244,6 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('Sin acciones detectadas'), findsWidgets);
     expect(find.byKey(const ValueKey('flowbot-apply')), findsOneWidget);
     expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
     expect(find.textContaining('Prueba con:'), findsWidgets);
@@ -1252,6 +1251,88 @@ void main() {
       find.byKey(const ValueKey('flowbot-apply')),
     );
     expect(applyButton.onPressed, isNull);
+    expect(applyButton.variant, AppleButtonVariant.ghost);
+    expect(find.text('No hay cambios listos'), findsOneWidget);
+    expect(
+      find.text('Elegi una accion rapida o escribe una instruccion valida.'),
+      findsOneWidget,
+    );
+    expect(state.debugCellText(0, 0), '');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'FlowBot irrelevant input shows useful help and hides model tools',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'bitflow.editor.flowbot.recent_by_context.v2':
+          '{"sheet:flowbot-irrelevant-help":["hola hola"]}',
+    });
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-irrelevant-help',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const ValueKey('mobile-fab-main')),
+    );
+    fab.onPressed?.call();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-history-chip-0')), findsNothing);
+    expect(find.text('Usar Local LLM'), findsNothing);
+    expect(find.textContaining('Descargar modelo'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('flowbot-command-input')),
+      'hola hola',
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    final applyButton = tester.widget<AppleButton>(
+      find.byKey(const ValueKey('flowbot-apply')),
+    );
+    expect(applyButton.onPressed, isNull);
+    expect(applyButton.variant, AppleButtonVariant.ghost);
+    expect(find.text('No hay cambios listos'), findsOneWidget);
+    expect(find.byKey(const ValueKey('flowbot-empty-help')), findsOneWidget);
+    expect(
+      find.text('Elegi una accion rapida o escribe una instruccion valida.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('flowbot-empty-help-chip-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('No parece una accion de planilla'),
+      findsWidgets,
+    );
     expect(state.debugCellText(0, 0), '');
     expect(tester.takeException(), isNull);
   });

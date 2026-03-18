@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:bitacora_web/services/flowbot.dart';
+
 class FlowBotFavoriteShortcut {
   const FlowBotFavoriteShortcut({
     required this.kind,
@@ -120,6 +122,7 @@ class FlowBotQuickStore {
     for (final item in raw) {
       final text = item.toString().trim();
       if (text.isEmpty) continue;
+      if (!flowBotLooksActionableInput(text)) continue;
       if (cleaned
           .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
         continue;
@@ -137,6 +140,7 @@ class FlowBotQuickStore {
   }) {
     final text = command.trim();
     if (text.isEmpty) return List<String>.from(current);
+    if (!flowBotLooksActionableInput(text)) return List<String>.from(current);
     final next = <String>[...current];
     next.removeWhere((item) => item.toLowerCase() == text.toLowerCase());
     next.insert(0, text);
