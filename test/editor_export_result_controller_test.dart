@@ -10,6 +10,7 @@ void main() {
     String? feedbackMessage;
     bool? feedbackIsError;
     IconData? feedbackIcon;
+    final auditTrail = <EditorExportCloseoutAuditEvent>[];
 
     final controller = EditorExportResultController(
       mapper: const EditorExportResultMapper(),
@@ -27,6 +28,7 @@ void main() {
       openExternalPath: (_) async => true,
       closeEditor: () async {},
       resolveCapabilities: (_) => const EditorExportResultCapabilities(),
+      onAuditEvent: auditTrail.add,
     );
 
     final outcome = EditorExportOutcomeFactory.shareOpened(
@@ -34,19 +36,23 @@ void main() {
       includeAttachments: true,
     );
 
-    controller.publish(outcome);
+    controller.publishExportOutcome(outcome);
 
     expect(currentState?.outcome.kind, EditorExportOutcomeKind.shareOpened);
     expect(currentState?.banner.title, 'Compartir abierto');
     expect(feedbackMessage, outcome.message);
     expect(feedbackIsError, isFalse);
     expect(feedbackIcon, Icons.ios_share_rounded);
+    expect(auditTrail, hasLength(1));
+    expect(auditTrail.single.kind, EditorExportCloseoutAuditEventKind.publish);
+    expect(auditTrail.single.origin, EditorExportCloseoutOrigin.export);
   });
 
   test('retryShare dismisses current state and dispatches share export',
       () async {
     EditorExportCloseoutState? currentState;
     ({String format, bool includeAttachments, bool share})? retryRequest;
+    final auditTrail = <EditorExportCloseoutAuditEvent>[];
 
     final controller = EditorExportResultController(
       mapper: const EditorExportResultMapper(),
@@ -66,9 +72,10 @@ void main() {
       openExternalPath: (_) async => true,
       closeEditor: () async {},
       resolveCapabilities: (_) => const EditorExportResultCapabilities(),
+      onAuditEvent: auditTrail.add,
     );
 
-    controller.publish(
+    controller.publishExportOutcome(
       EditorExportOutcomeFactory.systemSheetOpened(
         name: 'control_diario.xlsx',
         includeAttachments: true,
@@ -82,6 +89,16 @@ void main() {
     expect(retryRequest?.format, 'xlsx');
     expect(retryRequest?.includeAttachments, isTrue);
     expect(retryRequest?.share, isTrue);
+    expect(
+        auditTrail.map((event) => event.kind).toList(),
+        <EditorExportCloseoutAuditEventKind>[
+          EditorExportCloseoutAuditEventKind.publish,
+          EditorExportCloseoutAuditEventKind.dismiss,
+        ]);
+    expect(
+      auditTrail.last.dismissReason,
+      EditorExportCloseoutDismissReason.retryShare,
+    );
   });
 
   test('openLocation failure emits an honest error feedback', () async {
@@ -109,7 +126,7 @@ void main() {
       ),
     );
 
-    controller.publish(
+    controller.publishExportOutcome(
       EditorExportOutcomeFactory.saved(
         name: 'control_diario.xlsx',
         shareRequested: false,
@@ -143,7 +160,7 @@ void main() {
       resolveCapabilities: (_) => const EditorExportResultCapabilities(),
     );
 
-    controller.publish(
+    controller.publishExportOutcome(
       EditorExportOutcomeFactory.downloadStarted(
         name: 'control_diario.xlsx',
         shareRequested: false,
@@ -153,9 +170,42 @@ void main() {
     );
     expect(currentState, isNotNull);
 
-    controller.dismiss();
+    controller.dismissCloseout();
 
     expect(currentState, isNull);
     expect(controller.state, isNull);
+  });
+
+  test('attachment outcomes can only publish through the same closeout circuit',
+      () {
+    final auditTrail = <EditorExportCloseoutAuditEvent>[];
+
+    final controller = EditorExportResultController(
+      mapper: const EditorExportResultMapper(),
+      onStateChanged: (_) {},
+      showFeedback: (message, {required isError, icon}) {},
+      retryExport: ({
+        required String format,
+        required bool includeAttachments,
+        required bool share,
+      }) async {},
+      openExternalPath: (_) async => true,
+      closeEditor: () async {},
+      resolveCapabilities: (_) => const EditorExportResultCapabilities(),
+      onAuditEvent: auditTrail.add,
+    );
+
+    controller.publishAttachmentOutcome(
+      EditorExportOutcomeFactory.saved(
+        name: 'adjunto.jpg',
+        shareRequested: false,
+        includeAttachments: false,
+        savedPath: '/tmp/cierre/adjunto.jpg',
+      ),
+      showSnack: false,
+    );
+
+    expect(auditTrail.single.kind, EditorExportCloseoutAuditEventKind.publish);
+    expect(auditTrail.single.origin, EditorExportCloseoutOrigin.attachment);
   });
 }

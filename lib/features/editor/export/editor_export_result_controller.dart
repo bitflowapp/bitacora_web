@@ -20,6 +20,9 @@ typedef EditorExportCloseoutOpenPath = Future<bool> Function(String path);
 typedef EditorExportCloseoutCloseEditor = Future<void> Function();
 typedef EditorExportCloseoutCapabilitiesResolver
     = EditorExportResultCapabilities Function(EditorExportOutcome outcome);
+typedef EditorExportCloseoutAuditSink = void Function(
+  EditorExportCloseoutAuditEvent event,
+);
 
 class EditorExportResultController {
   EditorExportResultController({
@@ -30,13 +33,15 @@ class EditorExportResultController {
     required EditorExportCloseoutOpenPath openExternalPath,
     required EditorExportCloseoutCloseEditor closeEditor,
     required EditorExportCloseoutCapabilitiesResolver resolveCapabilities,
+    EditorExportCloseoutAuditSink? onAuditEvent,
   })  : _mapper = mapper,
         _onStateChanged = onStateChanged,
         _showFeedback = showFeedback,
         _retryExport = retryExport,
         _openExternalPath = openExternalPath,
         _closeEditor = closeEditor,
-        _resolveCapabilities = resolveCapabilities;
+        _resolveCapabilities = resolveCapabilities,
+        _onAuditEvent = onAuditEvent;
 
   final EditorExportResultMapper _mapper;
   final EditorExportCloseoutStateChanged _onStateChanged;
@@ -45,18 +50,54 @@ class EditorExportResultController {
   final EditorExportCloseoutOpenPath _openExternalPath;
   final EditorExportCloseoutCloseEditor _closeEditor;
   final EditorExportCloseoutCapabilitiesResolver _resolveCapabilities;
+  final EditorExportCloseoutAuditSink? _onAuditEvent;
 
   EditorExportCloseoutState? _state;
+  EditorExportCloseoutOrigin? _lastOrigin;
 
   EditorExportCloseoutState? get state => _state;
 
-  void publish(EditorExportOutcome outcome, {bool showSnack = true}) {
+  void publishExportOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    publishCloseoutOutcome(
+      origin: EditorExportCloseoutOrigin.export,
+      outcome: outcome,
+      showSnack: showSnack,
+    );
+  }
+
+  void publishAttachmentOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    publishCloseoutOutcome(
+      origin: EditorExportCloseoutOrigin.attachment,
+      outcome: outcome,
+      showSnack: showSnack,
+    );
+  }
+
+  void publishCloseoutOutcome({
+    required EditorExportCloseoutOrigin origin,
+    required EditorExportOutcome outcome,
+    bool showSnack = true,
+  }) {
     final nextState = _mapper.map(
       outcome,
       capabilities: _resolveCapabilities(outcome),
     );
+    _lastOrigin = origin;
     _state = nextState;
     _onStateChanged(nextState);
+    _onAuditEvent?.call(
+      EditorExportCloseoutAuditEvent.publish(
+        origin: origin,
+        outcomeKind: outcome.kind,
+        showSnack: showSnack,
+      ),
+    );
     if (!showSnack) return;
     _showFeedback(
       nextState.banner.message,
@@ -65,9 +106,20 @@ class EditorExportResultController {
     );
   }
 
-  void dismiss() {
+  void dismissCloseout({
+    EditorExportCloseoutDismissReason reason =
+        EditorExportCloseoutDismissReason.user,
+  }) {
     if (_state == null) return;
+    _onAuditEvent?.call(
+      EditorExportCloseoutAuditEvent.dismiss(
+        origin: _lastOrigin,
+        outcomeKind: _state?.outcome.kind,
+        dismissReason: reason,
+      ),
+    );
     _state = null;
+    _lastOrigin = null;
     _onStateChanged(null);
   }
 
@@ -90,7 +142,9 @@ class EditorExportResultController {
         );
         return;
       case EditorExportResultAction.retryCurrent:
-        dismiss();
+        dismissCloseout(
+          reason: EditorExportCloseoutDismissReason.retryCurrent,
+        );
         await _retryExport(
           format: outcome.format,
           includeAttachments: outcome.includeAttachments,
@@ -98,7 +152,9 @@ class EditorExportResultController {
         );
         return;
       case EditorExportResultAction.retryShare:
-        dismiss();
+        dismissCloseout(
+          reason: EditorExportCloseoutDismissReason.retryShare,
+        );
         await _retryExport(
           format: outcome.format,
           includeAttachments: outcome.includeAttachments,
@@ -106,10 +162,14 @@ class EditorExportResultController {
         );
         return;
       case EditorExportResultAction.continueEditing:
-        dismiss();
+        dismissCloseout(
+          reason: EditorExportCloseoutDismissReason.continueEditing,
+        );
         return;
       case EditorExportResultAction.closeEditor:
-        dismiss();
+        dismissCloseout(
+          reason: EditorExportCloseoutDismissReason.closeEditor,
+        );
         await _closeEditor();
         return;
     }

@@ -21,6 +21,19 @@ enum EditorExportResultAction {
 
 enum EditorExportResultTone { neutral, error }
 
+enum EditorExportCloseoutOrigin { export, attachment }
+
+enum EditorExportCloseoutDismissReason {
+  user,
+  resetForNewFlow,
+  retryCurrent,
+  retryShare,
+  continueEditing,
+  closeEditor,
+}
+
+enum EditorExportCloseoutAuditEventKind { publish, dismiss }
+
 @immutable
 class EditorExportOutcome {
   const EditorExportOutcome({
@@ -112,4 +125,27 @@ class EditorExportCloseoutState {
 
   final EditorExportOutcome outcome;
   final EditorExportResultBannerModel banner;
+}
+
+@immutable
+class EditorExportCloseoutAuditEvent {
+  const EditorExportCloseoutAuditEvent.publish({
+    required this.origin,
+    required this.outcomeKind,
+    required this.showSnack,
+  })  : kind = EditorExportCloseoutAuditEventKind.publish,
+        dismissReason = null;
+
+  const EditorExportCloseoutAuditEvent.dismiss({
+    required this.origin,
+    required this.outcomeKind,
+    required this.dismissReason,
+  })  : kind = EditorExportCloseoutAuditEventKind.dismiss,
+        showSnack = null;
+
+  final EditorExportCloseoutAuditEventKind kind;
+  final EditorExportCloseoutOrigin? origin;
+  final EditorExportOutcomeKind? outcomeKind;
+  final bool? showSnack;
+  final EditorExportCloseoutDismissReason? dismissReason;
 }

@@ -1406,7 +1406,7 @@ extension _EditorAttachments on _EditorScreenState {
       share: false,
       includeAttachments: false,
     );
-    _publishExportFlowResult(result);
+    _publishAttachmentOutcome(result);
   }
 
   Future<void> _openPhotoPreview(
