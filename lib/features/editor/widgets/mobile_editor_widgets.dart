@@ -602,11 +602,15 @@ class _SelectionQuickActionsBar extends StatefulWidget {
 class _FlowBotInlineQuickBar extends StatelessWidget {
   const _FlowBotInlineQuickBar({
     required this.palette,
+    required this.title,
     required this.actions,
     required this.onRun,
+    this.detail,
   });
 
   final _SheetPalette palette;
+  final String title;
+  final String? detail;
   final List<_FlowBotInlineQuickActionView> actions;
   final ValueChanged<_FlowBotQuickActionSpec> onRun;
 
@@ -633,14 +637,39 @@ class _FlowBotInlineQuickBar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Acciones sugeridas',
-              style: TextStyle(
-                color: palette.fgMuted,
-                fontWeight: FontWeight.w800,
-                fontSize: 12.6,
-              ),
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 14,
+                  color: palette.fgMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: palette.fg,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.8,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if ((detail ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                detail!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fgMuted,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.1,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -679,10 +708,14 @@ class _FlowBotInlineActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sourceLabel = switch (action.source) {
-      'user' => 'Favorito',
-      'template' => 'Rubro',
-      _ => 'Contexto',
+    final bg = switch (action.source) {
+      'user' => palette.accent.withValues(alpha: palette.isLight ? 0.12 : 0.18),
+      'template' => palette.mobileInputBg,
+      _ => palette.hintBg,
+    };
+    final borderColor = switch (action.source) {
+      'user' => palette.accent.withValues(alpha: palette.isLight ? 0.24 : 0.32),
+      _ => palette.border,
     };
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -691,48 +724,49 @@ class _FlowBotInlineActionChip extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 116, maxWidth: 180),
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         decoration: BoxDecoration(
-          color: palette.hintBg,
+          color: bg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: palette.border,
+            color: borderColor,
             width: palette.hairline,
           ),
         ),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(action.icon, size: 16, color: palette.fg),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    sourceLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.fgMuted,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10.2,
-                    ),
-                  ),
+            Icon(action.icon, size: 16, color: palette.fg),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                action.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.6,
+                  height: 1.1,
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              action.label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.fg,
-                fontWeight: FontWeight.w700,
-                fontSize: 11.6,
-                height: 1.05,
               ),
             ),
+            if (action.source == 'user')
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 1),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 14,
+                  color: palette.accent,
+                ),
+              )
+            else if (action.source == 'template')
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 1),
+                child: Icon(
+                  Icons.auto_fix_high_rounded,
+                  size: 14,
+                  color: palette.fgMuted,
+                ),
+              ),
           ],
         ),
       ),

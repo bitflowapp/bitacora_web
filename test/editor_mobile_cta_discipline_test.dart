@@ -1,4 +1,5 @@
 import 'package:bitacora_web/features/editor/editor_screen.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,5 +83,47 @@ void main() {
     expect(find.text('Fotos de esta celda'), findsNothing);
     expect(find.text('GPS -> Pegar en esta celda'), findsNothing);
     expect(find.text('Modo GPS...'), findsNothing);
+  });
+
+  testWidgets('persistent closeout hides competing mobile layers',
+      (tester) async {
+    final state = await pumpMobileEditor(tester);
+
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-inline-bar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-fab-main')), findsOneWidget);
+
+    state.debugSetExportHooks(
+      shareHook: (_) async => throw UnsupportedError('share not supported'),
+      saveLocationHook: ({
+        required String suggestedName,
+        required List<XTypeGroup> acceptedTypeGroups,
+      }) async =>
+          const FileSaveLocation('/tmp/mobile/control.xlsx'),
+      saveFileHook: (_, __) async {},
+      persistShareTempFileHook: ({
+        required String fileName,
+        required bytes,
+      }) async =>
+          null,
+    );
+
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      share: false,
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('export-flow-result-banner')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('flowbot-inline-bar')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('mobile-fab-main')).hitTestable(),
+      findsNothing,
+    );
   });
 }
