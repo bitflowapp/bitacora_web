@@ -38,7 +38,7 @@ class _StatusBar extends StatelessWidget {
             TextButton(
               onPressed: onAction,
               style: TextButton.styleFrom(
-                minimumSize: const Size(0, 30),
+                minimumSize: const Size(44, 44),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 foregroundColor: fg,
@@ -819,51 +819,98 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
-      showDragHandle: true,
-      isScrollControlled: false,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (sheetContext) {
-        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+        final media = MediaQuery.of(sheetContext);
+        final bottomInset = media.viewInsets.bottom;
+        final safeBottom = media.viewPadding.bottom;
         return Padding(
-          padding: EdgeInsets.only(bottom: bottomInset),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const ListTile(
-                  title: Text(
-                    AppStrings.moreActions,
-                    style: TextStyle(fontWeight: FontWeight.w800),
+          padding: EdgeInsets.fromLTRB(10, 0, 10, bottomInset + safeBottom + 8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: widget.palette.menuBg,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+                bottom: Radius.circular(24),
+              ),
+              border: Border.all(
+                color: widget.palette.borderStrong,
+                width: widget.palette.hairline,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: widget.palette.isLight ? 0.08 : 0.28,
                   ),
-                ),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: actions.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final action = actions[index];
-                      return SizedBox(
-                        height: 52,
-                        child: ListTile(
-                          leading: Icon(action.icon),
-                          title: Text(
-                            action.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () {
-                            Navigator.of(sheetContext).pop();
-                            action.onTap();
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
               ],
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: media.size.height * 0.7),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: widget.palette.borderStrong.withValues(
+                              alpha: widget.palette.isLight ? 0.36 : 0.52,
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          AppStrings.moreActions,
+                          style: TextStyle(
+                            color: widget.palette.fg,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: actions.length,
+                      separatorBuilder: (_, __) =>
+                          Divider(height: 1, color: widget.palette.border),
+                      itemBuilder: (context, index) {
+                        final action = actions[index];
+                        return SizedBox(
+                          height: 56,
+                          child: ListTile(
+                            leading: Icon(action.icon, color: widget.palette.fg),
+                            title: Text(
+                              action.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: widget.palette.fg,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.of(sheetContext).pop();
+                              action.onTap();
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1321,7 +1368,7 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                 child: AnimatedOpacity(
                   duration: openDuration,
                   opacity: hidden ? 0 : 1,
-                  child: FloatingActionButton.small(
+                  child: FloatingActionButton(
                     key: const ValueKey('mobile-fab-main'),
                     heroTag: 'mobile-fab-main',
                     tooltip: 'Acciones rápidas',
@@ -1357,6 +1404,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.validationHint,
     required this.controller,
     required this.focusNode,
+    required this.inputConfig,
     required this.actions,
     required this.panelHeight,
     required this.isExpanded,
@@ -1383,6 +1431,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
   final String? validationHint;
   final TextEditingController controller;
   final FocusNode focusNode;
+  final _MobileTextInputConfig inputConfig;
   final List<_MobileAction> actions;
 
   final double panelHeight;
@@ -1434,17 +1483,17 @@ class _MobileInlineEditorBar extends StatelessWidget {
             vertical: math.max(11.0, metrics.cellPadding.vertical / 2),
           );
     final barHeight = compactBar
-        ? (keyboardVisible ? _kMobileInlineCompactBarH : 60.0)
+        ? (keyboardVisible ? _kMobileInlineCompactBarH : 68.0)
         : panelHeight;
     final compactFieldHeight = keyboardVisible ? 48.0 : 46.0;
 
     final iconSize = compactBar ? 22.0 : 18.0;
     final iconPadding =
-        compactBar ? const EdgeInsets.all(8) : const EdgeInsets.all(4);
+        compactBar ? const EdgeInsets.all(10) : const EdgeInsets.all(8);
     final iconSplash = compactBar ? 22.0 : 16.0;
     final iconConstraints = compactBar
         ? const BoxConstraints(minWidth: 46, minHeight: 46)
-        : const BoxConstraints(minWidth: 34, minHeight: 34);
+        : const BoxConstraints(minWidth: 44, minHeight: 44);
 
     return AnimatedPositioned(
       duration: bottomAnimationDuration,
@@ -1531,17 +1580,21 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                           focusNode: focusNode,
                                           palette: palette,
                                           onNext: onNext,
-                                          onDone: onDone,
-                                          fontSize: editorFont,
-                                          contentPadding: editorPadding,
-                                          expanded: false,
-                                          compactMode: true,
-                                        ),
+                                        onDone: onDone,
+                                        fontSize: editorFont,
+                                        contentPadding: editorPadding,
+                                        expanded: false,
+                                        compactMode: true,
+                                        inputConfig: inputConfig,
+                                      ),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   _MobilePanelIconButton(
+                                    buttonKey: const ValueKey(
+                                      'mobile-inline-save-button',
+                                    ),
                                     icon: Icons.check_circle_rounded,
                                     tooltip: 'Guardar y cerrar',
                                     onTap: onDone,
@@ -1571,6 +1624,9 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                       subtle: true,
                                     ),
                                   _MobilePanelIconButton(
+                                    buttonKey: const ValueKey(
+                                      'mobile-inline-overflow-button',
+                                    ),
                                     icon: Icons.more_horiz_rounded,
                                     tooltip: 'Mas acciones',
                                     onTap: onOverflow,
@@ -1578,7 +1634,10 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                     iconSize: iconSize,
                                     splashRadius: iconSplash,
                                     padding: iconPadding,
-                                    constraints: iconConstraints,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 48,
+                                      minHeight: 48,
+                                    ),
                                     subtle: true,
                                   ),
                                 ],
@@ -1653,7 +1712,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                         palette: palette,
                                         iconSize: 18,
                                         splashRadius: 16,
-                                        padding: const EdgeInsets.all(4),
+                                        padding: const EdgeInsets.all(8),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 48,
+                                          minHeight: 48,
+                                        ),
                                         subtle: true,
                                       ),
                                     ],
@@ -1673,6 +1736,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                         contentPadding: editorPadding,
                                         expanded: isExpanded,
                                         compactMode: false,
+                                        inputConfig: inputConfig,
                                       ),
                                     ),
                                   ),
@@ -1707,18 +1771,20 @@ class _MobileInlineEditorBar extends StatelessWidget {
 
 class _MobilePanelIconButton extends StatelessWidget {
   const _MobilePanelIconButton({
+    this.buttonKey,
     required this.icon,
     required this.tooltip,
     required this.onTap,
     required this.palette,
     this.iconSize = 20,
-    this.splashRadius = 18,
-    this.padding = const EdgeInsets.all(6),
-    this.constraints = const BoxConstraints(minWidth: 34, minHeight: 34),
+    this.splashRadius = 22,
+    this.padding = const EdgeInsets.all(10),
+    this.constraints = const BoxConstraints(minWidth: 44, minHeight: 44),
     this.filled = false,
     this.subtle = false,
   });
 
+  final Key? buttonKey;
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
@@ -1733,6 +1799,8 @@ class _MobilePanelIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    final targetWidth = math.max(44.0, constraints.minWidth);
+    final targetHeight = math.max(44.0, constraints.minHeight);
     final secondaryFg = subtle
         ? palette.fgMuted.withValues(alpha: enabled ? 0.92 : 0.46)
         : (enabled ? palette.fg : palette.fgMuted.withValues(alpha: 0.5));
@@ -1750,23 +1818,56 @@ class _MobilePanelIconButton extends StatelessWidget {
         ? palette.border.withValues(alpha: enabled ? 0.62 : 0.36)
         : Colors.transparent;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: palette.hairline),
-      ),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onTap,
-        icon: Icon(icon, color: fg, size: iconSize),
-        padding: padding,
-        splashRadius: splashRadius,
-        constraints: constraints,
-        visualDensity: VisualDensity.compact,
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        key: buttonKey,
+        width: targetWidth,
+        height: targetHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: palette.hairline),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(12),
+              radius: splashRadius,
+              child: Padding(
+                padding: padding,
+                child: Center(
+                  child: Icon(icon, color: fg, size: iconSize),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+class _MobileTextInputConfig {
+  const _MobileTextInputConfig({
+    required this.hintText,
+    required this.keyboardType,
+    required this.autocorrect,
+    required this.enableSuggestions,
+    required this.textCapitalization,
+    required this.smartDashesType,
+    required this.smartQuotesType,
+  });
+
+  final String hintText;
+  final TextInputType keyboardType;
+  final bool autocorrect;
+  final bool enableSuggestions;
+  final TextCapitalization textCapitalization;
+  final SmartDashesType smartDashesType;
+  final SmartQuotesType smartQuotesType;
 }
 
 class _MobileEditorField extends StatelessWidget {
@@ -1780,6 +1881,7 @@ class _MobileEditorField extends StatelessWidget {
     required this.contentPadding,
     required this.expanded,
     required this.compactMode,
+    required this.inputConfig,
   });
 
   final TextEditingController controller;
@@ -1791,6 +1893,7 @@ class _MobileEditorField extends StatelessWidget {
   final EdgeInsets contentPadding;
   final bool expanded;
   final bool compactMode;
+  final _MobileTextInputConfig inputConfig;
 
   @override
   Widget build(BuildContext context) {
@@ -1848,12 +1951,15 @@ class _MobileEditorField extends StatelessWidget {
                 : (expanded ? TextAlignVertical.top : TextAlignVertical.center),
             textInputAction:
                 onNext == null ? TextInputAction.done : TextInputAction.next,
+            keyboardType: inputConfig.keyboardType,
             keyboardAppearance:
                 palette.isLight ? Brightness.light : Brightness.dark,
             scrollPadding: EdgeInsets.zero,
-            autocorrect: false,
-            enableSuggestions: false,
-            textCapitalization: TextCapitalization.none,
+            autocorrect: inputConfig.autocorrect,
+            enableSuggestions: inputConfig.enableSuggestions,
+            textCapitalization: inputConfig.textCapitalization,
+            smartDashesType: inputConfig.smartDashesType,
+            smartQuotesType: inputConfig.smartQuotesType,
             style: TextStyle(
               color: palette.fg,
               fontSize: fontSize,
@@ -1866,7 +1972,7 @@ class _MobileEditorField extends StatelessWidget {
               isDense: true,
               filled: false,
               contentPadding: contentPadding,
-              hintText: 'Escribe aqui',
+              hintText: inputConfig.hintText,
               hintStyle: TextStyle(color: palette.fgMuted),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,

@@ -4328,11 +4328,7 @@ class _EditorScreenState extends State<EditorScreen>
           const Duration(milliseconds: 34)) {
         _lastBlinkHapticAt = now;
         try {
-          if (defaultTargetPlatform == TargetPlatform.iOS) {
-            HapticFeedback.lightImpact();
-          } else {
-            HapticFeedback.selectionClick();
-          }
+          AppHaptics.selection();
         } catch (_) {}
       }
     }
@@ -13379,6 +13375,7 @@ class _EditorScreenState extends State<EditorScreen>
                           validationHint: _mobileValidationHint,
                           controller: _mobileEC,
                           focusNode: _mobileFocus,
+                          inputConfig: _mobileInputConfig,
                           actions: _mobileActions,
                           panelHeight: panelH,
                           isExpanded: _mobileEditorExpanded,
@@ -14714,149 +14711,214 @@ class _EditorScreenState extends State<EditorScreen>
     final canPaste = canCopy;
     final row = _mobileRow;
 
+    _mobileFocus.unfocus();
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    } catch (_) {}
+
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: pal.menuBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      isScrollControlled: true,
       builder: (ctx) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.check_rounded),
-                title: const Text('Guardar y cerrar'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _commitMobileEdit();
-                },
+        final media = MediaQuery.of(ctx);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            10,
+            0,
+            10,
+            media.viewInsets.bottom + media.viewPadding.bottom + 8,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+                bottom: Radius.circular(24),
               ),
-              ListTile(
-                leading: Icon(
-                  _mobileEditorExpanded
-                      ? Icons.unfold_less_rounded
-                      : Icons.unfold_more_rounded,
+              border: Border.all(color: pal.borderStrong, width: pal.hairline),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: pal.isLight ? 0.08 : 0.28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
-                title: Text(
-                  _mobileEditorExpanded
-                      ? 'Compactar editor'
-                      : 'Expandir editor',
+              ],
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: pal.borderStrong.withValues(
+                            alpha: pal.isLight ? 0.36 : 0.52,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Mas acciones',
+                        style: TextStyle(
+                          color: pal.fg,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _toggleMobileEditorExpanded();
-                },
-              ),
-              if (canCopy)
                 ListTile(
-                  leading: const Icon(Icons.content_copy_rounded),
-                  title: const Text('Copiar'),
+                  minTileHeight: 56,
+                  leading: const Icon(Icons.check_rounded),
+                  title: const Text('Guardar y cerrar'),
                   onTap: () {
                     Navigator.pop(ctx);
-                    _copyActiveMobileCell();
+                    _commitMobileEdit();
                   },
                 ),
-              if (canPaste)
                 ListTile(
-                  leading: const Icon(Icons.content_paste_rounded),
-                  title: const Text('Pegar'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pasteIntoActiveMobileCell();
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Adjuntar foto en esta celda'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(_startCellPhotoPickFromSheet(row, _mobileCol));
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
-                  leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('Adjuntar video en esta celda'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(_attachVideoForCell(row, _mobileCol));
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
-                  leading: const Icon(Icons.attach_file_rounded),
-                  title: const Text('Adjuntar archivo en esta celda'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(_attachDocumentForCell(row, _mobileCol));
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
+                  minTileHeight: 56,
                   leading: Icon(
-                    _audioRecording
-                        ? Icons.stop_circle_outlined
-                        : Icons.mic_none_rounded,
+                    _mobileEditorExpanded
+                        ? Icons.unfold_less_rounded
+                        : Icons.unfold_more_rounded,
                   ),
                   title: Text(
-                    _audioRecording
-                        ? 'Detener audio'
-                        : 'Grabar audio en esta celda',
+                    _mobileEditorExpanded
+                        ? 'Compactar editor'
+                        : 'Expandir editor',
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
-                    if (_audioRecording) {
-                      unawaited(_stopAudioRecording());
-                    } else {
-                      unawaited(_startAudioRecordingForCell(row, _mobileCol));
-                    }
+                    _toggleMobileEditorExpanded();
                   },
                 ),
-              if (row >= 0 && _cellHasAudios(row, _mobileCol))
-                ListTile(
-                  leading: const Icon(Icons.graphic_eq_rounded),
-                  title: const Text('Ver audios de esta celda'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _openAudiosSheetForCell(row, _mobileCol);
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
-                  leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('Adjuntar GPS en esta celda'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(
-                      _requestGpsForCell(row, _mobileCol, forceWriteText: true),
-                    );
-                  },
-                ),
-              if (row >= 0)
-                ListTile(
-                  leading: const Icon(Icons.tune_rounded),
-                  title: const Text('Ajuste de GPS'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(_showGpsModePicker());
-                  },
-                ),
-              if (actions.isNotEmpty) const Divider(height: 1),
-              for (final a in actions)
-                ListTile(
-                  leading: Icon(a.icon),
-                  title: Text(a.label),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    a.onTap();
-                  },
-                ),
-              const SizedBox(height: 8),
-            ],
+                if (canCopy)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.content_copy_rounded),
+                    title: const Text('Copiar'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _copyActiveMobileCell();
+                    },
+                  ),
+                if (canPaste)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.content_paste_rounded),
+                    title: const Text('Pegar'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _pasteIntoActiveMobileCell();
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.photo_library_outlined),
+                    title: const Text('Adjuntar foto en esta celda'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      unawaited(_startCellPhotoPickFromSheet(row, _mobileCol));
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.videocam_outlined),
+                    title: const Text('Adjuntar video en esta celda'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      unawaited(_attachVideoForCell(row, _mobileCol));
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.attach_file_rounded),
+                    title: const Text('Adjuntar archivo en esta celda'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      unawaited(_attachDocumentForCell(row, _mobileCol));
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: Icon(
+                      _audioRecording
+                          ? Icons.stop_circle_outlined
+                          : Icons.mic_none_rounded,
+                    ),
+                    title: Text(
+                      _audioRecording
+                          ? 'Detener audio'
+                          : 'Grabar audio en esta celda',
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (_audioRecording) {
+                        unawaited(_stopAudioRecording());
+                      } else {
+                        unawaited(_startAudioRecordingForCell(row, _mobileCol));
+                      }
+                    },
+                  ),
+                if (row >= 0 && _cellHasAudios(row, _mobileCol))
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.graphic_eq_rounded),
+                    title: const Text('Ver audios de esta celda'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _openAudiosSheetForCell(row, _mobileCol);
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.my_location_outlined),
+                    title: const Text('Adjuntar GPS en esta celda'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      unawaited(
+                        _requestGpsForCell(row, _mobileCol, forceWriteText: true),
+                      );
+                    },
+                  ),
+                if (row >= 0)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: const Icon(Icons.tune_rounded),
+                    title: const Text('Ajuste de GPS'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      unawaited(_showGpsModePicker());
+                    },
+                  ),
+                if (actions.isNotEmpty) Divider(height: 1, color: pal.border),
+                for (final a in actions)
+                  ListTile(
+                    minTileHeight: 56,
+                    leading: Icon(a.icon),
+                    title: Text(a.label),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      a.onTap();
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -14869,7 +14931,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobilePanelCompactH = 56.0;
+  static const double _kMobilePanelCompactH = 68.0;
   static const double _kMobilePanelExpandedH = 172.0;
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
@@ -14997,6 +15059,139 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileCol,
       overrideValue: _mobileEC.text,
     );
+  }
+
+  bool _matchesHeaderWordToken(String header, String token) {
+    return RegExp(
+      '(^|[^a-z])${RegExp.escape(token)}([^a-z]|\$)',
+    ).hasMatch(header);
+  }
+
+  bool _isHumanTextHeader(String header) {
+    const tokens = <String>[
+      'observ',
+      'nota',
+      'coment',
+      'detalle',
+      'descripcion',
+      'descrip',
+      'motivo',
+      'referencia',
+      'direccion',
+      'ubicacion',
+      'nombre',
+    ];
+    return tokens.any(header.contains);
+  }
+
+  bool _isTechnicalTextHeader(String header) {
+    const containsTokens = <String>[
+      'codigo',
+      'cod',
+      'sku',
+      'serie',
+      'lote',
+      'patente',
+      'placa',
+      'lat',
+      'lon',
+      'coord',
+      'mail',
+      'email',
+      'telefono',
+      'tel',
+      'url',
+      'link',
+      'gps',
+    ];
+    if (containsTokens.any(header.contains)) return true;
+    return _matchesHeaderWordToken(header, 'id') ||
+        _matchesHeaderWordToken(header, 'nro') ||
+        _matchesHeaderWordToken(header, 'num') ||
+        _matchesHeaderWordToken(header, 'dni') ||
+        _matchesHeaderWordToken(header, 'cuit');
+  }
+
+  _MobileTextInputConfig get _mobileInputConfig {
+    if (_mobileEditingHeader) {
+      return const _MobileTextInputConfig(
+        hintText: 'Nombre de columna',
+        keyboardType: TextInputType.text,
+        autocorrect: true,
+        enableSuggestions: true,
+        textCapitalization: TextCapitalization.words,
+        smartDashesType: SmartDashesType.enabled,
+        smartQuotesType: SmartQuotesType.enabled,
+      );
+    }
+
+    if (_mobileCol < 0 || _mobileCol >= _headers.length - 1) {
+      return const _MobileTextInputConfig(
+        hintText: 'Escribe aqui',
+        keyboardType: TextInputType.text,
+        autocorrect: true,
+        enableSuggestions: true,
+        textCapitalization: TextCapitalization.sentences,
+        smartDashesType: SmartDashesType.enabled,
+        smartQuotesType: SmartQuotesType.enabled,
+      );
+    }
+
+    final header = _headerLabel(_mobileCol).trim();
+    final normalized = header.toLowerCase();
+    final type = _colType(_mobileCol);
+
+    switch (type) {
+      case _ColType.number:
+        return const _MobileTextInputConfig(
+          hintText: 'Numero',
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.none,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+        );
+      case _ColType.date:
+        return const _MobileTextInputConfig(
+          hintText: 'Fecha u hora',
+          keyboardType: TextInputType.datetime,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.none,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+        );
+      case _ColType.status:
+      case _ColType.checkbox:
+      case _ColType.photos:
+        return _MobileTextInputConfig(
+          hintText: header.isEmpty ? 'Valor' : header,
+          keyboardType: TextInputType.text,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.none,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+        );
+      case _ColType.text:
+        final isHuman = _isHumanTextHeader(normalized) ||
+            !_isTechnicalTextHeader(normalized);
+        return _MobileTextInputConfig(
+          hintText: header.isEmpty ? 'Escribe aqui' : header,
+          keyboardType:
+              isHuman ? TextInputType.multiline : TextInputType.text,
+          autocorrect: isHuman,
+          enableSuggestions: isHuman,
+          textCapitalization: isHuman
+              ? TextCapitalization.sentences
+              : TextCapitalization.none,
+          smartDashesType:
+              isHuman ? SmartDashesType.enabled : SmartDashesType.disabled,
+          smartQuotesType:
+              isHuman ? SmartQuotesType.enabled : SmartQuotesType.disabled,
+        );
+    }
   }
 
   void _mobileCommitDraftToModel() {
