@@ -67,6 +67,18 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     await SharePlus.instance.share(params);
   }
 
+  Future<void> _shareExportParamsSafely({
+    required ShareParams params,
+    String? operation,
+    bool Function()? shouldCancel,
+  }) async {
+    _throwIfOperationCancelledBy(shouldCancel);
+    await Future.any<void>([
+      _shareExportParams(params),
+      _operationCancelledFuture(shouldCancel),
+    ]);
+  }
+
   Future<FileSaveLocation?> _pickExportSaveLocation({
     required String suggestedName,
     required List<XTypeGroup> acceptedTypeGroups,

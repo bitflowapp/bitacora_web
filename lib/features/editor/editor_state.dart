@@ -18707,6 +18707,7 @@ class _EditorScreenState extends State<EditorScreen>
     required String name,
     required String mime,
     bool share = false,
+    bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
     if (!_tryBeginLongOperation(
@@ -18721,6 +18722,7 @@ class _EditorScreenState extends State<EditorScreen>
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
@@ -19614,6 +19616,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
+      final fileName = _buildCommercialExportFileName('xlsx');
 
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
@@ -19643,8 +19646,6 @@ class _EditorScreenState extends State<EditorScreen>
         );
         return;
       }
-
-      final fileName = _buildCommercialExportFileName('xlsx');
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       final result = await _saveExportBytes(
@@ -19751,6 +19752,7 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
+      final fileName = _buildCommercialExportFileName('pdf');
 
       final pdfBytes = await _buildPdfBytesForExport(
         includeAttachments: includeAttachments,
@@ -19779,8 +19781,6 @@ class _EditorScreenState extends State<EditorScreen>
         );
         return;
       }
-
-      final fileName = _buildCommercialExportFileName('pdf');
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
       final result = await _saveExportBytes(
@@ -19880,6 +19880,7 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     _dismissCloseoutOutcome();
+    final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
