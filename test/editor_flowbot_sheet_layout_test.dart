@@ -43,7 +43,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
 
-    expect(find.text('FlowBot'), findsOneWidget);
+    expect(find.textContaining('FlowBot para'), findsOneWidget);
     expect(find.text('Dictar'), findsOneWidget);
     expect(find.text('Analizar'), findsOneWidget);
     expect(find.widgetWithText(AppleButton, 'Aplicar cambios'), findsOneWidget);
@@ -93,6 +93,17 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+
+    expect(
+        find.byKey(const ValueKey('flowbot-secondary-toggle')), findsOneWidget);
+    expect(find.text('Recientes'), findsNothing);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('flowbot-secondary-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('flowbot-secondary-toggle')));
+    await tester.pumpAndSettle();
 
     expect(find.text('Recientes'), findsOneWidget);
 

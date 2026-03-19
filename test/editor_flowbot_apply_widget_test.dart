@@ -36,7 +36,7 @@ void main() {
         await state.debugApplyFlowBotActionsResult(const <FlowBotAction>[]);
 
     expect(result['ok'], false);
-    expect((result['message'] as String), contains('no aplico cambios'));
+    expect((result['message'] as String), contains('no dejo cambios listos'));
     expect(result['applied'], 0);
   });
 
@@ -72,6 +72,7 @@ void main() {
 
     expect(applied, greaterThan(0));
     expect(result['ok'], true);
+    expect(result['message'], contains('Listo en A1'));
     expect(result['undoToken'], isNotNull);
     expect(state.debugCellText(0, 0), 'OK');
   });
@@ -189,7 +190,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('1 cambio listo'), findsOneWidget);
+    expect(find.textContaining('cambio listo en'), findsOneWidget);
     applyButton = tester.widget<AppleButton>(
       find.byKey(const ValueKey('flowbot-apply')),
     );
@@ -245,7 +246,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Acciones rapidas'), findsOneWidget);
+    expect(find.textContaining('Acciones para'), findsOneWidget);
     expect(find.text('Favoritos'), findsOneWidget);
     expect(find.text('Sugeridas'), findsOneWidget);
     expect(find.text('Recientes'), findsOneWidget);
@@ -257,7 +258,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('1 cambio listo'), findsOneWidget);
+    expect(find.textContaining('cambio listo en'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
@@ -340,7 +341,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('1 cambio listo'), findsOneWidget);
+    expect(find.textContaining('cambio listo en'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
@@ -378,6 +379,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('flowbot-inline-bar')), findsOneWidget);
+    expect(find.textContaining('FlowBot para'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('flowbot-inline-action-0')));
     await tester.pump();
     await tester.pumpAndSettle();
@@ -862,7 +864,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('1 cambio listo'), findsOneWidget);
+    expect(find.textContaining('cambio listo en'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
     await tester.pumpAndSettle();
@@ -1252,11 +1254,8 @@ void main() {
     );
     expect(applyButton.onPressed, isNull);
     expect(applyButton.variant, AppleButtonVariant.ghost);
-    expect(find.text('No hay cambios listos'), findsOneWidget);
-    expect(
-      find.text('Elegi una accion rapida o escribe una instruccion valida.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('No hay cambios listos para'), findsOneWidget);
+    expect(find.textContaining('Elegi una accion rapida para'), findsOneWidget);
     expect(state.debugCellText(0, 0), '');
     expect(tester.takeException(), isNull);
   });
@@ -1319,12 +1318,9 @@ void main() {
     );
     expect(applyButton.onPressed, isNull);
     expect(applyButton.variant, AppleButtonVariant.ghost);
-    expect(find.text('No hay cambios listos'), findsOneWidget);
+    expect(find.textContaining('No hay cambios listos para'), findsOneWidget);
     expect(find.byKey(const ValueKey('flowbot-empty-help')), findsOneWidget);
-    expect(
-      find.text('Elegi una accion rapida o escribe una instruccion valida.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Elegi una accion rapida para'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('flowbot-empty-help-chip-0')),
       findsOneWidget,

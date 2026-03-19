@@ -38,6 +38,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(state.debugCellText(0, 0), 'OK');
-    expect(find.textContaining('Aplicado:'), findsOneWidget);
+    expect(find.textContaining('Listo en'), findsOneWidget);
   });
 }
