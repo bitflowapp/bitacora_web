@@ -171,16 +171,16 @@ Future<Uint8List> buildXlsxWithPhotos({
     final styleSeed = DateTime.now().microsecondsSinceEpoch;
     final headerStyle = workbook.styles.add('HeaderStyle_$styleSeed');
     headerStyle.bold = true;
-    headerStyle.fontColor = '#FFFFFFFF';
-    headerStyle.backColor = '#FF1F3A5F';
+    headerStyle.fontColor = '#FFFFFF';
+    headerStyle.backColor = '#1F3A5F';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
 
     final oddRowStyle = workbook.styles.add('BodyOddStyle_$styleSeed');
-    oddRowStyle.backColor = '#FFFFFFFF';
+    oddRowStyle.backColor = '#FFFFFF';
 
     final evenRowStyle = workbook.styles.add('BodyEvenStyle_$styleSeed');
-    evenRowStyle.backColor = '#FFF7FAFC';
+    evenRowStyle.backColor = '#F7FAFC';
 
     // --------------------------
     // 1) Encabezados
@@ -618,17 +618,17 @@ void _buildAttachmentsSheet(
   final styleSeed = DateTime.now().microsecondsSinceEpoch;
   final headerStyle = workbook.styles.add('EvidenceHeaderStyle_$styleSeed');
   headerStyle.bold = true;
-  headerStyle.fontColor = '#FFFFFFFF';
-  headerStyle.backColor = '#FF2D4C7A';
+  headerStyle.fontColor = '#FFFFFF';
+  headerStyle.backColor = '#2D4C7A';
   headerStyle.hAlign = xlsio.HAlignType.center;
   headerStyle.vAlign = xlsio.VAlignType.center;
   final headerRange = sheet.getRangeByIndex(1, 1, 1, headers.length);
   headerRange.cellStyle = headerStyle;
 
   final oddRowStyle = workbook.styles.add('EvidenceOddStyle_$styleSeed');
-  oddRowStyle.backColor = '#FFFFFFFF';
+  oddRowStyle.backColor = '#FFFFFF';
   final evenRowStyle = workbook.styles.add('EvidenceEvenStyle_$styleSeed');
-  evenRowStyle.backColor = '#FFF7FAFC';
+  evenRowStyle.backColor = '#F7FAFC';
 
   for (int i = 0; i < attachments.length; i++) {
     final row = i + 2;
