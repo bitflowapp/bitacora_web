@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 part of 'start_page_v2.dart';
 
 class _StartSuggestionsSection extends StatelessWidget {
