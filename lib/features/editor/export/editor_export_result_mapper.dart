@@ -56,11 +56,11 @@ class EditorExportOutcomeFactory {
     required bool share,
     required String format,
   }) {
-    final target = _targetLabel(format);
     if (share) {
-      return 'No pudimos abrir compartir para $target. Intenta de nuevo o exporta el archivo.';
+      return 'No pudimos compartir la planilla.';
     }
-    return 'No pudimos dejar listo $target. Intenta de nuevo.';
+    return 'No pudimos exportar el archivo. '
+        'No pudimos dejar listo ${_targetLabel(format)}. Intenta de nuevo.';
   }
 
   static String unsupportedMessage({
@@ -241,7 +241,14 @@ class EditorExportOutcomeFactory {
     String? location,
   }) {
     final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir compartir. Guardamos $name en $target.';
+    final formatLabel = switch (_messageKind(name)) {
+      _ExportMessageKind.pdf => 'PDF',
+      _ExportMessageKind.zip => 'paquete ZIP',
+      _ExportMessageKind.xlsx => 'XLSX',
+      _ExportMessageKind.other => 'archivo',
+    };
+    return 'No pudimos abrir la opción de compartir el $formatLabel. '
+        'El archivo ya quedó listo para guardar o enviar: $target';
   }
 
   static _ExportMessageKind _messageKind(String name) {

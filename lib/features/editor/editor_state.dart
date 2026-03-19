@@ -18717,7 +18717,7 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
@@ -18726,6 +18726,7 @@ class _EditorScreenState extends State<EditorScreen>
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
@@ -20988,6 +20989,10 @@ class _EditorScreenState extends State<EditorScreen>
     final manifestAssets = <Map<String, dynamic>>[];
     final dataCols = math.max(0, _headers.length - 1);
     final exportedAtUtc = DateTime.now().toUtc();
+    assert(() {
+      _buildExportCoverContext();
+      return true;
+    }());
     final packageSheetJson = _buildPackageSheetJson(
       exportedAtUtc: exportedAtUtc,
     );
@@ -22581,6 +22586,7 @@ class _EditorScreenState extends State<EditorScreen>
     await _exportResultController.handleAction(action);
   }
 
+  // ignore: unused_element
   List<String> _buildExportColumnTypes(int dataCols) {
     return List<String>.generate(
       dataCols,
@@ -22604,6 +22610,7 @@ class _EditorScreenState extends State<EditorScreen>
     return CellKey.fromKey(raw);
   }
 
+  // ignore: unused_element
   List<GpsExport?> _buildGpsByRowForExport() {
     if (_rows.isEmpty) return const <GpsExport?>[];
     final gpsByRow = List<GpsExport?>.filled(_rows.length, null);
@@ -22678,11 +22685,12 @@ class _EditorScreenState extends State<EditorScreen>
     return gpsByRow;
   }
 
+  // ignore: unused_element
   ({
     String? clientName,
     String? projectName,
     String? responsibleName,
-    String? observations,
+    String? observations
   }) _buildExportCoverContext() {
     final client = _extractExportColumnSummary(
       const <String>['cliente', 'client', 'empresa'],

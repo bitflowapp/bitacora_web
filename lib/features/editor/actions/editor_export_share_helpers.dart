@@ -189,7 +189,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
             shareRequested: true,
             includeAttachments: includeAttachments,
             message:
-                'No pudimos abrir compartir. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
+                'No pudimos abrir la opción de compartir el ${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)}. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
           );
         } else {
           return _buildDownloadStartedExportFlowResult(
