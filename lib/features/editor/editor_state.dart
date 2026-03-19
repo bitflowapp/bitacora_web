@@ -31,6 +31,8 @@ const bool _kFlutterTestEnv = bool.fromEnvironment('FLUTTER_TEST');
 const bool _kEnableEditorPerfInstrumentation =
     _kDebugEditorPerfInstrumentation || _kDebugGridBuildCounter;
 
+enum _CloseoutPublishChannel { export, attachment }
+
 class EditorStorageFallbackReasonMapping {
   const EditorStorageFallbackReasonMapping({
     required this.storageVariant,
@@ -554,6 +556,18 @@ class _EditorScreenState extends State<EditorScreen>
   final FlowBotLocalModelManager _flowBotLocalModelManager =
       createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
+  EditorExportCloseoutState? _lastExportFlowResult;
+  _CloseoutPublishChannel? _debugLastCloseoutPublishChannel;
+  late final EditorExportResultController _exportResultController =
+      EditorExportResultController(
+    mapper: const EditorExportResultMapper(),
+    onStateChanged: _setExportFlowResult,
+    showFeedback: _showExportFlowFeedback,
+    retryExport: _retryExportFromCloseout,
+    openExternalPath: _openExportResultPath,
+    closeEditor: _closeEditorFromCloseout,
+    resolveCapabilities: _resolveExportFlowResultCapabilities,
+  );
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -8893,18 +8907,14 @@ class _EditorScreenState extends State<EditorScreen>
     final name =
         'BitFlow_offline_diagnostic_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}.json';
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: 'application/json',
         bytes: Uint8List.fromList(utf8.encode(encoded)),
         share: false,
+        includeAttachments: false,
       );
-      if (!mounted) return;
-      _showActionSnack(
-        'Diagnostico de cola exportado.',
-        isError: false,
-        icon: Icons.bug_report_outlined,
-      );
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       if (!mounted) return;
       _showActionSnack(
@@ -10071,6 +10081,11 @@ class _EditorScreenState extends State<EditorScreen>
         final mobileGridBottomInset = isDesktop
             ? 0.0
             : math.min(requestedMobileGridInset, maxMobileGridInset);
+        final exportResultBottomOffset = isDesktop
+            ? 16.0
+            : (_mobileEditorOpen
+                ? panelH + keyboardInset + mobileEditorSafeBottom + 14
+                : bottomSafe + (_mobileFabMenuOpen ? 248 : 80));
         final autoCollapsedTopChrome = isMobile && keyboardVisible;
         final collapseNonCriticalTopChrome = autoCollapsedTopChrome;
         final showSelectionQuickActions = !_mobileEditorOpen &&
@@ -11482,6 +11497,45 @@ class _EditorScreenState extends State<EditorScreen>
                                     onTap: () => unawaited(_toggleFieldMode()),
                                   ),
                                 ],
+                        ),
+                      if (_lastExportFlowResult != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: exportResultBottomOffset,
+                          child: AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, 0.04),
+                                child: child,
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey(
+                                'export-flow-result-banner-${_lastExportFlowResult!.outcome.kind.name}-${_lastExportFlowResult!.outcome.fileName}',
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isDesktop ? 560 : mq.size.width,
+                                  ),
+                                  child: _ExportFlowResultBanner(
+                                    palette: pal,
+                                    result: _lastExportFlowResult!,
+                                    onAction: (action) => unawaited(
+                                      _handleExportFlowResultAction(action),
+                                    ),
+                                    onDismiss: _dismissCloseoutOutcome,
+                                    busy: _longOperation != null || _saving,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       if (_perfHarnessRequested && kDebugMode)
                         _buildPerfOverlay(
@@ -18519,6 +18573,18 @@ class _EditorScreenState extends State<EditorScreen>
   String? debugLastToastMessage() => _lastToastMessage;
 
   @visibleForTesting
+  String? debugLastExportFlowResultKind() =>
+      _lastExportFlowResult?.outcome.kind.name;
+
+  @visibleForTesting
+  String? debugLastExportFlowResultMessage() =>
+      _lastExportFlowResult?.outcome.message;
+
+  @visibleForTesting
+  String? debugLastCloseoutPublishChannel() =>
+      _debugLastCloseoutPublishChannel?.name;
+
+  @visibleForTesting
   Future<void> debugTriggerExportForTest({
     String format = 'xlsx',
     bool share = false,
@@ -18548,25 +18614,90 @@ class _EditorScreenState extends State<EditorScreen>
     required String name,
     required String mime,
     bool share = false,
+    bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
+    _dismissCloseoutOutcome();
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
         share: share,
+        includeAttachments: includeAttachments,
+      );
+      _publishExportOutcome(result);
+    } on _EditorLongOperationCancelled {
+      _publishExportOutcome(
+        _buildCancelledExportFlowResult(
+          fileName: name,
+          format: _exportFormatFromFileName(name),
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
+      final format = _exportFormatFromFileName(name);
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _publishExportOutcome(
+          _buildCancelledExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share
+              ? 'debug_export_save_flow_share'
+              : 'debug_export_save_flow_save',
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: format,
+          ),
+          stackTrace: st,
+          icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+        );
+        _publishExportOutcome(
+          _buildUnsupportedExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
         operation: share
             ? 'debug_export_save_flow_share'
             : 'debug_export_save_flow_save',
-        fallbackMessage: 'No pudimos exportar el archivo.',
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: format,
+        ),
         stackTrace: st,
         icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+      _publishExportOutcome(
+        _buildErrorExportFlowResult(
+          fileName: name,
+          format: format,
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: format),
+        ),
+        showSnack: false,
       );
     }
   }
@@ -18576,6 +18707,7 @@ class _EditorScreenState extends State<EditorScreen>
     required String name,
     required String mime,
     bool share = false,
+    bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
     if (!_tryBeginLongOperation(
@@ -18585,14 +18717,16 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
@@ -18615,6 +18749,29 @@ class _EditorScreenState extends State<EditorScreen>
     } finally {
       _clearLongOperation();
     }
+  }
+
+  @visibleForTesting
+  Future<void> debugRunAttachmentSaveFlowForTest({
+    required String name,
+    required String mime,
+    Uint8List? bytes,
+  }) async {
+    final result = await _saveExportBytes(
+      name: name,
+      mime: mime,
+      bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
+      share: false,
+      includeAttachments: false,
+    );
+    _publishAttachmentOutcome(result);
+  }
+
+  @visibleForTesting
+  Future<void> debugHandleCloseoutActionForTest(
+    EditorExportResultAction action,
+  ) {
+    return _handleExportFlowResultAction(action);
   }
 
   @visibleForTesting
@@ -19449,6 +19606,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _dismissCloseoutOutcome();
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -19459,6 +19617,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
+      final fileName = _buildCommercialExportFileName('xlsx');
 
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
@@ -19468,47 +19627,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo XLSX.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_xlsx_build',
-          fallbackMessage: 'No se pudo generar el archivo XLSX.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.table_view_rounded,
+        );
+        _publishExportOutcome(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
-      final fileName = _buildCommercialExportFileName('xlsx');
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: xlsxBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'XLSX listo para compartir: $fileName'
-            : 'Excel (XLSX) listo: $fileName',
         shareSubject: 'BitFlow | Excel | $_sheetName',
         shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportOutcome(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportOutcome(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -19523,6 +19696,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
+        _publishExportOutcome(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -19534,6 +19716,17 @@ class _EditorScreenState extends State<EditorScreen>
             : 'No pudimos exportar el XLSX. Intenta nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.table_view_rounded,
+      );
+      _publishExportOutcome(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'xlsx'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19556,9 +19749,11 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _dismissCloseoutOutcome();
     try {
       _throwIfLongOperationCancelled();
       _setLongOperationMessage(AppStrings.progressGeneratingFile);
+      final fileName = _buildCommercialExportFileName('pdf');
 
       final pdfBytes = await _buildPdfBytesForExport(
         includeAttachments: includeAttachments,
@@ -19567,46 +19762,60 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null || pdfBytes.isEmpty) {
+        const fallbackMessage = 'No se pudo generar el archivo PDF.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_pdf_build',
-          fallbackMessage: 'No se pudo generar el archivo PDF.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_outlined,
+        );
+        _publishExportOutcome(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
-      final fileName = _buildCommercialExportFileName('pdf');
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/pdf',
         bytes: pdfBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'PDF listo para compartir: $fileName'
-            : 'Reporte PDF listo: $fileName',
         shareSubject: 'BitFlow | PDF | $_sheetName',
         shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportOutcome(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportOutcome(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -19621,6 +19830,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
         );
+        _publishExportOutcome(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -19632,6 +19850,17 @@ class _EditorScreenState extends State<EditorScreen>
             : 'No pudimos exportar el PDF. Intenta nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
+      );
+      _publishExportOutcome(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'pdf'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19651,6 +19880,8 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _dismissCloseoutOutcome();
+    final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
     try {
       _throwIfLongOperationCancelled();
       final prep = await _prepareExportPayload(
@@ -19669,12 +19900,24 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage =
+            'No se pudo preparar el XLSX para exportar ZIP.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_xlsx',
-          fallbackMessage: 'No se pudo preparar el XLSX para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportOutcome(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19694,12 +19937,23 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null) {
+        const fallbackMessage = 'No se pudo preparar el PDF para exportar ZIP.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_pdf',
-          fallbackMessage: 'No se pudo preparar el PDF para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_rounded,
+        );
+        _publishExportOutcome(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19719,50 +19973,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (zipBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo ZIP.';
         _reportFlowErrorMessage(
           'zip_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_archive',
-          fallbackMessage: 'No se pudo generar el archivo ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportOutcome(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
-      final fileName = buildBitFlowBundleExportFileName(sheetName: _sheetName);
-      final evidenceCount = prep.photoItems.length + prep.audioItems.length;
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
+        includeAttachments: true,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: share
-            ? 'Paquete ZIP completo listo para compartir: $fileName'
-            : (evidenceCount > 0
-                ? 'Paquete ZIP completo listo: $fileName'
-                : 'Paquete ZIP listo (sin evidencias adjuntas): $fileName'),
         shareSubject: 'BitFlow | Paquete completo | $_sheetName',
         shareText:
             'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportOutcome(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportOutcome(
+        _buildCancelledExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          share ? 'Compartir cancelado.' : AppStrings.infoExportCancelled,
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportOutcome(
+          _buildCancelledExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
         );
         return;
       }
@@ -19777,6 +20042,15 @@ class _EditorScreenState extends State<EditorScreen>
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
         );
+        _publishExportOutcome(
+          _buildUnsupportedExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
+          showSnack: false,
+        );
         return;
       }
       _reportFlowError(
@@ -19788,6 +20062,17 @@ class _EditorScreenState extends State<EditorScreen>
             : 'No pudimos exportar el paquete completo. Intenta nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
+      );
+      _publishExportOutcome(
+        _buildErrorExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'zip'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19841,20 +20126,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_backup_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Backup ZIP listo.',
-        isError: false,
-        icon: Icons.backup_rounded,
-      );
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -19925,20 +20207,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_reporte_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.html',
         mime: 'text/html',
         bytes: bytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Reporte HTML listo.',
-        isError: false,
-        icon: Icons.description_rounded,
-      );
+      _publishExportOutcome(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -20710,6 +20989,10 @@ class _EditorScreenState extends State<EditorScreen>
     final manifestAssets = <Map<String, dynamic>>[];
     final dataCols = math.max(0, _headers.length - 1);
     final exportedAtUtc = DateTime.now().toUtc();
+    assert(() {
+      _buildExportCoverContext();
+      return true;
+    }());
     final packageSheetJson = _buildPackageSheetJson(
       exportedAtUtc: exportedAtUtc,
     );
@@ -22122,6 +22405,407 @@ class _EditorScreenState extends State<EditorScreen>
   String _safeFile(String s) {
     final t = s.trim().isEmpty ? 'Hoja' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  }
+
+  bool get _isNativeMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  String _exportFormatFromFileName(String fileName) =>
+      EditorExportOutcomeFactory.formatFromFileName(fileName);
+
+  String _exportFailureMessage({
+    required bool share,
+    required String format,
+  }) =>
+      EditorExportOutcomeFactory.failureMessage(
+        share: share,
+        format: format,
+      );
+
+  String _exportUnsupportedMessage({
+    required bool share,
+    required String format,
+  }) =>
+      EditorExportOutcomeFactory.unsupportedMessage(
+        share: share,
+        format: format,
+      );
+
+  EditorExportOutcome _buildCancelledExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return EditorExportOutcomeFactory.cancelled(
+      fileName: fileName,
+      format: format,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  EditorExportOutcome _buildErrorExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+    required String message,
+  }) {
+    return EditorExportOutcomeFactory.error(
+      fileName: fileName,
+      format: format,
+      message: message,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  EditorExportOutcome _buildUnsupportedExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return EditorExportOutcomeFactory.unsupported(
+      fileName: fileName,
+      format: format,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  EditorExportResultCapabilities _resolveExportFlowResultCapabilities(
+    EditorExportOutcome outcome,
+  ) {
+    final savedPath = (outcome.savedPath ?? '').trim();
+    return EditorExportResultCapabilities(
+      canOpenFile: savedPath.isNotEmpty && !kIsWeb,
+      canOpenLocation: !kIsWeb &&
+          !_isNativeMobilePlatform &&
+          (EditorExportResultController.parentDirectoryFromPath(savedPath) ??
+                  '')
+              .trim()
+              .isNotEmpty,
+    );
+  }
+
+  Future<bool> _openExportResultPath(String path) async {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || kIsWeb) return false;
+    return launchUrl(
+      EditorExportResultController.fileUriFromPath(trimmed),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  Future<void> _retryExportFromCloseout({
+    required String format,
+    required bool includeAttachments,
+    required bool share,
+  }) async {
+    _triggerSheetExport(
+      format: format,
+      includeAttachments: includeAttachments,
+      share: share,
+    );
+  }
+
+  Future<void> _closeEditorFromCloseout() async {
+    await _handleEditorPopGuard(didPop: false);
+  }
+
+  void _showExportFlowFeedback(
+    String message, {
+    required bool isError,
+    IconData? icon,
+  }) {
+    _showActionSnack(
+      message,
+      isError: isError,
+      icon: icon,
+    );
+  }
+
+  void _setExportFlowResult(EditorExportCloseoutState? result) {
+    if (mounted) {
+      setState(() => _lastExportFlowResult = result);
+      return;
+    }
+    _lastExportFlowResult = result;
+  }
+
+  // Invariante de arquitectura (closeout):
+  // - Solo este entry point puede publicar estado persistente de export/share.
+  // - Los helpers devuelven outcome de dominio y no tocan UI/banner.
+  // - Adjuntos usan el mismo circuito oficial (channel=attachment).
+  void _publishCloseoutOutcome({
+    required EditorExportOutcome outcome,
+    required _CloseoutPublishChannel channel,
+    bool showSnack = true,
+  }) {
+    _exportResultController.publish(outcome, showSnack: showSnack);
+    assert(() {
+      _debugLastCloseoutPublishChannel = channel;
+      return true;
+    }());
+  }
+
+  void _publishExportOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    _publishCloseoutOutcome(
+      outcome: outcome,
+      channel: _CloseoutPublishChannel.export,
+      showSnack: showSnack,
+    );
+  }
+
+  void _publishAttachmentOutcome(
+    EditorExportOutcome outcome, {
+    bool showSnack = true,
+  }) {
+    _publishCloseoutOutcome(
+      outcome: outcome,
+      channel: _CloseoutPublishChannel.attachment,
+      showSnack: showSnack,
+    );
+  }
+
+  void _dismissCloseoutOutcome() {
+    if (_lastExportFlowResult == null) return;
+    _exportResultController.dismiss();
+  }
+
+  Future<void> _handleExportFlowResultAction(
+    EditorExportResultAction action,
+  ) async {
+    await _exportResultController.handleAction(action);
+  }
+
+  // ignore: unused_element
+  List<String> _buildExportColumnTypes(int dataCols) {
+    return List<String>.generate(
+      dataCols,
+      (index) => _colType(index).name,
+      growable: false,
+    );
+  }
+
+  CellKey? _resolveExportCellKey(
+    String raw, {
+    required Map<String, int> rowIndexById,
+    required Map<String, int> colIndexById,
+  }) {
+    final ref = CellRef.fromKey(raw, defaultSheetId: widget.sheetId);
+    if (ref != null) {
+      final row = rowIndexById[ref.rowId];
+      final col = colIndexById[ref.colId];
+      if (row == null || col == null) return null;
+      return CellKey(row, col);
+    }
+    return CellKey.fromKey(raw);
+  }
+
+  // ignore: unused_element
+  List<GpsExport?> _buildGpsByRowForExport() {
+    if (_rows.isEmpty) return const <GpsExport?>[];
+    final gpsByRow = List<GpsExport?>.filled(_rows.length, null);
+
+    for (int rowIndex = 0; rowIndex < _rows.length; rowIndex++) {
+      final row = _rows[rowIndex];
+      if (row.gpsLat == null || row.gpsLng == null) continue;
+      gpsByRow[rowIndex] = GpsExport(
+        lat: row.gpsLat,
+        lng: row.gpsLng,
+        accuracy: row.gpsAccuracyM,
+        ts: row.gpsTs,
+        isLastKnown: row.gpsIsLastKnown,
+      );
+    }
+
+    final rowIndexById = <String, int>{};
+    for (int i = 0; i < _rows.length; i++) {
+      rowIndexById[_rows[i].id] = i;
+    }
+    final colIndexById = <String, int>{};
+    for (int i = 0; i < _colIds.length; i++) {
+      colIndexById[_colIds[i]] = i;
+    }
+
+    final entries = _cellMeta.entries.toList(growable: false);
+    entries.sort((a, b) {
+      final left = _resolveExportCellKey(
+        a.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      final right = _resolveExportCellKey(
+        b.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      if (left == null && right == null) return 0;
+      if (left == null) return 1;
+      if (right == null) return -1;
+      final rowCmp = left.row.compareTo(right.row);
+      if (rowCmp != 0) return rowCmp;
+      return left.col.compareTo(right.col);
+    });
+
+    for (final entry in entries) {
+      final cell = _resolveExportCellKey(
+        entry.key,
+        rowIndexById: rowIndexById,
+        colIndexById: colIndexById,
+      );
+      if (cell == null ||
+          cell.row < 0 ||
+          cell.row >= gpsByRow.length ||
+          gpsByRow[cell.row] != null) {
+        continue;
+      }
+      final gps = entry.value.gps;
+      if (gps == null) continue;
+      gpsByRow[cell.row] = GpsExport(
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracyM,
+        ts: gps.timestamp,
+        isLastKnown: gps.source.toLowerCase().contains('last'),
+      );
+    }
+
+    if (!gpsByRow.any((item) => item != null && item.hasFix)) {
+      return const <GpsExport?>[];
+    }
+    return gpsByRow;
+  }
+
+  // ignore: unused_element
+  ({
+    String? clientName,
+    String? projectName,
+    String? responsibleName,
+    String? observations
+  }) _buildExportCoverContext() {
+    final client = _extractExportColumnSummary(
+      const <String>['cliente', 'client', 'empresa'],
+    );
+    final project = _extractExportColumnSummary(
+      const <String>['obra', 'proyecto', 'project', 'frente'],
+    );
+    final responsible = _extractExportColumnSummary(
+          const <String>['responsable', 'encargado', 'supervisor', 'tecnico'],
+        ) ??
+        _extractReviewedBySummary();
+    final observations = _extractObservationsSummary();
+    return (
+      clientName: client,
+      projectName: project,
+      responsibleName: responsible,
+      observations: observations,
+    );
+  }
+
+  String? _extractExportColumnSummary(
+    List<String> aliases, {
+    int maxInlineValues = 2,
+  }) {
+    final column = _findExportColumn(aliases);
+    if (column == null) return null;
+    final values = _collectNonEmptyColumnValues(column);
+    if (values.isEmpty) return null;
+    return _summarizeExportValues(values, maxInlineValues: maxInlineValues);
+  }
+
+  String? _extractReviewedBySummary() {
+    final values = <String>[];
+    for (final row in _rows) {
+      final reviewedBy = (row.reviewedBy ?? '').trim();
+      if (reviewedBy.isEmpty || values.contains(reviewedBy)) continue;
+      values.add(reviewedBy);
+    }
+    if (values.isEmpty) return null;
+    return _summarizeExportValues(values, maxInlineValues: 2);
+  }
+
+  String? _extractObservationsSummary() {
+    final column = _findExportColumn(
+      const <String>['observaciones', 'observacion', 'nota', 'comentario'],
+    );
+    if (column == null) return null;
+    final values = _collectNonEmptyColumnValues(column);
+    if (values.isEmpty) return null;
+    if (values.length == 1) return _truncateExportText(values.first, 180);
+    return '${values.length} observaciones registradas. '
+        'Ejemplo: ${_truncateExportText(values.first, 120)}';
+  }
+
+  int? _findExportColumn(List<String> aliases) {
+    final normalizedAliases = aliases
+        .map(_normalizeExportFieldToken)
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedAliases.isEmpty) return null;
+    final dataCols = math.max(0, _headers.length - 1);
+    for (int c = 0; c < dataCols; c++) {
+      final header = _normalizeExportFieldToken(_headerLabel(c));
+      if (header.isEmpty) continue;
+      for (final alias in normalizedAliases) {
+        if (header == alias || header.contains(alias)) {
+          return c;
+        }
+      }
+    }
+    return null;
+  }
+
+  List<String> _collectNonEmptyColumnValues(int column) {
+    final values = <String>[];
+    for (final row in _rows) {
+      if (column < 0 || column >= row.cells.length) continue;
+      final value = row.cells[column].trim();
+      if (value.isEmpty || values.contains(value)) continue;
+      values.add(value);
+    }
+    return values;
+  }
+
+  String _summarizeExportValues(
+    List<String> values, {
+    required int maxInlineValues,
+  }) {
+    if (values.isEmpty) return '';
+    if (values.length == 1) return _truncateExportText(values.first, 120);
+    final head = values.take(maxInlineValues).map((item) {
+      return _truncateExportText(item, 54);
+    }).join(' | ');
+    final remaining = values.length - maxInlineValues;
+    if (remaining <= 0) return head;
+    return '$head +$remaining más';
+  }
+
+  String _truncateExportText(String raw, int maxChars) {
+    final value = raw.trim();
+    if (value.length <= maxChars) return value;
+    return '${value.substring(0, maxChars - 3).trim()}...';
+  }
+
+  String _normalizeExportFieldToken(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll('ñ', 'n')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
   }
 
   String _buildCommercialExportFileName(String extension) {

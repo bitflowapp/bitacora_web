@@ -1,48 +1,61 @@
 part of '../editor_screen.dart';
 
 extension _EditorExportShareHelpers on _EditorScreenState {
-  String _describeExportSaveLocation(String path) {
-    final trimmed = path.trim();
-    if (trimmed.isEmpty) return '';
-    if (trimmed.length <= 72) return trimmed;
-    final parts = trimmed.split(RegExp(r'[\\/]'));
-    if (parts.length < 2) return trimmed;
-    return '.../${parts[parts.length - 2]}/${parts.last}';
-  }
-
   String _exportShareSubject(String name) =>
-      'BitFlow | ${_formatLabelFromFileName(name)} | $name';
+      'BitFlow | ${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)} | $name';
 
   String _exportShareText(String name) =>
-      '${_formatLabelFromFileName(name)} exportado desde BitFlow: $name';
+      '${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)} exportado desde BitFlow: $name';
 
-  String _fileReadyMessage(String label, {required String name}) =>
-      '${_formatLabelFromFileName(name)} guardado: $label';
-
-  String _downloadStartedMessage(String name) =>
-      'Descarga de ${_formatLabelFromFileName(name)} iniciada: $name';
-
-  String _shareOpenedMessage(String name) =>
-      '${_formatLabelFromFileName(name)} listo para compartir: $name';
-
-  String _exportSheetOpenedMessage(String name) =>
-      '${_formatLabelFromFileName(name)} listo para guardar o enviar: $name. El sistema abrió las opciones para compartir.';
-
-  String _shareFallbackSavedMessage({
+  EditorExportOutcome _buildSavedExportFlowResult({
     required String name,
-    String? location,
+    required bool shareRequested,
+    required bool includeAttachments,
+    String? savedPath,
   }) {
-    final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir la opción de compartir el ${_formatLabelFromFileName(name)}. El archivo ya quedó listo para guardar o enviar: $target';
+    final path = (savedPath ?? '').trim();
+    return EditorExportOutcomeFactory.saved(
+      name: name,
+      shareRequested: shareRequested,
+      includeAttachments: includeAttachments,
+      savedPath: path.isEmpty ? null : path,
+    );
   }
 
-  String _formatLabelFromFileName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.xlsx')) return 'XLSX';
-    if (lower.endsWith('.pdf')) return 'PDF';
-    if (lower.endsWith('.zip')) return 'paquete ZIP';
-    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'HTML';
-    return 'archivo';
+  EditorExportOutcome _buildDownloadStartedExportFlowResult({
+    required String name,
+    required bool shareRequested,
+    required bool includeAttachments,
+    String? message,
+  }) {
+    return EditorExportOutcomeFactory.downloadStarted(
+      name: name,
+      shareRequested: shareRequested,
+      includeAttachments: includeAttachments,
+      message: message,
+    );
+  }
+
+  EditorExportOutcome _buildShareOpenedExportFlowResult({
+    required String name,
+    required bool includeAttachments,
+    String? message,
+  }) {
+    return EditorExportOutcomeFactory.shareOpened(
+      name: name,
+      includeAttachments: includeAttachments,
+      message: message,
+    );
+  }
+
+  EditorExportOutcome _buildSystemSheetOpenedExportFlowResult({
+    required String name,
+    required bool includeAttachments,
+  }) {
+    return EditorExportOutcomeFactory.systemSheetOpened(
+      name: name,
+      includeAttachments: includeAttachments,
+    );
   }
 
   Future<void> _shareExportParams(ShareParams params) async {
@@ -52,6 +65,18 @@ extension _EditorExportShareHelpers on _EditorScreenState {
       return;
     }
     await SharePlus.instance.share(params);
+  }
+
+  Future<void> _shareExportParamsSafely({
+    required ShareParams params,
+    String? operation,
+    bool Function()? shouldCancel,
+  }) async {
+    _throwIfOperationCancelledBy(shouldCancel);
+    await Future.any<void>([
+      _shareExportParams(params),
+      _operationCancelledFuture(shouldCancel),
+    ]);
   }
 
   Future<FileSaveLocation?> _pickExportSaveLocation({
@@ -91,46 +116,13 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     return persistShareTempFile(fileName: fileName, bytes: bytes);
   }
 
-  static const Duration _shareAwaitTimeout = Duration(seconds: 35);
-
-  Future<void> _shareExportParamsSafely({
-    required ShareParams params,
-    required String operation,
-    bool Function()? shouldCancel,
-  }) async {
-    if (mounted) {
-      _setLongOperationMessage('Abriendo compartir...');
-    }
-    _throwIfOperationCancelledBy(shouldCancel);
-
-    final timeoutCompleter = Completer<void>();
-    final timeoutTimer = Timer(_shareAwaitTimeout, () {
-      if (!timeoutCompleter.isCompleted) {
-        timeoutCompleter.completeError(
-          TimeoutException('share_timeout:$operation'),
-        );
-      }
-    });
-
-    try {
-      final cancelFuture = _operationCancelledFuture(shouldCancel);
-      await Future.any<void>([
-        _shareExportParams(params),
-        cancelFuture,
-        timeoutCompleter.future,
-      ]);
-    } finally {
-      timeoutTimer.cancel();
-    }
-  }
-
-  Future<void> _saveExportBytes({
+  Future<EditorExportOutcome> _saveExportBytes({
     required String name,
     required String mime,
     required Uint8List bytes,
     required bool share,
+    required bool includeAttachments,
     bool Function()? shouldCancel,
-    String? successMessage,
     String? shareSubject,
     String? shareText,
   }) async {
@@ -143,25 +135,6 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
 
-    void notifySuccess([String? overrideMessage]) {
-      final msg = (overrideMessage ?? successMessage ?? '').trim();
-      if (msg.isEmpty || !mounted) return;
-      _showActionSnack(
-        msg,
-        isError: false,
-        icon: share ? Icons.ios_share_rounded : Icons.download_done_rounded,
-      );
-    }
-
-    void notifySavedFallbackFromShare([String? location]) {
-      if (!mounted) return;
-      _showActionSnack(
-        _shareFallbackSavedMessage(name: name, location: location),
-        isError: false,
-        icon: Icons.save_alt_rounded,
-      );
-    }
-
     if (share) {
       if (kIsWeb) {
         final shared = await _tryShareWebFile(
@@ -171,20 +144,21 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           shouldCancel: shouldCancel,
         );
         if (shared) {
-          notifySuccess(_shareOpenedMessage(name));
-          return;
+          return _buildShareOpenedExportFlowResult(
+            name: name,
+            includeAttachments: includeAttachments,
+          );
         }
         _throwIfOperationCancelledBy(shouldCancel);
         await _saveExportFileTo(xf, name);
-        if (!mounted) return;
-        _showActionSnack(
-          _isIosWeb
-              ? 'Safari en iPhone limita compartir archivos desde esta pantalla. ${_downloadStartedMessage(name)} Abrilo desde Descargas y usa Compartir.'
-              : 'Este navegador no permite compartir archivos directamente. ${_downloadStartedMessage(name)}',
-          isError: false,
-          icon: Icons.download_rounded,
+        return _buildDownloadStartedExportFlowResult(
+          name: name,
+          shareRequested: true,
+          includeAttachments: includeAttachments,
+          message: _isIosWeb
+              ? 'Safari en iPhone limita compartir archivos desde esta pantalla. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message} Abrilo desde Descargas y usa Compartir.'
+              : 'Este navegador no permite compartir archivos directamente. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
         );
-        return;
       }
 
       if (isMobile) {
@@ -197,8 +171,10 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           text: resolvedText,
         );
         if (shared) {
-          notifySuccess();
-          return;
+          return _buildShareOpenedExportFlowResult(
+            name: name,
+            includeAttachments: includeAttachments,
+          );
         }
       }
     }
@@ -208,11 +184,20 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         _throwIfOperationCancelledBy(shouldCancel);
         await _saveExportFileTo(xf, name);
         if (share) {
-          notifySavedFallbackFromShare(name);
+          return _buildDownloadStartedExportFlowResult(
+            name: name,
+            shareRequested: true,
+            includeAttachments: includeAttachments,
+            message:
+                'No pudimos abrir la opción de compartir el ${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)}. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
+          );
         } else {
-          notifySuccess(_downloadStartedMessage(name));
+          return _buildDownloadStartedExportFlowResult(
+            name: name,
+            shareRequested: false,
+            includeAttachments: includeAttachments,
+          );
         }
-        return;
       } catch (_) {}
     }
 
@@ -229,15 +214,16 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           shouldCancel: shouldCancel,
         );
         if (share) {
-          notifySuccess(_shareOpenedMessage(name));
-        } else if (mounted) {
-          _showActionSnack(
-            _exportSheetOpenedMessage(name),
-            isError: false,
-            icon: Icons.ios_share_rounded,
+          return _buildShareOpenedExportFlowResult(
+            name: name,
+            includeAttachments: includeAttachments,
+          );
+        } else {
+          return _buildSystemSheetOpenedExportFlowResult(
+            name: name,
+            includeAttachments: includeAttachments,
           );
         }
-        return;
       } catch (e) {
         if (_looksLikeShareUserCancel(e)) {
           throw const _EditorLongOperationCancelled();
@@ -267,17 +253,12 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     }
     _throwIfOperationCancelledBy(shouldCancel);
     await _saveExportFileTo(xf, loc.path);
-    final savedLocation = _describeExportSaveLocation(loc.path);
-    if (share) {
-      notifySavedFallbackFromShare(savedLocation);
-    } else {
-      notifySuccess(
-        _fileReadyMessage(
-          savedLocation.isEmpty ? name : savedLocation,
-          name: name,
-        ),
-      );
-    }
+    return _buildSavedExportFlowResult(
+      name: name,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+      savedPath: loc.path,
+    );
   }
 
   Future<bool> _tryShareWebFile(
