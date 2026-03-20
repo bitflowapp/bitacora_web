@@ -96,6 +96,54 @@ class _ActionResult {
   final String? undoToken;
 }
 
+enum _ExportFlowResultKind {
+  saved,
+  downloadStarted,
+  shareOpened,
+  systemSheetOpened,
+  cancelled,
+  error,
+  unsupported,
+}
+
+enum _ExportFlowResultAction {
+  openFile,
+  openLocation,
+  retryCurrent,
+  retryShare,
+  continueEditing,
+  closeEditor,
+}
+
+@immutable
+class _ExportFlowResult {
+  const _ExportFlowResult({
+    required this.kind,
+    required this.fileName,
+    required this.format,
+    required this.message,
+    required this.actions,
+    required this.shareRequested,
+    required this.includeAttachments,
+    this.savedPath,
+  });
+
+  final _ExportFlowResultKind kind;
+  final String fileName;
+  final String format;
+  final String message;
+  final String? savedPath;
+  final List<_ExportFlowResultAction> actions;
+  final bool shareRequested;
+  final bool includeAttachments;
+
+  bool get hasSavedPath => (savedPath ?? '').trim().isNotEmpty;
+
+  bool get isError =>
+      kind == _ExportFlowResultKind.error ||
+      kind == _ExportFlowResultKind.unsupported;
+}
+
 enum _SmartPasteMode { replaceFromActive, insertRows }
 
 class _SmartPasteUserChoice {
@@ -275,6 +323,7 @@ class _SheetModel {
     this.columnPrefsById = const <String, _ColumnPrefs>{},
     this.columnOrder = const <String>[],
     this.frozenColId,
+    this.templateKind,
   });
 
   final String? name;
@@ -286,6 +335,7 @@ class _SheetModel {
   final Map<String, _ColumnPrefs> columnPrefsById;
   final List<String> columnOrder;
   final String? frozenColId;
+  final String? templateKind;
 
   Map<String, dynamic> toJson() => {
         'name': name,
@@ -303,6 +353,8 @@ class _SheetModel {
           ),
         if (columnOrder.isNotEmpty) 'columnOrder': columnOrder,
         if (frozenColId?.trim().isNotEmpty ?? false) 'frozenColId': frozenColId,
+        if (templateKind?.trim().isNotEmpty ?? false)
+          'templateKind': templateKind,
       };
 
   static _SheetModel fromJson(Map<String, dynamic> map) {
@@ -363,6 +415,8 @@ class _SheetModel {
 
     final frozenRaw = (map['frozenColId'] ?? '').toString().trim();
     final frozenColId = frozenRaw.isEmpty ? null : frozenRaw;
+    final templateRaw = (map['templateKind'] ?? '').toString().trim();
+    final templateKind = templateRaw.isEmpty ? null : templateRaw;
 
     return _SheetModel(
       name: name,
@@ -374,6 +428,7 @@ class _SheetModel {
       columnPrefsById: columnPrefsById,
       columnOrder: columnOrder,
       frozenColId: frozenColId,
+      templateKind: templateKind,
     );
   }
 }

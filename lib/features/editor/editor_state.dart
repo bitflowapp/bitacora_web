@@ -92,6 +92,10 @@ const String _kPrefFlowBotUseLocalLlm =
 const String _kPrefFlowBotLocalModelPath =
     'bitflow.editor.flowbot.local_model_path.v1';
 const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
+const String _kPrefFlowBotRecentByContext =
+    'bitflow.editor.flowbot.recent_by_context.v2';
+const String _kPrefFlowBotFavoritesByContext =
+    'bitflow.editor.flowbot.favorites_by_context.v1';
 const String _kPrefFlowBotLastScope = 'bitflow.editor.flowbot.last_scope.v1';
 const String _kPrefFlowBotMacros = 'bitflow.editor.flowbot.macros.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
@@ -120,6 +124,138 @@ class _CellTarget {
   const _CellTarget(this.row, this.col);
   final int row;
   final int col;
+}
+
+class _SheetQualitySnapshot {
+  const _SheetQualitySnapshot({
+    required this.rowsTotal,
+    required this.rowsWithData,
+    required this.rowsReady,
+    required this.invalidCells,
+    required this.pendingRequired,
+    required this.requiredCellsTotal,
+    required this.requiredCellsValid,
+  });
+
+  const _SheetQualitySnapshot.empty()
+      : rowsTotal = 0,
+        rowsWithData = 0,
+        rowsReady = 0,
+        invalidCells = 0,
+        pendingRequired = 0,
+        requiredCellsTotal = 0,
+        requiredCellsValid = 0;
+
+  final int rowsTotal;
+  final int rowsWithData;
+  final int rowsReady;
+  final int invalidCells;
+  final int pendingRequired;
+  final int requiredCellsTotal;
+  final int requiredCellsValid;
+
+  bool get hasIssues => invalidCells > 0 || pendingRequired > 0;
+
+  int get requiredCompletionPercent {
+    if (requiredCellsTotal <= 0) {
+      return rowsWithData > 0 ? 100 : 0;
+    }
+    return ((requiredCellsValid / requiredCellsTotal) * 100)
+        .round()
+        .clamp(0, 100);
+  }
+
+  String get statusLabel {
+    if (rowsWithData <= 0) return 'Sin carga';
+    if (hasIssues) return 'Requiere revision';
+    return 'Lista para presentar';
+  }
+
+  bool sameAs(_SheetQualitySnapshot other) {
+    return rowsTotal == other.rowsTotal &&
+        rowsWithData == other.rowsWithData &&
+        rowsReady == other.rowsReady &&
+        invalidCells == other.invalidCells &&
+        pendingRequired == other.pendingRequired &&
+        requiredCellsTotal == other.requiredCellsTotal &&
+        requiredCellsValid == other.requiredCellsValid;
+  }
+}
+
+class _FlowBotQuickContext {
+  const _FlowBotQuickContext({
+    required this.sheetName,
+    required this.row,
+    required this.col,
+    required this.rowNumber,
+    required this.cellToken,
+    required this.columnLabel,
+    required this.visibleColumnLabels,
+    required this.hasRows,
+    required this.hasPreviousRow,
+    required this.hasBlankCellsInColumn,
+    required this.canExport,
+  });
+
+  final String sheetName;
+  final int row;
+  final int col;
+  final int rowNumber;
+  final String cellToken;
+  final String columnLabel;
+  final List<String> visibleColumnLabels;
+  final bool hasRows;
+  final bool hasPreviousRow;
+  final bool hasBlankCellsInColumn;
+  final bool canExport;
+}
+
+class _FlowBotQuickActionSpec {
+  const _FlowBotQuickActionSpec({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.buildCommand,
+    this.requiresValue = false,
+    this.promptTitle,
+    this.promptLabel,
+    this.promptHint,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final String Function(String? value) buildCommand;
+  final bool requiresValue;
+  final String? promptTitle;
+  final String? promptLabel;
+  final String? promptHint;
+}
+
+class _FlowBotTemplateFavoriteSpec {
+  const _FlowBotTemplateFavoriteSpec({
+    required this.quickActionId,
+    required this.label,
+  });
+
+  final String quickActionId;
+  final String label;
+}
+
+class _FlowBotInlineQuickActionView {
+  const _FlowBotInlineQuickActionView({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.action,
+    required this.source,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final _FlowBotQuickActionSpec action;
+  final String source;
 }
 
 class _EditorLongOperationState {
@@ -173,6 +309,16 @@ typedef _DebugPersistShareTempFileHook = Future<String?> Function({
 typedef _DebugGpsOutcomeHook = Future<Map<String, Object?>> Function(
   Duration timeout,
 );
+typedef _DebugStartAudioRecordingHook = Future<void> Function({
+  required String sheetId,
+});
+typedef _DebugStopAudioRecordingHook = Future<RecordedAudio?> Function();
+typedef _DebugSaveAudioHook = Future<StoredAudio?> Function({
+  required String sheetId,
+  required String cellKey,
+  required String attachmentId,
+  required RecordedAudio recording,
+});
 
 // ============================== Pantalla principal =========================
 
@@ -181,6 +327,7 @@ class EditorScreen extends StatefulWidget {
     super.key,
     required this.sheetId,
     this.initialName,
+    this.initialTemplateKind,
     this.initialHeaders,
     this.initialRows,
     this.engineBaseUrl,
@@ -194,6 +341,7 @@ class EditorScreen extends StatefulWidget {
 
   final String sheetId;
   final String? initialName;
+  final String? initialTemplateKind;
   final List<String>? initialHeaders;
   final List<List<String>>? initialRows;
   final String? engineBaseUrl;
@@ -230,6 +378,7 @@ class _EditorScreenState extends State<EditorScreen>
   // ------------------------------ Estado ----------------------------------
 
   late String _sheetName;
+  String _sheetTemplateKind = '';
   DateTime? _lastSavedAt;
 
   late List<String> _headers;
@@ -430,6 +579,9 @@ class _EditorScreenState extends State<EditorScreen>
   _DebugSaveFileHook? _debugSaveFileHook;
   _DebugPersistShareTempFileHook? _debugPersistShareTempFileHook;
   _DebugGpsOutcomeHook? _debugGpsOutcomeHook;
+  _DebugStartAudioRecordingHook? _debugStartAudioRecordingHook;
+  _DebugStopAudioRecordingHook? _debugStopAudioRecordingHook;
+  _DebugSaveAudioHook? _debugSaveAudioHook;
   WebImageNormalizer? _debugWebImageNormalizer;
   bool _debugForceWebImageNormalization = false;
   bool _debugSkipAttachmentGps = false;
@@ -513,6 +665,7 @@ class _EditorScreenState extends State<EditorScreen>
   Set<_CellRef> _invalidCells = <_CellRef>{};
   Map<_CellRef, String> _invalidCellMessages = <_CellRef, String>{};
   int _pendingRequired = 0;
+  _SheetQualitySnapshot _sheetQuality = const _SheetQualitySnapshot.empty();
   bool _errorsPanelOpen = false;
   final List<_ColumnTemplate> _columnTemplates = <_ColumnTemplate>[];
   bool _inlineSearchOpen = false;
@@ -542,8 +695,15 @@ class _EditorScreenState extends State<EditorScreen>
   String _flowBotLocalModelPath = '';
   bool _flowBotModelDownloading = false;
   double _flowBotModelDownloadProgress = 0;
-  static const int _maxFlowBotHistoryItems = 12;
+  static const int _maxFlowBotHistoryItems = 6;
+  static const int _maxFlowBotFavoriteItems = 6;
+  static const bool _flowBotShowDebugTools = bool.fromEnvironment(
+    'BITFLOW_SHOW_FLOWBOT_DEBUG_TOOLS',
+    defaultValue: false,
+  );
   final List<String> _flowBotHistory = <String>[];
+  final List<FlowBotFavoriteShortcut> _flowBotFavorites =
+      <FlowBotFavoriteShortcut>[];
   final List<FlowBotMacroPreset> _flowBotMacros = <FlowBotMacroPreset>[];
   String _flowBotLastScope = 'seleccion';
   String _lastFlowBotValidCommand = '';
@@ -553,6 +713,7 @@ class _EditorScreenState extends State<EditorScreen>
   final FlowBotLocalModelManager _flowBotLocalModelManager =
       createFlowBotLocalModelManager();
   String _lastExportPreset = 'pdf';
+  _ExportFlowResult? _lastExportFlowResult;
   final List<_QuickCapturePending> _quickCaptureQueue =
       <_QuickCapturePending>[];
   final List<_EditPending> _editQueue = <_EditPending>[];
@@ -615,6 +776,7 @@ class _EditorScreenState extends State<EditorScreen>
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
         : 'Hoja';
+    _sheetTemplateKind = (widget.initialTemplateKind ?? '').trim();
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -701,6 +863,7 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadGridDensity());
     unawaited(_loadEditorDefaultsPrefs());
     unawaited(_loadFlowBotHistoryPrefs());
+    unawaited(_loadFlowBotFavoritesPrefs());
     unawaited(_loadFlowBotUiPrefs());
     unawaited(_loadExportPresetPref());
     unawaited(_loadRecentValuesFromPrefs());
@@ -1512,6 +1675,7 @@ class _EditorScreenState extends State<EditorScreen>
       _sheetName = (loaded.name?.trim().isNotEmpty ?? false)
           ? loaded.name!.trim()
           : _sheetName;
+      _sheetTemplateKind = (loaded.templateKind ?? _sheetTemplateKind).trim();
       _headers = loadedHeaders;
       _colIds = colIds;
       _columnPrefsById = columnPrefs;
@@ -1633,6 +1797,8 @@ class _EditorScreenState extends State<EditorScreen>
       columnPrefsById: _cloneColumnPrefs(_columnPrefsById),
       columnOrder: List<String>.from(_columnOrder),
       frozenColId: _frozenColId,
+      templateKind:
+          _sheetTemplateKind.trim().isEmpty ? null : _sheetTemplateKind.trim(),
     );
   }
 
@@ -2261,23 +2427,69 @@ class _EditorScreenState extends State<EditorScreen>
     await _saveEditorDefaultsPrefs();
   }
 
+  String _flowBotSheetContextKey() {
+    final sheetId = widget.sheetId.trim();
+    if (sheetId.isNotEmpty) return 'sheet:$sheetId';
+    return 'sheet:${_sheetName.trim()}';
+  }
+
+  String? _flowBotTemplateContextKey() {
+    final templateKind = _sheetTemplateKind.trim();
+    if (templateKind.isEmpty) return null;
+    return 'template:$templateKind';
+  }
+
+  String _flowBotPersistenceContextKey() {
+    return _flowBotTemplateContextKey() ?? _flowBotSheetContextKey();
+  }
+
+  List<String> _flowBotFallbackContextKeys() {
+    final ordered = <String>[
+      if (_flowBotTemplateContextKey() != null) _flowBotTemplateContextKey()!,
+      _flowBotSheetContextKey(),
+    ];
+    return LinkedHashSet<String>.from(ordered).toList(growable: false);
+  }
+
   Future<void> _loadFlowBotHistoryPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kPrefFlowBotHistory);
-      if (raw == null || raw.trim().isEmpty) return;
-      final parsed = jsonDecode(raw);
-      if (parsed is! List) return;
-      final cleaned = <String>[];
-      for (final item in parsed) {
-        final text = item.toString().trim();
-        if (text.isEmpty) continue;
-        if (cleaned
-            .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
-          continue;
+      final raw = prefs.getString(_kPrefFlowBotRecentByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeRecentByContext(
+        raw,
+        limit: _maxFlowBotHistoryItems,
+      );
+      final templateContextKey = _flowBotTemplateContextKey();
+      final sheetContextKey = _flowBotSheetContextKey();
+      List<String> cleaned = const <String>[];
+      for (final contextKey in _flowBotFallbackContextKeys()) {
+        final stored = decoded[contextKey] ?? const <String>[];
+        if (stored.isNotEmpty) {
+          cleaned = List<String>.from(stored);
+          break;
         }
-        cleaned.add(text);
-        if (cleaned.length >= _maxFlowBotHistoryItems) break;
+      }
+      if (cleaned.isEmpty) {
+        final legacyRaw = prefs.getString(_kPrefFlowBotHistory) ?? '';
+        cleaned = FlowBotQuickStore.normalizeRecentCommands(
+          legacyRaw.trim().isEmpty
+              ? const <Object?>[]
+              : (jsonDecode(legacyRaw) as List<Object?>),
+          limit: _maxFlowBotHistoryItems,
+        );
+      }
+      if (templateContextKey != null &&
+          cleaned.isNotEmpty &&
+          (decoded[templateContextKey] ?? const <String>[]).isEmpty &&
+          (decoded[sheetContextKey] ?? const <String>[]).isNotEmpty) {
+        decoded[templateContextKey] = List<String>.from(cleaned);
+        await prefs.setString(
+          _kPrefFlowBotRecentByContext,
+          FlowBotQuickStore.encodeRecentByContext(
+            decoded,
+            limit: _maxFlowBotHistoryItems,
+          ),
+        );
       }
       if (!mounted) {
         _flowBotHistory
@@ -2296,46 +2508,177 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _saveFlowBotHistoryPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kPrefFlowBotHistory, jsonEncode(_flowBotHistory));
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotRecentByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeRecentByContext(
+        raw,
+        limit: _maxFlowBotHistoryItems,
+      );
+      decoded[contextKey] = List<String>.from(_flowBotHistory);
+      await prefs.setString(
+        _kPrefFlowBotRecentByContext,
+        FlowBotQuickStore.encodeRecentByContext(
+          decoded,
+          limit: _maxFlowBotHistoryItems,
+        ),
+      );
     } catch (_) {}
   }
 
-  void _rememberFlowBotHistory(String command) {
-    final text = command.trim();
-    if (text.isEmpty) return;
-    final existingIndex = _flowBotHistory.indexWhere(
-      (item) => item.toLowerCase() == text.toLowerCase(),
+  Future<void> _rememberFlowBotHistory(String command) async {
+    final next = FlowBotQuickStore.rememberRecent(
+      _flowBotHistory,
+      command,
+      limit: _maxFlowBotHistoryItems,
     );
-    if (existingIndex == 0) return;
+    if (listEquals(next, _flowBotHistory)) return;
     if (mounted) {
       setState(() {
-        if (existingIndex > 0) {
-          _flowBotHistory.removeAt(existingIndex);
-        }
-        _flowBotHistory.insert(0, text);
-        if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
-          _flowBotHistory.removeRange(
-            _maxFlowBotHistoryItems,
-            _flowBotHistory.length,
-          );
-        }
+        _flowBotHistory
+          ..clear()
+          ..addAll(next);
       });
     } else {
-      if (existingIndex > 0) {
-        _flowBotHistory.removeAt(existingIndex);
+      _flowBotHistory
+        ..clear()
+        ..addAll(next);
+    }
+    await _saveFlowBotHistoryPrefs();
+  }
+
+  Future<void> _loadFlowBotFavoritesPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kPrefFlowBotFavoritesByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeFavoritesByContext(
+        raw,
+        limit: _maxFlowBotFavoriteItems,
+      );
+      final templateContextKey = _flowBotTemplateContextKey();
+      final sheetContextKey = _flowBotSheetContextKey();
+      List<FlowBotFavoriteShortcut> favorites =
+          const <FlowBotFavoriteShortcut>[];
+      for (final contextKey in _flowBotFallbackContextKeys()) {
+        final stored = decoded[contextKey] ?? const <FlowBotFavoriteShortcut>[];
+        if (stored.isNotEmpty) {
+          favorites = List<FlowBotFavoriteShortcut>.from(stored);
+          break;
+        }
       }
-      if (_flowBotHistory.isEmpty ||
-          _flowBotHistory.first.toLowerCase() != text.toLowerCase()) {
-        _flowBotHistory.insert(0, text);
-      }
-      if (_flowBotHistory.length > _maxFlowBotHistoryItems) {
-        _flowBotHistory.removeRange(
-          _maxFlowBotHistoryItems,
-          _flowBotHistory.length,
+      if (templateContextKey != null &&
+          favorites.isNotEmpty &&
+          (decoded[templateContextKey] ?? const <FlowBotFavoriteShortcut>[])
+              .isEmpty &&
+          (decoded[sheetContextKey] ?? const <FlowBotFavoriteShortcut>[])
+              .isNotEmpty) {
+        decoded[templateContextKey] =
+            List<FlowBotFavoriteShortcut>.from(favorites);
+        await prefs.setString(
+          _kPrefFlowBotFavoritesByContext,
+          FlowBotQuickStore.encodeFavoritesByContext(
+            decoded,
+            limit: _maxFlowBotFavoriteItems,
+          ),
         );
       }
+      if (!mounted) {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(favorites);
+        return;
+      }
+      setState(() {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(favorites);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveFlowBotFavoritesPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final contextKey = _flowBotPersistenceContextKey();
+      final raw = prefs.getString(_kPrefFlowBotFavoritesByContext) ?? '';
+      final decoded = FlowBotQuickStore.decodeFavoritesByContext(
+        raw,
+        limit: _maxFlowBotFavoriteItems,
+      );
+      decoded[contextKey] =
+          List<FlowBotFavoriteShortcut>.from(_flowBotFavorites);
+      await prefs.setString(
+        _kPrefFlowBotFavoritesByContext,
+        FlowBotQuickStore.encodeFavoritesByContext(
+          decoded,
+          limit: _maxFlowBotFavoriteItems,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  FlowBotFavoriteShortcut _flowBotFavoriteForCommand(String command) {
+    return FlowBotFavoriteShortcut(
+      kind: 'command',
+      label: command.trim(),
+      command: command.trim(),
+    );
+  }
+
+  FlowBotFavoriteShortcut _flowBotFavoriteForAction(
+    _FlowBotQuickActionSpec action,
+  ) {
+    return FlowBotFavoriteShortcut(
+      kind: 'quick_action',
+      label: action.label,
+      quickActionId: action.id,
+      requiresValuePrompt: action.requiresValue,
+    );
+  }
+
+  bool _isFlowBotFavoriteCommand(String command) {
+    return FlowBotQuickStore.containsFavorite(
+      _flowBotFavorites,
+      _flowBotFavoriteForCommand(command),
+    );
+  }
+
+  bool _isFlowBotFavoriteAction(_FlowBotQuickActionSpec action) {
+    return FlowBotQuickStore.containsFavorite(
+      _flowBotFavorites,
+      _flowBotFavoriteForAction(action),
+    );
+  }
+
+  Future<bool> _toggleFlowBotFavoriteEntry(
+    FlowBotFavoriteShortcut entry,
+  ) async {
+    final existed =
+        FlowBotQuickStore.containsFavorite(_flowBotFavorites, entry);
+    final next = FlowBotQuickStore.toggleFavorite(
+      _flowBotFavorites,
+      entry,
+      limit: _maxFlowBotFavoriteItems,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (mounted) {
+      setState(() {
+        _flowBotFavorites
+          ..clear()
+          ..addAll(next);
+      });
+    } else {
+      _flowBotFavorites
+        ..clear()
+        ..addAll(next);
     }
-    unawaited(_saveFlowBotHistoryPrefs());
+    await _saveFlowBotFavoritesPrefs();
+    final label = entry.label.trim().isEmpty ? 'Favorito' : entry.label.trim();
+    _showActionSnack(
+      existed ? 'Favorito quitado: $label' : 'Favorito guardado: $label',
+      isError: false,
+      icon: existed ? Icons.star_border_rounded : Icons.star_rounded,
+    );
+    return !existed;
   }
 
   String _normalizeFlowBotScopeToken(String raw) {
@@ -2410,7 +2753,7 @@ class _EditorScreenState extends State<EditorScreen>
       _ActionResult(
         ok: true,
         message: next
-            ? 'Modo campo activado: UI simplificada y movimiento reducido.'
+            ? 'Modo campo activado: menos ruido, captura rapida y salida lista para exportar.'
             : 'Modo campo desactivado.',
       ),
       successIcon: Icons.terrain_rounded,
@@ -4303,6 +4646,75 @@ class _EditorScreenState extends State<EditorScreen>
     return list;
   }
 
+  int _sheetEvidenceCount() {
+    var total = 0;
+    for (final meta in _cellMeta.values) {
+      total += meta.photos.length;
+      total += meta.audios.length;
+      if (meta.gps != null) total += 1;
+    }
+    return total;
+  }
+
+  String _sheetQualityHeadline(_SheetQualitySnapshot quality) {
+    if (quality.rowsWithData <= 0) {
+      return 'Sin registros cargados todavia.';
+    }
+    final requiredPct = quality.requiredCompletionPercent;
+    final readyBase = math.max(quality.rowsWithData, quality.rowsTotal);
+    if (quality.hasIssues) {
+      return '${quality.statusLabel} | $requiredPct% de campos obligatorios completos | ${quality.rowsReady}/$readyBase filas listas';
+    }
+    return '${quality.statusLabel} | $requiredPct% de campos obligatorios completos | ${quality.rowsReady}/$readyBase filas listas';
+  }
+
+  String _sheetQualityDetail(
+    _SheetQualitySnapshot quality, {
+    int? evidenceCount,
+  }) {
+    final parts = <String>[];
+    if (quality.invalidCells > 0) {
+      parts.add('${quality.invalidCells} error(es)');
+    }
+    if (quality.pendingRequired > 0) {
+      parts.add('${quality.pendingRequired} obligatorio(s) pendiente(s)');
+    }
+    if ((evidenceCount ?? 0) > 0) {
+      parts.add('${evidenceCount!} evidencia(s)');
+    }
+    if (parts.isEmpty) {
+      return quality.rowsWithData > 0
+          ? 'La planilla esta lista para exportar o compartir.'
+          : 'Empieza cargando filas para ver el estado operativo.';
+    }
+    return parts.join(' | ');
+  }
+
+  String get _sheetQualityHeaderLabel {
+    final quality = _sheetQuality;
+    if (quality.rowsWithData <= 0 && !quality.hasIssues) {
+      return 'Sin carga';
+    }
+    return 'Calidad ${quality.requiredCompletionPercent}%';
+  }
+
+  String get _sheetQualityHeaderDetail {
+    final quality = _sheetQuality;
+    if (quality.rowsWithData <= 0) {
+      return 'Sin filas cargadas todavia.';
+    }
+    final parts = <String>[
+      '${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)} filas listas',
+    ];
+    if (quality.invalidCells > 0) {
+      parts.add('${quality.invalidCells} error(es)');
+    }
+    if (quality.pendingRequired > 0) {
+      parts.add('${quality.pendingRequired} obligatorio(s) pendiente(s)');
+    }
+    return parts.join(' | ');
+  }
+
   void _recomputeValidation() {
     final stopwatch = kDebugMode ? (Stopwatch()..start()) : null;
     if (kDebugMode) {
@@ -4312,36 +4724,85 @@ class _EditorScreenState extends State<EditorScreen>
       final invalid = <_CellRef>{};
       final messages = <_CellRef, String>{};
       int pending = 0;
+      var rowsWithData = 0;
+      var rowsReady = 0;
+      var requiredCellsTotal = 0;
+      var requiredCellsValid = 0;
+      final dataCols = math.max(0, _headers.length - 1);
+      final requiredByCol = List<bool>.generate(
+        dataCols,
+        (index) => _isRequired(index),
+        growable: false,
+      );
 
       for (int r = 0; r < _rows.length; r++) {
+        var rowHasData = false;
+        var rowHasInvalid = false;
+        var rowRequiredOk = true;
+        var rowHasRequiredColumns = false;
         for (int c = 0; c < _headers.length - 1; c++) {
           final v = _rows[r].cells[c];
           final ref = _CellRef(r, c);
+          final trimmed = v.trim();
+          if (trimmed.isNotEmpty) {
+            rowHasData = true;
+          }
           final message = _validationMessageForCell(r, c, overrideValue: v);
           if (message != null) {
             invalid.add(ref);
             messages[ref] = message;
+            rowHasInvalid = true;
             if (message == 'Campo requerido') pending++;
           }
+          if (c < requiredByCol.length && requiredByCol[c]) {
+            rowHasRequiredColumns = true;
+            requiredCellsTotal++;
+            if (message == null && trimmed.isNotEmpty) {
+              requiredCellsValid++;
+            } else {
+              rowRequiredOk = false;
+            }
+          }
+        }
+        if (rowHasData) {
+          rowsWithData++;
+        }
+        if (rowHasData &&
+            !rowHasInvalid &&
+            (!rowHasRequiredColumns || rowRequiredOk)) {
+          rowsReady++;
         }
       }
+
+      final quality = _SheetQualitySnapshot(
+        rowsTotal: _rows.length,
+        rowsWithData: rowsWithData,
+        rowsReady: rowsReady,
+        invalidCells: invalid.length,
+        pendingRequired: pending,
+        requiredCellsTotal: requiredCellsTotal,
+        requiredCellsValid: requiredCellsValid,
+      );
 
       final hasChanges = _pendingRequired != pending ||
           _invalidCells.length != invalid.length ||
           !_invalidCells.containsAll(invalid) ||
-          !mapEquals(_invalidCellMessages, messages);
+          !mapEquals(_invalidCellMessages, messages) ||
+          !_sheetQuality.sameAs(quality);
       if (!hasChanges) return;
 
       if (!mounted) {
         _invalidCells = invalid;
         _invalidCellMessages = messages;
         _pendingRequired = pending;
+        _sheetQuality = quality;
         return;
       }
       setState(() {
         _invalidCells = invalid;
         _invalidCellMessages = messages;
         _pendingRequired = pending;
+        _sheetQuality = quality;
         if (_invalidCells.isEmpty) {
           _errorsPanelOpen = false;
         }
@@ -5364,6 +5825,14 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final selectedRows = _batchTargetRows();
+    final dataCols = math.max(0, _headers.length - 1);
+    final headerLabels = dataCols <= 0
+        ? const <String>[]
+        : List<String>.generate(dataCols, _headerLabel);
+    flowBotDebugLog(
+      'Editor.parse command="$text" '
+      'rows=${_rows.length} dataCols=$dataCols selection=(${_selRow + 1},${_selCol + 1})',
+    );
     String? localWarning;
     final modelPath = _flowBotLocalModelPath.trim();
     if (_flowBotUseLocalLlm && modelPath.isNotEmpty) {
@@ -5374,7 +5843,13 @@ class _EditorScreenState extends State<EditorScreen>
         selectedCol: _selCol,
         selectedRows: selectedRows,
       );
-      if (llmResult.hasActions) return llmResult;
+      if (llmResult.hasActions) {
+        flowBotDebugLog(
+          'Editor.parse result engine=${llmResult.engine} '
+          'actions=${llmResult.actions.map((action) => action.type.name).join(',')}',
+        );
+        return llmResult;
+      }
       localWarning = llmResult.warning;
     }
 
@@ -5384,15 +5859,25 @@ class _EditorScreenState extends State<EditorScreen>
       selectedCol: _selCol,
       selectedRows: selectedRows,
       maxRows: _rows.length.clamp(1, 50000),
-      maxCols: _headers.length.clamp(1, 200),
+      maxCols: dataCols.clamp(1, 200),
+      headerLabels: headerLabels,
     );
     if ((localWarning ?? '').trim().isNotEmpty && !fallback.hasActions) {
+      flowBotDebugLog(
+        'Editor.parse result engine=${fallback.engine} '
+        'actions=0 warning="${localWarning ?? ''}"',
+      );
       return FlowBotParseResult(
         actions: fallback.actions,
         engine: fallback.engine,
         warning: localWarning,
       );
     }
+    flowBotDebugLog(
+      'Editor.parse result engine=${fallback.engine} '
+      'actions=${fallback.actions.map((action) => action.type.name).join(',')} '
+      'warning="${fallback.warning ?? ''}"',
+    );
     return fallback;
   }
 
@@ -5458,10 +5943,42 @@ class _EditorScreenState extends State<EditorScreen>
         final row = (action.row ?? _selRow) + 1;
         final times = (action.count ?? 1).clamp(1, 100);
         return 'Duplicar fila $row x$times';
+      case FlowBotActionType.deleteRow:
+        final row = (action.row ?? _selRow) + 1;
+        return 'Eliminar fila $row';
+      case FlowBotActionType.addColumn:
+        return 'Agregar columna "${action.value ?? 'Nueva columna'}"';
+      case FlowBotActionType.renameColumn:
+        final col = (action.column ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Renombrar columna ${_headerLabel(col)} -> "${action.value ?? ''}"';
+      case FlowBotActionType.fillBlanks:
+        final col = (action.column ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Completar vacios en ${_headerLabel(col)} con "${action.value ?? ''}"';
+      case FlowBotActionType.copyFromPreviousRow:
+        final row = (action.row ?? _selRow) + 1;
+        final col = (action.col ?? _selCol)
+            .clamp(
+              0,
+              math.max(0, _headers.length - 2),
+            )
+            .toInt();
+        return 'Copiar fila ${math.max(1, row - 1)} -> ${_headerLabel(col)} en fila $row';
       case FlowBotActionType.attachPhotoToCell:
         final row = (action.row ?? _selRow) + 1;
         final col = (action.col ?? _selCol) + 1;
         return 'Adjuntar foto en F$row/C$col';
+      case FlowBotActionType.exportXlsx:
+        return 'Exportar XLSX';
       case FlowBotActionType.exportPdfPreset:
         return 'Exportar PDF (${action.presetId ?? 'default'})';
       case FlowBotActionType.pasteTable:
@@ -5559,12 +6076,41 @@ class _EditorScreenState extends State<EditorScreen>
             addPatch(rows[i], col, '${start + (i * step)}');
           }
           break;
+        case FlowBotActionType.deleteRow:
+          final row = (action.row ?? _selRow)
+              .clamp(0, math.max(0, _rows.length - 1))
+              .toInt();
+          addPatch(
+            row,
+            _selCol.clamp(0, dataCols - 1).toInt(),
+            '(fila eliminada)',
+          );
+          break;
+        case FlowBotActionType.fillBlanks:
+          final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+          final after = action.value ?? '';
+          for (int row = 0; row < _rows.length; row++) {
+            if (_getCellText(row, col).trim().isNotEmpty) continue;
+            addPatch(row, col, after);
+          }
+          break;
+        case FlowBotActionType.copyFromPreviousRow:
+          final row = (action.row ?? _selRow)
+              .clamp(0, math.max(0, _rows.length - 1))
+              .toInt();
+          final col = (action.col ?? _selCol).clamp(0, dataCols - 1).toInt();
+          if (row <= 0) break;
+          addPatch(row, col, _getCellText(row - 1, col));
+          break;
         case FlowBotActionType.setColumnAlign:
         case FlowBotActionType.setWrap:
         case FlowBotActionType.applyStatus:
         case FlowBotActionType.copyGps:
         case FlowBotActionType.duplicateRow:
+        case FlowBotActionType.addColumn:
+        case FlowBotActionType.renameColumn:
         case FlowBotActionType.attachPhotoToCell:
+        case FlowBotActionType.exportXlsx:
         case FlowBotActionType.exportPdfPreset:
         case FlowBotActionType.pasteTable:
         case FlowBotActionType.exportBundle:
@@ -5600,6 +6146,42 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Widget _flowBotContextChip({
+    required String label,
+    required IconData icon,
+    required Color fg,
+    required Color bg,
+    required Color border,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fg,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _flowBotPreviewDataCell(
     String text,
     Color color, {
@@ -5625,10 +6207,6 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  bool _isFlowBotApplyIntent(String text) {
-    return _flowBotRuleEngine.isApplyConfirmation(text);
-  }
-
   bool _flowBotCanApplyPreview({
     required List<FlowBotAction> preview,
     required bool parsing,
@@ -5648,14 +6226,26 @@ class _EditorScreenState extends State<EditorScreen>
     final normalizedWarning = (parseWarning ?? '').trim();
     if (parsing) return 'Analizando comando...';
     if (preview.isNotEmpty) return '';
-    if (normalizedWarning.isNotEmpty) return normalizedWarning;
+    if (normalizedWarning.isNotEmpty) {
+      return flowBotNoActionsReason(normalizedWarning);
+    }
     if (!hasTranscript) {
-      return 'Escribe un cambio puntual antes de aplicar.';
+      return 'Elegi una accion rapida o escribe una instruccion valida.';
     }
     if (useLocalLlm && !localModelReady) {
-      return 'Descarga el modelo local o vuelve al motor offline.';
+      return 'Elegi una accion rapida o escribe una instruccion valida.';
     }
-    return 'FlowBot no detecto cambios aplicables. Prueba con un cambio puntual, por ejemplo "poner OK en B2".';
+    return 'Elegi una accion rapida o escribe una instruccion valida.';
+  }
+
+  String _flowBotStatusText({
+    required List<FlowBotAction> preview,
+    required bool parsing,
+  }) {
+    if (parsing) return 'Analizando...';
+    if (preview.isEmpty) return 'No hay cambios listos';
+    if (preview.length == 1) return '1 cambio listo';
+    return '${preview.length} cambios listos';
   }
 
   Future<int> _applyFlowBotActions(List<FlowBotAction> actions) async {
@@ -5668,9 +6258,13 @@ class _EditorScreenState extends State<EditorScreen>
     var changed = false;
     final previousUndoFlag = _suspendUndoSnapshot;
     _suspendUndoSnapshot = true;
+    flowBotDebugLog(
+      'Editor.apply start actions=${actions.map((action) => action.toJson()).join(', ')}',
+    );
 
     try {
       for (final action in actions) {
+        flowBotDebugLog('Editor.apply action=${action.toJson()}');
         switch (action.type) {
           case FlowBotActionType.setCell:
             final row = action.row ?? _selRow;
@@ -5910,6 +6504,66 @@ class _EditorScreenState extends State<EditorScreen>
             changed = true;
             lastRow = (row + count).clamp(0, _rows.length - 1);
             break;
+          case FlowBotActionType.deleteRow:
+            if (_rows.isEmpty) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            _deleteRow(row);
+            applied += 1;
+            changed = true;
+            lastRow = row.clamp(0, _rows.length - 1);
+            lastCol = _selCol.clamp(0, dataCols - 1);
+            break;
+          case FlowBotActionType.addColumn:
+            final label = (action.value ?? '').trim();
+            if (label.isEmpty) {
+              throw StateError('FlowBot no recibio nombre para la columna.');
+            }
+            final insertedCol = _addFlowBotColumn(label);
+            applied += 1;
+            changed = true;
+            lastCol = insertedCol.clamp(0, _headers.length - 2);
+            lastRow = _selRow.clamp(0, math.max(0, _rows.length - 1));
+            break;
+          case FlowBotActionType.renameColumn:
+            final col = action.column;
+            final label = (action.value ?? '').trim();
+            if (col == null || col < 0 || col >= dataCols) {
+              throw StateError('FlowBot no encontro la columna a renombrar.');
+            }
+            if (label.isEmpty) {
+              throw StateError(
+                  'FlowBot necesita un nombre nuevo para la columna.');
+            }
+            _renameFlowBotColumn(col, label);
+            applied += 1;
+            changed = true;
+            lastCol = col.clamp(0, _headers.length - 2);
+            lastRow = _selRow.clamp(0, math.max(0, _rows.length - 1));
+            break;
+          case FlowBotActionType.fillBlanks:
+            final col = (action.column ?? _selCol).clamp(0, dataCols - 1);
+            final value = action.value ?? '';
+            if (value.trim().isEmpty) continue;
+            for (int row = 0; row < _rows.length; row++) {
+              if (_getCellText(row, col).trim().isNotEmpty) continue;
+              _setCell(row, col, value);
+              applied += 1;
+              changed = true;
+              lastRow = row;
+              lastCol = col;
+            }
+            break;
+          case FlowBotActionType.copyFromPreviousRow:
+            if (_rows.length <= 1) continue;
+            final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
+            final col = (action.col ?? _selCol).clamp(0, dataCols - 1);
+            if (row <= 0) continue;
+            _setCell(row, col, _getCellText(row - 1, col));
+            applied += 1;
+            changed = true;
+            lastRow = row;
+            lastCol = col;
+            break;
           case FlowBotActionType.attachPhotoToCell:
             if (_rows.isEmpty) continue;
             final row = (action.row ?? _selRow).clamp(0, _rows.length - 1);
@@ -5919,6 +6573,10 @@ class _EditorScreenState extends State<EditorScreen>
             changed = true;
             lastRow = row;
             lastCol = col;
+            break;
+          case FlowBotActionType.exportXlsx:
+            await _exportXlsxOnly(share: false);
+            applied += 1;
             break;
           case FlowBotActionType.exportPdfPreset:
             final preset = (action.presetId ?? 'default').trim().toLowerCase();
@@ -5946,6 +6604,10 @@ class _EditorScreenState extends State<EditorScreen>
             break;
         }
       }
+    } catch (e, st) {
+      flowBotDebugLog('Editor.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      rethrow;
     } finally {
       _suspendUndoSnapshot = previousUndoFlag;
     }
@@ -5954,14 +6616,19 @@ class _EditorScreenState extends State<EditorScreen>
       _pushUndoSnapshot();
     }
 
-    if (_rows.isNotEmpty) {
+    final finalDataCols = _headers.length - 1;
+    if (_rows.isNotEmpty && finalDataCols > 0) {
       _setSelectionAndRefreshGrid(
         lastRow.clamp(0, _rows.length - 1),
-        lastCol.clamp(0, dataCols - 1),
+        lastCol.clamp(0, finalDataCols - 1),
         preserveRowSelection: true,
       );
     }
 
+    flowBotDebugLog(
+      'Editor.apply done applied=$applied changed=$changed '
+      'selection=(${lastRow + 1},${lastCol + 1})',
+    );
     return applied;
   }
 
@@ -5986,6 +6653,11 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
     _commitActiveEditors();
     FocusManager.instance.primaryFocus?.unfocus();
+    await Future.wait<void>([
+      _loadFlowBotHistoryPrefs(),
+      _loadFlowBotFavoritesPrefs(),
+    ]);
+    if (!mounted) return;
     final transcriptEC = TextEditingController();
     final speech = SpeechService.I;
 
@@ -6009,9 +6681,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            Future<FlowBotParseResult> parseNow({
-              bool allowApplyIntent = true,
-            }) async {
+            Future<FlowBotParseResult> parseNow() async {
               final text = transcriptEC.text.trim();
               if (text.isEmpty) {
                 if (modalCtx.mounted) {
@@ -6033,65 +6703,60 @@ class _EditorScreenState extends State<EditorScreen>
                   warning: 'Escribe un cambio puntual antes de aplicar.',
                 );
               }
-
-              if (allowApplyIntent && _isFlowBotApplyIntent(text)) {
-                final scopedPreview = _applyScopeToFlowBotActions(
-                  preview,
-                  chosenScope,
-                );
-                final canApply = _flowBotCanApplyPreview(
-                  preview: scopedPreview,
-                  parsing: parsing,
-                );
-                if (canApply) {
-                  Navigator.of(modalCtx)
-                      .pop(List<FlowBotAction>.from(scopedPreview));
-                } else {
-                  setModalState(() {
-                    warning = _flowBotApplyDisabledReason(
-                      preview: scopedPreview,
-                      parsing: parsing,
-                      useLocalLlm: _flowBotUseLocalLlm,
-                      localModelReady: localModelReady,
-                      hasTranscript: text.isNotEmpty,
-                      parseWarning: warning,
-                    );
-                  });
-                }
-                return FlowBotParseResult(
-                  actions: List<FlowBotAction>.from(scopedPreview),
-                  engine: activeEngine,
-                  warning: canApply
-                      ? null
-                      : _flowBotApplyDisabledReason(
-                          preview: scopedPreview,
-                          parsing: parsing,
-                          useLocalLlm: _flowBotUseLocalLlm,
-                          localModelReady: localModelReady,
-                          hasTranscript: text.isNotEmpty,
-                          parseWarning: warning,
-                        ),
-                );
-              }
-
+              FocusManager.instance.primaryFocus?.unfocus();
               setModalState(() {
                 parsing = true;
                 warning = '';
               });
-              final result = await _parseFlowBotCommand(text);
-              if (!modalCtx.mounted) return result;
-              setModalState(() {
-                preview = result.actions;
-                previewSourceText = text;
-                parsing = false;
-                warning = result.warning ?? '';
-                activeEngine = result.engine;
-              });
-              if (result.actions.isNotEmpty) {
-                _lastFlowBotValidCommand = text;
+              try {
+                final result = await _parseFlowBotCommand(text);
+                if (!modalCtx.mounted) return result;
+                setModalState(() {
+                  preview = result.actions;
+                  previewSourceText = text;
+                  parsing = false;
+                  warning = result.actions.isEmpty
+                      ? flowBotNoActionsMessage(
+                          reason: flowBotNoActionsReason(result.warning),
+                          examples: flowBotPreferredExamples(
+                            examples: _flowBotContextExamples(
+                              _flowBotQuickContext(),
+                            ),
+                          ),
+                        )
+                      : result.warning ?? '';
+                  activeEngine = result.engine;
+                });
+                if (result.actions.isNotEmpty) {
+                  _lastFlowBotValidCommand = text;
+                }
+                return result;
+              } catch (e, st) {
+                flowBotDebugLog('Modal.parse error: $e');
+                debugPrintStack(stackTrace: st);
+                FlutterError.reportError(
+                  FlutterErrorDetails(
+                    exception: e,
+                    stack: st,
+                    library: 'flowbot',
+                    context:
+                        ErrorDescription('while analyzing a FlowBot command'),
+                  ),
+                );
+                final failure = FlowBotParseResult(
+                  actions: const <FlowBotAction>[],
+                  engine: activeEngine,
+                  warning: 'Error al analizar: $e',
+                );
+                if (!modalCtx.mounted) return failure;
+                setModalState(() {
+                  preview = <FlowBotAction>[];
+                  previewSourceText = '';
+                  parsing = false;
+                  warning = failure.warning ?? '';
+                });
+                return failure;
               }
-              _rememberFlowBotHistory(text);
-              return result;
             }
 
             Future<void> confirmApply() async {
@@ -6100,13 +6765,6 @@ class _EditorScreenState extends State<EditorScreen>
                 preview,
                 chosenScope,
               );
-
-              if (_isFlowBotApplyIntent(text) &&
-                  initialScopedPreview.isNotEmpty) {
-                Navigator.of(modalCtx)
-                    .pop(List<FlowBotAction>.from(initialScopedPreview));
-                return;
-              }
 
               if (parsing) {
                 setModalState(() {
@@ -6121,52 +6779,26 @@ class _EditorScreenState extends State<EditorScreen>
                 });
                 return;
               }
-
-              final needsFreshPreview =
-                  text != previewSourceText || initialScopedPreview.isEmpty;
-              if (needsFreshPreview) {
-                final result = await parseNow(allowApplyIntent: false);
-                if (!modalCtx.mounted) return;
-                if (result.actions.isEmpty) {
-                  setModalState(() {
-                    warning = _flowBotApplyDisabledReason(
-                      preview:
-                          _applyScopeToFlowBotActions(preview, chosenScope),
-                      parsing: false,
-                      useLocalLlm: _flowBotUseLocalLlm,
-                      localModelReady: localModelReady,
-                      hasTranscript: text.isNotEmpty,
-                      parseWarning: result.warning,
-                    );
-                  });
-                }
-              }
-
-              if (!modalCtx.mounted) return;
-              final refreshedScopedPreview = _applyScopeToFlowBotActions(
-                preview,
-                chosenScope,
-              );
               final canApply = _flowBotCanApplyPreview(
-                preview: refreshedScopedPreview,
+                preview: initialScopedPreview,
                 parsing: parsing,
               );
-              if (canApply) {
-                Navigator.of(modalCtx)
-                    .pop(List<FlowBotAction>.from(refreshedScopedPreview));
+              if (!canApply) {
+                setModalState(() {
+                  warning = _flowBotApplyDisabledReason(
+                    preview: initialScopedPreview,
+                    parsing: parsing,
+                    useLocalLlm: _flowBotUseLocalLlm,
+                    localModelReady: localModelReady,
+                    hasTranscript: text.isNotEmpty,
+                    parseWarning: warning,
+                  );
+                });
                 return;
               }
-
-              setModalState(() {
-                warning = _flowBotApplyDisabledReason(
-                  preview: refreshedScopedPreview,
-                  parsing: parsing,
-                  useLocalLlm: _flowBotUseLocalLlm,
-                  localModelReady: localModelReady,
-                  hasTranscript: text.isNotEmpty,
-                  parseWarning: warning,
-                );
-              });
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.of(modalCtx)
+                  .pop(List<FlowBotAction>.from(initialScopedPreview));
             }
 
             Future<void> startListening() async {
@@ -6219,18 +6851,36 @@ class _EditorScreenState extends State<EditorScreen>
             );
             final previewPatches = _flowBotPreviewPatches(scopedPreview);
             final summary = _flowBotPreviewSummary(previewPatches);
+            final statusText = _flowBotStatusText(
+              preview: scopedPreview,
+              parsing: parsing,
+            );
             final canApply = _flowBotCanApplyPreview(
               preview: scopedPreview,
               parsing: parsing,
             );
+            final applyDisabledReason = _flowBotApplyDisabledReason(
+              preview: scopedPreview,
+              parsing: parsing,
+              useLocalLlm: _flowBotUseLocalLlm,
+              localModelReady: localModelReady,
+              hasTranscript: transcriptEC.text.trim().isNotEmpty,
+              parseWarning: warning,
+            );
 
             final media = MediaQuery.of(modalCtx);
             final compactSheet = media.size.width < 520;
+            final ultraCompactSheet =
+                media.size.width < 360 || media.size.height < 660;
             final bottomInset = media.viewInsets.bottom;
+            final availableSheetHeight = media.size.height -
+                media.padding.top -
+                media.padding.bottom -
+                20;
             final maxSheetHeight = math.max(
               320.0,
               math.min(
-                media.size.height * 0.92,
+                availableSheetHeight,
                 compactSheet ? 700.0 : 760.0,
               ),
             );
@@ -6240,13 +6890,41 @@ class _EditorScreenState extends State<EditorScreen>
               120.0,
               math.min(media.size.width - 72, compactSheet ? 216.0 : 300.0),
             );
-            final quickCommands = _flowBotHistory.isNotEmpty
-                ? _flowBotHistory.take(6).toList(growable: false)
-                : const <String>[
-                    'poner OK en B2',
-                    'fecha hoy columna completa',
-                    'fila nueva: estado=OK, observaciones=revisar',
-                  ];
+            final flowBotContext = _flowBotQuickContext();
+            final contextHelpExamples = flowBotPreferredExamples(
+              examples: _flowBotContextExamples(flowBotContext),
+            );
+            final suggestedQuickActions =
+                _flowBotSuggestedQuickActions(flowBotContext);
+            final userFavoriteIdentityKeys = _flowBotFavorites
+                .map((favorite) => favorite.identityKey)
+                .toSet();
+            final templateSuggestedFavorites =
+                _flowBotTemplateSuggestedFavorites()
+                    .where((favorite) => !userFavoriteIdentityKeys
+                        .contains(favorite.identityKey))
+                    .toList(growable: false);
+            final templateSuggestedQuickActionIds = templateSuggestedFavorites
+                .where((favorite) => favorite.isQuickAction)
+                .map((favorite) => favorite.quickActionId)
+                .toSet();
+            final sectionSuggestedQuickActions = suggestedQuickActions
+                .where((action) =>
+                    !userFavoriteIdentityKeys.contains(
+                      _flowBotFavoriteForAction(action).identityKey,
+                    ) &&
+                    !templateSuggestedQuickActionIds.contains(action.id))
+                .toList(growable: false);
+            final primaryQuickActions = sectionSuggestedQuickActions
+                .take(compactSheet ? 4 : 6)
+                .toList(growable: false);
+            final recentCommands = _flowBotHistory
+                .take(_maxFlowBotHistoryItems)
+                .toList(growable: false);
+            final favoriteShortcuts = _flowBotFavorites
+                .take(_maxFlowBotFavoriteItems)
+                .toList(growable: false);
+            final exampleCommands = _flowBotContextExamples(flowBotContext);
 
             Widget buildVoiceControls() {
               if (compactSheet) {
@@ -6273,8 +6951,12 @@ class _EditorScreenState extends State<EditorScreen>
                           icon: Icons.play_arrow_rounded,
                           dense: true,
                           variant: AppleButtonVariant.tonal,
-                          onPressed:
-                              parsing ? null : () => unawaited(parseNow()),
+                          onPressed: parsing
+                              ? null
+                              : () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  unawaited(parseNow());
+                                },
                         ),
                       ],
                     ),
@@ -6318,7 +7000,12 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.play_arrow_rounded,
                     dense: true,
                     variant: AppleButtonVariant.tonal,
-                    onPressed: parsing ? null : () => unawaited(parseNow()),
+                    onPressed: parsing
+                        ? null
+                        : () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            unawaited(parseNow());
+                          },
                   ),
                 ],
               );
@@ -6330,6 +7017,8 @@ class _EditorScreenState extends State<EditorScreen>
               if (!modalCtx.mounted) return;
               setModalState(() {
                 activeEngine = next ? 'local_llm' : 'rule_based';
+                preview = <FlowBotAction>[];
+                previewSourceText = '';
                 showAdvancedOptions = showAdvancedOptions || next;
                 if (next && _flowBotLocalModelPath.trim().isEmpty) {
                   warning =
@@ -6358,13 +7047,240 @@ class _EditorScreenState extends State<EditorScreen>
               );
             }
 
-            Widget buildQuickCommandSection() {
-              final hasHistory = _flowBotHistory.isNotEmpty;
+            Future<String?> promptQuickActionValue(
+              _FlowBotQuickActionSpec action,
+            ) async {
+              var draftValue = '';
+              final result = await showAppModal<String>(
+                context: modalCtx,
+                title: action.promptTitle ?? 'Completa la accion',
+                child: TextFormField(
+                  key: ValueKey('flowbot-quick-input-${action.id}'),
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: action.promptLabel ?? 'Valor',
+                    hintText: action.promptHint,
+                  ),
+                  onChanged: (value) => draftValue = value,
+                  onFieldSubmitted: (value) =>
+                      Navigator.of(modalCtx).pop(value.trim()),
+                ),
+                actions: [
+                  AppButton(
+                    label: AppStrings.cancel,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(modalCtx).pop(),
+                  ),
+                  AppButton(
+                    label: 'Previsualizar',
+                    variant: AppButtonVariant.primary,
+                    onPressed: () =>
+                        Navigator.of(modalCtx).pop(draftValue.trim()),
+                  ),
+                ],
+                showClose: false,
+                barrierDismissible: true,
+              );
+              final text = (result ?? '').trim();
+              return text.isEmpty ? null : text;
+            }
+
+            Future<void> runQuickAction(_FlowBotQuickActionSpec action) async {
+              String? promptValue;
+              if (action.requiresValue) {
+                promptValue = await promptQuickActionValue(action);
+                if (promptValue == null || !modalCtx.mounted) return;
+              }
+              final command = action.buildCommand(promptValue).trim();
+              if (command.isEmpty) return;
+              fillCommandText(command);
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                warning = '';
+              });
+              await parseNow();
+            }
+
+            Future<void> runSavedCommand(String command) async {
+              fillCommandText(command);
+              if (!modalCtx.mounted) return;
+              setModalState(() {
+                warning = '';
+              });
+              await parseNow();
+            }
+
+            _FlowBotQuickActionSpec? resolveFavoriteAction(
+              FlowBotFavoriteShortcut favorite,
+            ) {
+              if (!favorite.isQuickAction) return null;
+              for (final action in suggestedQuickActions) {
+                if (action.id == favorite.quickActionId) {
+                  return action;
+                }
+              }
+              return null;
+            }
+
+            Future<void> runFavoriteShortcut(
+              FlowBotFavoriteShortcut favorite,
+            ) async {
+              if (favorite.isQuickAction) {
+                final action = resolveFavoriteAction(favorite);
+                if (action == null) {
+                  setModalState(() {
+                    preview = <FlowBotAction>[];
+                    previewSourceText = '';
+                    warning =
+                        'Este favorito no aplica a la hoja o seleccion actual.';
+                  });
+                  return;
+                }
+                await runQuickAction(action);
+                return;
+              }
+              await runSavedCommand(favorite.command);
+            }
+
+            Future<void> toggleActionFavorite(
+              _FlowBotQuickActionSpec action,
+            ) async {
+              await _toggleFlowBotFavoriteEntry(
+                  _flowBotFavoriteForAction(action));
+              if (!modalCtx.mounted) return;
+              setModalState(() {});
+            }
+
+            Future<void> toggleCommandFavorite(String command) async {
+              await _toggleFlowBotFavoriteEntry(
+                _flowBotFavoriteForCommand(command),
+              );
+              if (!modalCtx.mounted) return;
+              setModalState(() {});
+            }
+
+            Widget buildFavoritableChip({
+              required Key pressKey,
+              Key? favoriteKey,
+              required String label,
+              required IconData icon,
+              required Future<void> Function() onRun,
+              Future<void> Function()? onToggleFavorite,
+              required bool isFavorite,
+              bool invalid = false,
+            }) {
+              final fg = invalid ? pal.fgMuted : pal.fg;
+              final bg = invalid
+                  ? pal.mobileInputBg
+                  : isFavorite
+                      ? pal.accent.withValues(alpha: 0.12)
+                      : pal.menuBg;
+              final border = invalid
+                  ? pal.border
+                  : isFavorite
+                      ? pal.accent.withValues(alpha: 0.26)
+                      : pal.border;
+              return Container(
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: border, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Flexible(
+                      child: InkWell(
+                        key: pressKey,
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => unawaited(onRun()),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.max,
+                            children: [
+                              Icon(icon, size: 16, color: fg),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                    color: fg,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (onToggleFavorite != null)
+                      IconButton(
+                        key: favoriteKey,
+                        tooltip:
+                            isFavorite ? 'Quitar favorito' : 'Guardar favorito',
+                        onPressed: () => unawaited(onToggleFavorite()),
+                        icon: Icon(
+                          isFavorite
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
+                          size: 18,
+                          color: isFavorite ? pal.accent : pal.fgMuted,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildActionChip(
+              _FlowBotQuickActionSpec action, {
+              bool compact = false,
+            }) {
+              if (compact) {
+                return ActionChip(
+                  key: ValueKey('flowbot-quick-primary-${action.id}'),
+                  avatar: Icon(action.icon, size: 16, color: pal.fgMuted),
+                  label: Text(
+                    action.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => unawaited(runQuickAction(action)),
+                );
+              }
+              final isFavorite = _isFlowBotFavoriteAction(action);
+              return buildFavoritableChip(
+                pressKey: ValueKey('flowbot-quick-suggested-${action.id}'),
+                favoriteKey:
+                    ValueKey('flowbot-suggested-favorite-toggle-${action.id}'),
+                label: action.label,
+                icon: action.icon,
+                onRun: () => runQuickAction(action),
+                onToggleFavorite: () => toggleActionFavorite(action),
+                isFavorite: isFavorite,
+              );
+            }
+
+            Widget buildQuickActionStrip() {
+              if (primaryQuickActions.isEmpty) return const SizedBox.shrink();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hasHistory ? 'Ultimos comandos' : 'Comandos sugeridos',
+                    'Acciones rapidas',
                     style: TextStyle(
                       color: pal.fg,
                       fontSize: 12,
@@ -6376,32 +7292,243 @@ class _EditorScreenState extends State<EditorScreen>
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      for (int index = 0; index < quickCommands.length; index++)
+                      for (final action in primaryQuickActions)
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             maxWidth: historyChipMaxWidth,
                           ),
-                          child: ActionChip(
-                            key: ValueKey(
-                              hasHistory
-                                  ? 'flowbot-history-chip-$index'
-                                  : 'flowbot-example-chip-$index',
-                            ),
-                            label: ConstrainedBox(
+                          child: buildActionChip(action, compact: true),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildSuggestedActionsSection() {
+              if (sectionSuggestedQuickActions.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sugeridas',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final action in sectionSuggestedQuickActions)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: historyChipMaxWidth,
+                          ),
+                          child: buildActionChip(action),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildTemplateSuggestedFavoritesSection() {
+              if (templateSuggestedFavorites.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Favoritos recomendados',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (int index = 0;
+                          index < templateSuggestedFavorites.length;
+                          index++)
+                        Builder(
+                          builder: (_) {
+                            final favorite = templateSuggestedFavorites[index];
+                            final resolvedAction =
+                                resolveFavoriteAction(favorite);
+                            final label =
+                                resolvedAction?.label ?? favorite.label;
+                            final icon = resolvedAction?.icon ??
+                                (favorite.isQuickAction
+                                    ? Icons.auto_awesome_rounded
+                                    : Icons.lightbulb_outline_rounded);
+                            return ConstrainedBox(
                               constraints: BoxConstraints(
-                                maxWidth: historyChipMaxWidth - 28,
+                                maxWidth: historyChipMaxWidth,
                               ),
-                              child: Text(
-                                quickCommands[index],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                softWrap: false,
+                              child: buildFavoritableChip(
+                                pressKey: ValueKey(
+                                  'flowbot-template-favorite-chip-$index',
+                                ),
+                                favoriteKey: resolvedAction == null
+                                    ? null
+                                    : ValueKey(
+                                        'flowbot-template-favorite-toggle-$index',
+                                      ),
+                                label: label,
+                                icon: icon,
+                                invalid: favorite.isQuickAction &&
+                                    resolvedAction == null,
+                                onRun: () => runFavoriteShortcut(favorite),
+                                onToggleFavorite: resolvedAction == null
+                                    ? null
+                                    : () =>
+                                        toggleActionFavorite(resolvedAction),
+                                isFavorite: false,
                               ),
-                            ),
-                            onPressed: () {
-                              fillCommandText(quickCommands[index]);
-                              unawaited(parseNow());
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            Widget buildFavoritesSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Favoritos',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (favoriteShortcuts.isEmpty)
+                    Text(
+                      'Guarda accesos repetidos para usarlos en uno o dos toques.',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (int index = 0;
+                            index < favoriteShortcuts.length;
+                            index++)
+                          Builder(
+                            builder: (_) {
+                              final favorite = favoriteShortcuts[index];
+                              final resolvedAction =
+                                  resolveFavoriteAction(favorite);
+                              final label =
+                                  resolvedAction?.label ?? favorite.label;
+                              final icon = resolvedAction?.icon ??
+                                  (favorite.isQuickAction
+                                      ? Icons.auto_awesome_rounded
+                                      : Icons.history_rounded);
+                              return ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: historyChipMaxWidth,
+                                ),
+                                child: buildFavoritableChip(
+                                  pressKey:
+                                      ValueKey('flowbot-favorite-chip-$index'),
+                                  favoriteKey: ValueKey(
+                                    'flowbot-favorite-toggle-$index',
+                                  ),
+                                  label: label,
+                                  icon: icon,
+                                  invalid: favorite.isQuickAction &&
+                                      resolvedAction == null,
+                                  onRun: () => runFavoriteShortcut(favorite),
+                                  onToggleFavorite: () async {
+                                    await _toggleFlowBotFavoriteEntry(favorite);
+                                    if (!modalCtx.mounted) return;
+                                    setModalState(() {});
+                                  },
+                                  isFavorite: true,
+                                ),
+                              );
                             },
+                          ),
+                      ],
+                    ),
+                ],
+              );
+            }
+
+            Widget buildCommandSection({
+              required String title,
+              required List<String> commands,
+              required String keyPrefix,
+              String? emptyLabel,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (commands.isEmpty &&
+                          (emptyLabel ?? '').trim().isNotEmpty)
+                        Text(
+                          emptyLabel!,
+                          style: TextStyle(
+                            color: pal.fgMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      for (int index = 0; index < commands.length; index++)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: historyChipMaxWidth,
+                          ),
+                          child: buildFavoritableChip(
+                            pressKey: ValueKey('$keyPrefix-$index'),
+                            favoriteKey:
+                                ValueKey('$keyPrefix-favorite-toggle-$index'),
+                            label: commands[index],
+                            icon: title == 'Ejemplos reales'
+                                ? Icons.lightbulb_outline_rounded
+                                : Icons.history_rounded,
+                            onRun: () => runSavedCommand(commands[index]),
+                            onToggleFavorite: title == 'Ejemplos reales'
+                                ? null
+                                : () => toggleCommandFavorite(commands[index]),
+                            isFavorite: title == 'Ejemplos reales'
+                                ? false
+                                : _isFlowBotFavoriteCommand(commands[index]),
                           ),
                         ),
                     ],
@@ -6410,7 +7537,140 @@ class _EditorScreenState extends State<EditorScreen>
               );
             }
 
+            Widget buildNoActionsHelp() {
+              if (scopedPreview.isNotEmpty || parsing) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                key: const ValueKey('flowbot-empty-help'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: pal.mobileInputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: pal.border,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Elegi una accion rapida o escribe una instruccion valida.',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (int index = 0;
+                            index < contextHelpExamples.length;
+                            index++)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: historyChipMaxWidth,
+                            ),
+                            child: buildFavoritableChip(
+                              pressKey:
+                                  ValueKey('flowbot-empty-help-chip-$index'),
+                              label: contextHelpExamples[index],
+                              icon: Icons.bolt_rounded,
+                              onRun: () => runSavedCommand(
+                                contextHelpExamples[index],
+                              ),
+                              isFavorite: false,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildInputFallbackSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Instruccion libre (opcional)',
+                    style: TextStyle(
+                      color: pal.fg,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Usala solo si no ves un atajo arriba.',
+                    style: TextStyle(
+                      color: pal.fgMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const ValueKey('flowbot-command-input'),
+                    controller: transcriptEC,
+                    minLines: 1,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      final trimmed = value.trim();
+                      if (trimmed == previewSourceText) {
+                        return;
+                      }
+                      setModalState(() {
+                        preview = <FlowBotAction>[];
+                        previewSourceText = '';
+                        warning = '';
+                      });
+                    },
+                    onSubmitted: (_) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      if (canApply) {
+                        unawaited(confirmApply());
+                      } else {
+                        unawaited(parseNow());
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Ej: poner OK en ${flowBotContext.cellToken}',
+                      filled: true,
+                      fillColor: pal.mobileInputBg,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  buildVoiceControls(),
+                ],
+              );
+            }
+
             Widget buildAdvancedPanel() {
+              if (!(kDebugMode && _flowBotShowDebugTools)) {
+                return const SizedBox.shrink();
+              }
+              if (!showAdvancedOptions) {
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: AppleButton(
+                    key: const ValueKey('flowbot-advanced-toggle'),
+                    label: 'Opciones de modelo (debug)',
+                    icon: Icons.science_outlined,
+                    dense: true,
+                    variant: AppleButtonVariant.ghost,
+                    onPressed: () =>
+                        setModalState(() => showAdvancedOptions = true),
+                  ),
+                );
+              }
               return Container(
                 key: const ValueKey('flowbot-advanced-panel'),
                 padding: const EdgeInsets.all(10),
@@ -6432,22 +7692,11 @@ class _EditorScreenState extends State<EditorScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Opciones avanzadas',
+                                'Opciones de modelo (debug)',
                                 style: TextStyle(
                                   color: pal.fg,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                activeEngine == 'local_llm'
-                                    ? 'Motor activo: Local LLM'
-                                    : 'Motor activo: Offline deterministico',
-                                style: TextStyle(
-                                  color: pal.fgMuted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -6456,75 +7705,70 @@ class _EditorScreenState extends State<EditorScreen>
                         const SizedBox(width: 8),
                         AppleButton(
                           key: const ValueKey('flowbot-advanced-toggle'),
-                          label: showAdvancedOptions ? 'Ocultar' : 'Mostrar',
-                          icon: showAdvancedOptions
-                              ? Icons.expand_less_rounded
-                              : Icons.expand_more_rounded,
+                          label: 'Ocultar',
+                          icon: Icons.expand_less_rounded,
                           dense: true,
                           variant: AppleButtonVariant.ghost,
-                          onPressed: () => setModalState(
-                            () => showAdvancedOptions = !showAdvancedOptions,
-                          ),
+                          onPressed: () =>
+                              setModalState(() => showAdvancedOptions = false),
                         ),
                       ],
                     ),
-                    if (showAdvancedOptions) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        activeEngine == 'local_llm'
-                            ? (localModelReady
-                                ? 'Modelo local listo para comandos mas flexibles.'
-                                : 'Descarga el modelo si queres probar el motor local.')
-                            : 'El modo offline es el mas estable para una demo rapida.',
-                        style: TextStyle(
-                          color: pal.fgMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    Text(
+                      activeEngine == 'local_llm'
+                          ? (localModelReady
+                              ? 'Motor activo: Local LLM listo.'
+                              : 'Local LLM activo sin modelo local listo.')
+                          : 'Motor activo: parser offline deterministico.',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppleButton(
+                          label: _flowBotUseLocalLlm
+                              ? 'Usar motor offline'
+                              : 'Usar Local LLM',
+                          icon: Icons.settings_suggest_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: () => unawaited(toggleFlowBotEngine()),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          AppleButton(
-                            label: _flowBotUseLocalLlm
-                                ? 'Usar motor offline'
-                                : 'Usar Local LLM',
-                            icon: Icons.settings_suggest_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.ghost,
-                            onPressed: () => unawaited(toggleFlowBotEngine()),
-                          ),
-                          AppleButton(
-                            label: _flowBotModelDownloading
-                                ? 'Descargando...'
-                                : (localModelReady
-                                    ? 'Actualizar modelo'
-                                    : 'Descargar modelo'),
-                            icon: _flowBotModelDownloading
-                                ? Icons.downloading_rounded
-                                : Icons.download_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.ghost,
-                            onPressed: _flowBotModelDownloading
-                                ? null
-                                : () => unawaited(refreshLocalModelReady()),
-                          ),
-                        ],
-                      ),
-                      if (_flowBotModelDownloading) ...[
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: _flowBotModelDownloadProgress > 0
-                              ? _flowBotModelDownloadProgress
-                              : null,
-                          minHeight: 4,
-                          borderRadius: BorderRadius.circular(999),
-                          backgroundColor: pal.cellText.withValues(alpha: 0.08),
-                          color: pal.accent,
+                        AppleButton(
+                          label: _flowBotModelDownloading
+                              ? 'Descargando...'
+                              : (localModelReady
+                                  ? 'Actualizar modelo'
+                                  : 'Descargar modelo'),
+                          icon: _flowBotModelDownloading
+                              ? Icons.downloading_rounded
+                              : Icons.download_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.ghost,
+                          onPressed: _flowBotModelDownloading
+                              ? null
+                              : () => unawaited(refreshLocalModelReady()),
                         ),
                       ],
+                    ),
+                    if (_flowBotModelDownloading) ...[
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: _flowBotModelDownloadProgress > 0
+                            ? _flowBotModelDownloadProgress
+                            : null,
+                        minHeight: 4,
+                        borderRadius: BorderRadius.circular(999),
+                        backgroundColor: pal.cellText.withValues(alpha: 0.08),
+                        color: pal.accent,
+                      ),
                     ],
                   ],
                 ),
@@ -6550,11 +7794,15 @@ class _EditorScreenState extends State<EditorScreen>
                         AppleButton(
                           key: const ValueKey('flowbot-apply'),
                           label: 'Aplicar cambios',
-                          icon: Icons.check_rounded,
+                          icon: canApply
+                              ? Icons.check_rounded
+                              : Icons.block_rounded,
                           dense: true,
-                          variant: AppleButtonVariant.filled,
+                          variant: canApply
+                              ? AppleButtonVariant.filled
+                              : AppleButtonVariant.ghost,
                           onPressed:
-                              parsing ? null : () => unawaited(confirmApply()),
+                              canApply ? () => unawaited(confirmApply()) : null,
                         ),
                       ],
                     ),
@@ -6575,10 +7823,13 @@ class _EditorScreenState extends State<EditorScreen>
                   AppleButton(
                     key: const ValueKey('flowbot-apply'),
                     label: 'Aplicar cambios',
-                    icon: Icons.check_rounded,
+                    icon: canApply ? Icons.check_rounded : Icons.block_rounded,
                     dense: true,
-                    variant: AppleButtonVariant.filled,
-                    onPressed: parsing ? null : () => unawaited(confirmApply()),
+                    variant: canApply
+                        ? AppleButtonVariant.filled
+                        : AppleButtonVariant.ghost,
+                    onPressed:
+                        canApply ? () => unawaited(confirmApply()) : null,
                   ),
                 ],
               );
@@ -6595,358 +7846,477 @@ class _EditorScreenState extends State<EditorScreen>
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: 720,
-                      maxHeight: maxSheetHeight,
                     ),
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        10,
-                        12,
-                        compactSheet ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: pal.menuBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: pal.borderStrong, width: 1),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.max,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.auto_awesome_rounded, color: pal.fg),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'FlowBot',
-                                  style: TextStyle(
-                                    color: pal.fg,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                key: const ValueKey('flowbot-close'),
-                                tooltip: 'Cerrar',
-                                onPressed: () => Navigator.of(modalCtx).pop(),
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  color: pal.fgMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Pedi un cambio puntual, revisa la vista previa y aplica solo cuando se vea bien.',
-                                    style: TextStyle(
-                                      color: pal.fgMuted,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    key:
-                                        const ValueKey('flowbot-command-input'),
-                                    controller: transcriptEC,
-                                    minLines: 1,
-                                    maxLines: 3,
-                                    textInputAction: TextInputAction.done,
-                                    onSubmitted: (_) =>
-                                        unawaited(confirmApply()),
-                                    decoration: InputDecoration(
-                                      hintText:
-                                          'Ej: poner OK en B2; rellenar listo x 3',
-                                      filled: true,
-                                      fillColor: pal.mobileInputBg,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  buildVoiceControls(),
-                                  if (_flowBotHistory.isNotEmpty ||
-                                      preview.isEmpty) ...[
-                                    const SizedBox(height: 10),
-                                    buildQuickCommandSection(),
-                                  ],
-                                  if (warning.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      key: const ValueKey('flowbot-warning'),
-                                      warning,
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Vista previa',
+                    child: SizedBox(
+                      height: maxSheetHeight,
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          10,
+                          12,
+                          compactSheet ? 10 : 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: pal.menuBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: pal.borderStrong, width: 1),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.max,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.auto_awesome_rounded, color: pal.fg),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'FlowBot',
                                     style: TextStyle(
                                       color: pal.fg,
-                                      fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (compactSheet) ...[
+                                ),
+                                IconButton(
+                                  key: const ValueKey('flowbot-close'),
+                                  tooltip: 'Cerrar',
+                                  onPressed: () => Navigator.of(modalCtx).pop(),
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: pal.fgMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Text(
-                                      'Resumen',
+                                      'Empieza por un favorito o una accion sugerida. Si no aparece, usa la instruccion libre.',
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: pal.mobileInputBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: pal.border,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: [
+                                              _flowBotContextChip(
+                                                label: flowBotContext.sheetName,
+                                                icon:
+                                                    Icons.table_chart_outlined,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    'Celda ${flowBotContext.cellToken}',
+                                                icon: Icons.crop_free_rounded,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    'Fila ${flowBotContext.rowNumber}',
+                                                icon: Icons.table_rows_rounded,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                              _flowBotContextChip(
+                                                label:
+                                                    flowBotContext.columnLabel,
+                                                icon:
+                                                    Icons.view_column_outlined,
+                                                fg: pal.fg,
+                                                bg: pal.menuBg,
+                                                border: pal.border,
+                                              ),
+                                            ],
+                                          ),
+                                          if (flowBotContext.visibleColumnLabels
+                                              .isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Columnas visibles: ${flowBotContext.visibleColumnLabels.join(' · ')}',
+                                              style: TextStyle(
+                                                color: pal.fgMuted,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    buildQuickActionStrip(),
+                                    const SizedBox(height: 10),
+                                    buildFavoritesSection(),
+                                    const SizedBox(height: 10),
+                                    buildTemplateSuggestedFavoritesSection(),
+                                    if (templateSuggestedFavorites.isNotEmpty)
+                                      const SizedBox(height: 10),
+                                    buildSuggestedActionsSection(),
+                                    const SizedBox(height: 10),
+                                    buildCommandSection(
+                                      title: 'Recientes',
+                                      commands: recentCommands,
+                                      keyPrefix: 'flowbot-history-chip',
+                                      emptyLabel:
+                                          'Todavia no usaste acciones recientes.',
+                                    ),
+                                    const SizedBox(height: 10),
+                                    buildInputFallbackSection(),
+                                    const SizedBox(height: 10),
+                                    buildCommandSection(
+                                      title: 'Ejemplos reales',
+                                      commands: exampleCommands,
+                                      keyPrefix: 'flowbot-example-chip',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      key: const ValueKey('flowbot-status'),
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: scopedPreview.isEmpty
+                                            ? pal.mobileInputBg
+                                            : pal.accent
+                                                .withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: scopedPreview.isEmpty
+                                              ? pal.border
+                                              : pal.accent
+                                                  .withValues(alpha: 0.25),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        statusText,
+                                        style: TextStyle(
+                                          color: scopedPreview.isEmpty
+                                              ? pal.fgMuted
+                                              : pal.fg,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    buildNoActionsHelp(),
+                                    if (warning.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        key: const ValueKey('flowbot-warning'),
+                                        warning,
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Vista previa',
                                       style: TextStyle(
                                         color: pal.fg,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ] else
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Resumen',
-                                          style: TextStyle(
-                                            color: pal.fg,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                          ),
+                                    const SizedBox(height: 4),
+                                    if (previewPatches.isEmpty)
+                                      Text(
+                                        scopedPreview.isEmpty
+                                            ? 'Sin preview de celdas.'
+                                            : 'Sin preview de celdas para este cambio; revisa las acciones detectadas.',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
+                                      )
+                                    else if (compactSheet) ...[
+                                      Text(
+                                        'Resumen',
+                                        style: TextStyle(
+                                          color: pal.fg,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ] else
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Resumen',
                                             style: TextStyle(
-                                              color: pal.fgMuted,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
+                                              color: pal.fg,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  const SizedBox(height: 6),
-                                  if (_flowBotActionsSupportScope(preview))
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        for (final option in const <String>[
-                                          'celda',
-                                          'seleccion',
-                                          'fila',
-                                          'columna',
-                                        ])
-                                          ChoiceChip(
-                                            label: Text(
-                                              option == 'seleccion'
-                                                  ? 'seleccion'
-                                                  : option,
-                                            ),
-                                            selected: chosenScope == option,
-                                            onSelected: (selected) {
-                                              if (!selected) return;
-                                              setModalState(
-                                                () => chosenScope = option,
-                                              );
-                                              unawaited(
-                                                _setFlowBotLastScope(option),
-                                              );
-                                            },
-                                          ),
-                                      ],
-                                    ),
-                                  if (_flowBotActionsSupportScope(preview))
-                                    const SizedBox(height: 6),
-                                  Container(
-                                    constraints: BoxConstraints(
-                                      maxHeight: previewMaxHeight,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: pal.mobileInputBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: pal.border,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: previewPatches.isEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.all(10),
+                                          const SizedBox(width: 8),
+                                          Expanded(
                                             child: Text(
-                                              'Analiza un comando para revisar las celdas que van a cambiar.',
+                                              '${summary.cells} celdas / ${summary.rows} filas / ${summary.cols} columnas',
                                               style: TextStyle(
                                                 color: pal.fgMuted,
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w600,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
-                                          )
-                                        : SingleChildScrollView(
-                                            padding: const EdgeInsets.all(8),
-                                            child: Table(
-                                              defaultVerticalAlignment:
-                                                  TableCellVerticalAlignment
-                                                      .middle,
-                                              columnWidths: const <int,
-                                                  TableColumnWidth>{
-                                                0: IntrinsicColumnWidth(),
-                                                1: IntrinsicColumnWidth(),
-                                                2: FlexColumnWidth(),
-                                                3: FlexColumnWidth(),
+                                          ),
+                                        ],
+                                      ),
+                                    const SizedBox(height: 6),
+                                    if (_flowBotActionsSupportScope(preview))
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          for (final option in const <String>[
+                                            'celda',
+                                            'seleccion',
+                                            'fila',
+                                            'columna',
+                                          ])
+                                            ChoiceChip(
+                                              label: Text(
+                                                option == 'seleccion'
+                                                    ? 'seleccion'
+                                                    : option,
+                                              ),
+                                              selected: chosenScope == option,
+                                              onSelected: (selected) {
+                                                if (!selected) return;
+                                                setModalState(
+                                                  () => chosenScope = option,
+                                                );
+                                                unawaited(
+                                                  _setFlowBotLastScope(option),
+                                                );
                                               },
-                                              children: [
-                                                TableRow(
-                                                  children: [
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Fila',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Col',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Antes',
-                                                      pal.fgMuted,
-                                                    ),
-                                                    _flowBotPreviewHeaderCell(
-                                                      'Despues',
-                                                      pal.fgMuted,
-                                                    ),
-                                                  ],
+                                            ),
+                                        ],
+                                      ),
+                                    if (_flowBotActionsSupportScope(preview))
+                                      const SizedBox(height: 6),
+                                    Container(
+                                      constraints: BoxConstraints(
+                                        maxHeight: previewMaxHeight,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: pal.mobileInputBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: pal.border,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: previewPatches.isEmpty
+                                          ? Padding(
+                                              padding: const EdgeInsets.all(10),
+                                              child: Text(
+                                                scopedPreview.isEmpty
+                                                    ? 'Analiza un comando para revisar las celdas que van a cambiar.'
+                                                    : 'Esta propuesta no cambia celdas puntuales. Revisa la lista de acciones.',
+                                                style: TextStyle(
+                                                  color: pal.fgMuted,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
-                                                for (final patch
-                                                    in previewPatches.take(5))
+                                              ),
+                                            )
+                                          : SingleChildScrollView(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Table(
+                                                defaultVerticalAlignment:
+                                                    TableCellVerticalAlignment
+                                                        .middle,
+                                                columnWidths: const <int,
+                                                    TableColumnWidth>{
+                                                  0: IntrinsicColumnWidth(),
+                                                  1: IntrinsicColumnWidth(),
+                                                  2: FlexColumnWidth(),
+                                                  3: FlexColumnWidth(),
+                                                },
+                                                children: [
                                                   TableRow(
                                                     children: [
-                                                      _flowBotPreviewDataCell(
-                                                        '${patch.row + 1}',
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Fila',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        _headerLabel(
-                                                          patch.col.clamp(
-                                                            0,
-                                                            math.max(
-                                                              0,
-                                                              _headers.length -
-                                                                  2,
-                                                            ),
-                                                          ),
-                                                        ),
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Col',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        patch.before.isEmpty
-                                                            ? '""'
-                                                            : patch.before,
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Antes',
                                                         pal.fgMuted,
                                                       ),
-                                                      _flowBotPreviewDataCell(
-                                                        patch.after.isEmpty
-                                                            ? '""'
-                                                            : patch.after,
-                                                        pal.fg,
-                                                        highlighted: true,
+                                                      _flowBotPreviewHeaderCell(
+                                                        'Despues',
+                                                        pal.fgMuted,
                                                       ),
                                                     ],
                                                   ),
-                                              ],
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Acciones detectadas',
-                                    style: TextStyle(
-                                      color: pal.fg,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  if (scopedPreview.isEmpty)
-                                    Text(
-                                      'Todavia no hay acciones listas. Usa Analizar para generar una propuesta.',
-                                      style: TextStyle(
-                                        color: pal.fgMuted,
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    )
-                                  else
-                                    ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxHeight: actionsMaxHeight,
-                                      ),
-                                      child: ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: scopedPreview.length,
-                                        itemBuilder: (itemCtx, index) {
-                                          final action = scopedPreview[index];
-                                          return ListTile(
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              Icons.bolt_rounded,
-                                              size: 16,
-                                              color: pal.fgMuted,
-                                            ),
-                                            title: Text(
-                                              _flowBotActionLabel(action),
-                                              style: TextStyle(
-                                                color: pal.fg,
-                                                fontSize: 12.2,
-                                                fontWeight: FontWeight.w600,
+                                                  for (final patch
+                                                      in previewPatches.take(5))
+                                                    TableRow(
+                                                      children: [
+                                                        _flowBotPreviewDataCell(
+                                                          '${patch.row + 1}',
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          _headerLabel(
+                                                            patch.col.clamp(
+                                                              0,
+                                                              math.max(
+                                                                0,
+                                                                _headers.length -
+                                                                    2,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          patch.before.isEmpty
+                                                              ? '""'
+                                                              : patch.before,
+                                                          pal.fgMuted,
+                                                        ),
+                                                        _flowBotPreviewDataCell(
+                                                          patch.after.isEmpty
+                                                              ? '""'
+                                                              : patch.after,
+                                                          pal.fg,
+                                                          highlighted: true,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                ],
                                               ),
                                             ),
-                                          );
-                                        },
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Acciones detectadas',
+                                      style: TextStyle(
+                                        color: pal.fg,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                  const SizedBox(height: 10),
-                                  buildAdvancedPanel(),
-                                ],
+                                    const SizedBox(height: 4),
+                                    if (scopedPreview.isEmpty)
+                                      Text(
+                                        'No hay cambios listos.',
+                                        style: TextStyle(
+                                          color: pal.fgMuted,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      )
+                                    else
+                                      ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxHeight: actionsMaxHeight,
+                                        ),
+                                        child: ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: scopedPreview.length,
+                                          itemBuilder: (itemCtx, index) {
+                                            final action = scopedPreview[index];
+                                            return ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(
+                                                Icons.bolt_rounded,
+                                                size: 16,
+                                                color: pal.fgMuted,
+                                              ),
+                                              title: Text(
+                                                _flowBotActionLabel(action),
+                                                style: TextStyle(
+                                                  color: pal.fg,
+                                                  fontSize: 12.2,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                    buildAdvancedPanel(),
+                                    if (compactSheet && ultraCompactSheet) ...[
+                                      const SizedBox(height: 10),
+                                      buildFooterActions(),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          buildFooterActions(),
-                          if (!canApply) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              _flowBotApplyDisabledReason(
-                                preview: scopedPreview,
-                                parsing: parsing,
-                                useLocalLlm: _flowBotUseLocalLlm,
-                                localModelReady: localModelReady,
-                                hasTranscript:
-                                    transcriptEC.text.trim().isNotEmpty,
-                                parseWarning: warning,
+                            if (!compactSheet || !ultraCompactSheet) ...[
+                              const SizedBox(height: 10),
+                              buildFooterActions(),
+                            ],
+                            if (!canApply && !compactSheet) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                applyDisabledReason,
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              style: TextStyle(
-                                color: pal.fgMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -6971,15 +8341,42 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    final applied = await _applyFlowBotActions(parsedActions);
-    if (!mounted) return;
-    final result = _flowBotResultForAppliedChanges(applied);
-    _emitActionResult(
-      result,
-      successIcon: Icons.auto_awesome_rounded,
-      failureIcon: Icons.warning_amber_rounded,
-      onUndo: _undoOnce,
-    );
+    try {
+      final appliedCommand = transcriptEC.text.trim();
+      flowBotDebugLog(
+        'Modal.apply actions=${parsedActions.map((action) => action.toJson()).join(', ')}',
+      );
+      final applied = await _applyFlowBotActions(parsedActions);
+      if (!mounted) return;
+      if (applied > 0 && appliedCommand.isNotEmpty) {
+        await _rememberFlowBotHistory(appliedCommand);
+        _lastFlowBotValidCommand = appliedCommand;
+      }
+      final result = _flowBotResultForAppliedChanges(applied);
+      _emitActionResult(
+        result,
+        successIcon: Icons.auto_awesome_rounded,
+        failureIcon: Icons.warning_amber_rounded,
+        onUndo: _undoOnce,
+      );
+    } catch (e, st) {
+      flowBotDebugLog('Modal.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'flowbot',
+          context:
+              ErrorDescription('while applying FlowBot actions from the sheet'),
+        ),
+      );
+      if (!mounted) return;
+      _emitActionResult(
+        _ActionResult(ok: false, message: 'FlowBot fallo al aplicar: $e'),
+        failureIcon: Icons.warning_amber_rounded,
+      );
+    }
   }
 
   Future<void> _runFlowBotCommandDirect(String command) async {
@@ -6991,29 +8388,53 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-    final parsed = await _parseFlowBotCommand(text);
-    if (parsed.actions.isEmpty) {
+    try {
+      final parsed = await _parseFlowBotCommand(text);
+      if (parsed.actions.isEmpty) {
+        _emitActionResult(
+          _ActionResult(
+            ok: false,
+            message:
+                parsed.warning ?? 'FlowBot no detecto acciones aplicables.',
+          ),
+          failureIcon: Icons.warning_amber_rounded,
+        );
+        return;
+      }
+      final scoped =
+          _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
+      flowBotDebugLog(
+        'Direct.apply actions=${scoped.map((action) => action.toJson()).join(', ')}',
+      );
+      final applied = await _applyFlowBotActions(scoped);
+      if (!mounted) return;
+      if (applied > 0) {
+        await _rememberFlowBotHistory(text);
+        _lastFlowBotValidCommand = text;
+      }
       _emitActionResult(
-        _ActionResult(
-          ok: false,
-          message: parsed.warning ?? 'FlowBot no detecto acciones aplicables.',
+        _flowBotResultForAppliedChanges(applied),
+        successIcon: Icons.auto_awesome_rounded,
+        failureIcon: Icons.warning_amber_rounded,
+        onUndo: _undoOnce,
+      );
+    } catch (e, st) {
+      flowBotDebugLog('Direct.apply error: $e');
+      debugPrintStack(stackTrace: st);
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: st,
+          library: 'flowbot',
+          context: ErrorDescription('while running a direct FlowBot command'),
         ),
+      );
+      if (!mounted) return;
+      _emitActionResult(
+        _ActionResult(ok: false, message: 'FlowBot fallo al aplicar: $e'),
         failureIcon: Icons.warning_amber_rounded,
       );
-      return;
     }
-    _rememberFlowBotHistory(text);
-    _lastFlowBotValidCommand = text;
-    final scoped =
-        _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
-    final applied = await _applyFlowBotActions(scoped);
-    if (!mounted) return;
-    _emitActionResult(
-      _flowBotResultForAppliedChanges(applied),
-      successIcon: Icons.auto_awesome_rounded,
-      failureIcon: Icons.warning_amber_rounded,
-      onUndo: _undoOnce,
-    );
   }
 
   Future<void> _saveCurrentFlowBotMacro() async {
@@ -7252,6 +8673,413 @@ class _EditorScreenState extends State<EditorScreen>
     if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
     final col = _headerLabel(_selCol);
     return '$col | fila ${_selRow + 1}';
+  }
+
+  String _flowBotColumnToken(int col) {
+    var current = col + 1;
+    final out = StringBuffer();
+    while (current > 0) {
+      current -= 1;
+      out.writeCharCode(65 + (current % 26));
+      current ~/= 26;
+    }
+    return out.toString().split('').reversed.join();
+  }
+
+  String _flowBotCellToken(int row, int col) {
+    return '${_flowBotColumnToken(col)}${row + 1}';
+  }
+
+  bool _flowBotColumnHasBlankCells(int col) {
+    if (col < 0 || col >= _headers.length - 1) return false;
+    for (final row in _rows) {
+      if (col >= row.cells.length) return true;
+      if (row.cells[col].trim().isEmpty) return true;
+    }
+    return false;
+  }
+
+  _FlowBotQuickContext _flowBotQuickContext() {
+    final dataCols = math.max(0, _headers.length - 1);
+    final targetCol =
+        dataCols <= 0 ? 0 : _resolveBatchTargetColumn().clamp(0, dataCols - 1);
+    final targetRow = _rows.isEmpty ? 0 : _selRow.clamp(0, _rows.length - 1);
+    final visibleColumnLabels = _visibleDataColumnIndexes()
+        .map(_headerLabel)
+        .where((label) => label.trim().isNotEmpty)
+        .take(6)
+        .toList(growable: false);
+
+    return _FlowBotQuickContext(
+      sheetName: _sheetName.trim().isEmpty ? 'Planilla actual' : _sheetName,
+      row: targetRow,
+      col: targetCol,
+      rowNumber: targetRow + 1,
+      cellToken: _flowBotCellToken(targetRow, targetCol),
+      columnLabel: dataCols <= 0 ? 'Columna actual' : _headerLabel(targetCol),
+      visibleColumnLabels: visibleColumnLabels,
+      hasRows: _rows.isNotEmpty,
+      hasPreviousRow: targetRow > 0 && _rows.isNotEmpty,
+      hasBlankCellsInColumn:
+          dataCols > 0 && _flowBotColumnHasBlankCells(targetCol),
+      canExport: _rows.isNotEmpty && dataCols > 0,
+    );
+  }
+
+  List<String> _flowBotContextExamples(_FlowBotQuickContext context) {
+    final examples = <String>[
+      'poner OK en ${context.cellToken}',
+      'rellenar columna ${context.columnLabel} con Pendiente',
+      'agregar columna Observaciones',
+    ];
+    if (context.hasBlankCellsInColumn) {
+      examples.insert(
+        2,
+        'completar vacios en columna ${context.columnLabel} con Pendiente',
+      );
+    }
+    if (context.hasPreviousRow) {
+      examples.insert(
+        2,
+        'copiar valor de la fila anterior en ${context.cellToken}',
+      );
+    }
+    return examples.take(4).toList(growable: false);
+  }
+
+  List<_FlowBotQuickActionSpec> _flowBotSuggestedQuickActions(
+    _FlowBotQuickContext context,
+  ) {
+    final actions = <_FlowBotQuickActionSpec>[];
+    final hasEditableColumns = _headers.length > 1;
+    if (hasEditableColumns) {
+      actions.addAll(<_FlowBotQuickActionSpec>[
+        _FlowBotQuickActionSpec(
+          id: 'set-active-cell',
+          label: 'Poner valor en ${context.cellToken}',
+          icon: Icons.edit_note_rounded,
+          requiresValue: true,
+          promptTitle: 'Valor para ${context.cellToken}',
+          promptLabel: 'Valor',
+          promptHint: 'Ej: OK',
+          buildCommand: (value) =>
+              'poner ${value ?? ''} en ${context.cellToken}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'clear-active-cell',
+          label: 'Borrar ${context.cellToken}',
+          icon: Icons.backspace_outlined,
+          buildCommand: (_) => 'borrar ${context.cellToken}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'duplicate-row',
+          label: 'Duplicar fila ${context.rowNumber}',
+          icon: Icons.copy_all_rounded,
+          buildCommand: (_) => 'duplicar fila ${context.rowNumber}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'delete-row',
+          label: 'Eliminar fila ${context.rowNumber}',
+          icon: Icons.delete_outline_rounded,
+          buildCommand: (_) => 'eliminar fila ${context.rowNumber}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'fill-current-column',
+          label: 'Rellenar ${context.columnLabel}',
+          icon: Icons.vertical_align_center_rounded,
+          requiresValue: true,
+          promptTitle: 'Rellenar columna ${context.columnLabel}',
+          promptLabel: 'Valor para toda la columna',
+          promptHint: 'Ej: Pendiente',
+          buildCommand: (value) =>
+              'rellenar columna ${context.columnLabel} con ${value ?? ''}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'add-column',
+          label: 'Agregar columna',
+          icon: Icons.add_box_outlined,
+          requiresValue: true,
+          promptTitle: 'Nueva columna',
+          promptLabel: 'Nombre de columna',
+          promptHint: 'Ej: Observaciones',
+          buildCommand: (value) => 'agregar columna ${value ?? ''}',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'rename-column',
+          label: 'Renombrar ${context.columnLabel}',
+          icon: Icons.drive_file_rename_outline_rounded,
+          requiresValue: true,
+          promptTitle: 'Renombrar columna ${context.columnLabel}',
+          promptLabel: 'Nuevo nombre',
+          promptHint: 'Ej: Progresiva',
+          buildCommand: (value) =>
+              'renombrar columna ${context.columnLabel} a ${value ?? ''}',
+        ),
+      ]);
+      if (context.hasBlankCellsInColumn) {
+        actions.add(
+          _FlowBotQuickActionSpec(
+            id: 'fill-blanks',
+            label: 'Completar vacios',
+            icon: Icons.playlist_add_check_circle_outlined,
+            requiresValue: true,
+            promptTitle: 'Completar vacios en ${context.columnLabel}',
+            promptLabel: 'Valor para vacios',
+            promptHint: 'Ej: Pendiente',
+            buildCommand: (value) =>
+                'completar vacios en columna ${context.columnLabel} con ${value ?? ''}',
+          ),
+        );
+      }
+      if (context.hasPreviousRow) {
+        actions.add(
+          _FlowBotQuickActionSpec(
+            id: 'copy-previous-row',
+            label: 'Copiar fila anterior',
+            icon: Icons.arrow_upward_rounded,
+            buildCommand: (_) =>
+                'copiar valor de la fila anterior en ${context.cellToken}',
+          ),
+        );
+      }
+    }
+    if (context.canExport) {
+      actions.addAll(<_FlowBotQuickActionSpec>[
+        _FlowBotQuickActionSpec(
+          id: 'export-xlsx',
+          label: 'Exportar XLSX',
+          icon: Icons.grid_on_outlined,
+          buildCommand: (_) => 'exportar xlsx',
+        ),
+        _FlowBotQuickActionSpec(
+          id: 'export-pdf',
+          label: 'Exportar PDF',
+          icon: Icons.picture_as_pdf_outlined,
+          buildCommand: (_) => 'exportar pdf',
+        ),
+      ]);
+    }
+    return actions;
+  }
+
+  List<FlowBotFavoriteShortcut> _flowBotTemplateSuggestedFavorites() {
+    final templateKind = _sheetTemplateKind.trim().toLowerCase();
+    if (templateKind.isEmpty) return const <FlowBotFavoriteShortcut>[];
+    final catalog = <String, List<_FlowBotTemplateFavoriteSpec>>{
+      'campo': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'duplicate-row',
+          label: 'Duplicar fila actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+      ],
+      'inventario': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'set-active-cell',
+          label: 'Poner valor en celda actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'add-column',
+          label: 'Agregar columna',
+        ),
+      ],
+      'rendicion': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-pdf',
+          label: 'Exportar PDF',
+        ),
+      ],
+      'gastos': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-xlsx',
+          label: 'Exportar XLSX',
+        ),
+      ],
+      'proyectos': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'rename-column',
+          label: 'Renombrar columna',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-current-column',
+          label: 'Rellenar columna actual',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-xlsx',
+          label: 'Exportar XLSX',
+        ),
+      ],
+      'mediciones': const <_FlowBotTemplateFavoriteSpec>[
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'copy-previous-row',
+          label: 'Copiar fila anterior',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'fill-blanks',
+          label: 'Completar vacios',
+        ),
+        _FlowBotTemplateFavoriteSpec(
+          quickActionId: 'export-pdf',
+          label: 'Exportar PDF',
+        ),
+      ],
+    };
+    final specs =
+        catalog[templateKind] ?? const <_FlowBotTemplateFavoriteSpec>[];
+    return specs
+        .map(
+          (spec) => FlowBotFavoriteShortcut(
+            kind: 'quick_action',
+            label: spec.label,
+            quickActionId: spec.quickActionId,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  _FlowBotQuickActionSpec? _resolveFlowBotQuickActionFromFavorite(
+    FlowBotFavoriteShortcut favorite,
+    List<_FlowBotQuickActionSpec> suggestedActions,
+  ) {
+    if (!favorite.isQuickAction) return null;
+    for (final action in suggestedActions) {
+      if (action.id == favorite.quickActionId) return action;
+    }
+    return null;
+  }
+
+  List<_FlowBotInlineQuickActionView> _flowBotInlineQuickActions(
+    _FlowBotQuickContext context,
+  ) {
+    final suggestedActions = _flowBotSuggestedQuickActions(context);
+    if (suggestedActions.isEmpty) {
+      return const <_FlowBotInlineQuickActionView>[];
+    }
+
+    final views = <_FlowBotInlineQuickActionView>[];
+    final seen = <String>{};
+
+    void addAction(
+      _FlowBotQuickActionSpec action, {
+      required String source,
+    }) {
+      if (!seen.add(action.id)) return;
+      views.add(
+        _FlowBotInlineQuickActionView(
+          id: action.id,
+          label: action.label,
+          icon: action.icon,
+          action: action,
+          source: source,
+        ),
+      );
+    }
+
+    for (final favorite in _flowBotFavorites) {
+      final resolved =
+          _resolveFlowBotQuickActionFromFavorite(favorite, suggestedActions);
+      if (resolved == null) continue;
+      addAction(resolved, source: 'user');
+      if (views.length >= 4) return views;
+    }
+
+    for (final favorite in _flowBotTemplateSuggestedFavorites()) {
+      final resolved =
+          _resolveFlowBotQuickActionFromFavorite(favorite, suggestedActions);
+      if (resolved == null) continue;
+      addAction(resolved, source: 'template');
+      if (views.length >= 4) return views;
+    }
+
+    for (final action in suggestedActions) {
+      addAction(action, source: 'context');
+      if (views.length >= 4) break;
+    }
+
+    return views;
+  }
+
+  Future<String?> _promptFlowBotQuickActionValueInline(
+    BuildContext context, {
+    required _FlowBotQuickActionSpec action,
+  }) async {
+    var draftValue = '';
+    final result = await showAppModal<String>(
+      context: context,
+      title: action.promptTitle ?? 'Completa la accion',
+      child: TextFormField(
+        key: ValueKey('flowbot-inline-input-${action.id}'),
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: action.promptLabel ?? 'Valor',
+          hintText: action.promptHint,
+        ),
+        onChanged: (value) => draftValue = value,
+        onFieldSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: 'Aplicar',
+          variant: AppButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(draftValue.trim()),
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    final text = (result ?? '').trim();
+    return text.isEmpty ? null : text;
+  }
+
+  Future<void> _runInlineFlowBotQuickAction(
+    BuildContext context,
+    _FlowBotQuickActionSpec action,
+  ) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    String? promptValue;
+    if (action.requiresValue) {
+      promptValue = await _promptFlowBotQuickActionValueInline(
+        context,
+        action: action,
+      );
+      if (promptValue == null || !mounted) return;
+    }
+    final command = action.buildCommand(promptValue).trim();
+    if (command.isEmpty) return;
+    await _runFlowBotCommandDirect(command);
   }
 
   int? _statusColumnForBatchActions() {
@@ -8900,18 +10728,14 @@ class _EditorScreenState extends State<EditorScreen>
     final name =
         'BitFlow_offline_diagnostic_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}.json';
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: 'application/json',
         bytes: Uint8List.fromList(utf8.encode(encoded)),
         share: false,
+        includeAttachments: false,
       );
-      if (!mounted) return;
-      _showActionSnack(
-        'Diagnostico de cola exportado.',
-        isError: false,
-        icon: Icons.bug_report_outlined,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       if (!mounted) return;
       _showActionSnack(
@@ -9128,43 +10952,6 @@ class _EditorScreenState extends State<EditorScreen>
     return '${local.year}-${_two(local.month)}-${_two(local.day)} ${_two(local.hour)}:${_two(local.minute)}';
   }
 
-  Future<String?> _promptQuickCaptureNote() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Nota corta (opcional)'),
-          content: TextField(
-            controller: controller,
-            maxLength: 140,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Ej: Inspeccion en poste 12',
-            ),
-            onSubmitted: (value) => Navigator.of(ctx).pop(value.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('Omitir'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    return result;
-  }
-
   ({int rowIndex, String rowId, CellRef? photoRef})? _appendQuickCaptureRow({
     required DateTime capturedAt,
     required String note,
@@ -9238,10 +11025,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-
-    final note = await _promptQuickCaptureNote();
-    if (!mounted) return;
-    if (note == null) return;
+    const note = '';
 
     final gpsOutcome = await _getGpsFixWithFallback(
       timeout: const Duration(seconds: 10),
@@ -9295,7 +11079,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
 
     _showActionSnack(
-      'Registro creado en fila ${inserted.rowIndex + 1}.',
+      'Registro listo en fila ${inserted.rowIndex + 1}. Completa estado y exporta al terminar.',
       isError: false,
       icon: Icons.add_task_rounded,
     );
@@ -10043,11 +11827,22 @@ class _EditorScreenState extends State<EditorScreen>
         final mobileGridBottomInset = isDesktop
             ? 0.0
             : math.min(requestedMobileGridInset, maxMobileGridInset);
+        final exportResultBottomOffset = isDesktop
+            ? 16.0
+            : (_mobileEditorOpen
+                ? panelH + keyboardInset + mobileEditorSafeBottom + 14
+                : bottomSafe + (_mobileFabMenuOpen ? 248 : 80));
         final autoCollapsedTopChrome = isMobile && keyboardVisible;
         final collapseNonCriticalTopChrome = autoCollapsedTopChrome;
         final showSelectionQuickActions = !_mobileEditorOpen &&
             !keyboardVisible &&
             (_selRow >= 0 && _selCol >= 0);
+        final showInlineFlowBotBar = showSelectionQuickActions &&
+            mq.size.width >= 360 &&
+            mq.size.height >= 700;
+        final inlineFlowBotActions = showInlineFlowBotBar
+            ? _flowBotInlineQuickActions(_flowBotQuickContext())
+            : const <_FlowBotInlineQuickActionView>[];
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
         final visibleRows = _visibleRowIndexes();
@@ -10225,6 +12020,10 @@ class _EditorScreenState extends State<EditorScreen>
                                         outboxPendingCount: _outboxQueuedCount,
                                         outboxErrorCount: _outboxErrorCount,
                                         errorsCount: _invalidCells.length,
+                                        dataQualityLabel:
+                                            _sheetQualityHeaderLabel,
+                                        dataQualityDetail:
+                                            _sheetQualityHeaderDetail,
                                         savedViews: _savedViews,
                                         activeViewId: _activeSavedViewId,
                                         pendingReviewViewActive:
@@ -10253,6 +12052,9 @@ class _EditorScreenState extends State<EditorScreen>
                                     pendingOfflineCount: _pendingOfflineCount,
                                     outboxPendingCount: _outboxQueuedCount,
                                     outboxErrorCount: _outboxErrorCount,
+                                    dataQualityLabel: _sheetQualityHeaderLabel,
+                                    dataQualityDetail:
+                                        _sheetQualityHeaderDetail,
                                     selectedRow: _selRow,
                                     selectedCol: _selCol,
                                     onSave: () =>
@@ -10556,40 +12358,58 @@ class _EditorScreenState extends State<EditorScreen>
                                       key: const ValueKey(
                                         'selection-quick-actions-open',
                                       ),
-                                      child: _SelectionQuickActionsBar(
-                                        palette: pal,
-                                        selectionLabel:
-                                            _selectionLabelForQuickActions(),
-                                        selectedRowsCount:
-                                            _batchTargetRows().length,
-                                        canMarkStatus: canMarkSelectionStatus,
-                                        onApplyValue: () =>
-                                            unawaited(_promptBatchApplyValue()),
-                                        onFillDown: () => unawaited(
-                                          _promptFillDown(
-                                            context,
-                                            _selRow,
-                                            _selCol,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _SelectionQuickActionsBar(
+                                            palette: pal,
+                                            selectionLabel:
+                                                _selectionLabelForQuickActions(),
+                                            selectedRowsCount:
+                                                _batchTargetRows().length,
+                                            canMarkStatus:
+                                                canMarkSelectionStatus,
+                                            onApplyValue: () => unawaited(
+                                                _promptBatchApplyValue()),
+                                            onFillDown: () => unawaited(
+                                              _promptFillDown(
+                                                context,
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onDuplicateRows:
+                                                _duplicateSelectedRows,
+                                            onAttachPhoto: () => unawaited(
+                                              _startPhotoFlowForCell(
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onAttachGps: () => unawaited(
+                                              _requestGpsForCell(
+                                                _selRow,
+                                                _selCol,
+                                              ),
+                                            ),
+                                            onJumpTo: () =>
+                                                unawaited(_openJumpToDialog()),
+                                            onMarkStatus: (value) => unawaited(
+                                              _applyStatusToSelectedRows(value),
+                                            ),
                                           ),
-                                        ),
-                                        onDuplicateRows: _duplicateSelectedRows,
-                                        onAttachPhoto: () => unawaited(
-                                          _startPhotoFlowForCell(
-                                            _selRow,
-                                            _selCol,
-                                          ),
-                                        ),
-                                        onAttachGps: () => unawaited(
-                                          _requestGpsForCell(
-                                            _selRow,
-                                            _selCol,
-                                          ),
-                                        ),
-                                        onJumpTo: () =>
-                                            unawaited(_openJumpToDialog()),
-                                        onMarkStatus: (value) => unawaited(
-                                          _applyStatusToSelectedRows(value),
-                                        ),
+                                          if (inlineFlowBotActions.isNotEmpty)
+                                            _FlowBotInlineQuickBar(
+                                              palette: pal,
+                                              actions: inlineFlowBotActions,
+                                              onRun: (action) => unawaited(
+                                                _runInlineFlowBotQuickAction(
+                                                  context,
+                                                  action,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     )
                                   : const SizedBox.shrink(
@@ -11347,6 +13167,14 @@ class _EditorScreenState extends State<EditorScreen>
                               ? [
                                   _MobileFabAction(
                                     key: const ValueKey(
+                                        'mobile-fab-action-quick-capture'),
+                                    icon: Icons.add_a_photo_outlined,
+                                    label: 'Foto + registro',
+                                    onTap: () =>
+                                        unawaited(_startQuickCaptureFlow()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
                                         'mobile-fab-action-new-record'),
                                     icon: Icons.add_box_outlined,
                                     label: 'Nuevo registro',
@@ -11357,22 +13185,17 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
+                                        'mobile-fab-action-export'),
+                                    icon: Icons.ios_share_rounded,
+                                    label: 'Exportar',
+                                    onTap: () => unawaited(_openExportMenu()),
+                                  ),
+                                  _MobileFabAction(
+                                    key: const ValueKey(
                                         'mobile-fab-action-flowbot'),
                                     icon: Icons.auto_awesome_rounded,
                                     label: 'FlowBot',
                                     onTap: () => unawaited(_openFlowBotSheet()),
-                                  ),
-                                  _MobileFabAction(
-                                    key: const ValueKey(
-                                        'mobile-fab-action-smart-paste'),
-                                    icon: Icons.table_chart_rounded,
-                                    label: 'Pegar tabla',
-                                    onTap: () => unawaited(
-                                      _pasteTableSmartFromClipboard(
-                                        emitFeedback: true,
-                                        interactivePreview: true,
-                                      ),
-                                    ),
                                   ),
                                   _MobileFabAction(
                                     key: const ValueKey(
@@ -11425,7 +13248,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     key: const ValueKey(
                                         'mobile-fab-action-undo'),
                                     icon: Icons.undo_rounded,
-                                    label: 'Undo',
+                                    label: 'Deshacer',
                                     onTap: _undoOnce,
                                   ),
                                   _MobileFabAction(
@@ -11436,6 +13259,62 @@ class _EditorScreenState extends State<EditorScreen>
                                     onTap: () => unawaited(_toggleFieldMode()),
                                   ),
                                 ],
+                        ),
+                      if (_lastExportFlowResult != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: exportResultBottomOffset,
+                          child: AnimatedSwitcher(
+                            duration: AppMotion.quick,
+                            switchInCurve: AppMotion.springOut,
+                            switchOutCurve: AppMotion.standardIn,
+                            transitionBuilder: (child, animation) {
+                              return AppMotion.fadeSlide(
+                                animation: animation,
+                                begin: const Offset(0, 0.04),
+                                child: child,
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey(
+                                'export-flow-result-banner-${_lastExportFlowResult!.kind.name}-${_lastExportFlowResult!.fileName}',
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isDesktop ? 560 : mq.size.width,
+                                  ),
+                                  child: _ExportFlowResultBanner(
+                                    palette: pal,
+                                    result: _lastExportFlowResult!,
+                                    title: _exportFlowResultTitle(
+                                      _lastExportFlowResult!,
+                                    ),
+                                    formatLabel: _exportFlowResultFormatLabel(
+                                      _lastExportFlowResult!.format,
+                                    ),
+                                    icon: _exportFlowResultIcon(
+                                      _lastExportFlowResult!,
+                                    ),
+                                    actionLabelBuilder: (action) =>
+                                        _exportFlowResultActionLabel(
+                                      _lastExportFlowResult!,
+                                      action,
+                                    ),
+                                    onAction: (action) => unawaited(
+                                      _handleExportFlowResultAction(
+                                        _lastExportFlowResult!,
+                                        action,
+                                      ),
+                                    ),
+                                    onDismiss: _clearExportFlowResult,
+                                    busy: _longOperation != null || _saving,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       if (_perfHarnessRequested && kDebugMode)
                         _buildPerfOverlay(
@@ -12459,29 +14338,29 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.calculate_outlined,
-        label: 'Calc',
+        label: 'Calcular',
         onTap: () => _applyCalcToCell(r, c),
       ),
       _MobileAction(
         icon: Icons.photo_camera_outlined,
-        label: 'Foto',
+        label: 'Adjuntar foto',
         onTap: () => _startPhotoFlowForCell(r, c),
       ),
       _MobileAction(
         icon: Icons.videocam_outlined,
-        label: 'Video',
+        label: 'Adjuntar video',
         onTap: () => unawaited(_attachVideoForCell(r, c)),
       ),
       _MobileAction(
         icon: Icons.attach_file_rounded,
-        label: 'Archivo',
+        label: 'Adjuntar archivo',
         onTap: () => unawaited(_attachDocumentForCell(r, c)),
       ),
       _MobileAction(
         icon: _audioRecording
             ? Icons.stop_circle_outlined
             : Icons.mic_none_rounded,
-        label: _audioRecording ? 'Detener audio' : 'Audio',
+        label: _audioRecording ? 'Detener audio' : 'Grabar audio',
         onTap: () {
           if (_audioRecording) {
             unawaited(_stopAudioRecording());
@@ -12492,7 +14371,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.my_location_outlined,
-        label: 'GPS -> Pegar',
+        label: 'Adjuntar GPS',
         onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
       ),
       _MobileAction(
@@ -12631,7 +14510,7 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               ListTile(
                 leading: const Icon(Icons.check_rounded),
-                title: const Text('Listo'),
+                title: const Text('Guardar y cerrar'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _commitMobileEdit();
@@ -12674,15 +14553,16 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Fotos de esta celda'),
+                  title: const Text('Adjuntar foto en esta celda'),
                   onTap: () {
-                    _startCellPhotoPickFromSheet(row, _mobileCol);
+                    Navigator.pop(ctx);
+                    unawaited(_startCellPhotoPickFromSheet(row, _mobileCol));
                   },
                 ),
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('Adjuntar video'),
+                  title: const Text('Adjuntar video en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachVideoForCell(row, _mobileCol));
@@ -12691,7 +14571,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.attach_file_rounded),
-                  title: const Text('Adjuntar archivo'),
+                  title: const Text('Adjuntar archivo en esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachDocumentForCell(row, _mobileCol));
@@ -12706,7 +14586,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   title: Text(
                     _audioRecording
-                        ? 'Detener grabacion'
+                        ? 'Detener audio'
                         : 'Grabar audio en esta celda',
                   ),
                   onTap: () {
@@ -12721,7 +14601,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0 && _cellHasAudios(row, _mobileCol))
                 ListTile(
                   leading: const Icon(Icons.graphic_eq_rounded),
-                  title: const Text('Audios de esta celda'),
+                  title: const Text('Ver audios de esta celda'),
                   onTap: () {
                     Navigator.pop(ctx);
                     _openAudiosSheetForCell(row, _mobileCol);
@@ -12730,18 +14610,18 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('GPS -> Pegar en esta celda'),
+                  title: const Text('Adjuntar GPS en esta celda'),
                   onTap: () {
+                    Navigator.pop(ctx);
                     unawaited(
                       _requestGpsForCell(row, _mobileCol, forceWriteText: true),
                     );
-                    Navigator.pop(ctx);
                   },
                 ),
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.tune_rounded),
-                  title: const Text('Modo GPS...'),
+                  title: const Text('Ajuste de GPS'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_showGpsModePicker());
@@ -15663,6 +17543,70 @@ class _EditorScreenState extends State<EditorScreen>
     return out;
   }
 
+  int _addFlowBotColumn(String label) {
+    final cleaned = label.trim();
+    if (cleaned.isEmpty) {
+      throw StateError('FlowBot necesita un nombre de columna valido.');
+    }
+    final insertAt = math.max(0, _headers.length - 1);
+    final colId = _genStableId('c_');
+    _headers.insert(insertAt, cleaned);
+    _colIds.insert(insertAt, colId);
+    for (final row in _rows) {
+      final safeInsertAt = insertAt.clamp(0, row.cells.length);
+      row.cells.insert(safeInsertAt, '');
+    }
+    _columnPrefsById[colId] = const _ColumnPrefs(type: _ColType.text);
+    if (!_columnOrder.contains(colId)) {
+      _columnOrder.add(colId);
+    }
+    _columnPrefsById = _normalizeColumnPrefs(
+      colIds: _colIds,
+      incoming: _columnPrefsById,
+    );
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: _columnOrder,
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: _frozenColId,
+    );
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _addHistoryEvent(
+      type: 'add_column',
+      message: 'Agregar columna $cleaned',
+      origin: 'flowbot',
+      col: insertAt,
+    );
+    return insertAt;
+  }
+
+  void _renameFlowBotColumn(int col, String label) {
+    if (col < 0 || col >= _headers.length - 1) {
+      throw StateError('FlowBot no encontro la columna a renombrar.');
+    }
+    final cleaned = label.trim();
+    if (cleaned.isEmpty) {
+      throw StateError('FlowBot necesita un nombre de columna valido.');
+    }
+    final previous = _headers[col];
+    if (previous == cleaned) return;
+    _headers[col] = cleaned;
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _addHistoryEvent(
+      type: 'rename_column',
+      message:
+          'Renombrar columna ${previous.trim().isEmpty ? col + 1 : previous}',
+      origin: 'flowbot',
+      col: col,
+      beforeValue: previous,
+      afterValue: cleaned,
+    );
+  }
+
   Future<void> _openRowFormMode({int? rowIndex, bool createNew = false}) async {
     if (!mounted || _headers.length <= 1) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -15698,6 +17642,21 @@ class _EditorScreenState extends State<EditorScreen>
         var saving = false;
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            final formIssues = <int, String>{};
+            var pendingRequired = 0;
+            for (final col in orderedCols) {
+              final message = _validationMessageForValue(
+                col: col,
+                rawValue: controllers[col]!.text,
+              );
+              if (message == null) continue;
+              formIssues[col] = message;
+              if (message == 'Campo requerido') {
+                pendingRequired++;
+              }
+            }
+            final canSaveForm = !saving && formIssues.isEmpty;
+
             Future<void> runPhoto() async {
               setModalState(() => saving = true);
               await _startPhotoFlowForCell(targetRow, _headers.length - 1);
@@ -15750,7 +17709,7 @@ class _EditorScreenState extends State<EditorScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            'Formulario - fila ${targetRow + 1}',
+                            'Editar fila ${targetRow + 1}',
                             style: TextStyle(
                               color: pal.fg,
                               fontWeight: FontWeight.w900,
@@ -15785,7 +17744,7 @@ class _EditorScreenState extends State<EditorScreen>
                           onPressed: saving ? null : runGps,
                         ),
                         AppButton(
-                          label: 'Timestamp',
+                          label: 'Fecha y hora',
                           icon: Icons.schedule_rounded,
                           size: AppButtonSize.sm,
                           variant: AppButtonVariant.ghost,
@@ -15794,6 +17753,47 @@ class _EditorScreenState extends State<EditorScreen>
                       ],
                     ),
                     const SizedBox(height: 10),
+                    Container(
+                      key: const ValueKey('row-form-quality'),
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: formIssues.isEmpty
+                            ? pal.hintBg
+                            : Theme.of(ctx)
+                                .colorScheme
+                                .errorContainer
+                                .withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: formIssues.isEmpty
+                              ? pal.border
+                              : Theme.of(ctx)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.35),
+                          width: pal.hairline,
+                        ),
+                      ),
+                      child: Text(
+                        formIssues.isEmpty
+                            ? 'Fila lista para guardar.'
+                            : pendingRequired > 0
+                                ? '$pendingRequired campo(s) obligatorio(s) pendiente(s) y ${formIssues.length} validacion(es) por corregir.'
+                                : '${formIssues.length} validacion(es) por corregir antes de guardar.',
+                        style: TextStyle(
+                          color: formIssues.isEmpty
+                              ? pal.fgMuted
+                              : Theme.of(ctx).colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                     Flexible(
                       child: SingleChildScrollView(
                         child: Column(
@@ -15824,12 +17824,12 @@ class _EditorScreenState extends State<EditorScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: AppButton(
+                            key: const ValueKey('row-form-save'),
                             label: AppStrings.save,
                             icon: Icons.check_rounded,
                             variant: AppButtonVariant.primary,
-                            onPressed: saving
-                                ? null
-                                : () {
+                            onPressed: canSaveForm
+                                ? () {
                                     final refsToClear = <_CellRef>[];
                                     var changed = false;
                                     for (final col in orderedCols) {
@@ -15854,7 +17854,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       _markDirty(snapshot: true);
                                     }
                                     Navigator.of(ctx).pop();
-                                  },
+                                  }
+                                : null,
                           ),
                         ),
                       ],
@@ -15882,17 +17883,28 @@ class _EditorScreenState extends State<EditorScreen>
   }) {
     final type = _colType(col);
     final label = _headerLabel(col);
-    final border = Border.all(color: palette.border, width: palette.hairline);
+    final validationMessage = _validationMessageForValue(
+      col: col,
+      rawValue: controller.text,
+    );
+    final required = _isRequired(col);
+    final errorColor = Theme.of(context).colorScheme.error;
+    final border = Border.all(
+      color: validationMessage == null ? palette.border : errorColor,
+      width: palette.hairline,
+    );
 
     Widget field;
     switch (type) {
       case _ColType.status:
         final current = controller.text.trim();
+        final options =
+            _statusOptionsForCol(col) ?? const <String>['OK', 'Obs', 'Urgente'];
         field = Wrap(
           spacing: 6,
           runSpacing: 6,
           children: [
-            for (final status in const <String>['OK', 'Obs', 'Urgente'])
+            for (final status in options)
               ChoiceChip(
                 label: Text(status),
                 selected: current.toLowerCase() == status.toLowerCase(),
@@ -15922,7 +17934,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ColType.number:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             hintText: 'Numero (acepta , y .)',
@@ -15933,7 +17947,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ColType.date:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: TextInputType.datetime,
           decoration: const InputDecoration(
             hintText: 'dd/MM/yyyy',
@@ -15944,7 +17960,9 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       default:
         field = TextField(
+          key: ValueKey('row-form-field-$col'),
           controller: controller,
+          onChanged: (_) => setModalState(() {}),
           keyboardType: TextInputType.text,
           decoration: const InputDecoration(
             hintText: 'Escribir...',
@@ -15967,14 +17985,55 @@ class _EditorScreenState extends State<EditorScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: palette.fgMuted,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.fgMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                if (required)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.menuBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: palette.border,
+                        width: palette.hairline,
+                      ),
+                    ),
+                    child: Text(
+                      'Obligatorio',
+                      style: TextStyle(
+                        color: palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+              ],
             ),
+            if (validationMessage != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                validationMessage,
+                style: TextStyle(
+                  color: errorColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             field,
           ],
@@ -16033,7 +18092,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _removeMobileRowCache(idx);
     _ensureMobileRowCachesLength();
-    _pushUndoSnapshot();
+    if (!_suspendUndoSnapshot) {
+      _pushUndoSnapshot();
+    }
     _queueSave();
     _addHistoryEvent(
       type: 'delete_row',
@@ -18598,6 +20659,14 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  void debugOpenRowFormForTest({int? rowIndex, bool createNew = false}) {
+    assert(() {
+      unawaited(_openRowFormMode(rowIndex: rowIndex, createNew: createNew));
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   void debugInjectSaveErrorForTest([
     String message = 'No pudimos guardar los cambios.',
   ]) {
@@ -18622,6 +20691,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   String? debugLastToastMessage() => _lastToastMessage;
+
+  @visibleForTesting
+  String? debugLastExportFlowResultKind() => _lastExportFlowResult?.kind.name;
+
+  @visibleForTesting
+  String? debugLastExportFlowResultMessage() => _lastExportFlowResult?.message;
 
   @visibleForTesting
   Future<void> debugTriggerExportForTest({
@@ -18653,25 +20728,90 @@ class _EditorScreenState extends State<EditorScreen>
     required String name,
     required String mime,
     bool share = false,
+    bool includeAttachments = true,
     Uint8List? bytes,
   }) async {
+    _clearExportFlowResult();
     try {
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: name,
         mime: mime,
         bytes: bytes ?? Uint8List.fromList(<int>[1, 2, 3, 4]),
         share: share,
+        includeAttachments: includeAttachments,
+      );
+      _publishExportFlowResult(result);
+    } on _EditorLongOperationCancelled {
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: name,
+          format: _exportFormatFromFileName(name),
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
+      final format = _exportFormatFromFileName(name);
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowError(
+          e,
+          flow: AppErrorFlow.exportData,
+          operation: share
+              ? 'debug_export_save_flow_share'
+              : 'debug_export_save_flow_save',
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: format,
+          ),
+          stackTrace: st,
+          icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+        );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: name,
+            format: format,
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.exportData,
         operation: share
             ? 'debug_export_save_flow_share'
             : 'debug_export_save_flow_save',
-        fallbackMessage: 'No pudimos completar la operación.',
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: format,
+        ),
         stackTrace: st,
         icon: share ? Icons.ios_share_rounded : Icons.download_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: name,
+          format: format,
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: format),
+        ),
+        showSnack: false,
       );
     }
   }
@@ -18752,6 +20892,14 @@ class _EditorScreenState extends State<EditorScreen>
       _setSelection(r, c, preserveRowSelection: true);
       return true;
     }());
+  }
+
+  @visibleForTesting
+  List<String> debugFlowBotInlineActionIds() {
+    final context = _flowBotQuickContext();
+    return _flowBotInlineQuickActions(
+      context,
+    ).map((action) => action.id).toList(growable: false);
   }
 
   @visibleForTesting
@@ -18844,6 +20992,22 @@ class _EditorScreenState extends State<EditorScreen>
   CellMeta? debugCellMetaAt(int r, int c) => _cellMetaAt(r, c);
 
   @visibleForTesting
+  void debugSetCellMetaForTest(int r, int c, CellMeta? meta) {
+    assert(() {
+      if (meta == null || meta.isEmpty) {
+        final ref = _cellRefAt(r, c);
+        if (ref != null) {
+          _cellMeta.remove(ref.key);
+          _bumpGridVersion();
+        }
+        return true;
+      }
+      _setCellMetaEntry(r, c, meta, markDirty: false);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   void debugSetWebImageNormalizer(WebImageNormalizer? normalizer) {
     assert(() {
       _debugWebImageNormalizer = normalizer;
@@ -18855,6 +21019,20 @@ class _EditorScreenState extends State<EditorScreen>
   void debugSetSaveImageHook(_DebugSaveImageHook? hook) {
     assert(() {
       _debugSaveImageHook = hook;
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSetAudioHooks({
+    _DebugStartAudioRecordingHook? start,
+    _DebugStopAudioRecordingHook? stop,
+    _DebugSaveAudioHook? save,
+  }) {
+    assert(() {
+      _debugStartAudioRecordingHook = start;
+      _debugStopAudioRecordingHook = stop;
+      _debugSaveAudioHook = save;
       return true;
     }());
   }
@@ -19095,6 +21273,45 @@ class _EditorScreenState extends State<EditorScreen>
     }());
     await _loadLocal();
   }
+
+  @visibleForTesting
+  Future<void> debugOpenAttachmentPanelForTest(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    unawaited(_openAttachmentPanelForCell(r, c));
+  }
+
+  @visibleForTesting
+  void debugOpenPhotosSheetForTest(int r, int c) {
+    assert(() {
+      _openPhotosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenAudiosSheetForTest(int r, int c) {
+    assert(() {
+      _openAudiosSheetForCell(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  Future<void> debugToggleAudioRecordingForCell(int r, int c) async {
+    assert(() {
+      return true;
+    }());
+    if (_audioRecording) {
+      await _stopAudioRecording();
+      return;
+    }
+    await _startAudioRecordingForCell(r, c);
+  }
+
+  @visibleForTesting
+  bool debugIsAudioRecording() => _audioRecording;
 
   GpsMeta _gpsMetaFromFix(_GpsFix fix) {
     final ts = fix.ts.millisecondsSinceEpoch > 0 ? fix.ts : DateTime.now();
@@ -19609,6 +21826,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final fileName = _buildCommercialExportFileName('xlsx');
@@ -19630,47 +21848,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo XLSX.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_xlsx_build',
-          fallbackMessage: 'No se pudo generar el archivo XLSX.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.table_view_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: xlsxBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'xlsx',
-          share: share,
-          fileName: fileName,
-        ),
         shareSubject: 'BitFlow | Excel | $_sheetName',
         shareText: 'Planilla Excel exportada desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -19679,9 +21911,21 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_xlsx' : 'export_xlsx',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'xlsx',
+          ),
           stackTrace: st,
           icon: Icons.table_view_rounded,
+        );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('xlsx'),
+            format: 'xlsx',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19689,9 +21933,23 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'xlsx',
+        ),
         stackTrace: st,
         icon: Icons.table_view_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('xlsx'),
+          format: 'xlsx',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'xlsx'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19714,6 +21972,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final fileName = _buildCommercialExportFileName('pdf');
@@ -19727,46 +21986,60 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null || pdfBytes.isEmpty) {
+        const fallbackMessage = 'No se pudo generar el archivo PDF.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_pdf_build',
-          fallbackMessage: 'No se pudo generar el archivo PDF.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_outlined,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/pdf',
         bytes: pdfBytes,
         share: share,
+        includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'pdf',
-          share: share,
-          fileName: fileName,
-        ),
         shareSubject: 'BitFlow | PDF | $_sheetName',
         shareText: 'Reporte PDF exportado desde BitFlow: $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
         );
         return;
       }
@@ -19775,9 +22048,21 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_pdf' : 'export_pdf',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'pdf',
+          ),
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
+        );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: _buildCommercialExportFileName('pdf'),
+            format: 'pdf',
+            share: share,
+            includeAttachments: includeAttachments,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19785,9 +22070,23 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'pdf',
+        ),
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: _buildCommercialExportFileName('pdf'),
+          format: 'pdf',
+          share: share,
+          includeAttachments: includeAttachments,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'pdf'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19807,6 +22106,7 @@ class _EditorScreenState extends State<EditorScreen>
     )) {
       return;
     }
+    _clearExportFlowResult();
     try {
       _throwIfLongOperationCancelled();
       final xlsxFileName = buildBitFlowPackageWorkbookFileName(
@@ -19833,12 +22133,24 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (xlsxBytes == null) {
+        const fallbackMessage =
+            'No se pudo preparar el XLSX para exportar ZIP.';
         _reportFlowErrorMessage(
           'xlsx_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_xlsx',
-          fallbackMessage: 'No se pudo preparar el XLSX para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19852,12 +22164,23 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (pdfBytes == null) {
+        const fallbackMessage = 'No se pudo preparar el PDF para exportar ZIP.';
         _reportFlowErrorMessage(
           'pdf_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_pdf',
-          fallbackMessage: 'No se pudo preparar el PDF para exportar ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.picture_as_pdf_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19878,52 +22201,61 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _throwIfLongOperationCancelled();
       if (zipBytes == null) {
+        const fallbackMessage = 'No se pudo generar el archivo ZIP.';
         _reportFlowErrorMessage(
           'zip_generation_failed',
           flow: AppErrorFlow.exportData,
           operation: 'export_zip_build_archive',
-          fallbackMessage: 'No se pudo generar el archivo ZIP.',
+          fallbackMessage: fallbackMessage,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportFlowResult(
+          _buildErrorExportFlowResult(
+            fileName: fileName,
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+            message: _lastErrorFeedbackMessage ?? fallbackMessage,
+          ),
+          showSnack: false,
         );
         return;
       }
 
-      final evidenceCount = prep.attachments
-          .where((item) => item.type.trim().toLowerCase() != 'gps')
-          .length;
-
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: fileName,
         mime: 'application/zip',
         bytes: zipBytes,
         share: share,
+        includeAttachments: true,
         shouldCancel: _isLongOperationCancelled,
-        successMessage: _exportReadyMessage(
-          format: 'zip',
-          share: share,
-          fileName: fileName,
-          includeEvidenceHint: evidenceCount > 0,
-        ),
         shareSubject: 'BitFlow | Paquete completo | $_sheetName',
         shareText:
             'Paquete ZIP exportado desde BitFlow (XLSX + PDF + evidencias): $_sheetName',
       );
       _throwIfLongOperationCancelled();
+      _publishExportFlowResult(result);
       AppHaptics.success();
     } on _EditorLongOperationCancelled {
-      _showActionSnack(
-        _exportCancelledMessage(share: share),
-        isError: false,
-        icon: Icons.info_outline_rounded,
+      _publishExportFlowResult(
+        _buildCancelledExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+        ),
       );
     } catch (e, st) {
       final outcome = classifyExportFlowOutcome(e);
       if (outcome == ExportFlowOutcome.cancelled) {
-        _showActionSnack(
-          _exportCancelledMessage(share: share),
-          isError: false,
-          icon: Icons.info_outline_rounded,
+        _publishExportFlowResult(
+          _buildCancelledExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
         );
         return;
       }
@@ -19932,9 +22264,21 @@ class _EditorScreenState extends State<EditorScreen>
           e,
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_zip' : 'export_zip',
-          fallbackMessage: _exportUnsupportedMessage(share: share),
+          fallbackMessage: _exportUnsupportedMessage(
+            share: share,
+            format: 'zip',
+          ),
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
+        );
+        _publishExportFlowResult(
+          _buildUnsupportedExportFlowResult(
+            fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+            format: 'zip',
+            share: share,
+            includeAttachments: true,
+          ),
+          showSnack: false,
         );
         return;
       }
@@ -19942,9 +22286,23 @@ class _EditorScreenState extends State<EditorScreen>
         e,
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
-        fallbackMessage: _exportFailureMessage(share: share),
+        fallbackMessage: _exportFailureMessage(
+          share: share,
+          format: 'zip',
+        ),
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
+      );
+      _publishExportFlowResult(
+        _buildErrorExportFlowResult(
+          fileName: buildBitFlowBundleExportFileName(sheetName: _sheetName),
+          format: 'zip',
+          share: share,
+          includeAttachments: true,
+          message: _lastErrorFeedbackMessage ??
+              _exportFailureMessage(share: share, format: 'zip'),
+        ),
+        showSnack: false,
       );
     } finally {
       _clearLongOperation();
@@ -19998,20 +22356,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_backup_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.zip',
         mime: 'application/zip',
         bytes: zipBytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Backup ZIP listo.',
-        isError: false,
-        icon: Icons.backup_rounded,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -20082,20 +22437,17 @@ class _EditorScreenState extends State<EditorScreen>
           '${_safeFile(_sheetName)}_reporte_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
 
       _setLongOperationMessage(AppStrings.progressWritingFile);
-      await _saveExportBytes(
+      final result = await _saveExportBytes(
         name: '$baseName.html',
         mime: 'text/html',
         bytes: bytes,
         share: false,
+        includeAttachments: false,
         shouldCancel: _isLongOperationCancelled,
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
-      _showActionSnack(
-        'Reporte HTML listo.',
-        isError: false,
-        icon: Icons.description_rounded,
-      );
+      _publishExportFlowResult(result);
     } on _EditorLongOperationCancelled {
       _showActionSnack(
         AppStrings.infoExportCancelled,
@@ -20440,6 +22792,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final dataCols = math.max(0, _headers.length - 1); // sin Photos
     final columns = List<String>.generate(dataCols, (i) => _headerLabel(i));
     final columnTypes = _buildExportColumnTypes(dataCols);
@@ -20472,6 +22826,12 @@ class _EditorScreenState extends State<EditorScreen>
       projectName: cover.projectName,
       responsibleName: cover.responsibleName,
       observations: cover.observations,
+      qualityStatus: quality.statusLabel,
+      qualityCompletionPercent: quality.requiredCompletionPercent,
+      qualityRowsReady: quality.rowsReady,
+      qualityRowsWithData: quality.rowsWithData,
+      qualityInvalidCells: quality.invalidCells,
+      qualityPendingRequired: quality.pendingRequired,
     );
   }
 
@@ -20481,6 +22841,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final dataCols = math.max(0, _headers.length - 1);
     final includeReviewColumns = _rows.any(
       (row) =>
@@ -20836,6 +23198,15 @@ class _EditorScreenState extends State<EditorScreen>
               children: [
                 metricChip('Registros', '${_rows.length}'),
                 metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
+                metricChip(
+                  'Integridad',
+                  '${quality.requiredCompletionPercent}%',
+                ),
+                metricChip(
+                  'Filas listas',
+                  '${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)}',
+                ),
+                metricChip('Errores', '${quality.invalidCells}'),
                 metricChip('Evidencias', '$totalAttachments'),
                 metricChip('Fotos', '$photoCount'),
                 metricChip('Videos', '$videoCount'),
@@ -20847,6 +23218,48 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             pw.SizedBox(height: 12),
           ];
+
+          content.add(
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: pw.BoxDecoration(
+                color:
+                    quality.hasIssues ? PdfColors.orange50 : PdfColors.green50,
+                borderRadius: pw.BorderRadius.circular(8),
+                border: pw.Border.all(
+                  color: quality.hasIssues
+                      ? PdfColors.orange300
+                      : PdfColors.green300,
+                  width: 0.8,
+                ),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Estado de carga: ${quality.statusLabel}',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    _sheetQualityDetail(
+                      quality,
+                      evidenceCount: totalAttachments,
+                    ),
+                    style: const pw.TextStyle(fontSize: 8.5),
+                  ),
+                ],
+              ),
+            ),
+          );
+          content.add(pw.SizedBox(height: 12));
 
           if (headers.isNotEmpty) {
             content
@@ -21027,6 +23440,8 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
+    _recomputeValidation();
+    final quality = _sheetQuality;
     final attachments = <AttachmentRow>[];
     final embeddedPhotos = <EmbeddedPhoto>[];
     final photoItems = <_ZipPhotoItem>[];
@@ -21050,6 +23465,7 @@ class _EditorScreenState extends State<EditorScreen>
               audioCount: 0,
               gpsCount: 0,
               fileCount: 0,
+              quality: quality,
             )
           : const <String, dynamic>{};
       return _ExportPrep(
@@ -21295,6 +23711,7 @@ class _EditorScreenState extends State<EditorScreen>
             audioCount: audioCount,
             gpsCount: gpsCount,
             fileCount: fileCount,
+            quality: quality,
           )
         : const <String, dynamic>{};
 
@@ -21377,6 +23794,7 @@ class _EditorScreenState extends State<EditorScreen>
     required int audioCount,
     required int gpsCount,
     required int fileCount,
+    required _SheetQualitySnapshot quality,
   }) async {
     final appVersion = await _readAppVersionForExport();
     final nonEmptyCells = _countNonEmptyCells();
@@ -21416,6 +23834,14 @@ class _EditorScreenState extends State<EditorScreen>
         'gps': gpsCount,
         'files': fileCount,
       },
+      'quality': {
+        'status': quality.statusLabel,
+        'requiredCompletionPercent': quality.requiredCompletionPercent,
+        'rowsWithData': quality.rowsWithData,
+        'rowsReady': quality.rowsReady,
+        'invalidCells': quality.invalidCells,
+        'pendingRequired': quality.pendingRequired,
+      },
       if (manifestCells.isNotEmpty) 'cells': manifestCells,
       if (manifestAssets.isNotEmpty) 'assets': manifestAssets,
     };
@@ -21441,6 +23867,7 @@ class _EditorScreenState extends State<EditorScreen>
     required String pdfFileName,
     required List<AttachmentRow> attachments,
   }) {
+    final quality = _sheetQuality;
     final photoCount = attachments
         .where((item) => item.type.trim().toLowerCase() == 'foto')
         .length;
@@ -21480,6 +23907,13 @@ class _EditorScreenState extends State<EditorScreen>
       '- Audios: $audioCount',
       '- Ubicaciones GPS: $gpsCount',
       if (fileCount > 0) '- Archivos relacionados: $fileCount',
+      '- Estado de carga: ${quality.statusLabel}',
+      '- Completitud de obligatorios: ${quality.requiredCompletionPercent}%',
+      '- Filas listas: ${quality.rowsReady}/${math.max(quality.rowsWithData, quality.rowsTotal)}',
+      if (quality.invalidCells > 0)
+        '- Errores de validacion: ${quality.invalidCells}',
+      if (quality.pendingRequired > 0)
+        '- Campos obligatorios pendientes: ${quality.pendingRequired}',
       '',
       'Uso recomendado:',
       '- Abrir primero el PDF para presentar o compartir.',
@@ -22509,41 +24943,401 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _exportCancelledMessage({required bool share}) {
-    return share ? 'Compartir cancelado.' : 'Operación cancelada.';
+    return share
+        ? 'Compartir cancelado. No se envio ningun archivo.'
+        : 'Exportacion cancelada. No se genero ningun archivo.';
   }
 
-  String _exportReadyMessage({
-    required String format,
-    required bool share,
-    required String fileName,
-    bool includeEvidenceHint = false,
-  }) {
+  bool get _isNativeMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  String _exportTargetLabel(String format) {
     switch (format) {
       case 'pdf':
-        return share
-            ? 'PDF listo para compartir: $fileName'
-            : 'PDF listo para presentar: $fileName';
+        return 'el PDF';
       case 'zip':
-        final suffix =
-            includeEvidenceHint ? ' Incluye planilla y evidencias.' : '';
-        return share
-            ? 'Paquete completo listo para compartir: $fileName'
-            : 'Paquete completo preparado: $fileName.$suffix';
+        return 'el paquete ZIP';
+      case 'xlsx':
+        return 'el Excel';
       default:
-        return share
-            ? 'Archivo listo para compartir: $fileName'
-            : 'Archivo listo: $fileName';
+        return 'el archivo';
     }
   }
 
-  String _exportFailureMessage({required bool share}) {
-    if (share) return 'No pudimos completar la operación.';
-    return 'No pudimos completar la operación.';
+  String _exportFormatFromFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (lower.endsWith('.zip')) return 'zip';
+    if (lower.endsWith('.xlsx')) return 'xlsx';
+    return 'file';
   }
 
-  String _exportUnsupportedMessage({required bool share}) {
-    if (share) return 'Compartir no está disponible en este dispositivo.';
-    return 'Esta exportación no está disponible en este dispositivo.';
+  List<_ExportFlowResultAction> _exportFlowResultActionsFor({
+    required _ExportFlowResultKind kind,
+    required bool shareRequested,
+    required String? savedPath,
+  }) {
+    final actions = <_ExportFlowResultAction>[];
+    switch (kind) {
+      case _ExportFlowResultKind.saved:
+        if ((savedPath ?? '').trim().isNotEmpty && !kIsWeb) {
+          actions.add(_ExportFlowResultAction.openFile);
+        }
+        if (_canOpenExportResultLocation(savedPath)) {
+          actions.add(_ExportFlowResultAction.openLocation);
+        }
+        if (shareRequested) {
+          actions.add(_ExportFlowResultAction.retryShare);
+        }
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+      case _ExportFlowResultKind.downloadStarted:
+        actions.add(
+          shareRequested
+              ? _ExportFlowResultAction.retryShare
+              : _ExportFlowResultAction.retryCurrent,
+        );
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+      case _ExportFlowResultKind.shareOpened:
+      case _ExportFlowResultKind.systemSheetOpened:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryShare,
+          _ExportFlowResultAction.continueEditing,
+          _ExportFlowResultAction.closeEditor,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.cancelled:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryCurrent,
+          _ExportFlowResultAction.continueEditing,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.error:
+        actions.addAll(const <_ExportFlowResultAction>[
+          _ExportFlowResultAction.retryCurrent,
+          _ExportFlowResultAction.continueEditing,
+        ]);
+        return actions;
+      case _ExportFlowResultKind.unsupported:
+        actions.add(_ExportFlowResultAction.continueEditing);
+        return actions;
+    }
+  }
+
+  _ExportFlowResult _createExportFlowResult({
+    required _ExportFlowResultKind kind,
+    required String fileName,
+    required String format,
+    required String message,
+    required bool shareRequested,
+    required bool includeAttachments,
+    String? savedPath,
+  }) {
+    return _ExportFlowResult(
+      kind: kind,
+      fileName: fileName,
+      format: format,
+      message: message,
+      savedPath: (savedPath ?? '').trim().isEmpty ? null : savedPath!.trim(),
+      actions: _exportFlowResultActionsFor(
+        kind: kind,
+        shareRequested: shareRequested,
+        savedPath: savedPath,
+      ),
+      shareRequested: shareRequested,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  String _exportFailureMessage({
+    required bool share,
+    required String format,
+  }) {
+    final target = _exportTargetLabel(format);
+    if (share) {
+      return 'No pudimos abrir compartir para $target. Intenta de nuevo o exporta el archivo.';
+    }
+    return 'No pudimos dejar listo $target. Intenta de nuevo.';
+  }
+
+  String _exportUnsupportedMessage({
+    required bool share,
+    required String format,
+  }) {
+    final target = _exportTargetLabel(format);
+    if (share) {
+      return 'Este dispositivo no permite compartir $target desde aqui. Exportalo primero.';
+    }
+    return 'Este dispositivo no permite generar $target desde aqui.';
+  }
+
+  _ExportFlowResult _buildCancelledExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.cancelled,
+      fileName: fileName,
+      format: format,
+      message: _exportCancelledMessage(share: share),
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  _ExportFlowResult _buildErrorExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+    required String message,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.error,
+      fileName: fileName,
+      format: format,
+      message: message,
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  _ExportFlowResult _buildUnsupportedExportFlowResult({
+    required String fileName,
+    required String format,
+    required bool share,
+    required bool includeAttachments,
+  }) {
+    return _createExportFlowResult(
+      kind: _ExportFlowResultKind.unsupported,
+      fileName: fileName,
+      format: format,
+      message: _exportUnsupportedMessage(share: share, format: format),
+      shareRequested: share,
+      includeAttachments: includeAttachments,
+    );
+  }
+
+  String _exportFlowResultTitle(_ExportFlowResult result) {
+    switch (result.kind) {
+      case _ExportFlowResultKind.saved:
+        return 'Archivo guardado';
+      case _ExportFlowResultKind.downloadStarted:
+        return 'Descarga iniciada';
+      case _ExportFlowResultKind.shareOpened:
+        return 'Compartir abierto';
+      case _ExportFlowResultKind.systemSheetOpened:
+        return 'Opciones del sistema abiertas';
+      case _ExportFlowResultKind.cancelled:
+        return 'Salida cancelada';
+      case _ExportFlowResultKind.error:
+        return 'Salida no completada';
+      case _ExportFlowResultKind.unsupported:
+        return 'Salida no disponible';
+    }
+  }
+
+  String _exportFlowResultFormatLabel(String format) {
+    switch (format) {
+      case 'pdf':
+        return 'PDF';
+      case 'zip':
+        return 'ZIP';
+      case 'xlsx':
+        return 'XLSX';
+      default:
+        return format.toUpperCase();
+    }
+  }
+
+  IconData _exportFlowResultIcon(_ExportFlowResult result) {
+    switch (result.kind) {
+      case _ExportFlowResultKind.saved:
+        return Icons.download_done_rounded;
+      case _ExportFlowResultKind.downloadStarted:
+        return Icons.download_rounded;
+      case _ExportFlowResultKind.shareOpened:
+        return Icons.ios_share_rounded;
+      case _ExportFlowResultKind.systemSheetOpened:
+        return Icons.open_in_new_rounded;
+      case _ExportFlowResultKind.cancelled:
+        return Icons.info_outline_rounded;
+      case _ExportFlowResultKind.error:
+      case _ExportFlowResultKind.unsupported:
+        return Icons.error_outline_rounded;
+    }
+  }
+
+  String _exportFlowResultActionLabel(
+    _ExportFlowResult result,
+    _ExportFlowResultAction action,
+  ) {
+    switch (action) {
+      case _ExportFlowResultAction.openFile:
+        return 'Abrir archivo';
+      case _ExportFlowResultAction.openLocation:
+        return 'Ver carpeta';
+      case _ExportFlowResultAction.retryCurrent:
+        if (result.kind == _ExportFlowResultKind.cancelled) {
+          return result.shareRequested
+              ? 'Compartir de nuevo'
+              : 'Volver a exportar';
+        }
+        if (result.kind == _ExportFlowResultKind.downloadStarted &&
+            !result.shareRequested) {
+          return 'Exportar otra vez';
+        }
+        return 'Reintentar';
+      case _ExportFlowResultAction.retryShare:
+        return result.kind == _ExportFlowResultKind.systemSheetOpened &&
+                !result.shareRequested
+            ? 'Abrir compartir'
+            : 'Compartir de nuevo';
+      case _ExportFlowResultAction.continueEditing:
+        return 'Seguir editando';
+      case _ExportFlowResultAction.closeEditor:
+        return 'Cerrar editor';
+    }
+  }
+
+  bool _canOpenExportResultLocation(String? path) {
+    return !kIsWeb &&
+        !_isNativeMobilePlatform &&
+        (_parentDirectoryFromPath(path) ?? '').trim().isNotEmpty;
+  }
+
+  Uri _fileUriFromPath(String path) {
+    return Uri.file(path, windows: path.contains('\\'));
+  }
+
+  String? _parentDirectoryFromPath(String? path) {
+    final trimmed = (path ?? '').trim();
+    if (trimmed.isEmpty) return null;
+    final normalized = trimmed.replaceAll('\\', '/');
+    final slashIndex = normalized.lastIndexOf('/');
+    if (slashIndex <= 0) return null;
+    final folder = normalized.substring(0, slashIndex);
+    return trimmed.contains('\\') ? folder.replaceAll('/', '\\') : folder;
+  }
+
+  void _setExportFlowResult(_ExportFlowResult? result) {
+    if (mounted) {
+      setState(() => _lastExportFlowResult = result);
+      return;
+    }
+    _lastExportFlowResult = result;
+  }
+
+  void _clearExportFlowResult() {
+    if (_lastExportFlowResult == null) return;
+    _setExportFlowResult(null);
+  }
+
+  void _publishExportFlowResult(
+    _ExportFlowResult result, {
+    bool showSnack = true,
+  }) {
+    _setExportFlowResult(result);
+    if (!showSnack) return;
+    _showActionSnack(
+      result.message,
+      isError: result.isError,
+      icon: _exportFlowResultIcon(result),
+    );
+  }
+
+  Future<void> _openSavedExportFile(String path) async {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || kIsWeb) return;
+    try {
+      final ok = await launchUrl(
+        _fileUriFromPath(trimmed),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        _showActionSnack(
+          'No pudimos abrir el archivo guardado.',
+          isError: true,
+          icon: Icons.folder_off_rounded,
+        );
+      }
+    } catch (_) {
+      _showActionSnack(
+        'No pudimos abrir el archivo guardado.',
+        isError: true,
+        icon: Icons.folder_off_rounded,
+      );
+    }
+  }
+
+  Future<void> _openSavedExportLocation(String path) async {
+    final folder = _parentDirectoryFromPath(path);
+    if ((folder ?? '').trim().isEmpty || kIsWeb) return;
+    try {
+      final ok = await launchUrl(
+        _fileUriFromPath(folder!),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        _showActionSnack(
+          'No pudimos abrir la carpeta del archivo.',
+          isError: true,
+          icon: Icons.folder_off_rounded,
+        );
+      }
+    } catch (_) {
+      _showActionSnack(
+        'No pudimos abrir la carpeta del archivo.',
+        isError: true,
+        icon: Icons.folder_off_rounded,
+      );
+    }
+  }
+
+  Future<void> _handleExportFlowResultAction(
+    _ExportFlowResult result,
+    _ExportFlowResultAction action,
+  ) async {
+    switch (action) {
+      case _ExportFlowResultAction.openFile:
+        final path = (result.savedPath ?? '').trim();
+        if (path.isEmpty) return;
+        await _openSavedExportFile(path);
+        return;
+      case _ExportFlowResultAction.openLocation:
+        final path = (result.savedPath ?? '').trim();
+        if (path.isEmpty) return;
+        await _openSavedExportLocation(path);
+        return;
+      case _ExportFlowResultAction.retryCurrent:
+        _clearExportFlowResult();
+        _triggerSheetExport(
+          format: result.format,
+          includeAttachments: result.includeAttachments,
+          share: result.shareRequested,
+        );
+        return;
+      case _ExportFlowResultAction.retryShare:
+        _clearExportFlowResult();
+        _triggerSheetExport(
+          format: result.format,
+          includeAttachments: result.includeAttachments,
+          share: true,
+        );
+        return;
+      case _ExportFlowResultAction.continueEditing:
+        _clearExportFlowResult();
+        return;
+      case _ExportFlowResultAction.closeEditor:
+        _clearExportFlowResult();
+        await _handleEditorPopGuard(didPop: false);
+        return;
+    }
   }
 
   List<String> _buildExportColumnTypes(int dataCols) {
