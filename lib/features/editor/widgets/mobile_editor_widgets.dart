@@ -201,7 +201,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Micro onboarding (3 pasos)',
+              'Guia rapida (3 pasos)',
               style: TextStyle(
                 color: palette.fg,
                 fontWeight: FontWeight.w800,
@@ -211,8 +211,8 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               compact
-                  ? '30s: abre palette (Ctrl/Cmd+K o rayo), pega con preview+undo y exporta.'
-                  : 'Guia 30s: palette (Ctrl/Cmd+K o rayo), smart paste con undo y exportar.',
+                  ? '30s: abre el rayo, usa Foto + registro y exporta.'
+                  : 'En menos de 30 segundos podes abrir acciones, cargar una fila con evidencia y cerrar una salida.',
               style: TextStyle(
                 color: palette.fgMuted,
                 fontSize: 12.2,
@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Paleta (Ctrl/Cmd+K / rayo) | Pegado inteligente + Deshacer | Exportar',
+                  'Rayo | Foto + registro | Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -246,23 +246,23 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             else ...const [
               _TourStepItem(
                 icon: Icons.bolt_rounded,
-                title: '1) Command palette',
+                title: '1) Acciones',
                 body:
-                    'Abrela con Ctrl/Cmd+K en desktop o con el boton rayo en mobile.',
+                    'Abre acciones con el boton rayo en mobile o con Ctrl/Cmd+K en desktop.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
-                icon: Icons.table_chart_rounded,
-                title: '2) Smart paste + Undo',
+                icon: Icons.add_a_photo_outlined,
+                title: '2) Foto + registro',
                 body:
-                    'Pega TSV/CSV, revisa preview y revierte con Undo si hace falta.',
+                    'Crea una fila nueva, adjunta evidencia y completa el estado sin salir del flujo.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.ios_share_rounded,
                 title: '3) Exportar',
                 body:
-                    'Cuando cierres la carga, exporta en XLSX o PDF desde el menu.',
+                    'Cuando cierres la carga, exporta o comparte ZIP, Excel o PDF segun el cierre que necesites.',
               ),
             ],
             const SizedBox(height: 8),
@@ -599,6 +599,181 @@ class _SelectionQuickActionsBar extends StatefulWidget {
       _SelectionQuickActionsBarState();
 }
 
+class _FlowBotInlineQuickBar extends StatelessWidget {
+  const _FlowBotInlineQuickBar({
+    required this.palette,
+    required this.title,
+    required this.actions,
+    required this.onRun,
+    this.detail,
+  });
+
+  final _SheetPalette palette;
+  final String title;
+  final String? detail;
+  final List<_FlowBotInlineQuickActionView> actions;
+  final ValueChanged<_FlowBotQuickActionSpec> onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: GlassSurface(
+        key: const ValueKey('flowbot-inline-bar'),
+        radius: 16,
+        blurSigma: palette.isLight ? 10 : 9,
+        backgroundColor:
+            palette.menuBg.withValues(alpha: palette.isLight ? 0.78 : 0.58),
+        borderColor: palette.borderStrong
+            .withValues(alpha: palette.isLight ? 0.52 : 0.82),
+        shadowColor:
+            Colors.black.withValues(alpha: palette.isLight ? 0.08 : 0.24),
+        shadowBlur: 14,
+        shadowOffset: const Offset(0, 7),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 14,
+                  color: palette.fgMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: palette.fg,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if ((detail ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                detail!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fgMuted,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.1,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (int index = 0; index < actions.length; index++) ...[
+                    _FlowBotInlineActionChip(
+                      key: ValueKey('flowbot-inline-action-$index'),
+                      palette: palette,
+                      action: actions[index],
+                      onTap: () => onRun(actions[index].action),
+                    ),
+                    if (index < actions.length - 1) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FlowBotInlineActionChip extends StatelessWidget {
+  const _FlowBotInlineActionChip({
+    super.key,
+    required this.palette,
+    required this.action,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final _FlowBotInlineQuickActionView action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = switch (action.source) {
+      'user' => palette.accent.withValues(alpha: palette.isLight ? 0.12 : 0.18),
+      'template' => palette.mobileInputBg,
+      _ => palette.hintBg,
+    };
+    final borderColor = switch (action.source) {
+      'user' => palette.accent.withValues(alpha: palette.isLight ? 0.24 : 0.32),
+      _ => palette.border,
+    };
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 116, maxWidth: 180),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: borderColor,
+            width: palette.hairline,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(action.icon, size: 16, color: palette.fg),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                action.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.6,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            if (action.source == 'user')
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 1),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 14,
+                  color: palette.accent,
+                ),
+              )
+            else if (action.source == 'template')
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 1),
+                child: Icon(
+                  Icons.auto_fix_high_rounded,
+                  size: 14,
+                  color: palette.fgMuted,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   bool _expanded = false;
 
@@ -610,16 +785,6 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         onTap: widget.onApplyValue,
       ),
       _QuickActionItem(
-        label: AppStrings.quickActionFillDown,
-        icon: Icons.vertical_align_bottom_rounded,
-        onTap: widget.onFillDown,
-      ),
-      _QuickActionItem(
-        label: AppStrings.quickActionDuplicateRow,
-        icon: Icons.copy_all_outlined,
-        onTap: widget.onDuplicateRows,
-      ),
-      _QuickActionItem(
         label: AppStrings.quickActionAttachPhoto,
         icon: Icons.photo_camera_outlined,
         onTap: widget.onAttachPhoto,
@@ -628,6 +793,16 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         label: AppStrings.quickActionAttachGps,
         icon: Icons.my_location_rounded,
         onTap: widget.onAttachGps,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionFillDown,
+        icon: Icons.vertical_align_bottom_rounded,
+        onTap: widget.onFillDown,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionDuplicateRow,
+        icon: Icons.copy_all_outlined,
+        onTap: widget.onDuplicateRows,
       ),
       _QuickActionItem(
         label: AppStrings.quickActionGoTo,
@@ -748,7 +923,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   }
 
   String _compactLabelFor(String label) {
-    if (label == AppStrings.quickActionApplyValue) return 'Pegar';
+    if (label == AppStrings.quickActionApplyValue) return 'Valor';
     if (label == AppStrings.quickActionFillDown) return 'Rellenar';
     if (label == AppStrings.quickActionDuplicateRow) return 'Duplicar';
     if (label == AppStrings.quickActionAttachPhoto) return 'Foto';
@@ -1069,6 +1244,10 @@ class _MobileExpandableFabMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduceMotion =
         forceReducedMotion || MediaQuery.of(context).disableAnimations;
+    final maxPanelHeight = math.min(
+      320.0,
+      MediaQuery.of(context).size.height * 0.5,
+    );
     final openDuration = reduceMotion ? Duration.zero : AppMotion.quick;
     return Stack(
       children: [
@@ -1109,26 +1288,31 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                             width: palette.hairline,
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final action in actions)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: AppButton(
-                                  key: action.key,
-                                  label: action.label,
-                                  icon: action.icon,
-                                  size: AppButtonSize.sm,
-                                  variant: AppButtonVariant.secondary,
-                                  onPressed: () {
-                                    AppHaptics.light();
-                                    onDismiss();
-                                    action.onTap();
-                                  },
-                                ),
-                              ),
-                          ],
+                        child: SizedBox(
+                          height: maxPanelHeight,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final action in actions)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: AppButton(
+                                      key: action.key,
+                                      label: action.label,
+                                      icon: action.icon,
+                                      size: AppButtonSize.sm,
+                                      variant: AppButtonVariant.secondary,
+                                      onPressed: () {
+                                        AppHaptics.light();
+                                        onDismiss();
+                                        action.onTap();
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
               ),
