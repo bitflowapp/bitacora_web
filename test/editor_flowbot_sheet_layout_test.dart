@@ -44,7 +44,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('FlowBot para'), findsOneWidget);
-    expect(find.text('Dictar'), findsOneWidget);
+    expect(find.text('Dictar a celda'), findsOneWidget);
     expect(find.text('Analizar'), findsOneWidget);
     expect(find.widgetWithText(AppleButton, 'Aplicar cambios'), findsOneWidget);
 

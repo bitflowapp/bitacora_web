@@ -93,6 +93,41 @@ void main() {
         find.byKey(const ValueKey('attachment-preview-modal')), findsOneWidget);
   });
 
+  testWidgets('tap en ojo abre preview real para video', (tester) async {
+    final state = await pumpEditor(tester, sheetId: 'media-video-preview');
+    state.debugSetCellMetaForTest(
+      0,
+      0,
+      CellMeta(
+        photos: <PhotoAttachment>[
+          PhotoAttachment(
+            id: 'video-preview',
+            filename: 'evidencia.mp4',
+            mime: 'video/mp4',
+            size: 4,
+            storedRef: 'b64:${base64Encode(Uint8List.fromList(<int>[0, 1, 2, 3]))}',
+            thumbRef: '',
+            addedAt: DateTime(2026, 3, 18, 10, 1),
+          ),
+        ],
+      ),
+    );
+
+    await tester.pump();
+    state.debugOpenPhotosSheetForTest(0, 0);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byKey(const ValueKey('attachment-tile-preview-0')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const ValueKey('attachment-preview-modal')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('media faltante muestra error claro en preview', (tester) async {
     final state = await pumpEditor(tester, sheetId: 'media-missing');
     state.debugSetCellMetaForTest(

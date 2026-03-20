@@ -190,7 +190,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('cambio listo en'), findsOneWidget);
+    expect(find.textContaining('cambio listo'), findsOneWidget);
     applyButton = tester.widget<AppleButton>(
       find.byKey(const ValueKey('flowbot-apply')),
     );
@@ -258,7 +258,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('cambio listo en'), findsOneWidget);
+    expect(find.textContaining('cambio listo'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
@@ -341,7 +341,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('cambio listo en'), findsOneWidget);
+    expect(find.textContaining('cambio listo'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
@@ -864,7 +864,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('cambio listo en'), findsOneWidget);
+    expect(find.textContaining('cambio listo'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
     await tester.pump();
     await tester.pumpAndSettle();
@@ -1195,7 +1195,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('FlowBot apply CTA stays disabled when analyze finds no actions',
+  testWidgets('FlowBot free text falls back to the active cell after analyze',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
@@ -1246,27 +1246,24 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('flowbot-apply')), findsOneWidget);
-    expect(find.byKey(const ValueKey('flowbot-warning')), findsOneWidget);
-    expect(find.textContaining('Prueba con:'), findsWidgets);
     applyButton = tester.widget<AppleButton>(
       find.byKey(const ValueKey('flowbot-apply')),
     );
-    expect(applyButton.onPressed, isNull);
-    expect(applyButton.variant, AppleButtonVariant.ghost);
-    expect(find.textContaining('No hay cambios listos para'), findsOneWidget);
-    expect(find.textContaining('Elegi una accion rapida para'), findsOneWidget);
-    expect(state.debugCellText(0, 0), '');
+    expect(applyButton.onPressed, isNotNull);
+    expect(find.textContaining('cambio listo para'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('flowbot-apply')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.debugCellText(0, 0), 'comando inventado sin accion');
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-      'FlowBot irrelevant input shows useful help and hides model tools',
+      'FlowBot free text can target the active header from the same sheet context',
       (tester) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'bitflow.editor.flowbot.recent_by_context.v2':
-          '{"sheet:flowbot-irrelevant-help":["hola hola"]}',
-    });
+    SharedPreferences.setMockInitialValues(<String, Object>{});
 
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
@@ -1276,7 +1273,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: EditorScreen(
-          sheetId: 'flowbot-irrelevant-help',
+          sheetId: 'flowbot-header-free-text',
           initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', '', ''],
@@ -1287,49 +1284,66 @@ void main() {
     await tester.pumpAndSettle();
 
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
-    await state.debugSetFieldMode(true);
-    await tester.pumpAndSettle();
-
-    final fab = tester.widget<FloatingActionButton>(
-      find.byKey(const ValueKey('mobile-fab-main')),
-    );
-    fab.onPressed?.call();
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('flowbot-history-chip-0')), findsNothing);
-    expect(find.text('Usar Local LLM'), findsNothing);
-    expect(find.textContaining('Descargar modelo'), findsNothing);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('flowbot-command-input')),
-      'hola hola',
-    );
+    state.debugOpenMobileEditorForHeader(0);
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('flowbot-analyze')));
-    await tester.tap(find.byKey(const ValueKey('flowbot-analyze')));
+    final actions = state.debugResolveFlowBotFreeTextActions(
+      'Parte diario',
+      toHeader: true,
+    ) as List<FlowBotAction>;
+
+    expect(actions, hasLength(1));
+    expect(actions.single.type, FlowBotActionType.renameColumn);
+    expect(actions.single.column, 0);
+
+    final applied = await state.debugApplyFlowBotActions(actions);
+    final result = await state.debugApplyFlowBotActionsResult(actions);
     await tester.pump();
+
+    expect(applied, 1);
+    expect(result['ok'], true);
+    expect((result['message'] as String), contains('encabezado'));
+    expect(state.debugHeaderText(0), 'Parte diario');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'FlowBot free text without any editable target keeps apply disabled',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-no-target-free-text',
+          initialHeaders: <String>['Fotos'],
+          initialRows: <List<String>>[
+            <String>[''],
+          ],
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    final applyButton = tester.widget<AppleButton>(
-      find.byKey(const ValueKey('flowbot-apply')),
-    );
-    expect(applyButton.onPressed, isNull);
-    expect(applyButton.variant, AppleButtonVariant.ghost);
-    expect(find.textContaining('No hay cambios listos para'), findsOneWidget);
-    expect(find.byKey(const ValueKey('flowbot-empty-help')), findsOneWidget);
-    expect(find.textContaining('Elegi una accion rapida para'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('flowbot-empty-help-chip-0')),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('No parece una accion de planilla'),
-      findsWidgets,
-    );
-    expect(state.debugCellText(0, 0), '');
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    state.debugForceNoEditableFlowBotTargets();
+    await tester.pump();
+
+    final cellActions = state.debugResolveFlowBotFreeTextActions(
+      'texto sin destino',
+      toHeader: false,
+    ) as List<FlowBotAction>;
+    final headerActions = state.debugResolveFlowBotFreeTextActions(
+      'texto sin destino',
+      toHeader: true,
+    ) as List<FlowBotAction>;
+
+    expect(cellActions, isEmpty);
+    expect(headerActions, isEmpty);
     expect(tester.takeException(), isNull);
   });
 }

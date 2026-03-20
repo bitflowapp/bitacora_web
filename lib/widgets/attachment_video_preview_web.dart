@@ -37,10 +37,13 @@ class _AttachmentVideoPreviewImplState
       ..controls = true
       ..autoplay = false
       ..muted = false
+      ..preload = 'metadata'
       ..style.width = '100%'
+      ..style.maxWidth = '100%'
       ..style.maxHeight = '70vh'
       ..style.backgroundColor = '#111111'
-      ..setAttribute('playsinline', 'true');
+      ..setAttribute('playsinline', 'true')
+      ..setAttribute('webkit-playsinline', 'true');
     _applyBytes();
     ui.platformViewRegistry.registerViewFactory(
       _viewType,

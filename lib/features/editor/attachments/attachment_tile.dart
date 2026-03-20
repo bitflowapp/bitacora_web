@@ -173,9 +173,11 @@ class _AttachmentTile extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    if (canPreview) ...[
+                    if (canPreview)
                       Semantics(
                         button: true,
                         enabled: true,
@@ -190,8 +192,6 @@ class _AttachmentTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
                     Semantics(
                       button: true,
                       label: 'Renombrar adjunto',
@@ -204,7 +204,6 @@ class _AttachmentTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
                       label: 'Eliminar adjunto',
@@ -268,8 +267,8 @@ class _MiniActionButton extends StatelessWidget {
         child: Opacity(
           opacity: enabled ? 1 : 0.42,
           child: Ink(
-            width: 30,
-            height: 30,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: palette.hintBg,
               borderRadius: BorderRadius.circular(999),
