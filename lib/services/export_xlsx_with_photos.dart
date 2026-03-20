@@ -136,6 +136,12 @@ Future<Uint8List> buildXlsxWithPhotos({
   String? projectName,
   String? responsibleName,
   String? observations,
+  String? qualityStatus,
+  int? qualityCompletionPercent,
+  int? qualityRowsReady,
+  int? qualityRowsWithData,
+  int? qualityInvalidCells,
+  int? qualityPendingRequired,
   String brandName = 'BitFlow',
 }) async {
   final workbook = xlsio.Workbook(1);
@@ -505,6 +511,12 @@ Future<Uint8List> buildXlsxWithPhotos({
         exportedAt: exportedAt ?? DateTime.now(),
         exportFileName: exportFileName,
         sheetName: sheetName,
+        qualityStatus: qualityStatus,
+        qualityCompletionPercent: qualityCompletionPercent,
+        qualityRowsReady: qualityRowsReady,
+        qualityRowsWithData: qualityRowsWithData,
+        qualityInvalidCells: qualityInvalidCells,
+        qualityPendingRequired: qualityPendingRequired,
         brandName: brandName,
       );
     }
@@ -996,6 +1008,12 @@ xlsio.Worksheet _buildSummarySheet(
   required DateTime exportedAt,
   String? exportFileName,
   required String sheetName,
+  String? qualityStatus,
+  int? qualityCompletionPercent,
+  int? qualityRowsReady,
+  int? qualityRowsWithData,
+  int? qualityInvalidCells,
+  int? qualityPendingRequired,
   String brandName = 'BitFlow',
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
@@ -1069,11 +1087,53 @@ xlsio.Worksheet _buildSummarySheet(
     valueCell.cellStyle = valueStyle;
   }
 
+  final qualitySection = summary.getRangeByIndex(18, 1, 18, 4);
+  qualitySection.merge();
+  qualitySection.setText('Calidad de datos');
+  qualitySection.cellStyle = headerStyle;
+
+  final safeQualityRowsWithData = qualityRowsWithData ?? 0;
+  final qualityBase = math.max(safeQualityRowsWithData, rowsCount);
+  final qualityRows = <({String label, String value})>[
+    (label: 'Estado de carga', value: _coverValue(qualityStatus)),
+    (
+      label: 'Completitud de obligatorios',
+      value: qualityCompletionPercent == null
+          ? 'No informado'
+          : '${qualityCompletionPercent.clamp(0, 100)}%',
+    ),
+    (
+      label: 'Filas listas',
+      value: qualityRowsReady == null
+          ? 'No informado'
+          : '${qualityRowsReady.clamp(0, qualityBase)}/$qualityBase',
+    ),
+    (
+      label: 'Errores de validacion',
+      value: (qualityInvalidCells ?? 0).toString(),
+    ),
+    (
+      label: 'Obligatorios pendientes',
+      value: (qualityPendingRequired ?? 0).toString(),
+    ),
+  ];
+
+  for (int i = 0; i < qualityRows.length; i++) {
+    final row = 20 + i;
+    summary.getRangeByIndex(row, 1, row, 3).merge();
+    summary.getRangeByIndex(row, 1).setText(qualityRows[i].label);
+    summary.getRangeByIndex(row, 1).cellStyle = valueStyle;
+    final valueRange = summary.getRangeByIndex(row, 4);
+    valueRange.setText(qualityRows[i].value);
+    valueRange.cellStyle = valueStyle;
+  }
+
   for (int col = 1; col <= 4; col++) {
     summary.setColumnWidthInPixels(col, col == 4 ? 92 : 180);
   }
   summary.setRowHeightInPixels(1, 24);
   summary.setRowHeightInPixels(2, 24);
+  summary.setRowHeightInPixels(18, 22);
   return summary;
 }
 
