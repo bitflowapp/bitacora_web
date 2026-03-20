@@ -32,6 +32,7 @@ void main() {
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
     await state.debugSetFieldMode(true);
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
     final fab = tester.widget<FloatingActionButton>(
       find.byKey(const ValueKey('mobile-fab-main')),
@@ -42,7 +43,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
 
-    expect(find.text('FlowBot'), findsOneWidget);
+    expect(find.textContaining('FlowBot para'), findsOneWidget);
     expect(find.text('Dictar'), findsOneWidget);
     expect(find.text('Analizar'), findsOneWidget);
     expect(find.widgetWithText(AppleButton, 'Aplicar cambios'), findsOneWidget);
@@ -87,11 +88,24 @@ void main() {
     );
     fab.onPressed?.call();
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('mobile-fab-action-flowbot')));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
-    expect(find.text('Ultimos comandos'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('flowbot-secondary-toggle')), findsOneWidget);
+    expect(find.text('Recientes'), findsNothing);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('flowbot-secondary-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('flowbot-secondary-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recientes'), findsOneWidget);
 
     final chip = find.byKey(const ValueKey('flowbot-history-chip-0'));
     expect(chip, findsOneWidget);
@@ -99,6 +113,36 @@ void main() {
     final chipRect = tester.getRect(chip);
     expect(chipRect.right, lessThanOrEqualTo(320));
     expect(chipRect.left, greaterThanOrEqualTo(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FlowBot inline bar stays hidden on ultra compact viewport',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-inline-ultra-compact',
+          initialTemplateKind: 'campo',
+          initialHeaders: <String>['Campo 1', 'Estado', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['A', '', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    await state.debugSetFieldMode(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('flowbot-inline-bar')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
