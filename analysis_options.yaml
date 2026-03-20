@@ -2,6 +2,7 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
+    - _worktree_*/**
     - lib/start_v2_body.dart
     - lib/_tmp_import_probe.dart
     - lib/_tmp_import_probe2.dart
