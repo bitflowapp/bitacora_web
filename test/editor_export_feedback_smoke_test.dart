@@ -56,8 +56,7 @@ void main() {
 
     expect(
       state.debugLastToastMessage(),
-      contains(
-          'No pudimos abrir la opción de compartir. El archivo ya quedó listo:'),
+      contains('No pudimos abrir compartir. Guardamos control_diario.xlsx en'),
     );
     expect(tester.takeException(), isNull);
   });
@@ -89,8 +88,96 @@ void main() {
 
     expect(
       state.debugLastToastMessage(),
+      contains('No pudimos abrir compartir. Guardamos control_diario.pdf en'),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('share success says that the share sheet was opened',
+      (tester) async {
+    final dynamic state = await pumpEditor(tester);
+    state.debugSetExportHooks(
+      shareHook: (_) async {},
+      persistShareTempFileHook: ({
+        required String fileName,
+        required bytes,
+      }) async =>
+          null,
+    );
+
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.pdf',
+      mime: 'application/pdf',
+      share: true,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      state.debugLastToastMessage(),
+      contains('Abrimos compartir para control_diario.pdf'),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mobile export says that system options were opened',
+      (tester) async {
+    final dynamic state = await pumpEditor(tester);
+    state.debugSetExportHooks(
+      shareHook: (_) async {},
+      persistShareTempFileHook: ({
+        required String fileName,
+        required bytes,
+      }) async =>
+          null,
+    );
+
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      share: false,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      state.debugLastToastMessage(),
       contains(
-          'No pudimos abrir la opción de compartir. El archivo ya quedó listo:'),
+        'Abrimos las opciones del sistema para guardar o compartir control_diario.xlsx',
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('export fallback save feedback says where the file was written',
+      (tester) async {
+    final dynamic state = await pumpEditor(tester);
+    state.debugSetExportHooks(
+      shareHook: (_) async => throw UnsupportedError('share not supported'),
+      saveLocationHook: ({
+        required String suggestedName,
+        required List<XTypeGroup> acceptedTypeGroups,
+      }) async =>
+          const FileSaveLocation('/tmp/cierre/control_diario.xlsx'),
+      saveFileHook: (_, __) async {},
+      persistShareTempFileHook: ({
+        required String fileName,
+        required bytes,
+      }) async =>
+          null,
+    );
+
+    await state.debugRunExportSaveFlowForTest(
+      name: 'control_diario.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      share: false,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      state.debugLastToastMessage(),
+      contains('Excel guardado en /tmp/cierre/control_diario.xlsx'),
     );
     expect(tester.takeException(), isNull);
   });
@@ -122,7 +209,7 @@ void main() {
 
     expect(
       state.debugLastErrorFeedbackMessage(),
-      contains('No pudimos completar la operación.'),
+      contains('No pudimos dejar listo el Excel.'),
     );
   });
 }
