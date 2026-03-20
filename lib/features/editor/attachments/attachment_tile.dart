@@ -10,6 +10,7 @@ class _AttachmentTile extends StatelessWidget {
     required this.onPreview,
     required this.onRename,
     required this.onDelete,
+    this.previewKey,
     this.uploadStatusLabel,
     this.uploadStatusIcon,
     this.uploadStatusColor,
@@ -22,9 +23,10 @@ class _AttachmentTile extends StatelessWidget {
   final IconData typeIcon;
   final String label;
   final String dateLabel;
-  final VoidCallback onPreview;
+  final VoidCallback? onPreview;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final Key? previewKey;
   final String? uploadStatusLabel;
   final IconData? uploadStatusIcon;
   final Color? uploadStatusColor;
@@ -36,9 +38,13 @@ class _AttachmentTile extends StatelessWidget {
     final safeLabel = label.trim().isEmpty ? 'Adjunto' : label.trim();
     final overlayBg =
         palette.bg.withValues(alpha: palette.isLight ? 0.86 : 0.62);
+    final canPreview = onPreview != null;
     return Semantics(
-      button: true,
-      label: 'Abrir adjunto $safeLabel',
+      button: canPreview,
+      enabled: canPreview,
+      label: canPreview
+          ? 'Abrir adjunto $safeLabel'
+          : 'Adjunto no disponible $safeLabel',
       child: Material(
         color: palette.menuBg,
         borderRadius: BorderRadius.circular(16),
@@ -167,21 +173,25 @@ class _AttachmentTile extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Semantics(
-                      button: true,
-                      label: 'Ver adjunto',
-                      child: Tooltip(
-                        message: 'Ver',
-                        child: _MiniActionButton(
-                          icon: Icons.visibility_outlined,
-                          onPressed: onPreview,
-                          palette: palette,
+                    if (canPreview)
+                      Semantics(
+                        button: true,
+                        enabled: true,
+                        label: 'Abrir adjunto',
+                        child: Tooltip(
+                          message: 'Abrir',
+                          child: _MiniActionButton(
+                            buttonKey: previewKey,
+                            icon: Icons.visibility_outlined,
+                            onPressed: onPreview,
+                            palette: palette,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
                       label: 'Renombrar adjunto',
@@ -194,7 +204,6 @@ class _AttachmentTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     Semantics(
                       button: true,
                       label: 'Eliminar adjunto',
@@ -235,34 +244,41 @@ class _AttachmentTile extends StatelessWidget {
 
 class _MiniActionButton extends StatelessWidget {
   const _MiniActionButton({
+    this.buttonKey,
     required this.icon,
     required this.onPressed,
     required this.palette,
   });
 
+  final Key? buttonKey;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final _SheetPalette palette;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: buttonKey,
         onTap: onPressed,
         borderRadius: BorderRadius.circular(999),
-        child: Ink(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: palette.hintBg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: palette.border,
-              width: palette.hairline,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.42,
+          child: Ink(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: palette.hintBg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: palette.border,
+                width: palette.hairline,
+              ),
             ),
+            child: Icon(icon, size: 16, color: palette.fgMuted),
           ),
-          child: Icon(icon, size: 16, color: palette.fgMuted),
         ),
       ),
     );

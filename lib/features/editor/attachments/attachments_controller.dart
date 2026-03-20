@@ -1238,6 +1238,11 @@ extension _EditorAttachments on _EditorScreenState {
         photo.thumbRef.trim().isNotEmpty;
   }
 
+  bool _attachmentCanPreview(PhotoAttachment photo) {
+    if (!_attachmentHasPayload(photo)) return false;
+    return _isPreviewableMime(photo.mime, photo.filename);
+  }
+
   bool _audioHasPayload(AudioAttachment audio) {
     return audio.storedRef.trim().isNotEmpty;
   }
@@ -1413,43 +1418,54 @@ extension _EditorAttachments on _EditorScreenState {
     BuildContext context,
     PhotoAttachment photo,
   ) async {
-    if (!_attachmentHasPayload(photo)) {
+    if (!_attachmentCanPreview(photo)) {
       _showActionSnack(
-        _attachmentPreviewLoadErrorMessage(photo),
+        _attachmentHasPayload(photo)
+            ? 'Este adjunto no tiene una vista previa lista en este dispositivo.'
+            : _attachmentPreviewLoadErrorMessage(photo),
         isError: true,
         icon: Icons.broken_image_outlined,
       );
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AppModal(
-          title: photo.filename.trim().isEmpty
-              ? 'Vista previa'
-              : photo.filename.trim(),
-          maxWidth: 960,
-          actions: [
-            AppButton(
-              label: 'Descargar',
-              variant: AppButtonVariant.secondary,
-              onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          return AppModal(
+            title: photo.filename.trim().isEmpty
+                ? 'Vista previa'
+                : photo.filename.trim(),
+            maxWidth: 960,
+            actions: [
+              AppButton(
+                label: 'Descargar',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+              ),
+              AppButton(
+                label: 'Cerrar',
+                variant: AppButtonVariant.ghost,
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ],
+            child: FutureBuilder<Uint8List?>(
+              future: _loadPhotoBytesFromAttachment(photo),
+              builder: (ctxPreview, snap) {
+                return _buildAttachmentPreviewBody(ctxPreview, photo, snap);
+              },
             ),
-            AppButton(
-              label: 'Cerrar',
-              variant: AppButtonVariant.ghost,
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
-          child: FutureBuilder<Uint8List?>(
-            future: _loadPhotoBytesFromAttachment(photo),
-            builder: (ctxPreview, snap) {
-              return _buildAttachmentPreviewBody(ctxPreview, photo, snap);
-            },
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showActionSnack(
+        'No pudimos abrir la vista previa. Puedes descargar el archivo para revisarlo.',
+        isError: true,
+        icon: Icons.visibility_off_rounded,
+      );
+    }
   }
 
   void _openPhotosSheetForCell(int r, int c) {
@@ -1508,7 +1524,7 @@ extension _EditorAttachments on _EditorScreenState {
               }
 
               Widget buildTile(PhotoAttachment p, int idx) {
-                final canOpen = _attachmentHasPayload(p);
+                final canOpen = _attachmentCanPreview(p);
                 final label = _photoCaptionFor(p);
                 final dateLabel =
                     '${_formatDateTimeShort(p.addedAt.toLocal())} | ${_formatBytes(p.size)}';
@@ -1894,7 +1910,8 @@ extension _EditorAttachments on _EditorScreenState {
         final hasGps = lat != null && lon != null;
         final hasPhotos = currentMeta.photos.isNotEmpty;
         final hasAudios = currentMeta.audios.isNotEmpty;
-        final hasOpenablePhotos = currentMeta.photos.any(_attachmentHasPayload);
+        final hasOpenablePhotos =
+            currentMeta.photos.any(_attachmentCanPreview);
         final hasOpenableAudios = currentMeta.audios.any(_audioHasPayload);
         final canOpenViewer = hasOpenablePhotos || hasOpenableAudios;
 

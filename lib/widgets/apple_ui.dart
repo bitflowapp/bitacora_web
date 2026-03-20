@@ -134,13 +134,18 @@ class AppleButton extends StatelessWidget {
           ),
         if (label != null) ...[
           if (icon != null) const SizedBox(width: 8),
-          Text(
-            label!,
-            style: TextStyle(
-              color: fg,
-              fontWeight: FontWeight.w700,
-              fontSize: dense ? 12 : 13,
-              height: 1.05,
+          Flexible(
+            child: Text(
+              label!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w700,
+                fontSize: dense ? 12 : 13,
+                height: 1.05,
+              ),
             ),
           ),
         ],

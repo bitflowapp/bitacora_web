@@ -210,6 +210,11 @@ class _FlowBotQuickContext {
   final bool canExport;
 }
 
+enum _FlowBotTextTargetKind {
+  cell,
+  header,
+}
+
 class _FlowBotQuickActionSpec {
   const _FlowBotQuickActionSpec({
     required this.id,
@@ -6252,6 +6257,122 @@ class _EditorScreenState extends State<EditorScreen>
     return 'Elegi una accion rapida o escribe una instruccion valida.';
   }
 
+  ({int row, int col})? _flowBotResolvedTextCellTarget() {
+    final dataCols = math.max(0, _headers.length - 1);
+    if (_rows.isEmpty || dataCols <= 0) return null;
+    if (_mobileEditorOpen &&
+        !_mobileEditingHeader &&
+        _mobileRow >= 0 &&
+        _mobileRow < _rows.length &&
+        _mobileCol >= 0 &&
+        _mobileCol < dataCols) {
+      return (row: _mobileRow, col: _mobileCol);
+    }
+    final targetRow = _selRow.clamp(0, _rows.length - 1);
+    final targetCol = (_selCol >= 0 && _selCol < dataCols)
+        ? _selCol
+        : _resolveBatchTargetColumn().clamp(0, dataCols - 1);
+    return (row: targetRow, col: targetCol);
+  }
+
+  int? _flowBotResolvedTextHeaderTargetCol() {
+    final dataCols = math.max(0, _headers.length - 1);
+    if (dataCols <= 0) return null;
+    if (_mobileEditorOpen && _mobileCol >= 0 && _mobileCol < dataCols) {
+      return _mobileCol;
+    }
+    if (_editingHeaderCol != null &&
+        _editingHeaderCol! >= 0 &&
+        _editingHeaderCol! < dataCols) {
+      return _editingHeaderCol;
+    }
+    if (_selCol >= 0 && _selCol < dataCols) {
+      return _selCol;
+    }
+    return 0;
+  }
+
+  String _flowBotHeaderTargetLabel(int col) {
+    final header = _headerLabel(col).trim();
+    if (header.isEmpty) {
+      return 'encabezado ${_flowBotColumnToken(col)}';
+    }
+    return 'encabezado $header';
+  }
+
+  String _flowBotTextTargetLabel(_FlowBotTextTargetKind target) {
+    switch (target) {
+      case _FlowBotTextTargetKind.cell:
+        final cellTarget = _flowBotResolvedTextCellTarget();
+        if (cellTarget == null) return 'sin celda activa';
+        return 'celda ${_flowBotCellToken(cellTarget.row, cellTarget.col)}';
+      case _FlowBotTextTargetKind.header:
+        final col = _flowBotResolvedTextHeaderTargetCol();
+        if (col == null) return 'sin encabezado activo';
+        return _flowBotHeaderTargetLabel(col);
+    }
+  }
+
+  List<FlowBotAction> _flowBotFallbackTextActions(
+    String text, {
+    required _FlowBotTextTargetKind target,
+  }) {
+    final value = text.trim();
+    if (value.isEmpty) return const <FlowBotAction>[];
+    switch (target) {
+      case _FlowBotTextTargetKind.cell:
+        final cellTarget = _flowBotResolvedTextCellTarget();
+        if (cellTarget == null) return const <FlowBotAction>[];
+        return <FlowBotAction>[
+          FlowBotAction(
+            type: FlowBotActionType.setCell,
+            row: cellTarget.row,
+            col: cellTarget.col,
+            value: value,
+          ),
+        ];
+      case _FlowBotTextTargetKind.header:
+        final headerCol = _flowBotResolvedTextHeaderTargetCol();
+        if (headerCol == null) return const <FlowBotAction>[];
+        return <FlowBotAction>[
+          FlowBotAction(
+            type: FlowBotActionType.renameColumn,
+            column: headerCol,
+            value: value,
+          ),
+        ];
+    }
+  }
+
+  List<FlowBotAction> _flowBotResolvedPreviewActions({
+    required List<FlowBotAction> parsedPreview,
+    required String text,
+    required _FlowBotTextTargetKind textTarget,
+  }) {
+    if (parsedPreview.isNotEmpty) return parsedPreview;
+    return _flowBotFallbackTextActions(text, target: textTarget);
+  }
+
+  String _flowBotActionTargetLabel(
+    FlowBotAction action, {
+    required _FlowBotQuickContext context,
+  }) {
+    switch (action.type) {
+      case FlowBotActionType.renameColumn:
+        final col = action.column ?? context.col;
+        if (col < 0 || col >= math.max(0, _headers.length - 1)) {
+          return 'encabezado activo';
+        }
+        return _flowBotHeaderTargetLabel(col);
+      case FlowBotActionType.setCell:
+        final row = action.row ?? context.row;
+        final col = action.col ?? context.col;
+        return _flowBotCellToken(row, col);
+      default:
+        return context.cellToken;
+    }
+  }
+
   String _flowBotStatusText({
     required List<FlowBotAction> preview,
     required bool parsing,
@@ -6262,7 +6383,7 @@ class _EditorScreenState extends State<EditorScreen>
       return 'No hay cambios listos para ${context.cellToken}';
     }
     if (preview.length == 1) {
-      return '1 cambio listo en ${context.cellToken}';
+      return '1 cambio listo para ${_flowBotActionTargetLabel(preview.first, context: context)}';
     }
     return '${preview.length} cambios listos en ${context.cellToken}';
   }
@@ -6304,7 +6425,7 @@ class _EditorScreenState extends State<EditorScreen>
         return 'fila eliminada';
       case FlowBotActionType.addColumn:
       case FlowBotActionType.renameColumn:
-        return 'cambio de columna aplicado';
+        return 'encabezado actualizado';
       case FlowBotActionType.copyFromPreviousRow:
         return 'valor copiado';
       case FlowBotActionType.attachPhotoToCell:
@@ -6708,10 +6829,17 @@ class _EditorScreenState extends State<EditorScreen>
     required List<FlowBotAction> actions,
   }) {
     if (applied > 0) {
+      final targetLabel = actions.isEmpty
+          ? context.cellToken
+          : _flowBotActionTargetLabel(actions.first, context: context);
+      final continuation = actions.isNotEmpty &&
+              actions.first.type == FlowBotActionType.renameColumn
+          ? ' El encabezado ya quedo listo.'
+          : ' Seguis editando esa fila.';
       return _ActionResult(
         ok: true,
         message:
-            'Listo en ${context.cellToken}: ${_flowBotAppliedSummary(actions, applied)}. Seguis editando esa fila.',
+            'Listo en $targetLabel: ${_flowBotAppliedSummary(actions, applied)}.$continuation',
         applied: applied,
         undoToken: 'flowbot_apply',
       );
@@ -6761,9 +6889,22 @@ class _EditorScreenState extends State<EditorScreen>
           var showAdvancedOptions = false;
           var showSupportingSections = false;
           var previewSourceText = '';
+          var chosenTextTarget = _mobileEditingHeader
+              ? _FlowBotTextTargetKind.header
+              : _FlowBotTextTargetKind.cell;
+          var textInputIsExplicit = false;
 
           return StatefulBuilder(
             builder: (modalCtx, setModalState) {
+              List<FlowBotAction> resolveDraftPreview(String text) {
+                if (preview.isNotEmpty) return preview;
+                if (!textInputIsExplicit) return const <FlowBotAction>[];
+                return _flowBotFallbackTextActions(
+                  text,
+                  target: chosenTextTarget,
+                );
+              }
+
               Future<FlowBotParseResult> parseNow() async {
                 final text = transcriptEC.text.trim();
                 if (text.isEmpty) {
@@ -6793,12 +6934,18 @@ class _EditorScreenState extends State<EditorScreen>
                 });
                 try {
                   final result = await _parseFlowBotCommand(text);
+                  final effectivePreview = _flowBotResolvedPreviewActions(
+                    parsedPreview: result.actions,
+                    text: text,
+                    textTarget: chosenTextTarget,
+                  );
                   if (!modalCtx.mounted) return result;
                   setModalState(() {
-                    preview = result.actions;
+                    preview = effectivePreview;
                     previewSourceText = text;
                     parsing = false;
-                    warning = result.actions.isEmpty
+                    warning = result.actions.isEmpty &&
+                            effectivePreview.isEmpty
                         ? flowBotNoActionsMessage(
                             reason: flowBotNoActionsReason(result.warning),
                             examples: flowBotPreferredExamples(
@@ -6807,8 +6954,9 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             ),
                           )
-                        : result.warning ?? '';
+                        : '';
                     activeEngine = result.engine;
+                    textInputIsExplicit = result.actions.isEmpty;
                   });
                   if (result.actions.isNotEmpty) {
                     _lastFlowBotValidCommand = text;
@@ -6844,10 +6992,9 @@ class _EditorScreenState extends State<EditorScreen>
 
               Future<void> confirmApply() async {
                 final text = transcriptEC.text.trim();
-                final initialScopedPreview = _applyScopeToFlowBotActions(
-                  preview,
-                  chosenScope,
-                );
+                final resolvedPreview = resolveDraftPreview(text);
+                final initialScopedPreview =
+                    _applyScopeToFlowBotActions(resolvedPreview, chosenScope);
 
                 if (parsing) {
                   setModalState(() {
@@ -6868,14 +7015,16 @@ class _EditorScreenState extends State<EditorScreen>
                 );
                 if (!canApply) {
                   setModalState(() {
-                    warning = _flowBotApplyDisabledReason(
-                      preview: initialScopedPreview,
-                      parsing: parsing,
-                      useLocalLlm: _flowBotUseLocalLlm,
-                      localModelReady: localModelReady,
-                      hasTranscript: text.isNotEmpty,
-                      parseWarning: warning,
-                    );
+                    warning = text.isNotEmpty && resolvedPreview.isEmpty
+                        ? 'Selecciona una celda o un encabezado antes de aplicar este texto.'
+                        : _flowBotApplyDisabledReason(
+                            preview: initialScopedPreview,
+                            parsing: parsing,
+                            useLocalLlm: _flowBotUseLocalLlm,
+                            localModelReady: localModelReady,
+                            hasTranscript: text.isNotEmpty,
+                            parseWarning: warning,
+                          );
                   });
                   return;
                 }
@@ -6884,7 +7033,9 @@ class _EditorScreenState extends State<EditorScreen>
                     .pop(List<FlowBotAction>.from(initialScopedPreview));
               }
 
-              Future<void> startListening() async {
+              Future<void> startListening(
+                _FlowBotTextTargetKind target,
+              ) async {
                 if (listening) {
                   await speech.cancel();
                   if (!modalCtx.mounted) return;
@@ -6901,6 +7052,8 @@ class _EditorScreenState extends State<EditorScreen>
                 }
                 if (!modalCtx.mounted) return;
                 setModalState(() {
+                  chosenTextTarget = target;
+                  textInputIsExplicit = true;
                   listening = true;
                   warning = '';
                 });
@@ -6924,15 +7077,60 @@ class _EditorScreenState extends State<EditorScreen>
                   transcriptEC.selection = TextSelection.collapsed(
                     offset: transcriptEC.text.length,
                   );
-                  await parseNow();
+                  final directPreview = _flowBotFallbackTextActions(
+                    transcriptEC.text,
+                    target: chosenTextTarget,
+                  );
+                  setModalState(() {
+                    preview = directPreview;
+                    previewSourceText = transcriptEC.text.trim();
+                    warning = directPreview.isEmpty
+                        ? 'Selecciona una celda o un encabezado antes de aplicar este texto.'
+                        : '';
+                  });
                 }
               }
 
+              Future<void> pasteIntoTarget(
+                _FlowBotTextTargetKind target,
+              ) async {
+                String raw = '';
+                try {
+                  final data = await Clipboard.getData('text/plain');
+                  raw = data?.text?.trim() ?? '';
+                } catch (_) {}
+                if (!modalCtx.mounted) return;
+                if (raw.isEmpty) {
+                  setModalState(() {
+                    chosenTextTarget = target;
+                    textInputIsExplicit = true;
+                    warning = 'No encontramos texto listo para pegar.';
+                  });
+                  return;
+                }
+                transcriptEC.text = raw;
+                transcriptEC.selection = TextSelection.collapsed(
+                  offset: raw.length,
+                );
+                final directPreview = _flowBotFallbackTextActions(
+                  raw,
+                  target: target,
+                );
+                setModalState(() {
+                  chosenTextTarget = target;
+                  textInputIsExplicit = true;
+                  preview = directPreview;
+                  previewSourceText = raw;
+                  warning = directPreview.isEmpty
+                      ? 'Selecciona una celda o un encabezado antes de aplicar este texto.'
+                      : '';
+                });
+              }
+
               final flowBotContext = _flowBotQuickContext();
-              final scopedPreview = _applyScopeToFlowBotActions(
-                preview,
-                chosenScope,
-              );
+              final draftPreview = resolveDraftPreview(transcriptEC.text.trim());
+              final scopedPreview =
+                  _applyScopeToFlowBotActions(draftPreview, chosenScope);
               final previewPatches = _flowBotPreviewPatches(scopedPreview);
               final summary = _flowBotPreviewSummary(previewPatches);
               final statusText = _flowBotStatusText(
@@ -6950,8 +7148,10 @@ class _EditorScreenState extends State<EditorScreen>
                 useLocalLlm: _flowBotUseLocalLlm,
                 localModelReady: localModelReady,
                 hasTranscript: transcriptEC.text.trim().isNotEmpty,
-                parseWarning: warning,
+                parseWarning: scopedPreview.isEmpty ? warning : '',
               );
+              final freeTextTargetLabel =
+                  _flowBotTextTargetLabel(chosenTextTarget);
 
               final media = MediaQuery.of(modalCtx);
               final compactSheet = media.size.width < 520;
@@ -7020,87 +7220,122 @@ class _EditorScreenState extends State<EditorScreen>
                   !compactSupportingSections || showSupportingSections;
 
               Widget buildVoiceControls() {
-                if (compactSheet) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      OverflowBar(
-                        spacing: 8,
-                        overflowSpacing: 8,
-                        children: [
-                          AppleButton(
-                            key: const ValueKey('flowbot-voice'),
-                            label: listening ? 'Detener' : 'Dictar',
-                            icon: listening
-                                ? Icons.stop_rounded
-                                : Icons.mic_none_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.ghost,
-                            onPressed: () => unawaited(startListening()),
-                          ),
-                          AppleButton(
-                            key: const ValueKey('flowbot-analyze'),
-                            label: parsing ? 'Analizando...' : 'Analizar',
-                            icon: Icons.play_arrow_rounded,
-                            dense: true,
-                            variant: AppleButtonVariant.tonal,
-                            onPressed: parsing
-                                ? null
-                                : () {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                    unawaited(parseNow());
-                                  },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: listening ? level : 0,
-                        minHeight: 4,
-                        borderRadius: BorderRadius.circular(999),
-                        backgroundColor: pal.cellText.withValues(alpha: 0.08),
-                        color: pal.accent,
-                      ),
-                    ],
+                Widget targetButton({
+                  required Key key,
+                  required String label,
+                  required IconData icon,
+                  required VoidCallback? onPressed,
+                }) {
+                  return AppleButton(
+                    key: key,
+                    label: label,
+                    icon: icon,
+                    dense: true,
+                    variant: AppleButtonVariant.ghost,
+                    onPressed: onPressed,
                   );
                 }
 
-                return Row(
+                final canTargetCell =
+                    _flowBotResolvedTextCellTarget() != null || listening;
+                final canTargetHeader =
+                    _flowBotResolvedTextHeaderTargetCol() != null || listening;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AppleButton(
-                      key: const ValueKey('flowbot-voice'),
-                      label: listening ? 'Detener' : 'Dictar',
-                      icon: listening
-                          ? Icons.stop_rounded
-                          : Icons.mic_none_rounded,
-                      dense: true,
-                      variant: AppleButtonVariant.ghost,
-                      onPressed: () => unawaited(startListening()),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: listening ? level : 0,
-                        minHeight: 4,
-                        borderRadius: BorderRadius.circular(999),
-                        backgroundColor: pal.cellText.withValues(alpha: 0.08),
-                        color: pal.accent,
+                    Text(
+                      'Destino actual: $freeTextTargetLabel',
+                      style: TextStyle(
+                        color: pal.fgMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    AppleButton(
-                      key: const ValueKey('flowbot-analyze'),
-                      label: parsing ? 'Analizando...' : 'Analizar',
-                      icon: Icons.play_arrow_rounded,
-                      dense: true,
-                      variant: AppleButtonVariant.tonal,
-                      onPressed: parsing
-                          ? null
-                          : () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              unawaited(parseNow());
-                            },
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        targetButton(
+                          key: const ValueKey('flowbot-dictate-cell'),
+                          label: listening &&
+                                  chosenTextTarget ==
+                                      _FlowBotTextTargetKind.cell
+                              ? 'Detener dictado'
+                              : 'Dictar a celda',
+                          icon: listening &&
+                                  chosenTextTarget ==
+                                      _FlowBotTextTargetKind.cell
+                              ? Icons.stop_rounded
+                              : Icons.mic_none_rounded,
+                          onPressed: canTargetCell
+                              ? () => unawaited(
+                                    startListening(_FlowBotTextTargetKind.cell),
+                                  )
+                              : null,
+                        ),
+                        targetButton(
+                          key: const ValueKey('flowbot-dictate-header'),
+                          label: listening &&
+                                  chosenTextTarget ==
+                                      _FlowBotTextTargetKind.header
+                              ? 'Detener dictado'
+                              : 'Dictar a encabezado',
+                          icon: listening &&
+                                  chosenTextTarget ==
+                                      _FlowBotTextTargetKind.header
+                              ? Icons.stop_rounded
+                              : Icons.keyboard_voice_rounded,
+                          onPressed: canTargetHeader
+                              ? () => unawaited(startListening(
+                                  _FlowBotTextTargetKind.header))
+                              : null,
+                        ),
+                        targetButton(
+                          key: const ValueKey('flowbot-paste-cell'),
+                          label: 'Pegar en celda',
+                          icon: Icons.content_paste_rounded,
+                          onPressed: canTargetCell
+                              ? () => unawaited(
+                                    pasteIntoTarget(_FlowBotTextTargetKind.cell),
+                                  )
+                              : null,
+                        ),
+                        targetButton(
+                          key: const ValueKey('flowbot-paste-header'),
+                          label: 'Pegar en encabezado',
+                          icon: Icons.copy_all_rounded,
+                          onPressed: canTargetHeader
+                              ? () => unawaited(pasteIntoTarget(
+                                  _FlowBotTextTargetKind.header))
+                              : null,
+                        ),
+                        AppleButton(
+                          key: const ValueKey('flowbot-analyze'),
+                          label: parsing ? 'Analizando...' : 'Analizar',
+                          icon: Icons.play_arrow_rounded,
+                          dense: true,
+                          variant: AppleButtonVariant.tonal,
+                          onPressed: parsing
+                              ? null
+                              : () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  setModalState(() {
+                                    textInputIsExplicit = false;
+                                  });
+                                  unawaited(parseNow());
+                                },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: listening ? level : 0,
+                      minHeight: 4,
+                      borderRadius: BorderRadius.circular(999),
+                      backgroundColor: pal.cellText.withValues(alpha: 0.08),
+                      color: pal.accent,
                     ),
                   ],
                 );
@@ -7193,6 +7428,7 @@ class _EditorScreenState extends State<EditorScreen>
                 fillCommandText(command);
                 if (!modalCtx.mounted) return;
                 setModalState(() {
+                  textInputIsExplicit = false;
                   warning = '';
                 });
                 await parseNow();
@@ -7202,6 +7438,7 @@ class _EditorScreenState extends State<EditorScreen>
                 fillCommandText(command);
                 if (!modalCtx.mounted) return;
                 setModalState(() {
+                  textInputIsExplicit = false;
                   warning = '';
                 });
                 await parseNow();
@@ -7728,8 +7965,30 @@ class _EditorScreenState extends State<EditorScreen>
                           return;
                         }
                         setModalState(() {
+                          if (textInputIsExplicit) {
+                            preview = _flowBotFallbackTextActions(
+                              trimmed,
+                              target: chosenTextTarget,
+                            );
+                            previewSourceText = trimmed;
+                            warning = trimmed.isNotEmpty && preview.isEmpty
+                                ? 'Selecciona una celda o un encabezado antes de aplicar este texto.'
+                                : '';
+                            return;
+                          }
                           preview = <FlowBotAction>[];
                           previewSourceText = '';
+                          warning = '';
+                        });
+                      },
+                      onTap: () {
+                        if (!textInputIsExplicit) return;
+                        setModalState(() {
+                          preview = _flowBotFallbackTextActions(
+                            transcriptEC.text,
+                            target: chosenTextTarget,
+                          );
+                          previewSourceText = transcriptEC.text.trim();
                           warning = '';
                         });
                       },
@@ -7742,7 +8001,9 @@ class _EditorScreenState extends State<EditorScreen>
                         }
                       },
                       decoration: InputDecoration(
-                        hintText: 'Ej: poner OK en ${flowBotContext.cellToken}',
+                        hintText: textInputIsExplicit
+                            ? 'Texto directo para $freeTextTargetLabel'
+                            : 'Ej: poner OK en ${flowBotContext.cellToken}',
                         filled: true,
                         fillColor: pal.mobileInputBg,
                       ),
@@ -21366,6 +21627,60 @@ class _EditorScreenState extends State<EditorScreen>
         initial: _effectiveCell(r, c),
         actions: _mobileActionsForCell(r, c),
       );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenMobileEditorForHeader(int c) {
+    assert(() {
+      if (c < 0 || c >= _headers.length - 1) return true;
+      _openMobileInlineEditor(
+        isHeader: true,
+        row: -1,
+        col: c,
+        title: 'Encabezado ${c + 1}',
+        initial: _effectiveHeader(c),
+        actions: const <_MobileAction>[],
+      );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  List<FlowBotAction> debugResolveFlowBotFreeTextActions(
+    String text, {
+    required bool toHeader,
+  }) {
+    return _flowBotFallbackTextActions(
+      text,
+      target:
+          toHeader ? _FlowBotTextTargetKind.header : _FlowBotTextTargetKind.cell,
+    );
+  }
+
+  @visibleForTesting
+  void debugForceNoEditableFlowBotTargets() {
+    assert(() {
+      _headers = <String>[kPhotosHeader];
+      _colIds = <String>['photos'];
+      _rows = <_RowModel>[_RowModel.empty(1, id: _genStableId('r_'))];
+      _selRow = 0;
+      _selCol = 0;
+      _mobileEditorOpen = false;
+      _mobileEditingHeader = false;
+      _editingHeaderCol = null;
+      _editingCellRef = null;
+      _overlayTargetCell = null;
+      _overlayTargetHeaderCol = null;
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenFlowBotSheetForTest() {
+    assert(() {
+      unawaited(_openFlowBotSheet());
       return true;
     }());
   }
