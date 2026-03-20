@@ -1,160 +1,61 @@
 part of '../editor_screen.dart';
 
 extension _EditorExportShareHelpers on _EditorScreenState {
-  String _describeExportSaveLocation(String path) {
-    final trimmed = path.trim();
-    if (trimmed.isEmpty) return '';
-    if (trimmed.length <= 72) return trimmed;
-    final parts = trimmed.split(RegExp(r'[\\/]'));
-    if (parts.length < 2) return trimmed;
-    return '.../${parts[parts.length - 2]}/${parts.last}';
-  }
-
   String _exportShareSubject(String name) =>
-      'BitFlow | ${_formatLabelFromFileName(name)} | $name';
+      'BitFlow | ${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)} | $name';
 
   String _exportShareText(String name) =>
-      '${_formatLabelFromFileName(name)} exportado desde BitFlow: $name';
+      '${EditorExportOutcomeFactory.shareFormatLabelFromFileName(name)} exportado desde BitFlow: $name';
 
-  String _fileReadyMessage(String label, {required String name}) =>
-      switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf => 'PDF guardado en $label',
-        _ExportMessageKind.zip =>
-          'Paquete ZIP guardado en $label. Incluye planilla y evidencias.',
-        _ExportMessageKind.xlsx => 'Excel guardado en $label',
-        _ExportMessageKind.other => 'Archivo guardado en $label',
-      };
-
-  String _downloadStartedMessage(String name) =>
-      switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf => 'Descarga iniciada: $name. Revisa Descargas.',
-        _ExportMessageKind.zip =>
-          'Descarga iniciada: $name. Revisa Descargas. Incluye planilla y evidencias.',
-        _ExportMessageKind.xlsx =>
-          'Descarga iniciada: $name. Revisa Descargas.',
-        _ExportMessageKind.other =>
-          'Descarga iniciada: $name. Revisa Descargas.',
-      };
-
-  String _shareOpenedMessage(String name) => switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf =>
-          'Abrimos compartir para $name. Completa el envio para terminar.',
-        _ExportMessageKind.zip =>
-          'Abrimos compartir para $name. Completa el envio para terminar.',
-        _ExportMessageKind.xlsx =>
-          'Abrimos compartir para $name. Completa el envio para terminar.',
-        _ExportMessageKind.other =>
-          'Abrimos compartir para $name. Completa el envio para terminar.',
-      };
-
-  String _exportSheetOpenedMessage(String name) =>
-      switch (_exportMessageKind(name)) {
-        _ExportMessageKind.pdf =>
-          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
-        _ExportMessageKind.zip =>
-          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
-        _ExportMessageKind.xlsx =>
-          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
-        _ExportMessageKind.other =>
-          'Abrimos las opciones del sistema para guardar o compartir $name. Completa ese paso para terminar.',
-      };
-
-  String _shareFallbackSavedMessage({
-    required String name,
-    String? location,
-  }) {
-    final target = (location ?? '').trim().isEmpty ? name : location!.trim();
-    return 'No pudimos abrir compartir. Guardamos $name en $target.';
-  }
-
-  _ExportFlowResult _buildSavedExportFlowResult({
+  EditorExportOutcome _buildSavedExportFlowResult({
     required String name,
     required bool shareRequested,
     required bool includeAttachments,
     String? savedPath,
   }) {
     final path = (savedPath ?? '').trim();
-    final label = path.isEmpty ? name : _describeExportSaveLocation(path);
-    final message = shareRequested
-        ? _shareFallbackSavedMessage(name: name, location: label)
-        : _fileReadyMessage(label.isEmpty ? name : label, name: name);
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.saved,
-      fileName: name,
-      format: _exportFormatFromFileName(name),
-      message: message,
-      savedPath: path.isEmpty ? null : path,
+    return EditorExportOutcomeFactory.saved(
+      name: name,
       shareRequested: shareRequested,
       includeAttachments: includeAttachments,
+      savedPath: path.isEmpty ? null : path,
     );
   }
 
-  _ExportFlowResult _buildDownloadStartedExportFlowResult({
+  EditorExportOutcome _buildDownloadStartedExportFlowResult({
     required String name,
     required bool shareRequested,
     required bool includeAttachments,
     String? message,
   }) {
-    final resolvedMessage = (message ?? '').trim().isEmpty
-        ? _downloadStartedMessage(name)
-        : message!.trim();
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.downloadStarted,
-      fileName: name,
-      format: _exportFormatFromFileName(name),
-      message: resolvedMessage,
+    return EditorExportOutcomeFactory.downloadStarted(
+      name: name,
       shareRequested: shareRequested,
       includeAttachments: includeAttachments,
+      message: message,
     );
   }
 
-  _ExportFlowResult _buildShareOpenedExportFlowResult({
+  EditorExportOutcome _buildShareOpenedExportFlowResult({
     required String name,
     required bool includeAttachments,
     String? message,
   }) {
-    final resolvedMessage = (message ?? '').trim().isEmpty
-        ? _shareOpenedMessage(name)
-        : message!.trim();
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.shareOpened,
-      fileName: name,
-      format: _exportFormatFromFileName(name),
-      message: resolvedMessage,
-      shareRequested: true,
+    return EditorExportOutcomeFactory.shareOpened(
+      name: name,
       includeAttachments: includeAttachments,
+      message: message,
     );
   }
 
-  _ExportFlowResult _buildSystemSheetOpenedExportFlowResult({
+  EditorExportOutcome _buildSystemSheetOpenedExportFlowResult({
     required String name,
     required bool includeAttachments,
   }) {
-    return _createExportFlowResult(
-      kind: _ExportFlowResultKind.systemSheetOpened,
-      fileName: name,
-      format: _exportFormatFromFileName(name),
-      message: _exportSheetOpenedMessage(name),
-      shareRequested: false,
+    return EditorExportOutcomeFactory.systemSheetOpened(
+      name: name,
       includeAttachments: includeAttachments,
     );
-  }
-
-  String _formatLabelFromFileName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.xlsx')) return 'XLSX';
-    if (lower.endsWith('.pdf')) return 'PDF';
-    if (lower.endsWith('.zip')) return 'paquete ZIP';
-    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'HTML';
-    return 'archivo';
-  }
-
-  _ExportMessageKind _exportMessageKind(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.pdf')) return _ExportMessageKind.pdf;
-    if (lower.endsWith('.zip')) return _ExportMessageKind.zip;
-    if (lower.endsWith('.xlsx')) return _ExportMessageKind.xlsx;
-    return _ExportMessageKind.other;
   }
 
   Future<void> _shareExportParams(ShareParams params) async {
@@ -203,7 +104,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
     return persistShareTempFile(fileName: fileName, bytes: bytes);
   }
 
-  Future<_ExportFlowResult> _saveExportBytes({
+  Future<EditorExportOutcome> _saveExportBytes({
     required String name,
     required String mime,
     required Uint8List bytes,
@@ -242,8 +143,8 @@ extension _EditorExportShareHelpers on _EditorScreenState {
           shareRequested: true,
           includeAttachments: includeAttachments,
           message: _isIosWeb
-              ? 'Safari en iPhone limita compartir archivos desde esta pantalla. ${_downloadStartedMessage(name)} Abrilo desde Descargas y usa Compartir.'
-              : 'Este navegador no permite compartir archivos directamente. ${_downloadStartedMessage(name)}',
+              ? 'Safari en iPhone limita compartir archivos desde esta pantalla. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message} Abrilo desde Descargas y usa Compartir.'
+              : 'Este navegador no permite compartir archivos directamente. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
         );
       }
 
@@ -275,7 +176,7 @@ extension _EditorExportShareHelpers on _EditorScreenState {
             shareRequested: true,
             includeAttachments: includeAttachments,
             message:
-                'No pudimos abrir compartir. ${_downloadStartedMessage(name)}',
+                'No pudimos abrir compartir. ${EditorExportOutcomeFactory.downloadStarted(name: name, shareRequested: true, includeAttachments: includeAttachments).message}',
           );
         } else {
           return _buildDownloadStartedExportFlowResult(
@@ -467,5 +368,3 @@ extension _EditorExportShareHelpers on _EditorScreenState {
         lower.contains('did not share');
   }
 }
-
-enum _ExportMessageKind { xlsx, pdf, zip, other }
