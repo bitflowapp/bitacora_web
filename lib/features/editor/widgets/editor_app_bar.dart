@@ -49,6 +49,8 @@ class _PremiumAppleHeader extends StatelessWidget {
     required this.outboxPendingCount,
     required this.outboxErrorCount,
     required this.errorsCount,
+    required this.dataQualityLabel,
+    required this.dataQualityDetail,
     required this.savedViews,
     required this.activeViewId,
     required this.pendingReviewViewActive,
@@ -106,6 +108,8 @@ class _PremiumAppleHeader extends StatelessWidget {
   final int outboxPendingCount;
   final int outboxErrorCount;
   final int errorsCount;
+  final String dataQualityLabel;
+  final String dataQualityDetail;
   final List<_SavedView> savedViews;
   final String? activeViewId;
   final bool pendingReviewViewActive;
@@ -326,8 +330,26 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.rule_rounded,
                                 label: '$errorsCount errores',
                               ),
+                            if (dataQualityLabel.trim().isNotEmpty)
+                              _InlineMetaChip(
+                                palette: palette,
+                                icon: Icons.verified_outlined,
+                                label: dataQualityLabel,
+                              ),
                           ],
                         ),
+                        if (dataQualityDetail.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            dataQualityDetail,
+                            style: TextStyle(
+                              color: palette.fgMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -406,10 +428,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 filled: true,
                                 icon: Icons.add_box_outlined,
-                                label: '+ Registro',
+                                label: 'Foto + registro',
                                 semanticsLabel:
-                                    'Crear registro rapido de campo',
-                                tooltip: 'Crear un registro en modo campo',
+                                    'Crear registro rapido con foto',
+                                tooltip:
+                                    'Crear una fila nueva y adjuntar foto de evidencia',
                                 onTap: onQuickCapture,
                               ),
                             ),
@@ -435,19 +458,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 semanticsLabel: AppStrings.semEditorSearch,
                                 tooltip: 'Buscar en todas las celdas',
                                 onTap: onSearch,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.27),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.travel_explore_rounded,
-                                label: 'Buscar global',
-                                semanticsLabel:
-                                    'Buscar en esta planilla o en todas',
-                                tooltip: 'Busqueda global (Ctrl/Cmd+Shift+F)',
-                                onTap: onSearchEverywhere,
                               ),
                             ),
                             FocusTraversalOrder(
@@ -489,32 +499,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                               ),
                             ),
                             FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.47),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.history_rounded,
-                                label: 'Historial',
-                                semanticsLabel: 'Abrir historial de cambios',
-                                tooltip: 'Auditoria de cambios',
-                                onTap: onHistory,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.49),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.group_work_outlined,
-                                label: 'Colaborar',
-                                semanticsLabel:
-                                    'Flujo de colaboracion por paquete',
-                                tooltip:
-                                    'Exportar, importar y mergear paquetes',
-                                onTap: onCollaborate,
-                              ),
-                            ),
-                            FocusTraversalOrder(
                               order: const NumericFocusOrder(1.5),
                               child: _PillButton(
                                 palette: palette,
@@ -526,32 +510,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 onTap: onExport,
                               ),
                             ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.6),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.layers_outlined,
-                                label: AppStrings.editorBatchActions,
-                                semanticsLabel: 'Abrir acciones por lote',
-                                tooltip:
-                                    'Acciones r\u00e1pidas para filas seleccionadas',
-                                onTap: onBatch,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.65),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.verified_rounded,
-                                label: 'Marcar revisado',
-                                semanticsLabel:
-                                    'Marcar filas seleccionadas como revisadas',
-                                tooltip: 'Workflow de revision',
-                                onTap: onMarkReviewed,
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -559,7 +517,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                           items: [
                             AppleToolbarItem(
                               icon: Icons.add_box_outlined,
-                              label: '+ Registro',
+                              label: 'Foto + registro',
                               onTap: onQuickCapture,
                             ),
                             AppleToolbarItem(
@@ -568,35 +526,10 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onForm,
                             ),
                             AppleToolbarItem(
-                              icon: Icons.layers_outlined,
-                              label: 'Acciones',
-                              onTap: onBatch,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.verified_rounded,
-                              label: 'Revisado',
-                              onTap: onMarkReviewed,
-                            ),
-                            AppleToolbarItem(
-                              icon: pendingReviewViewActive
-                                  ? Icons.pending_actions_rounded
-                                  : Icons.fact_check_outlined,
-                              label: pendingReviewViewActive
-                                  ? 'Pendientes'
-                                  : 'Ver pendientes',
-                              onTap: onTogglePendingReviewView,
-                            ),
-                            AppleToolbarItem(
                               icon: Icons.search_rounded,
                               label: AppStrings.editorSearch,
                               shortcut: 'Ctrl/Cmd+F',
                               onTap: onSearch,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.travel_explore_rounded,
-                              label: 'Buscar global',
-                              shortcut: 'Ctrl/Cmd+Shift+F',
-                              onTap: onSearchEverywhere,
                             ),
                             AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,
@@ -605,32 +538,12 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onJumpTo,
                             ),
                             AppleToolbarItem(
-                              icon: Icons.view_column_rounded,
-                              label: 'Columnas',
-                              onTap: onColumns,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.history_rounded,
-                              label: 'Historial',
-                              onTap: onHistory,
-                            ),
-                            AppleToolbarItem(
                               icon: Icons.my_location_rounded,
                               label: 'GPS',
                               shortcut: 'G',
                               onTap: onGps,
                               enabled: sensorsEnabled,
                               onDisabledTap: onGps,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.tune_rounded,
-                              label: 'Modo GPS',
-                              onTap: onGpsMode,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.format_line_spacing_rounded,
-                              label: 'Densidad',
-                              onTap: onDensity,
                             ),
                             AppleToolbarItem(
                               icon: Icons.photo_camera_outlined,
@@ -659,37 +572,10 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onAttachments,
                             ),
                             AppleToolbarItem(
-                              icon: Icons.attach_file_rounded,
-                              label: 'Archivo',
-                              onTap: onFile,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.group_work_outlined,
-                              label: 'Colaborar',
-                              onTap: onCollaborate,
-                            ),
-                            AppleToolbarItem(
                               icon: Icons.download_rounded,
                               label: 'Exportar',
                               shortcut: 'Ctrl/Cmd+E',
                               onTap: onExport,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.science_outlined,
-                              label: AppStrings.editorDiagnostics,
-                              onTap: onSmokeTest,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.functions_rounded,
-                              label: AppStrings.editorCompute,
-                              onTap: onCompute ?? () {},
-                              enabled: onCompute != null,
-                            ),
-                            AppleToolbarItem(
-                              icon: Icons.ios_share_rounded,
-                              label: 'Compartir',
-                              shortcut: 'Ctrl/Cmd+Shift+E',
-                              onTap: onShare,
                             ),
                             AppleToolbarItem(
                               icon: Icons.keyboard,
@@ -740,6 +626,8 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.pendingOfflineCount,
     required this.outboxPendingCount,
     required this.outboxErrorCount,
+    required this.dataQualityLabel,
+    required this.dataQualityDetail,
     required this.selectedRow,
     required this.selectedCol,
     required this.onSave,
@@ -756,6 +644,8 @@ class _MobileCompactHeader extends StatelessWidget {
   final int pendingOfflineCount;
   final int outboxPendingCount;
   final int outboxErrorCount;
+  final String dataQualityLabel;
+  final String dataQualityDetail;
   final int selectedRow;
   final int selectedCol;
   final VoidCallback onSave;
@@ -793,25 +683,6 @@ class _MobileCompactHeader extends StatelessWidget {
         return ValueListenableBuilder<OfflineSyncSnapshot>(
           valueListenable: controller.offlineStatus,
           builder: (context, offline, __) {
-            String saveLabel;
-            switch (snap.state) {
-              case EditorSaveState.saving:
-                saveLabel = 'Guardando';
-                break;
-              case EditorSaveState.dirty:
-                saveLabel = 'Sin guardar...';
-                break;
-              case EditorSaveState.saved:
-                saveLabel = 'Guardado';
-                break;
-              case EditorSaveState.error:
-                saveLabel = 'Error al guardar';
-                break;
-              case EditorSaveState.idle:
-                saveLabel = 'Listo';
-                break;
-            }
-
             final pendingLabel =
                 pendingRequired > 0 ? 'Errores: $pendingRequired' : null;
             final queueLabel =
@@ -831,13 +702,40 @@ class _MobileCompactHeader extends StatelessWidget {
                 ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
                 : '--';
             final summaryParts = <String>[
-              saveLabel,
+              localLabel,
               if (pendingLabel != null) pendingLabel,
               if (outboxErrorLabel != null) outboxErrorLabel,
+              if (dataQualityLabel.trim().isNotEmpty) dataQualityLabel,
             ];
             final quickHint = (selectedRow >= 0 && selectedCol >= 0)
                 ? 'Completá datos y exportá o compartí al terminar.'
                 : 'Tocá una celda para empezar a editar.';
+
+            final operationalChipLabel = outboxErrorLabel ??
+                queueLabel ??
+                outboxPendingLabel ??
+                (dataQualityLabel.trim().isNotEmpty ? dataQualityLabel : null);
+            final operationalChipIcon = outboxErrorLabel != null
+                ? Icons.cloud_off_rounded
+                : (queueLabel != null
+                    ? Icons.cloud_upload_outlined
+                    : (outboxPendingLabel != null
+                        ? Icons.schedule_send_rounded
+                        : Icons.verified_outlined));
+            final operationalChipTap = (outboxErrorLabel != null ||
+                    queueLabel != null ||
+                    outboxPendingLabel != null)
+                ? onOpenOfflineQueue
+                : null;
+            final helperLineParts = <String>[
+              offlineLabel,
+              if (dataQualityLabel.trim().isNotEmpty &&
+                  dataQualityLabel != operationalChipLabel)
+                dataQualityLabel,
+            ];
+            final helperLineRaw = helperLineParts.join(' · ');
+            final helperLine =
+                helperLineRaw.trim().isEmpty ? quickHint : helperLineRaw;
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
@@ -884,17 +782,24 @@ class _MobileCompactHeader extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         _MobilePanelIconButton(
+                          buttonKey: const ValueKey(
+                            'mobile-header-options-button',
+                          ),
                           icon: Icons.more_horiz_rounded,
                           tooltip: AppStrings.editorOptions,
                           onTap: onMenu,
                           palette: palette,
                           iconSize: 18,
                           splashRadius: 16,
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
                       runSpacing: 6,
@@ -904,30 +809,12 @@ class _MobileCompactHeader extends StatelessWidget {
                           icon: Icons.grid_3x3_rounded,
                           label: 'Celda $activeCell',
                         ),
-                        _InlineMetaChip(
-                          palette: palette,
-                          icon: Icons.schedule_rounded,
-                          label: localLabel,
-                        ),
-                        _InlineMetaChip(
-                          palette: palette,
-                          icon: Icons.cloud_done_rounded,
-                          label: offlineLabel,
-                          onTap: onOpenOfflineQueue,
-                        ),
-                        if (queueLabel != null)
+                        if (operationalChipLabel != null)
                           _InlineMetaChip(
                             palette: palette,
-                            icon: Icons.cloud_upload_outlined,
-                            label: queueLabel,
-                            onTap: onOpenOfflineQueue,
-                          ),
-                        if (outboxPendingLabel != null)
-                          _InlineMetaChip(
-                            palette: palette,
-                            icon: Icons.schedule_send_rounded,
-                            label: outboxPendingLabel,
-                            onTap: onOpenOfflineQueue,
+                            icon: operationalChipIcon,
+                            label: operationalChipLabel,
+                            onTap: operationalChipTap,
                           ),
                       ],
                     ),
@@ -944,9 +831,9 @@ class _MobileCompactHeader extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
-                      quickHint,
+                      helperLine,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -955,7 +842,7 @@ class _MobileCompactHeader extends StatelessWidget {
                         fontSize: 11.2,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1044,7 +931,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
               ),
             ],
           ),
-          padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1063,13 +950,20 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               _MobilePanelIconButton(
+                buttonKey: const ValueKey(
+                  'mobile-header-options-button',
+                ),
                 icon: Icons.more_horiz_rounded,
                 tooltip: AppStrings.editorOptions,
                 onTap: onMenu,
                 palette: palette,
                 iconSize: 18,
                 splashRadius: 16,
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(
+                  minWidth: 48,
+                  minHeight: 48,
+                ),
               ),
             ],
           ),

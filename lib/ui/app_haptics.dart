@@ -20,11 +20,11 @@ class AppHaptics {
 
   static void success() {
     if (!_supported) return;
-    HapticFeedback.lightImpact();
+    HapticFeedback.mediumImpact();
   }
 
   static void error() {
     if (!_supported) return;
-    HapticFeedback.mediumImpact();
+    HapticFeedback.heavyImpact();
   }
 }
