@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Bit Flow" />
   <meta name="application-name" content="Bit Flow" />
-  <meta name="theme-color" content="#111111" />
+  <meta name="theme-color" content="#007AFF" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
   <link rel="manifest" href="manifest.json" />
@@ -273,8 +273,10 @@
         } catch (_) {}
       }
 
-      // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
-      async function nukeCachesIfBuildChanged(build) {
+      // Offline-first SW update: on build change, tell the active SW to skip
+      // waiting so the new version activates on the next navigation — without
+      // killing the SW or evicting all caches (which breaks offline use).
+      async function handleBuildChange(build) {
         var key = 'bitflow_last_build';
         var last = null;
         try { last = localStorage.getItem(key); } catch (_) {}
@@ -284,18 +286,13 @@
 
         try {
           if ('serviceWorker' in navigator) {
-            var regs = await navigator.serviceWorker.getRegistrations();
-            for (var i = 0; i < regs.length; i++) {
-              try { await regs[i].unregister(); } catch (_) {}
-            }
-          }
-        } catch (_) {}
-
-        try {
-          if (window.caches && caches.keys) {
-            var names = await caches.keys();
-            for (var j = 0; j < names.length; j++) {
-              try { await caches.delete(names[j]); } catch (_) {}
+            var reg = await navigator.serviceWorker.getRegistration();
+            if (reg && reg.waiting) {
+              // New SW is already installed and waiting — activate it cleanly.
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            } else if (reg) {
+              // Trigger an update check so the browser fetches a fresh SW.
+              reg.update().catch(function () {});
             }
           }
         } catch (_) {}
@@ -413,7 +410,7 @@
           mountBadge(build);
           boot();
           Promise.resolve().then(function () {
-            return nukeCachesIfBuildChanged(build);
+            return handleBuildChange(build);
           }).catch(function () {});
           loadFlutterBootstrapDeferred(build);
         } catch (_) {
