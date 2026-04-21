@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'design_system/colors.dart';
+import 'design_system/motion.dart';
 import 'design_system/spacing.dart';
 import 'design_system/typography.dart';
 import 'screens/about_screen.dart';
@@ -1096,8 +1097,10 @@ class _StartPageV2State extends State<StartPageV2> {
                         child: Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 1120),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: AppMotionStaggered(
+                              initialDelay: const Duration(milliseconds: 70),
+                              step: const Duration(milliseconds: 52),
+                              duration: AppMotion.slow,
                               children: [
                                 _Header(
                                   palette: palette,
@@ -1948,6 +1951,7 @@ class _ActionSurface extends StatefulWidget {
 
 class _ActionSurfaceState extends State<_ActionSurface> {
   bool _hovering = false;
+  bool _pressing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1960,30 +1964,44 @@ class _ActionSurfaceState extends State<_ActionSurface> {
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 170),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: widget.borderColor),
-          boxShadow: [
-            if (_hovering && enabled)
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
+      onExit: (_) => setState(() {
+        _hovering = false;
+        _pressing = false;
+      }),
+      child: Listener(
+        onPointerDown: enabled ? (_) => setState(() => _pressing = true) : null,
+        onPointerUp: enabled ? (_) => setState(() => _pressing = false) : null,
+        onPointerCancel:
+            enabled ? (_) => setState(() => _pressing = false) : null,
+        child: AnimatedScale(
+          scale: _pressing ? 0.982 : (_hovering && enabled ? 1.008 : 1),
+          duration: AppMotion.resolve(context, AppMotion.fast),
+          curve: AppMotion.press,
+          child: AnimatedContainer(
+            duration: AppMotion.resolve(context, AppMotion.fast),
+            curve: AppMotion.swiftOut,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: widget.borderColor),
+              boxShadow: [
+                if (_hovering && enabled)
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: enabled ? widget.onTap : null,
+                child: widget.child,
               ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: enabled ? widget.onTap : null,
-            child: widget.child,
+            ),
           ),
         ),
       ),

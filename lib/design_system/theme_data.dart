@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'colors.dart';
+import 'motion.dart';
 import 'spacing.dart';
 import 'typography.dart';
 
@@ -20,10 +21,10 @@ abstract final class AppThemeBuilder {
     final surface =
         isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
     final label = isLight ? AppColors.lightLabel : AppColors.darkLabel;
-    final secondaryLabel =
-        isLight ? AppColors.lightSecondaryLabel.withValues(alpha: 0.6) : AppColors.darkSecondaryLabel;
-    final divider =
-        isLight ? AppColors.lightDivider : AppColors.darkDivider;
+    final secondaryLabel = isLight
+        ? AppColors.lightSecondaryLabel.withValues(alpha: 0.6)
+        : AppColors.darkSecondaryLabel;
+    final divider = isLight ? AppColors.lightDivider : AppColors.darkDivider;
     final fill = isLight ? AppColors.lightFill : AppColors.darkFill;
     final accent = isLight ? AppColors.accentBlue : AppColors.accentBlueDark;
 
@@ -59,21 +60,28 @@ abstract final class AppThemeBuilder {
       onSecondaryContainer: label,
       tertiary: isLight ? AppColors.accentGreen : AppColors.accentGreenDark,
       onTertiary: Colors.white,
-      tertiaryContainer: (isLight ? AppColors.accentGreen : AppColors.accentGreenDark).withValues(alpha: 0.15),
-      onTertiaryContainer: isLight ? AppColors.accentGreen : AppColors.accentGreenDark,
+      tertiaryContainer:
+          (isLight ? AppColors.accentGreen : AppColors.accentGreenDark)
+              .withValues(alpha: 0.15),
+      onTertiaryContainer:
+          isLight ? AppColors.accentGreen : AppColors.accentGreenDark,
       error: isLight ? AppColors.accentRed : AppColors.accentRedDark,
       onError: Colors.white,
-      errorContainer: (isLight ? AppColors.accentRed : AppColors.accentRedDark).withValues(alpha: 0.12),
+      errorContainer: (isLight ? AppColors.accentRed : AppColors.accentRedDark)
+          .withValues(alpha: 0.12),
       onErrorContainer: isLight ? AppColors.accentRed : AppColors.accentRedDark,
       surface: bg,
       onSurface: label,
       surfaceContainerHighest: surface,
       onSurfaceVariant: secondaryLabel,
       outline: divider,
-      outlineVariant: isLight ? AppColors.lightOpaqueSeparator : AppColors.darkOpaqueSeparator,
+      outlineVariant: isLight
+          ? AppColors.lightOpaqueSeparator
+          : AppColors.darkOpaqueSeparator,
       shadow: Colors.black,
       scrim: Colors.black,
-      inverseSurface: isLight ? AppColors.darkSecondaryBg : AppColors.lightSecondaryBg,
+      inverseSurface:
+          isLight ? AppColors.darkSecondaryBg : AppColors.lightSecondaryBg,
       onInverseSurface: isLight ? AppColors.darkLabel : AppColors.lightLabel,
       inversePrimary: isLight ? AppColors.accentBlueDark : AppColors.accentBlue,
     );
@@ -86,12 +94,12 @@ abstract final class AppThemeBuilder {
 
     const pageTransitions = PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.fuchsia: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: AppMotionPageTransitionsBuilder(),
+        TargetPlatform.iOS: AppMotionPageTransitionsBuilder(),
+        TargetPlatform.macOS: AppMotionPageTransitionsBuilder(),
+        TargetPlatform.windows: AppMotionPageTransitionsBuilder(),
+        TargetPlatform.linux: AppMotionPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: AppMotionPageTransitionsBuilder(),
       },
     );
 
@@ -127,7 +135,6 @@ abstract final class AppThemeBuilder {
         selectionColor: accent.withValues(alpha: isLight ? 0.20 : 0.24),
         selectionHandleColor: accent,
       ),
-
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -138,7 +145,6 @@ abstract final class AppThemeBuilder {
         titleTextStyle: AppTypography.headline.copyWith(color: label),
         iconTheme: IconThemeData(color: label, size: 22),
       ),
-
       cardTheme: CardThemeData(
         margin: const EdgeInsets.all(AppSpacing.sm),
         elevation: isLight ? 0 : 0,
@@ -153,7 +159,6 @@ abstract final class AppThemeBuilder {
           ),
         ),
       ),
-
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
@@ -168,7 +173,6 @@ abstract final class AppThemeBuilder {
         titleTextStyle: AppTypography.headline.copyWith(color: label),
         contentTextStyle: AppTypography.body.copyWith(color: secondaryLabel),
       ),
-
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: inputFill,
@@ -197,7 +201,6 @@ abstract final class AppThemeBuilder {
           borderSide: BorderSide(color: accent, width: 1.5),
         ),
       ),
-
       filledButtonTheme: FilledButtonThemeData(
         style: ButtonStyle(
           backgroundColor: WidgetStatePropertyAll(accent),
@@ -219,7 +222,6 @@ abstract final class AppThemeBuilder {
           }),
         ),
       ),
-
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: ButtonStyle(
           shape: const WidgetStatePropertyAll(pillShape),
@@ -241,7 +243,6 @@ abstract final class AppThemeBuilder {
           }),
         ),
       ),
-
       textButtonTheme: TextButtonThemeData(
         style: ButtonStyle(
           shape: const WidgetStatePropertyAll(pillShape),
@@ -260,7 +261,6 @@ abstract final class AppThemeBuilder {
           }),
         ),
       ),
-
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
           shape: const WidgetStatePropertyAll(CircleBorder()),
@@ -275,7 +275,6 @@ abstract final class AppThemeBuilder {
           }),
         ),
       ),
-
       switchTheme: SwitchThemeData(
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return accent;
@@ -284,7 +283,6 @@ abstract final class AppThemeBuilder {
         thumbColor: const WidgetStatePropertyAll(Colors.white),
         trackOutlineWidth: const WidgetStatePropertyAll(0),
       ),
-
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         side: BorderSide(
@@ -296,10 +294,10 @@ abstract final class AppThemeBuilder {
         }),
         checkColor: const WidgetStatePropertyAll(Colors.white),
       ),
-
       chipTheme: ChipThemeData(
         shape: pillShape,
-        side: BorderSide(color: divider.withValues(alpha: isLight ? 0.78 : 0.55)),
+        side:
+            BorderSide(color: divider.withValues(alpha: isLight ? 0.78 : 0.55)),
         backgroundColor: fill.withValues(alpha: 0.6),
         selectedColor: accent.withValues(alpha: 0.15),
         labelStyle: AppTypography.footnote.copyWith(color: label),
@@ -308,7 +306,6 @@ abstract final class AppThemeBuilder {
           vertical: AppSpacing.xs,
         ),
       ),
-
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
@@ -322,10 +319,10 @@ abstract final class AppThemeBuilder {
         ),
         textStyle: AppTypography.body.copyWith(color: label),
       ),
-
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: (isLight ? Colors.black : Colors.white).withValues(alpha: 0.90),
+          color:
+              (isLight ? Colors.black : Colors.white).withValues(alpha: 0.90),
           borderRadius: BorderRadius.circular(AppSpacing.sm),
         ),
         textStyle: AppTypography.caption1.copyWith(
@@ -333,11 +330,10 @@ abstract final class AppThemeBuilder {
           fontWeight: FontWeight.w600,
         ),
       ),
-
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: (isLight ? Colors.black : Colors.white)
-            .withValues(alpha: 0.90),
+        backgroundColor:
+            (isLight ? Colors.black : Colors.white).withValues(alpha: 0.90),
         contentTextStyle: AppTypography.body.copyWith(
           color: isLight ? Colors.white : Colors.black,
           fontWeight: FontWeight.w500,
@@ -346,7 +342,6 @@ abstract final class AppThemeBuilder {
           borderRadius: BorderRadius.circular(AppSpacing.lg),
         ),
       ),
-
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: bg,
         surfaceTintColor: Colors.transparent,
@@ -357,7 +352,6 @@ abstract final class AppThemeBuilder {
           ),
         ),
       ),
-
       listTileTheme: ListTileThemeData(
         iconColor: secondaryLabel,
         textColor: label,
@@ -368,12 +362,10 @@ abstract final class AppThemeBuilder {
           borderRadius: BorderRadius.circular(AppSpacing.md),
         ),
       ),
-
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: accent,
         linearTrackColor: fill,
       ),
-
       scrollbarTheme: ScrollbarThemeData(
         radius: const Radius.circular(AppSpacing.xs),
         thickness: const WidgetStatePropertyAll(6),
@@ -382,7 +374,6 @@ abstract final class AppThemeBuilder {
           secondaryLabel.withValues(alpha: 0.4),
         ),
       ),
-
       dividerTheme: DividerThemeData(
         color: divider,
         thickness: 0.5,

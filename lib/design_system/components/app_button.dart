@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../colors.dart';
+import '../motion.dart';
 import '../spacing.dart';
 import '../typography.dart';
 
@@ -31,7 +32,8 @@ class AppButton extends StatelessWidget {
 
     final minHeight = small ? 36.0 : AppSpacing.touchTarget;
     final hPad = small ? AppSpacing.md : AppSpacing.lg;
-    final textStyle = small ? AppTypography.subheadline : AppTypography.headline;
+    final textStyle =
+        small ? AppTypography.subheadline : AppTypography.headline;
 
     final child = loading
         ? SizedBox(
@@ -51,18 +53,22 @@ class AppButton extends StatelessWidget {
                     child: icon!,
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(label, style: textStyle.copyWith(color: _fgColor(brightness))),
+                  Text(label,
+                      style: textStyle.copyWith(color: _fgColor(brightness))),
                 ],
               )
-            : Text(label, style: textStyle.copyWith(color: _fgColor(brightness)));
+            : Text(label,
+                style: textStyle.copyWith(color: _fgColor(brightness)));
 
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppSpacing.xl),
     );
 
+    final enabled = onPressed != null && !loading;
+    late final Widget button;
     switch (variant) {
       case AppButtonVariant.filled:
-        return FilledButton(
+        button = FilledButton(
           onPressed: loading ? null : onPressed,
           style: FilledButton.styleFrom(
             backgroundColor: accent,
@@ -73,9 +79,10 @@ class AppButton extends StatelessWidget {
           ),
           child: child,
         );
+        break;
 
       case AppButtonVariant.outlined:
-        return OutlinedButton(
+        button = OutlinedButton(
           onPressed: loading ? null : onPressed,
           style: OutlinedButton.styleFrom(
             foregroundColor: accent,
@@ -86,9 +93,10 @@ class AppButton extends StatelessWidget {
           ),
           child: child,
         );
+        break;
 
       case AppButtonVariant.ghost:
-        return TextButton(
+        button = TextButton(
           onPressed: loading ? null : onPressed,
           style: TextButton.styleFrom(
             foregroundColor: accent,
@@ -98,12 +106,13 @@ class AppButton extends StatelessWidget {
           ),
           child: child,
         );
+        break;
 
       case AppButtonVariant.destructive:
         final red = brightness == Brightness.light
             ? AppColors.accentRed
             : AppColors.accentRedDark;
-        return FilledButton(
+        button = FilledButton(
           onPressed: loading ? null : onPressed,
           style: FilledButton.styleFrom(
             backgroundColor: red,
@@ -123,7 +132,14 @@ class AppButton extends StatelessWidget {
                 )
               : child,
         );
+        break;
     }
+
+    return AppPressable(
+      enabled: enabled,
+      pressedScale: small ? 0.965 : 0.972,
+      child: button,
+    );
   }
 
   Color _fgColor(Brightness brightness) {
