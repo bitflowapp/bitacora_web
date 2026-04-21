@@ -76,6 +76,7 @@ import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:bitacora_web/widgets/command_palette.dart';
 import 'package:bitacora_web/widgets/web_blob_image.dart';
 
+part 'editor_state_types.dart';
 part 'editor_state.dart';
 part 'editor_controller.dart';
 part 'editor_models.dart';
