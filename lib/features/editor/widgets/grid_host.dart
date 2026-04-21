@@ -452,11 +452,11 @@ class _GridView extends StatelessWidget {
         border: Border(
           right: BorderSide(
             color: palette.gridBorder,
-            width: math.max(palette.hairline, 1).toDouble(),
+            width: math.max(palette.hairline, 0.55).toDouble(),
           ),
           bottom: BorderSide(
             color: palette.gridBorder,
-            width: math.max(palette.hairline, 1).toDouble(),
+            width: math.max(palette.hairline, 0.55).toDouble(),
           ),
         ),
       ),
@@ -464,7 +464,7 @@ class _GridView extends StatelessWidget {
         '#',
         style: TextStyle(
           color: palette.headerText,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w800,
           fontSize: metrics.indexFontSize,
         ),
       ),
@@ -503,7 +503,7 @@ class _HeaderCell extends StatelessWidget {
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
     final radius = BorderRadius.zero;
     final borderColor = palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -538,7 +538,7 @@ class _HeaderCell extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   fontSize: metrics.headerFontSize,
                   height: 1.05,
-                  letterSpacing: 0.1,
+                  letterSpacing: 0.02,
                 ),
               ),
             ),
@@ -573,12 +573,10 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final neutralRing = palette.focusRing.withValues(
-      alpha: palette.isLight ? 0.65 : 0.78,
-    );
+    final neutralRing = palette.focusRing;
     final bg = selected ? palette.selectionFill : palette.indexBg;
     final radius = BorderRadius.zero;
-    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -720,7 +718,9 @@ class _DataCell extends StatelessWidget {
         baseBg;
     final invalidBg = Color.lerp(
           baseBg,
-          palette.cellText.withValues(alpha: palette.isLight ? 0.08 : 0.16),
+          const Color(0xFFFF3B30).withValues(
+            alpha: palette.isLight ? 0.08 : 0.18,
+          ),
           0.58,
         ) ??
         baseBg;
@@ -732,8 +732,8 @@ class _DataCell extends StatelessWidget {
                 ? rowSelectedBg
                 : (invalid ? invalidBg : (searchHit ? searchBg : baseBg))));
 
-    final invalidBorder = palette.cellText.withValues(
-      alpha: palette.isLight ? 0.35 : 0.56,
+    final invalidBorder = const Color(0xFFFF3B30).withValues(
+      alpha: palette.isLight ? 0.46 : 0.70,
     );
     final borderColor = focus
         ? palette.selectionBorder
@@ -744,7 +744,7 @@ class _DataCell extends StatelessWidget {
                     alpha: palette.isLight ? 0.52 : 0.7,
                   )
                 : palette.gridBorder));
-    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
 
     final radius = BorderRadius.zero;
 
@@ -776,7 +776,7 @@ class _DataCell extends StatelessWidget {
                       border: Border.all(
                         color:
                             invalid ? invalidBorder : palette.selectionBorder,
-                        width: 1.5,
+                        width: palette.isLight ? 1.25 : 1.4,
                       ),
                     )
                   : null,
@@ -944,8 +944,8 @@ class _DataCell extends StatelessWidget {
                     color: palette.cellText,
                     fontSize: metrics.cellFontSize,
                     height: 1.1,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    letterSpacing: selected ? -0.12 : -0.04,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: selected ? -0.10 : 0,
                   ),
                 ),
               ),
@@ -1174,7 +1174,7 @@ class _PhotosCell extends StatelessWidget {
             count == 0 ? '0' : '$count',
             style: TextStyle(
               color: palette.fg,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
               height: 1.05,
             ),
           ),
