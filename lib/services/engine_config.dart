@@ -45,6 +45,42 @@ class EngineConfig {
     return u;
   }
 
+  // ── Allowlist ─────────────────────────────────────────────────────────────
+  // Exact hostnames or suffix patterns (prefix '.') allowed for ?engine= override.
+  // In debug mode all URLs pass with a warning; in release only listed hosts are accepted.
+  static const List<String> _allowedHostPatterns = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '.trycloudflare.com',   // Cloudflare tunnels
+    '.ngrok-free.app',      // ngrok free-tier tunnels
+    '.ngrok.io',
+    '.loca.lt',             // localtunnel
+  ];
+
+  /// Returns true if [url]'s host is on the allowlist.
+  /// In debug mode always returns true (with a log), so developers can use any server.
+  static bool isAllowedEngineHost(String url) {
+    final host = Uri.tryParse(normalize(url))?.host.toLowerCase() ?? '';
+    if (host.isEmpty) return false;
+
+    for (final pattern in _allowedHostPatterns) {
+      if (pattern.startsWith('.')) {
+        if (host.endsWith(pattern)) return true;
+      } else {
+        if (host == pattern) return true;
+      }
+    }
+
+    if (kDebugMode) {
+      debugPrint('[EngineConfig] Host "$host" not in allowlist — '
+          'allowed in debug mode only');
+      return true;
+    }
+
+    return false;
+  }
+
   static bool isValidBaseUrl(String url) {
     final u = normalize(url);
     if (u.isEmpty) return false;

@@ -31,12 +31,17 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   final url = raw.trim();
   if (url.isEmpty) return;
 
-  try {
-    // 1) Si tu app todavÃ­a usa EngineMathClient en otros lugares, mantenemos este override.
-    await EngineMathClient().setBaseUrl(url);
+  // Security: reject hosts not on the allowlist in release builds.
+  if (!engine_cfg.EngineConfig.isAllowedEngineHost(url)) {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('[main] ?engine= host not on allowlist, ignoring: $url');
+    }
+    return;
+  }
 
-    // 2) Y tambiÃ©n persistimos para el EngineConfig (engine_client.dart),
-    //    asÃ­ el EditorScreen grande usa el mismo baseUrl.
+  try {
+    await EngineMathClient().setBaseUrl(url);
     await EngineConfig.instance.setOverride(url);
 
     final normalized = engine_cfg.EngineConfig.normalize(url);
