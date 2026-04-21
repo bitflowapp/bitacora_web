@@ -1301,7 +1301,6 @@ TextAlign _gridTextAlignToFlutter(_GridTextAlignX value) {
     case _GridTextAlignX.right:
       return TextAlign.right;
     case _GridTextAlignX.left:
-    default:
       return TextAlign.left;
   }
 }
@@ -1319,7 +1318,6 @@ Alignment _gridCellAlignment({
       x = 1;
       break;
     case _GridTextAlignX.left:
-    default:
       x = -1;
       break;
   }
@@ -1333,7 +1331,6 @@ Alignment _gridCellAlignment({
       y = 1;
       break;
     case _GridTextAlignY.middle:
-    default:
       y = 0;
       break;
   }
@@ -1627,14 +1624,14 @@ class _SheetPalette {
   factory _SheetPalette.fromApp(AppThemeData t, {required double hairline}) {
     final c = t.colors;
     final card = c.surfaceElevated;
-    final monoInk = c.textPrimary;
+    final accent = c.accent;
     final gridBg = c.surfaceElevated;
     final headerBg = c.surfaceMuted;
     final zebraA = c.surface;
     final zebraB = c.surfaceMuted.withValues(alpha: c.isLight ? 0.34 : 0.16);
-    final selectionFill = monoInk.withValues(alpha: c.isLight ? 0.08 : 0.14);
-    final selectionBorder = monoInk.withValues(alpha: c.isLight ? 0.38 : 0.52);
-    final focusRing = monoInk.withValues(alpha: c.isLight ? 0.42 : 0.62);
+    final selectionFill = accent.withValues(alpha: c.isLight ? 0.10 : 0.18);
+    final selectionBorder = accent.withValues(alpha: c.isLight ? 0.46 : 0.62);
+    final focusRing = accent.withValues(alpha: c.isLight ? 0.32 : 0.48);
     final chipBg = c.surfaceMuted;
     final chipBorder = c.borderStrong;
     final chipText = c.textPrimary;
@@ -1669,7 +1666,7 @@ class _SheetPalette {
       editorBg: c.surfaceElevated,
       mobileInputBg:
           c.surfaceElevated.withValues(alpha: c.isLight ? 0.96 : 0.72),
-      accent: monoInk,
+      accent: accent,
       statusBg: c.surfaceMuted,
       statusFg: c.textPrimary,
       hintBg: c.surfaceMuted,

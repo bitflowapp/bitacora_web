@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:bitacora_web/design_system/colors.dart' as ds;
+
 import 'gridnote_theme.dart';
 
 @immutable
@@ -133,37 +135,43 @@ class AppTheme {
   static AppThemeData fromTheme(ThemeData theme) {
     final isLight = theme.brightness == Brightness.light;
 
-    final bg = theme.scaffoldBackgroundColor;
-    final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF121317);
-    final surfaceMuted =
-        isLight ? const Color(0xFFF4F4F6) : const Color(0xFF111216);
+    final brightness = isLight ? Brightness.light : Brightness.dark;
+    final bg = ds.AppColors.bg(brightness);
+    final surface = ds.AppColors.bg(brightness);
+    final surfaceMuted = ds.AppColors.secondaryBg(brightness);
     final surfaceElevated =
-        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF17181D);
+        isLight ? ds.AppColors.lightBg : ds.AppColors.darkTertiaryBg;
 
-    final neutralInk =
-        isLight ? const Color(0xFF111113) : const Color(0xFFF4F4F6);
-    final neutralMuted =
-        isLight ? const Color(0xFF575861) : const Color(0xFFB6B7C0);
-    final border = isLight ? const Color(0xFFE3E4E8) : const Color(0xFF2B2D34);
-    final borderStrong =
-        isLight ? const Color(0xFFD2D4DB) : const Color(0xFF3A3C45);
+    final neutralInk = ds.AppColors.label(brightness);
+    final neutralMuted = ds.AppColors.secondaryLabel(brightness);
+    final border = ds.AppColors.divider(brightness);
+    final borderStrong = isLight
+        ? ds.AppColors.lightOpaqueSeparator
+        : ds.AppColors.darkOpaqueSeparator;
 
-    final accent = neutralInk;
+    final accent = ds.AppColors.accent(brightness);
     final accentMuted = accent.withValues(alpha: isLight ? 0.07 : 0.16);
 
     final statusBg = accent.withValues(alpha: isLight ? 0.08 : 0.16);
     final statusFg = neutralInk;
 
-    final warningBg = surfaceMuted;
-    final warningFg = neutralInk;
+    final warningBg =
+        (isLight ? ds.AppColors.accentOrange : ds.AppColors.accentOrangeDark)
+            .withValues(alpha: isLight ? 0.12 : 0.18);
+    final warningFg =
+        isLight ? ds.AppColors.accentOrange : ds.AppColors.accentOrangeDark;
 
     final dangerBg =
-        isLight ? const Color(0xFFF5F5F6) : const Color(0xFF191A1F);
-    final dangerFg = neutralInk;
+        (isLight ? ds.AppColors.accentRed : ds.AppColors.accentRedDark)
+            .withValues(alpha: isLight ? 0.10 : 0.18);
+    final dangerFg =
+        isLight ? ds.AppColors.accentRed : ds.AppColors.accentRedDark;
 
     final successBg =
-        isLight ? const Color(0xFFF3F3F5) : const Color(0xFF1A1B20);
-    final successFg = neutralInk;
+        (isLight ? ds.AppColors.accentGreen : ds.AppColors.accentGreenDark)
+            .withValues(alpha: isLight ? 0.10 : 0.18);
+    final successFg =
+        isLight ? ds.AppColors.accentGreen : ds.AppColors.accentGreenDark;
 
     final hover = (isLight ? Colors.black : Colors.white)
         .withValues(alpha: isLight ? 0.035 : 0.07);
