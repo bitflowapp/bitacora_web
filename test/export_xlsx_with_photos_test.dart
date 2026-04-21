@@ -312,4 +312,46 @@ void main() {
 
     expect(stylesXml, contains('dd/mm/yyyy hh:mm'));
   });
+
+  test('invalid calendar dates stay as text instead of rolling over', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Fecha'],
+      rows: const [
+        ['31/02/2026 14:35'],
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    expect(readSharedStrings(archive), contains('31/02/2026 14:35'));
+  });
+
+  test('very large square images are bounded before embedding', () async {
+    final huge = img.Image(width: 3000, height: 3000);
+    img.fill(huge, color: img.ColorRgb8(12, 120, 220));
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Foto'],
+      rows: const [
+        [''],
+      ],
+      embeddedPhotos: [
+        EmbeddedPhoto(
+          rowIndex: 0,
+          colIndex: 0,
+          bytes: Uint8List.fromList(img.encodeJpg(huge, quality: 90)),
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final media = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/').startsWith('xl/media/'),
+    );
+    final decoded = img.decodeImage(Uint8List.fromList(
+      (media.content as List<int>).toList(growable: false),
+    ));
+
+    expect(decoded, isNotNull);
+    expect(decoded!.width <= 1280, isTrue);
+    expect(decoded.height <= 960, isTrue);
+  });
 }

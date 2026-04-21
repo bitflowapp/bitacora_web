@@ -829,15 +829,15 @@ Uint8List _prepareImageForOffice(
     final decoded = img.decodeImage(bytes);
     if (decoded == null) return bytes;
     final oriented = img.bakeOrientation(decoded);
-    final tooWide = oriented.width > maxWidth;
-    final tooTall = oriented.height > maxHeight;
-    final normalized = (tooWide || tooTall)
+    final scale = math.min(
+      maxWidth / oriented.width,
+      maxHeight / oriented.height,
+    );
+    final normalized = scale < 1
         ? img.copyResize(
             oriented,
-            width:
-                tooWide && oriented.width >= oriented.height ? maxWidth : null,
-            height:
-                tooTall && oriented.height > oriented.width ? maxHeight : null,
+            width: math.max(1, (oriented.width * scale).round()),
+            height: math.max(1, (oriented.height * scale).round()),
             interpolation: img.Interpolation.average,
           )
         : oriented;
@@ -868,7 +868,11 @@ DateTime? _tryParseExportDate(String value) {
   if (day == null || month == null || year == null) return null;
   if (year < 100) year += 2000;
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return DateTime(year, month, day, hour, minute, second);
+  final parsed = DateTime(year, month, day, hour, minute, second);
+  if (parsed.year != year || parsed.month != month || parsed.day != day) {
+    return null;
+  }
+  return parsed;
 }
 
 void _styleDateCell(xlsio.Range cell) {
