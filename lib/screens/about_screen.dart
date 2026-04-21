@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import '../services/app_update_service.dart';
 import '../services/build_info.dart';
 import '../services/force_update_service.dart';
 import '../services/sheet_store.dart';
+import '../ui/ui.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -160,7 +162,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
     final localVersion = _lastCheck?.localVersion ?? '...';
     final localBuild = _lastCheck?.localBuildNumber ?? '...';
     final localBuildId = _lastCheck?.localBuildId ?? BuildInfo.buildIdLabel;
@@ -168,139 +170,132 @@ class _AboutScreenState extends State<AboutScreen> {
     final remoteBuildId = _lastCheck?.remoteBuildId ?? '';
     final updateAvailable = _lastCheck?.updateAvailable ?? false;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text(AboutScreen.routeTitle)),
+    return AppShell(
+      title: AboutScreen.routeTitle,
+      subtitle: 'Version, soporte y diagnostico de Bit Flow.',
+      leading: const _BackControl(),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
-          Text(
-            'BitFlow',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
+          AppCard(
+            padding: EdgeInsets.all(t.spacing.lg),
+            color: t.colors.surfaceElevated,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: t.colors.accentMuted,
+                    borderRadius: BorderRadius.circular(t.radii.lg),
+                  ),
+                  child: Icon(
+                    Icons.grid_view_rounded,
+                    color: t.colors.accent,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(height: t.spacing.md),
+                Text(
+                  'Bit Flow',
+                  style: t.text.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                SizedBox(height: t.spacing.xs),
+                Text(
+                  'Planillas tecnicas con foco en rapidez, claridad y confiabilidad.',
+                  style: t.text.bodyLarge?.copyWith(
+                    color: t.colors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Planillas tecnicas con foco en rapidez, claridad y confiabilidad.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _InfoRow(label: 'Version', value: localVersion),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'Build', value: localBuild),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'BuildId', value: localBuildId),
-                  const SizedBox(height: 10),
-                  _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    label: 'Hoja',
-                    value:
-                        (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
-                  ),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    label: 'Filas/Cols',
-                    value:
-                        '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
-                  ),
-                  if (remoteVersion.isNotEmpty || remoteBuildId.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Divider(
-                      height: 1,
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.14,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (remoteVersion.isNotEmpty)
-                      _InfoRow(label: 'Remota', value: remoteVersion),
-                    if (remoteVersion.isNotEmpty && remoteBuildId.isNotEmpty)
-                      const SizedBox(height: 10),
-                    if (remoteBuildId.isNotEmpty)
-                      _InfoRow(label: 'BuildId remoto', value: remoteBuildId),
-                  ],
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _checking ? null : _checkForUpdates,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.12),
-                          foregroundColor: theme.colorScheme.onSurface,
-                        ),
-                        icon: _checking
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.sync_rounded),
-                        label: Text(
-                          _checking ? 'Buscando...' : 'Buscar actualizaciones',
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: updateAvailable ? _applyUpdate : null,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.24,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(Icons.system_update_rounded),
-                        label: const Text('Actualizar'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _copyDiagnostics,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.24,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(Icons.content_copy_rounded),
-                        label: const Text('Copiar diagnostico'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    updateAvailable
-                        ? 'Actualizacion disponible.'
-                        : 'Sin actualizaciones pendientes.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.74,
-                      ),
-                      fontWeight:
-                          updateAvailable ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
+          SizedBox(height: t.spacing.md),
+          AppCard(
+            padding: EdgeInsets.all(t.spacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _InfoRow(label: 'Version', value: localVersion),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'Build', value: localBuild),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'BuildId', value: localBuildId),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(
+                  label: 'Hoja',
+                  value:
+                      (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
+                ),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(
+                  label: 'Filas/Cols',
+                  value:
+                      '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
+                ),
+                if (remoteVersion.isNotEmpty || remoteBuildId.isNotEmpty) ...[
+                  SizedBox(height: t.spacing.md),
+                  Divider(height: 1, color: t.colors.border),
+                  SizedBox(height: t.spacing.sm),
+                  if (remoteVersion.isNotEmpty)
+                    _InfoRow(label: 'Remota', value: remoteVersion),
+                  if (remoteVersion.isNotEmpty && remoteBuildId.isNotEmpty)
+                    SizedBox(height: t.spacing.sm),
+                  if (remoteBuildId.isNotEmpty)
+                    _InfoRow(label: 'BuildId remoto', value: remoteBuildId),
                 ],
-              ),
+                SizedBox(height: t.spacing.md),
+                Wrap(
+                  spacing: t.spacing.sm,
+                  runSpacing: t.spacing.sm,
+                  children: [
+                    AppButton(
+                      label:
+                          _checking ? 'Buscando...' : 'Buscar actualizaciones',
+                      icon: Icons.sync_rounded,
+                      loading: _checking,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _checking ? null : _checkForUpdates,
+                    ),
+                    AppButton(
+                      label: 'Actualizar',
+                      icon: Icons.system_update_rounded,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: updateAvailable ? _applyUpdate : null,
+                    ),
+                    AppButton(
+                      label: 'Copiar diagnostico',
+                      icon: Icons.content_copy_rounded,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: _copyDiagnostics,
+                    ),
+                  ],
+                ),
+                SizedBox(height: t.spacing.sm),
+                Text(
+                  updateAvailable
+                      ? 'Actualizacion disponible.'
+                      : 'Sin actualizaciones pendientes.',
+                  style: t.text.bodySmall?.copyWith(
+                    color: updateAvailable
+                        ? t.colors.accent
+                        : t.colors.textSecondary,
+                    fontWeight:
+                        updateAvailable ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          Card(
+          SizedBox(height: t.spacing.md),
+          AppCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
                 ListTile(
@@ -334,7 +329,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 ),
                 const Divider(height: 1),
                 const Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(18),
                   child: _InfoRow(
                     label: 'Contacto',
                     value: 'soporte@bitflow.app',
@@ -343,12 +338,9 @@ class _AboutScreenState extends State<AboutScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('Licencias'),
-            subtitle: const Text('Ver licencias de terceros'),
+          SizedBox(height: t.spacing.sm),
+          AppCard(
+            padding: EdgeInsets.zero,
             onTap: () {
               showLicensePage(
                 context: context,
@@ -356,6 +348,11 @@ class _AboutScreenState extends State<AboutScreen> {
                 applicationVersion: BuildInfo.stamp,
               );
             },
+            child: const ListTile(
+              leading: Icon(Icons.description_outlined),
+              title: Text('Licencias'),
+              subtitle: Text('Ver licencias de terceros'),
+            ),
           ),
         ],
       ),
@@ -371,7 +368,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -379,20 +376,34 @@ class _InfoRow extends StatelessWidget {
           width: 122,
           child: Text(
             label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            style: t.text.labelLarge?.copyWith(
+              color: t.colors.textSecondary,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+            style: t.text.bodyMedium?.copyWith(
+              color: t.colors.textPrimary,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BackControl extends StatelessWidget {
+  const _BackControl();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Navigator.of(context).canPop()) return const SizedBox.shrink();
+    return CupertinoNavigationBarBackButton(
+      onPressed: () => Navigator.of(context).maybePop(),
     );
   }
 }

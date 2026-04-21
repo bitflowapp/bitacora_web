@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
+import '../ui/ui.dart';
 
 const bool _kRequireLicense = bool.fromEnvironment(
   'BITFLOW_REQUIRE_LICENSE',
@@ -193,79 +194,100 @@ class _LicenseGateState extends State<_LicenseGate> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
     return Scaffold(
+      backgroundColor: t.colors.bg,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
-            child: Card(
-              margin: const EdgeInsets.all(24),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
+            child: Padding(
+              padding: EdgeInsets.all(t.spacing.lg),
+              child: AppCard(
+                padding: EdgeInsets.all(t.spacing.xl),
+                radius: t.radii.xl,
+                color: t.colors.surfaceElevated,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: t.colors.accentMuted,
+                        borderRadius: BorderRadius.circular(t.radii.lg),
+                      ),
+                      child: Icon(
+                        Icons.verified_user_outlined,
+                        color: t.colors.accent,
+                      ),
+                    ),
+                    SizedBox(height: t.spacing.md),
                     Text(
                       'Activar Bit Flow',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
+                      style: t.text.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: t.spacing.xs),
                     Text(
                       'Ingresa la clave provista para este equipo. La activacion queda guardada localmente.',
-                      style: theme.textTheme.bodyMedium,
+                      style: t.text.bodyMedium?.copyWith(
+                        color: t.colors.textSecondary,
+                        height: 1.35,
+                      ),
                     ),
-                    const SizedBox(height: 18),
-                    TextField(
+                    SizedBox(height: t.spacing.lg),
+                    AppTextField(
                       controller: _controller,
                       enabled: !_submitting && !widget.expectedKeyMissing,
+                      label: 'Clave de licencia',
+                      hint: 'bitflow-...',
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Clave de licencia',
-                        border: OutlineInputBorder(),
-                      ),
+                      autofocus: true,
+                      textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _submit(),
                     ),
                     if (_message.trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: t.spacing.sm),
                       Text(
                         _message,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.dangerFg,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                     if (widget.restoreWarning.trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: t.spacing.sm),
                       Text(
                         'Aviso tecnico: ${widget.restoreWarning}',
-                        style: theme.textTheme.bodySmall,
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.textSecondary,
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 18),
-                    Row(
+                    SizedBox(height: t.spacing.lg),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: _submitting ? null : _submit,
-                            child: _submitting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Activar'),
-                          ),
+                        AppButton(
+                          label: 'Activar',
+                          icon: Icons.lock_open_rounded,
+                          loading: _submitting,
+                          fullWidth: true,
+                          onPressed: _submitting ? null : _submit,
                         ),
-                        const SizedBox(width: 10),
-                        TextButton(
-                          onPressed: _submitting ? null : widget.onRetry,
-                          child: const Text('Reintentar'),
+                        SizedBox(height: t.spacing.sm),
+                        Align(
+                          alignment: Alignment.center,
+                          child: AppButton(
+                            label: 'Reintentar',
+                            variant: AppButtonVariant.ghost,
+                            onPressed: _submitting ? null : widget.onRetry,
+                          ),
                         ),
                       ],
                     ),

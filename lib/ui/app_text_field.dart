@@ -11,8 +11,11 @@ class AppTextField extends StatefulWidget {
     this.hint,
     this.errorText,
     this.onChanged,
+    this.onSubmitted,
     this.enabled = true,
+    this.autofocus = false,
     this.maxLines = 1,
+    this.textInputAction,
     this.keyboardType,
     this.obscureText = false,
   });
@@ -23,8 +26,11 @@ class AppTextField extends StatefulWidget {
   final String? hint;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final bool enabled;
+  final bool autofocus;
   final int maxLines;
+  final TextInputAction? textInputAction;
   final TextInputType? keyboardType;
   final bool obscureText;
 
@@ -118,8 +124,11 @@ class _AppTextFieldState extends State<AppTextField> {
             controller: widget.controller,
             focusNode: _effectiveFocusNode,
             onChanged: widget.onChanged,
+            onSubmitted: widget.onSubmitted,
             enabled: widget.enabled,
+            autofocus: widget.autofocus,
             maxLines: widget.maxLines,
+            textInputAction: widget.textInputAction,
             keyboardType: widget.keyboardType,
             obscureText: widget.obscureText,
             decoration: InputDecoration(
