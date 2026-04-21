@@ -13,6 +13,7 @@ import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
+import 'screens/xlsx_demo_screen.dart';
 import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
@@ -387,6 +388,10 @@ class _AppState extends State<App> {
             onToggleTheme: _toggleTheme,
             firebaseOk: status.firebaseOk,
           ),
+        ),
+        GoRoute(
+          path: '/demo',
+          builder: (context, state) => const XlsxDemoScreen(),
         ),
         GoRoute(
           path: '/perf',
