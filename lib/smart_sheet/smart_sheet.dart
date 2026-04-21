@@ -1,5 +1,6 @@
 // lib/smart_sheet/smart_sheet.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
@@ -172,6 +173,99 @@ class _SmartSheetState extends State<SmartSheet> {
     );
   }
 
+  Future<void> pasteFromClipboard() async {
+    try {
+      final data = await Clipboard.getData('text/plain');
+      final raw = data?.text ?? '';
+      final parsed = _parseClipboardTable(raw);
+      if (parsed.isEmpty) {
+        _showPasteSnack('Formato no válido', isError: true);
+        return;
+      }
+
+      final insertAt = _selectedRow >= 0 && _selectedRow < _rows.length
+          ? _selectedRow + 1
+          : _rows.length;
+
+      setState(() {
+        _rows.insertAll(insertAt, parsed);
+        _selectedRow = insertAt;
+        _dataSource.updateRows(_rows);
+        _computeTotals();
+      });
+
+      _showPasteSnack('Tabla pegada (${parsed.length} filas)');
+    } catch (e) {
+      debugPrint('[SmartSheet] pasteFromClipboard failed: $e');
+      _showPasteSnack('Formato no válido', isError: true);
+    }
+  }
+
+  List<List<dynamic>> _parseClipboardTable(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = normalized
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList(growable: false);
+    if (lines.isEmpty || _headers.isEmpty) return const <List<dynamic>>[];
+
+    final separator = normalized.contains('\t') ? '\t' : ',';
+    final inputRows = lines
+        .map((line) => line.split(separator).map((v) => v.trim()).toList())
+        .where((row) => row.any((cell) => cell.trim().isNotEmpty))
+        .toList(growable: true);
+    if (inputRows.isEmpty) return const <List<dynamic>>[];
+
+    if (_firstRowMatchesHeaders(inputRows.first)) {
+      inputRows.removeAt(0);
+    }
+    if (inputRows.isEmpty) return const <List<dynamic>>[];
+
+    return inputRows.map(_mapClipboardRow).toList(growable: false);
+  }
+
+  bool _firstRowMatchesHeaders(List<String> row) {
+    if (row.isEmpty) return false;
+    final width = math.min(row.length, _headers.length);
+    if (width == 0) return false;
+    for (var i = 0; i < width; i++) {
+      if (_normalizeHeader(row[i]) != _normalizeHeader(_headers[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _normalizeHeader(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  List<dynamic> _mapClipboardRow(List<String> source) {
+    final row = List<dynamic>.filled(_headers.length, '');
+    for (var c = 0; c < _headers.length; c++) {
+      final value = c < source.length ? source[c].trim() : '';
+      if (value.isEmpty) {
+        row[c] = '';
+        continue;
+      }
+      if (Validators.isNumericColumn(_headers[c], c)) {
+        row[c] = double.tryParse(value.replaceAll(',', '.')) ?? value;
+      } else {
+        row[c] = value;
+      }
+    }
+    return row;
+  }
+
+  void _showPasteSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFB91C1C) : null,
+      ),
+    );
+  }
+
   Widget _buildTotalsRow(GridnoteTableStyle t) {
     final cells = <Widget>[];
 
@@ -247,6 +341,11 @@ class _SmartSheetState extends State<SmartSheet> {
             onPressed: _clearAll,
             icon: const Icon(Icons.delete_sweep_outlined),
           ),
+          IconButton(
+            tooltip: 'Pegar tabla (Ctrl+V)',
+            onPressed: () => unawaited(pasteFromClipboard()),
+            icon: const Icon(Icons.content_paste_go_outlined),
+          ),
           const Spacer(),
           IconButton(
             tooltip: 'Exportar XLSX (Ctrl+E)',
@@ -269,6 +368,10 @@ class _SmartSheetState extends State<SmartSheet> {
             const _ClearAllIntent(),
         LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyE):
             const _ExportIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
+            const _PasteTableIntent(),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyV):
+            const _PasteTableIntent(),
       };
 
   Map<Type, Action<Intent>> get _actions => {
@@ -290,6 +393,10 @@ class _SmartSheetState extends State<SmartSheet> {
         }),
         _ExportIntent: CallbackAction<_ExportIntent>(onInvoke: (_) {
           unawaited(_export());
+          return null;
+        }),
+        _PasteTableIntent: CallbackAction<_PasteTableIntent>(onInvoke: (_) {
+          unawaited(pasteFromClipboard());
           return null;
         }),
       };
@@ -465,4 +572,8 @@ class _ClearAllIntent extends Intent {
 
 class _ExportIntent extends Intent {
   const _ExportIntent();
+}
+
+class _PasteTableIntent extends Intent {
+  const _PasteTableIntent();
 }

@@ -74,8 +74,25 @@ class PhotoStorageServiceImpl implements PhotoStorageService {
     if (lower.endsWith('.png')) return '.png';
     if (lower.endsWith('.webp')) return '.webp';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return '.jpg';
+    if (lower.endsWith('.mp4')) return '.mp4';
+    if (lower.endsWith('.mov')) return '.mov';
+    if (lower.endsWith('.webm')) return '.webm';
+    if (lower.endsWith('.m4v')) return '.m4v';
+    if (lower.endsWith('.mpeg') || lower.endsWith('.mpg')) return '.mpeg';
+    if (lower.endsWith('.pdf')) return '.pdf';
+    if (lower.endsWith('.txt')) return '.txt';
+    if (lower.endsWith('.csv')) return '.csv';
+    if (lower.endsWith('.zip')) return '.zip';
     if (mime.contains('png')) return '.png';
     if (mime.contains('webp')) return '.webp';
+    if (mime.contains('mp4')) return '.mp4';
+    if (mime.contains('quicktime')) return '.mov';
+    if (mime.contains('webm')) return '.webm';
+    if (mime.contains('mpeg')) return '.mpeg';
+    if (mime.contains('pdf')) return '.pdf';
+    if (mime.contains('text/plain')) return '.txt';
+    if (mime.contains('csv')) return '.csv';
+    if (mime.contains('zip')) return '.zip';
     return '.jpg';
   }
 }

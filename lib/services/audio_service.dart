@@ -29,5 +29,10 @@ abstract class AudioService {
   Future<void> startRecording({required String sheetId});
   Future<RecordedAudio?> stopRecording();
 
+  Future<void> startAudioRecording({required String sheetId}) =>
+      startRecording(sheetId: sheetId);
+
+  Future<RecordedAudio?> stopAudioRecording() => stopRecording();
+
   Future<void> dispose();
 }

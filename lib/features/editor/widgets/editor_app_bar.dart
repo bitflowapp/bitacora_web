@@ -390,7 +390,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             AppleToolbarItem(
                               icon: Icons.videocam_outlined,
-                              label: 'Video',
+                              label: 'Grabar video',
                               onTap: onVideo,
                             ),
                             AppleToolbarItem(

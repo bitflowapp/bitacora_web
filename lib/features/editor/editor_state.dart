@@ -241,6 +241,7 @@ class _EditorScreenState extends State<EditorScreen>
   final AudioPlayer _audioPlayer = AudioPlayer();
   StreamSubscription<void>? _audioCompleteSub;
   CellRef? _recordingAudioCellRef;
+  XFile? _pendingRecordedVideo;
   bool _audioRecording = false;
   String? _playingAudioId;
   Timer? _kbEnsureDebounceT;
@@ -11081,7 +11082,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.videocam_outlined,
-        label: 'Video',
+        label: 'Grabar video',
         onTap: () => unawaited(_attachVideoForCell(r, c)),
       ),
       _MobileAction(
@@ -11260,7 +11261,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('Adjuntar video'),
+                  title: const Text('Grabar video'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachVideoForCell(row, _mobileCol));
@@ -12918,7 +12919,7 @@ class _EditorScreenState extends State<EditorScreen>
         _CtxAction(
           'Pegar',
           Icons.paste_rounded,
-          () => unawaited(_pasteFromClipboard()),
+          () => unawaited(pasteFromClipboard()),
         ),
       );
       actions.add(
@@ -15138,7 +15139,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Future<void> _pasteFromClipboard() async {
+  Future<void> pasteFromClipboard() async {
     await _pasteTableSmartFromClipboard(emitFeedback: true);
   }
 

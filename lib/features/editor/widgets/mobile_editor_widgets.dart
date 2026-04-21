@@ -905,7 +905,7 @@ class _MobileQuickActionsBar extends StatelessWidget {
               const SizedBox(width: 8),
               AppleButton(
                 icon: Icons.videocam_outlined,
-                label: 'Video',
+                label: 'Grabar video',
                 dense: true,
                 onPressed: onVideo,
                 variant: AppleButtonVariant.tonal,

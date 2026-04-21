@@ -46,6 +46,13 @@ class AudioServiceImpl implements AudioService {
   }
 
   @override
+  Future<void> startAudioRecording({required String sheetId}) =>
+      startRecording(sheetId: sheetId);
+
+  @override
+  Future<RecordedAudio?> stopAudioRecording() => stopRecording();
+
+  @override
   Future<void> startRecording({required String sheetId}) async {
     if (_recording) return;
 

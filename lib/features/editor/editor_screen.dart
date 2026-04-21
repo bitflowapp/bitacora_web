@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
+import 'package:image_picker/image_picker.dart' as image_picker;
 import 'package:image/image.dart' as img;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pdf/pdf.dart';

@@ -33,57 +33,84 @@ class AudioServiceImpl implements AudioService {
   Future<bool> hasPermission() => _recorder.hasPermission();
 
   @override
+  Future<void> startAudioRecording({required String sheetId}) =>
+      startRecording(sheetId: sheetId);
+
+  @override
+  Future<RecordedAudio?> stopAudioRecording() => stopRecording();
+
+  @override
   Future<void> startRecording({required String sheetId}) async {
     if (_recording) return;
 
-    final allowed = await hasPermission();
-    if (!allowed) {
-      throw Exception('Microphone permission denied.');
+    try {
+      final allowed = await hasPermission();
+      if (!allowed) {
+        throw Exception('Microphone permission denied.');
+      }
+
+      final dir = await getApplicationDocumentsDirectory();
+      final safeSheet = _sanitize(sheetId);
+      final folder = Directory(p.join(dir.path, 'bitflow_audio', safeSheet));
+      if (!await folder.exists()) {
+        await folder.create(recursive: true);
+      }
+
+      final now = DateTime.now();
+      final stamp =
+          '${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}${_two(now.second)}';
+      final rand = Random().nextInt(9999).toString().padLeft(4, '0');
+
+      var encoder = AudioEncoder.aacLc;
+      var ext = '.m4a';
+      var mime = 'audio/m4a';
+      final aacSupported = await _recorder.isEncoderSupported(encoder);
+      if (!aacSupported) {
+        encoder = AudioEncoder.wav;
+        ext = '.wav';
+        mime = 'audio/wav';
+      }
+
+      final name = 'audio_${stamp}_$rand$ext';
+      final path = p.join(folder.path, name);
+
+      await _recorder.start(
+        RecordConfig(
+          encoder: encoder,
+          bitRate: encoder == AudioEncoder.wav ? 256000 : 128000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+
+      _recording = true;
+      _startedAt = DateTime.now();
+      _currentPath = path;
+      _currentName = name;
+      _currentMime = mime;
+      debugPrint('[AudioService] recording_started path=$path mime=$mime');
+    } catch (e, st) {
+      _recording = false;
+      _startedAt = null;
+      _currentPath = null;
+      _currentName = null;
+      debugPrint('[AudioService] startRecording failed: $e\n$st');
+      rethrow;
     }
-
-    final dir = await getApplicationDocumentsDirectory();
-    final safeSheet = _sanitize(sheetId);
-    final folder = Directory(p.join(dir.path, 'bitflow_audio', safeSheet));
-    if (!folder.existsSync()) {
-      folder.createSync(recursive: true);
-    }
-
-    final now = DateTime.now();
-    final stamp =
-        '${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}${_two(now.second)}';
-    final rand = Random().nextInt(9999).toString().padLeft(4, '0');
-
-    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS;
-
-    final encoder = isDesktop ? AudioEncoder.wav : AudioEncoder.aacLc;
-    final ext = isDesktop ? '.wav' : '.m4a';
-    final mime = isDesktop ? 'audio/wav' : 'audio/m4a';
-
-    final name = 'audio_${stamp}_$rand$ext';
-    final path = p.join(folder.path, name);
-
-    await _recorder.start(
-      RecordConfig(
-        encoder: encoder,
-        bitRate: isDesktop ? 256000 : 128000,
-        sampleRate: 44100,
-      ),
-      path: path,
-    );
-
-    _recording = true;
-    _startedAt = DateTime.now();
-    _currentPath = path;
-    _currentName = name;
-    _currentMime = mime;
   }
 
   @override
   Future<RecordedAudio?> stopRecording() async {
     if (!_recording) return null;
-    final path = await _recorder.stop();
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (e, st) {
+      _recording = false;
+      _startedAt = null;
+      debugPrint('[AudioService] stopRecording failed: $e\n$st');
+      return null;
+    }
     _recording = false;
 
     final started = _startedAt;
@@ -95,8 +122,22 @@ class AudioServiceImpl implements AudioService {
 
     if (resolved == null || resolved.isEmpty) return null;
 
+    final file = File(resolved);
+    if (!await file.exists()) {
+      debugPrint('[AudioService] recording_missing path=$resolved');
+      return null;
+    }
+    final size = await file.length();
+    if (size <= 0) {
+      debugPrint('[AudioService] recording_empty path=$resolved');
+      return null;
+    }
+
     final duration =
         started == null ? Duration.zero : DateTime.now().difference(started);
+    debugPrint(
+      '[AudioService] recording_stopped path=$resolved size=$size durationMs=${duration.inMilliseconds}',
+    );
 
     return RecordedAudio(
       fileName: name.isEmpty ? 'audio.m4a' : name,

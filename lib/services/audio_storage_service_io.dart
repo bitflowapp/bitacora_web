@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -46,7 +47,16 @@ class AudioStorageServiceImpl implements AudioStorageService {
         return null;
       }
 
-      final size = await File(filePath).length();
+      final saved = File(filePath);
+      if (!await saved.exists()) {
+        debugPrint('[AudioStorageService] save failed: missing $filePath');
+        return null;
+      }
+      final size = await saved.length();
+      if (size <= 0) {
+        debugPrint('[AudioStorageService] save failed: empty $filePath');
+        return null;
+      }
 
       return StoredAudio(
         storageKey: filePath,
@@ -54,7 +64,8 @@ class AudioStorageServiceImpl implements AudioStorageService {
         mime: recording.mime,
         bytesLength: size,
       );
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[AudioStorageService] saveRecording failed: $e\n$st');
       return null;
     }
   }

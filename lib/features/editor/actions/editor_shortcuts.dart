@@ -82,7 +82,7 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyV) {
-      unawaited(_pasteFromClipboard());
+      unawaited(pasteFromClipboard());
       return KeyEventResult.handled;
     }
 

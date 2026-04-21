@@ -8,6 +8,13 @@ class AudioServiceImpl implements AudioService {
   Future<bool> hasPermission() async => false;
 
   @override
+  Future<void> startAudioRecording({required String sheetId}) =>
+      startRecording(sheetId: sheetId);
+
+  @override
+  Future<RecordedAudio?> stopAudioRecording() => stopRecording();
+
+  @override
   Future<void> startRecording({required String sheetId}) async {
     throw UnsupportedError('Audio recording not supported on this platform.');
   }

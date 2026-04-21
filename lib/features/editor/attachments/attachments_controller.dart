@@ -1932,24 +1932,17 @@ extension _EditorAttachments on _EditorScreenState {
       return;
     }
 
-    final typeGroup = XTypeGroup(
-      label: 'Video',
-      mimeTypes: const <String>[
-        'video/mp4',
-        'video/quicktime',
-        'video/webm',
-        'video/x-m4v',
-        'video/mpeg',
-      ],
-      extensions: const <String>[
-        'mp4',
-        'mov',
-        'webm',
-        'm4v',
-        'mpeg',
-      ],
-    );
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    final videoPath = await recordVideo();
+    final xf = _pendingRecordedVideo;
+    _pendingRecordedVideo = null;
+    if (videoPath == null || xf == null) {
+      _showActionSnack(
+        'Grabacion de video cancelada.',
+        isError: true,
+        icon: Icons.videocam_off_rounded,
+      );
+      return;
+    }
     await _attachGenericFileToCell(
       ref,
       picked: xf,
@@ -1958,6 +1951,51 @@ extension _EditorAttachments on _EditorScreenState {
       icon: Icons.videocam_rounded,
       sourceLabel: 'video',
     );
+  }
+
+  Future<String?> recordVideo() async {
+    _pendingRecordedVideo = null;
+    try {
+      final picker = image_picker.ImagePicker();
+      final file = await picker.pickVideo(
+        source: image_picker.ImageSource.camera,
+        maxDuration: const Duration(minutes: 5),
+      );
+      if (file == null) {
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.video,
+          ok: false,
+          message: 'video_record_cancelled',
+        );
+        return null;
+      }
+
+      final size = await file.length();
+      if (size <= 0) {
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.video,
+          ok: false,
+          message: 'video_record_empty path=${file.path}',
+        );
+        return null;
+      }
+
+      _pendingRecordedVideo = file;
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.video,
+        ok: true,
+        message: 'video_recorded path=${file.path} size=$size',
+      );
+      return file.path;
+    } catch (e, st) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.video,
+        ok: false,
+        message: 'video_record_failed $e',
+      );
+      debugPrint('[Editor] recordVideo failed: $e\n$st');
+      return null;
+    }
   }
 
   Future<void> _attachDocumentForCell(int r, int c) async {
@@ -2756,7 +2794,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (!preflightOk) return;
 
     try {
-      await _audioService.startRecording(sheetId: widget.sheetId);
+      await _audioService.startAudioRecording(sheetId: widget.sheetId);
     } catch (e, st) {
       if (!mounted) return;
       final cause = _audioErrorCode(e);
@@ -2809,7 +2847,7 @@ extension _EditorAttachments on _EditorScreenState {
   Future<void> _stopAudioRecording() async {
     if (!_audioRecording) return;
     final target = _recordingAudioCellRef;
-    final recording = await _audioService.stopRecording();
+    final recording = await _audioService.stopAudioRecording();
     if (!mounted) return;
 
     _setEditorState(() {

@@ -8,34 +8,51 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 class Attachment {
   final String id;
+  final String type;
   final String name;
   final String mime;
+  final String path;
   final Uint8List bytes;
   final DateTime addedAt;
 
   const Attachment({
     required this.id,
+    this.type = 'image',
     required this.name,
     required this.mime,
+    this.path = '',
     required this.bytes,
     required this.addedAt,
   });
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'type': type,
         'name': name,
         'mime': mime,
+        if (path.trim().isNotEmpty) 'path': path.trim(),
         'b64': base64Encode(bytes),
         'ts': addedAt.toIso8601String(),
       };
 
   static Attachment fromJson(Map<String, dynamic> m) => Attachment(
         id: m['id'] as String,
+        type: (m['type'] ?? _typeFromMime((m['mime'] ?? '').toString()))
+            .toString(),
         name: m['name'] as String,
         mime: m['mime'] as String,
+        path: (m['path'] ?? '').toString(),
         bytes: Uint8List.fromList(base64Decode(m['b64'] as String)),
         addedAt: DateTime.tryParse(m['ts'] as String? ?? '') ?? DateTime.now(),
       );
+
+  static String _typeFromMime(String mime) {
+    final m = mime.toLowerCase().trim();
+    if (m.startsWith('audio/')) return 'audio';
+    if (m.startsWith('video/')) return 'video';
+    if (m.startsWith('image/')) return 'image';
+    return 'file';
+  }
 }
 
 class AttStore {
@@ -66,7 +83,7 @@ class AttStore {
     if (raw == null) return const [];
     return raw
         .cast<Map>()
-        .map((e) => Attachment.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map((e) => Attachment.fromJson(Map<String, dynamic>.from(e)))
         .toList(growable: false);
   }
 
