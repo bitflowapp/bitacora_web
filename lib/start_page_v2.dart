@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'design_system/colors.dart';
+import 'design_system/spacing.dart';
+import 'design_system/typography.dart';
 import 'screens/about_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/editor_screen.dart';
@@ -800,7 +803,7 @@ class _StartPageV2State extends State<StartPageV2> {
   Future<void> _importData() async {
     if (_busy) return;
     final typeGroup = const XTypeGroup(
-      label: 'BitFlow Data',
+      label: 'Bit Flow Data',
       extensions: <String>['zip', 'json'],
     );
     final picked = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
@@ -975,7 +978,7 @@ class _StartPageV2State extends State<StartPageV2> {
         .trim()
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ');
-    return cleaned.isEmpty ? 'BitFlow' : cleaned;
+    return cleaned.isEmpty ? 'Bit Flow' : cleaned;
   }
 
   String get _contextMessage {
@@ -1325,21 +1328,16 @@ class _StartPalette {
 
   final bool isLight;
 
-  Color get background =>
-      isLight ? const Color(0xFFF4F0E8) : const Color(0xFF12110F);
-  Color get card => isLight ? const Color(0xFFFBF8F2) : const Color(0xFF1B1A17);
-  Color get sheetBg =>
-      isLight ? const Color(0xFFF5F1EA) : const Color(0xFF171512);
-  Color get border =>
-      isLight ? const Color(0x1A1A1712) : const Color(0x33F4EEE3);
-  Color get textPrimary =>
-      isLight ? const Color(0xFF181614) : const Color(0xFFF0ECE4);
+  Color get background => isLight ? AppColors.lightBg : AppColors.darkBg;
+  Color get card =>
+      isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
+  Color get sheetBg => isLight ? AppColors.lightBg : AppColors.darkSecondaryBg;
+  Color get border => isLight ? AppColors.lightDivider : AppColors.darkDivider;
+  Color get textPrimary => isLight ? AppColors.lightLabel : AppColors.darkLabel;
   Color get textSecondary =>
-      isLight ? const Color(0xFF6B655E) : const Color(0xFFB6AEA2);
-  Color get accent =>
-      isLight ? const Color(0xFF23201B) : const Color(0xFFEAE1D6);
-  Color get accentSoft =>
-      isLight ? const Color(0xFFEDE7DC) : const Color(0xFF2A2723);
+      isLight ? AppColors.lightSecondaryLabel : AppColors.darkSecondaryLabel;
+  Color get accent => isLight ? AppColors.accentBlue : AppColors.accentBlueDark;
+  Color get accentSoft => accent.withValues(alpha: isLight ? 0.12 : 0.18);
 }
 
 class _Header extends StatelessWidget {
@@ -1362,10 +1360,10 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: palette.card,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppSpacing.xl),
         border: Border.all(color: palette.border),
       ),
       child: Row(
@@ -1375,7 +1373,7 @@ class _Header extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: palette.accentSoft,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppSpacing.md),
               border: Border.all(color: palette.border),
             ),
             alignment: Alignment.center,
@@ -1384,23 +1382,21 @@ class _Header extends StatelessWidget {
               style: TextStyle(
                 color: palette.textPrimary,
                 fontWeight: FontWeight.w800,
-                fontFamily: 'SF Pro Text',
+                letterSpacing: -0.2,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'BitFlow',
-                  style: TextStyle(
+                  'Bit Flow',
+                  style: AppTypography.headline.copyWith(
                     color: palette.textPrimary,
                     fontWeight: FontWeight.w800,
-                    fontSize: 18,
                     letterSpacing: -0.2,
-                    fontFamily: 'SF Pro Text',
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1409,26 +1405,22 @@ class _Header extends StatelessWidget {
                   child: Text(
                     message,
                     key: ValueKey<String>(message),
-                    style: TextStyle(
+                    style: AppTypography.subheadline.copyWith(
                       color: palette.textPrimary,
-                      fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'SF Pro Text',
                     ),
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: AppTypography.caption1.copyWith(
                     color: palette.textSecondary,
-                    fontSize: 12,
-                    fontFamily: 'SF Pro Text',
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.lg),
           Wrap(
             spacing: 8,
             children: [

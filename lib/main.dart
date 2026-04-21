@@ -556,7 +556,7 @@ class _BootSplash extends StatelessWidget {
                           height: 38,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            color: cs.primary.withOpacity(0.14),
+                            color: cs.primary.withValues(alpha: 0.14),
                           ),
                           child: Icon(
                             Icons.grid_view_rounded,
@@ -584,7 +584,7 @@ class _BootSplash extends StatelessWidget {
                     Text(
                       subtitle,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurface.withOpacity(0.78),
+                        color: cs.onSurface.withValues(alpha: 0.78),
                         height: 1.2,
                       ),
                     ),
@@ -609,7 +609,7 @@ class _BootSplash extends StatelessWidget {
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontFamily: 'monospace',
                             height: 1.2,
-                            color: cs.onSurface.withOpacity(0.78),
+                            color: cs.onSurface.withValues(alpha: 0.78),
                           ),
                         ),
                       ),
@@ -628,7 +628,7 @@ class _BootSplash extends StatelessWidget {
                           Icon(
                             Icons.warning_amber_rounded,
                             size: 18,
-                            color: cs.onSurface.withOpacity(0.7),
+                            color: cs.onSurface.withValues(alpha: 0.7),
                           ),
                           const SizedBox(width: 10),
                         ],
@@ -638,7 +638,7 @@ class _BootSplash extends StatelessWidget {
                                 ? 'Inicializando en segundo plano.'
                                 : 'Sin spinner infinito: puedes reintentar sin recargar.',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurface.withOpacity(0.7),
+                              color: cs.onSurface.withValues(alpha: 0.7),
                               height: 1.25,
                             ),
                           ),
@@ -699,10 +699,10 @@ class _PillButton extends StatelessWidget {
       elevation: WidgetStateProperty.all(0),
       backgroundColor: outlined
           ? WidgetStateProperty.all(Colors.transparent)
-          : WidgetStateProperty.all(cs.primary.withOpacity(0.14)),
+          : WidgetStateProperty.all(cs.primary.withValues(alpha: 0.14)),
       foregroundColor:
           WidgetStateProperty.all(outlined ? cs.onSurface : cs.primary),
-      overlayColor: WidgetStateProperty.all(cs.primary.withOpacity(0.10)),
+      overlayColor: WidgetStateProperty.all(cs.primary.withValues(alpha: 0.10)),
     );
 
     return TextButton(
@@ -736,9 +736,11 @@ class _TopNotice extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: cs.surface.withOpacity(0.92),
+                color: cs.surface.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+                border: Border.all(
+                  color: theme.dividerColor.withValues(alpha: 0.5),
+                ),
                 boxShadow: const [
                   BoxShadow(
                     blurRadius: 16,
