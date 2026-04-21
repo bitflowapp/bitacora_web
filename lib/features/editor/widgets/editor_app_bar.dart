@@ -776,7 +776,7 @@ class _DesktopBottomToolbar extends StatelessWidget {
             tileMode: TileMode.decal,
           ),
           child: Container(
-            minHeight: 58,
+            constraints: const BoxConstraints(minHeight: 58),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: palette.headerCardBg,
