@@ -1,13 +1,70 @@
 // lib/services/sheet_store_web.dart
-// Unified SheetStore (web) using SharedPreferences and the BitFlow model.
+// SheetStore - IndexedDB (Hive) primary storage, SharedPreferences read-fallback.
 // Primary key: bitflow:sheet:<id> (JSON compatible with EditorScreen _SheetModel).
 // Legacy fallback: sheet:<id> (TableState) + sheet:<id>:title.
 
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/table_state.dart';
+
+/// Synchronous key-value store backed by a Hive Box (IndexedDB on web).
+/// On init it migrates any SharedPreferences sheet keys to Hive once.
+class _HiveKv {
+  _HiveKv(this._box);
+
+  final Box<dynamic> _box;
+
+  static const String _boxName = 'bitflow_sheets';
+  static const String _migratedKey = '__sp_migrated_v1';
+
+  static Future<_HiveKv> open(SharedPreferences sp) async {
+    try {
+      await Hive.initFlutter();
+    } catch (_) {
+      // Hive init is process-wide; repeated calls can throw on some platforms.
+    }
+    if (!Hive.isBoxOpen(_boxName)) {
+      await Hive.openBox<dynamic>(_boxName);
+    }
+    final box = Hive.box<dynamic>(_boxName);
+    final kv = _HiveKv(box);
+    if (box.get(_migratedKey) != true) {
+      await kv._migrateFrom(sp);
+      await box.put(_migratedKey, true);
+    }
+    return kv;
+  }
+
+  Future<void> _migrateFrom(SharedPreferences sp) async {
+    for (final key in sp.getKeys()) {
+      if (key.startsWith('bitflow:sheet:') ||
+          key.startsWith('sheet:') ||
+          key == 'sheets:index') {
+        final v = sp.getString(key);
+        if (v != null) await _box.put(key, v);
+      }
+    }
+  }
+
+  String? getString(String key) {
+    final v = _box.get(key);
+    return v is String ? v : null;
+  }
+
+  void setString(String key, String value) {
+    unawaited(_box.put(key, value));
+  }
+
+  void remove(String key) {
+    unawaited(_box.delete(key));
+  }
+
+  Set<String> getKeys() => _box.keys.whereType<String>().toSet();
+}
 
 /// Metadata para listar planillas.
 class SheetMeta {
@@ -92,7 +149,7 @@ class _TemplateDefinition {
 }
 
 class SheetStore {
-  static SharedPreferences? _prefs;
+  static _HiveKv? _kv;
 
   static const String _sheetPrefix = 'bitflow:sheet:';
   static const String _backupMarker = ':bk:';
@@ -107,17 +164,18 @@ class SheetStore {
   static int _sheetIdSeed = 0;
 
   static Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    final sp = await SharedPreferences.getInstance();
+    _kv = await _HiveKv.open(sp);
   }
 
   static String _sheetKey(String id) => '$_sheetPrefix$id';
 
   static String? loadRaw(String id) {
-    final prefs = _prefs;
-    if (prefs == null) return null;
-    final raw = prefs.getString(_sheetKey(id));
+    final kv = _kv;
+    if (kv == null) return null;
+    final raw = kv.getString(_sheetKey(id));
     if (raw != null && raw.trim().isNotEmpty) return raw;
-    return prefs.getString('$_legacyPrefix$id');
+    return kv.getString('$_legacyPrefix$id');
   }
 
   /// Intenta devolver un TableState (desde nuevo JSON o legacy).
@@ -160,8 +218,8 @@ class SheetStore {
   /// Guarda estado simple (sin adjuntos) en el store nuevo.
   /// Preserva ids/metadata si ya existe un modelo previo.
   static void saveState(String id, TableState state) {
-    final prefs = _prefs;
-    if (prefs == null) return;
+    final kv = _kv;
+    if (kv == null) return;
 
     final fixed = TableState(
       headers: state.headers,
@@ -169,7 +227,7 @@ class SheetStore {
       savedAt: DateTime.now(),
     );
 
-    final existingRaw = prefs.getString(_sheetKey(id));
+    final existingRaw = kv.getString(_sheetKey(id));
     Map<String, dynamic>? existingMap;
     if (existingRaw != null && existingRaw.trim().isNotEmpty) {
       try {
@@ -222,14 +280,14 @@ class SheetStore {
       model['templateKind'] = templateKind;
     }
 
-    prefs.setString(_sheetKey(id), jsonEncode(model));
+    kv.setString(_sheetKey(id), jsonEncode(model));
   }
 
   /// Guarda un modelo completo (BitFlow JSON) ya normalizado.
   static void saveModel(String id, Map<String, dynamic> model) {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    prefs.setString(_sheetKey(id), jsonEncode(model));
+    final kv = _kv;
+    if (kv == null) return;
+    kv.setString(_sheetKey(id), jsonEncode(model));
   }
 
   /// Crea una planilla a partir de un modelo completo (BitFlow JSON).
@@ -334,23 +392,23 @@ class SheetStore {
   }
 
   static void rename(String id, String newTitle) {
-    final prefs = _prefs;
-    if (prefs == null) return;
+    final kv = _kv;
+    if (kv == null) return;
     final key = _sheetKey(id);
-    final raw = prefs.getString(key);
+    final raw = kv.getString(key);
     if (raw != null && raw.trim().isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
           decoded['name'] = newTitle.trim();
-          prefs.setString(key, jsonEncode(decoded));
+          kv.setString(key, jsonEncode(decoded));
           return;
         }
       } catch (_) {}
     }
 
     // Legacy fallback
-    prefs.setString('$_legacyPrefix$id$_legacyTitleSuffix', newTitle.trim());
+    kv.setString('$_legacyPrefix$id$_legacyTitleSuffix', newTitle.trim());
   }
 
   static String createNew() {
@@ -369,7 +427,7 @@ class SheetStore {
       'rows': rows,
     };
 
-    _prefs?.setString(_sheetKey(id), jsonEncode(model));
+    _kv?.setString(_sheetKey(id), jsonEncode(model));
     return id;
   }
 
@@ -394,30 +452,30 @@ class SheetStore {
   }
 
   static void delete(String id) {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    prefs.remove(_sheetKey(id));
+    final kv = _kv;
+    if (kv == null) return;
+    kv.remove(_sheetKey(id));
 
-    for (final key in prefs.getKeys()) {
+    for (final key in kv.getKeys()) {
       if (key.startsWith('$_sheetPrefix$id$_backupMarker')) {
-        prefs.remove(key);
+        kv.remove(key);
       }
     }
 
     // Legacy cleanup
-    prefs
+    kv
       ..remove('$_legacyPrefix$id')
       ..remove('$_legacyPrefix$id$_legacyTitleSuffix');
   }
 
   static List<SheetMeta> list() {
-    final prefs = _prefs;
-    if (prefs == null) return <SheetMeta>[];
+    final kv = _kv;
+    if (kv == null) return <SheetMeta>[];
 
     final ids = _collectIds();
     final out = <SheetMeta>[];
     for (final id in ids) {
-      final raw = prefs.getString(_sheetKey(id));
+      final raw = kv.getString(_sheetKey(id));
       if (raw != null && raw.trim().isNotEmpty) {
         final meta = _metaFromNewJson(id, raw);
         if (meta != null) out.add(meta);
@@ -425,10 +483,9 @@ class SheetStore {
       }
 
       // Legacy
-      final legacyRaw = prefs.getString('$_legacyPrefix$id');
+      final legacyRaw = kv.getString('$_legacyPrefix$id');
       if (legacyRaw == null || legacyRaw.trim().isEmpty) continue;
-      final legacyTitle =
-          prefs.getString('$_legacyPrefix$id$_legacyTitleSuffix');
+      final legacyTitle = kv.getString('$_legacyPrefix$id$_legacyTitleSuffix');
       final legacyMeta = _metaFromLegacy(
         id,
         legacyRaw,
@@ -444,10 +501,10 @@ class SheetStore {
   // ----------------- Helpers internos -----------------
 
   static List<String> _collectIds() {
-    final prefs = _prefs;
-    if (prefs == null) return <String>[];
+    final kv = _kv;
+    if (kv == null) return <String>[];
 
-    final keys = prefs.getKeys();
+    final keys = kv.getKeys();
     final ids = <String, bool>{};
 
     for (final key in keys) {
@@ -603,7 +660,7 @@ class SheetStore {
         'templateKind': templateKind.trim(),
     };
 
-    _prefs?.setString(_sheetKey(id), jsonEncode(model));
+    _kv?.setString(_sheetKey(id), jsonEncode(model));
     return id;
   }
 
@@ -702,12 +759,12 @@ class SheetStore {
   }
 
   static String _nextSheetId() {
-    final prefs = _prefs;
+    final kv = _kv;
     for (int attempt = 0; attempt < 64; attempt++) {
       final id = _sheetIdCandidate();
-      if (prefs == null) return id;
-      final hasNew = prefs.getString(_sheetKey(id)) != null;
-      final hasLegacy = prefs.getString('$_legacyPrefix$id') != null;
+      if (kv == null) return id;
+      final hasNew = kv.getString(_sheetKey(id)) != null;
+      final hasLegacy = kv.getString('$_legacyPrefix$id') != null;
       if (!hasNew && !hasLegacy) return id;
     }
     return _sheetIdCandidate();
