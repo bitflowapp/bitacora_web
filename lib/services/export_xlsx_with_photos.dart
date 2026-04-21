@@ -13,11 +13,18 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:image/image.dart' as img;
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 const String _kExportVersion = 'bitflow_xlsx_v2';
 const String _kAppVersion =
     String.fromEnvironment('APP_VERSION', defaultValue: '');
+const String _kInk = '#1D1D1F';
+const String _kMutedInk = '#6E6E73';
+const String _kSoftBlue = '#EAF3FF';
+const String _kSoftBlue2 = '#F5FAFF';
+const String _kLine = '#D7E3F0';
+const String _kLinkBlue = '#0563C1';
 
 class GpsExport {
   const GpsExport({
@@ -78,6 +85,7 @@ class AttachmentRow {
     required this.fileName,
     required this.notes,
     required this.relativePath,
+    this.linkTarget,
   });
 
   final String cellRef;
@@ -85,6 +93,13 @@ class AttachmentRow {
   final String fileName;
   final String notes;
   final String relativePath;
+  final String? linkTarget;
+
+  String get effectiveLinkTarget {
+    final explicit = linkTarget?.trim() ?? '';
+    if (explicit.isNotEmpty) return explicit;
+    return relativePath.trim();
+  }
 }
 
 /// Genera un XLSX con datos + fotos embebidas.
@@ -160,9 +175,12 @@ Future<Uint8List> buildXlsxWithPhotos({
     final styleName = 'HeaderStyle_${DateTime.now().microsecondsSinceEpoch}';
     final headerStyle = workbook.styles.add(styleName);
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.backColor = _kSoftBlue;
+    headerStyle.fontColor = _kInk;
+    headerStyle.fontSize = 11;
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
+    headerStyle.wrapText = true;
 
     // --------------------------
     // 1) Encabezados
@@ -203,6 +221,11 @@ Future<Uint8List> buildXlsxWithPhotos({
     final headerRange =
         sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
     headerRange.cellStyle = headerStyle;
+    sheet.showGridlines = false;
+    sheet.setRowHeightInPixels(headerRow, 32);
+    try {
+      sheet.getRangeByIndex(firstDataRow, 1).freezePanes();
+    } catch (_) {}
 
     // --------------------------
     // 2) Datos + fotos
@@ -222,7 +245,7 @@ Future<Uint8List> buildXlsxWithPhotos({
     final Map<int, List<EmbeddedPhoto>> embeddedByRow = {};
     final Set<int> embeddedCols = <int>{};
     if (useEmbedded) {
-      for (final item in embeddedPhotos!) {
+      for (final item in embeddedPhotos) {
         if (item.bytes.isEmpty) continue;
         if (item.rowIndex < 0 || item.colIndex < 0) continue;
         embeddedByRow
@@ -262,9 +285,9 @@ Future<Uint8List> buildXlsxWithPhotos({
               .getRangeByIndex(excelRow, gpsStartCol + 2)
               .setNumber(gps.accuracy ?? 0);
           if (gps.ts != null) {
-            sheet
-                .getRangeByIndex(excelRow, gpsStartCol + 3)
-                .setDateTime(gps.ts!);
+            final cell = sheet.getRangeByIndex(excelRow, gpsStartCol + 3);
+            cell.setDateTime(gps.ts!);
+            _styleDateCell(cell);
           }
           sheet
               .getRangeByIndex(excelRow, gpsStartCol + 4)
@@ -281,15 +304,20 @@ Future<Uint8List> buildXlsxWithPhotos({
             if (pic.colIndex < 0 || pic.colIndex >= textCols) continue;
             final col = textStartCol + pic.colIndex;
             try {
+              final imageBytes = _prepareImageForOffice(pic.bytes);
               final picture = sheet.pictures.addBase64(
                 excelRow,
                 col,
-                base64Encode(pic.bytes),
+                base64Encode(imageBytes),
               );
               picture.width = photoThumbW;
               picture.height = photoThumbH;
               embeddedCount++;
-            } catch (_) {}
+            } catch (_) {
+              sheet
+                  .getRangeByIndex(excelRow, col)
+                  .setText('Imagen no disponible');
+            }
           }
         }
       }
@@ -313,10 +341,11 @@ Future<Uint8List> buildXlsxWithPhotos({
             }
 
             try {
+              final imageBytes = _prepareImageForOffice(bytes);
               final picture = sheet.pictures.addBase64(
                 excelRow,
                 col,
-                base64Encode(bytes),
+                base64Encode(imageBytes),
               );
               picture.width = photoThumbW;
               picture.height = photoThumbH;
@@ -337,6 +366,16 @@ Future<Uint8List> buildXlsxWithPhotos({
     final int lastRow = rows.length + 1; // incluye headers
     final tableRange = sheet.getRangeByIndex(1, 1, lastRow, safeLastCol);
     tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    tableRange.cellStyle.borders.all.color = _kLine;
+    tableRange.cellStyle.vAlign = xlsio.VAlignType.center;
+    tableRange.cellStyle.wrapText = true;
+    if (rows.isNotEmpty) {
+      final bodyRange =
+          sheet.getRangeByIndex(firstDataRow, 1, lastRow, safeLastCol);
+      bodyRange.cellStyle.fontColor = _kInk;
+      bodyRange.cellStyle.fontSize = 10;
+      bodyRange.cellStyle.vAlign = xlsio.VAlignType.center;
+    }
 
     // --------------------------
     // 4) Anchos: autoFit con fallback seguro
@@ -497,7 +536,9 @@ int _buildFotosSheet(
     photosSheet.getRangeByIndex(row, 1).setNumber(item.rowIndex + 1);
     photosSheet.getRangeByIndex(row, 2).setNumber(item.colIndex + 1);
     photosSheet.getRangeByIndex(row, 3).setText('');
-    photosSheet.getRangeByIndex(row, 4).setText(item.addedAt.toIso8601String());
+    final addedAt = photosSheet.getRangeByIndex(row, 4);
+    addedAt.setDateTime(item.addedAt);
+    _styleDateCell(addedAt);
     if (item.lat != null) {
       photosSheet.getRangeByIndex(row, 5).setNumber(item.lat ?? 0);
     }
@@ -512,10 +553,16 @@ int _buildFotosSheet(
 
     if (bytes != null && bytes.isNotEmpty) {
       try {
+        final imageBytes = _prepareImageForOffice(
+          bytes,
+          maxWidth: 900,
+          maxHeight: 700,
+          quality: 78,
+        );
         final picture = photosSheet.pictures.addBase64(
           row,
           previewCol,
-          base64Encode(bytes),
+          base64Encode(imageBytes),
         );
         picture.width = 110;
         picture.height = 82;
@@ -532,15 +579,20 @@ int _buildFotosSheet(
   final lastPhotoCol = headers.length;
   final headerRange = photosSheet.getRangeByIndex(1, 1, 1, lastPhotoCol);
   headerRange.cellStyle.bold = true;
-  headerRange.cellStyle.backColor = '#F4F0E6';
+  headerRange.cellStyle.backColor = _kSoftBlue;
+  headerRange.cellStyle.fontColor = _kInk;
   headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
   headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
   headerRange.cellStyle.fontSize = 11;
+  headerRange.cellStyle.wrapText = true;
 
   if (photoMeta.isNotEmpty) {
     final bodyRange =
         photosSheet.getRangeByIndex(1, 1, lastPhotoRow, lastPhotoCol);
     bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    bodyRange.cellStyle.borders.all.color = _kLine;
+    bodyRange.cellStyle.vAlign = xlsio.VAlignType.center;
+    bodyRange.cellStyle.wrapText = true;
   }
 
   for (int c = 0; c < lastPhotoCol - 1; c++) {
@@ -561,7 +613,14 @@ void _buildAttachmentsSheet(
   final sheet = workbook.worksheets.addWithName('Attachments');
   sheet.showGridlines = false;
 
-  const headers = ['CellRef', 'Type', 'FileName', 'Notes', 'Path'];
+  const headers = [
+    'Celda',
+    'Tipo',
+    'Archivo',
+    'Notas',
+    'Abrir',
+    'Ruta',
+  ];
 
   for (int c = 0; c < headers.length; c++) {
     sheet.getRangeByIndex(1, c + 1).setText(headers[c]);
@@ -569,19 +628,33 @@ void _buildAttachmentsSheet(
 
   final headerRange = sheet.getRangeByIndex(1, 1, 1, headers.length);
   headerRange.cellStyle.bold = true;
-  headerRange.cellStyle.backColor = '#F4F0E6';
+  headerRange.cellStyle.backColor = _kSoftBlue;
+  headerRange.cellStyle.fontColor = _kInk;
   headerRange.cellStyle.hAlign = xlsio.HAlignType.center;
   headerRange.cellStyle.vAlign = xlsio.VAlignType.center;
   headerRange.cellStyle.fontSize = 11;
+  headerRange.cellStyle.wrapText = true;
 
   for (int i = 0; i < attachments.length; i++) {
     final row = i + 2;
     final item = attachments[i];
+    final target = item.effectiveLinkTarget;
     sheet.getRangeByIndex(row, 1).setText(item.cellRef);
-    sheet.getRangeByIndex(row, 2).setText(item.type);
+    sheet.getRangeByIndex(row, 2).setText(_attachmentTypeLabel(item.type));
     sheet.getRangeByIndex(row, 3).setText(item.fileName);
     sheet.getRangeByIndex(row, 4).setText(item.notes);
-    sheet.getRangeByIndex(row, 5).setText(item.relativePath);
+    final openCell = sheet.getRangeByIndex(row, 5);
+    if (target.isNotEmpty) {
+      _addFileHyperlink(
+        sheet,
+        openCell,
+        target,
+        displayText: _attachmentOpenLabel(item.type),
+      );
+    } else {
+      openCell.setText('');
+    }
+    sheet.getRangeByIndex(row, 6).setText(item.relativePath);
   }
 
   final lastRow = attachments.length + 1;
@@ -593,6 +666,9 @@ void _buildAttachmentsSheet(
       headers.length,
     );
     bodyRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    bodyRange.cellStyle.borders.all.color = _kLine;
+    bodyRange.cellStyle.vAlign = xlsio.VAlignType.center;
+    bodyRange.cellStyle.wrapText = true;
   }
 
   for (int c = 1; c <= headers.length; c++) {
@@ -637,27 +713,66 @@ void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   final trimmed = v.trim();
   final numVal = double.tryParse(trimmed);
   if (numVal != null && RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(trimmed)) {
-    sheet.getRangeByIndex(r, c).setNumber(numVal);
+    final cell = sheet.getRangeByIndex(r, c);
+    cell.setNumber(numVal);
+    cell.cellStyle.hAlign = xlsio.HAlignType.right;
     return;
   }
-  final dt = DateTime.tryParse(trimmed);
+  final dt = _tryParseExportDate(trimmed);
   if (dt != null) {
-    sheet.getRangeByIndex(r, c).setDateTime(dt);
+    final cell = sheet.getRangeByIndex(r, c);
+    cell.setDateTime(dt);
+    _styleDateCell(cell);
     return;
   }
-  sheet.getRangeByIndex(r, c).setText(v);
+  final cell = sheet.getRangeByIndex(r, c);
+  cell.setText(v);
+  cell.cellStyle.hAlign = xlsio.HAlignType.left;
 }
 
 void _buildCoverSheet(xlsio.Workbook wb) {
   final cover = wb.worksheets.addWithName('Caratula');
-  final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
-  for (int i = 0; i < labels.length; i++) {
-    cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
-    cover.getRangeByIndex(i + 1, 2).setText('');
-  }
-  final title = cover.getRangeByIndex(1, 4);
+  cover.showGridlines = false;
+  cover.setColumnWidthInPixels(1, 190);
+  cover.setColumnWidthInPixels(2, 320);
+  cover.setColumnWidthInPixels(4, 230);
+
+  final title = cover.getRangeByIndex(1, 1);
   title.setText('Bit Flow');
   title.cellStyle.bold = true;
+  title.cellStyle.fontSize = 24;
+  title.cellStyle.fontColor = _kInk;
+
+  final subtitle = cover.getRangeByIndex(2, 1);
+  subtitle.setText('Reporte tecnico de campo');
+  subtitle.cellStyle.fontSize = 12;
+  subtitle.cellStyle.fontColor = _kMutedInk;
+
+  final labels = [
+    'Obra',
+    'Cliente',
+    'Responsable',
+    'Fecha de emision',
+  ];
+  for (int i = 0; i < labels.length; i++) {
+    final row = i + 5;
+    final label = cover.getRangeByIndex(row, 1);
+    label.setText(labels[i]);
+    label.cellStyle.bold = true;
+    label.cellStyle.fontColor = _kInk;
+    label.cellStyle.backColor = _kSoftBlue2;
+    cover.getRangeByIndex(row, 2).setText('');
+  }
+  final generatedLabel = cover.getRangeByIndex(10, 1);
+  generatedLabel.setText('Generado');
+  generatedLabel.cellStyle.bold = true;
+  final generated = cover.getRangeByIndex(10, 2);
+  generated.setDateTime(DateTime.now());
+  _styleDateCell(generated);
+  final range = cover.getRangeByIndex(5, 1, 10, 2);
+  range.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+  range.cellStyle.borders.all.color = _kLine;
+  range.cellStyle.vAlign = xlsio.VAlignType.center;
   try {
     cover.autoFitColumn(1);
     cover.autoFitColumn(2);
@@ -671,21 +786,157 @@ void _buildSummarySheet(
   required int gpsCount,
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
+  summary.showGridlines = false;
   final data = [
     ['Filas', rowsCount],
     ['Fotos', photosCount],
     ['Ubicaciones', gpsCount],
   ];
+  final title = summary.getRangeByIndex(1, 1);
+  title.setText('Resumen de exportacion');
+  title.cellStyle.bold = true;
+  title.cellStyle.fontSize = 16;
+  title.cellStyle.fontColor = _kInk;
   for (int i = 0; i < data.length; i++) {
-    summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
-    summary.getRangeByIndex(i + 1, 2).setNumber(
-          (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-        );
+    final row = i + 3;
+    final label = summary.getRangeByIndex(row, 1);
+    label.setText(data[i][0].toString());
+    label.cellStyle.bold = true;
+    label.cellStyle.backColor = _kSoftBlue2;
+    final value = summary.getRangeByIndex(row, 2);
+    value.setNumber(
+      (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
+    );
+    value.cellStyle.hAlign = xlsio.HAlignType.right;
   }
+  final range = summary.getRangeByIndex(3, 1, data.length + 2, 2);
+  range.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+  range.cellStyle.borders.all.color = _kLine;
   try {
     summary.autoFitColumn(1);
     summary.autoFitColumn(2);
   } catch (_) {}
+}
+
+Uint8List _prepareImageForOffice(
+  Uint8List bytes, {
+  int maxWidth = 1280,
+  int maxHeight = 960,
+  int quality = 78,
+}) {
+  if (bytes.isEmpty) return bytes;
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+    final oriented = img.bakeOrientation(decoded);
+    final tooWide = oriented.width > maxWidth;
+    final tooTall = oriented.height > maxHeight;
+    final normalized = (tooWide || tooTall)
+        ? img.copyResize(
+            oriented,
+            width:
+                tooWide && oriented.width >= oriented.height ? maxWidth : null,
+            height:
+                tooTall && oriented.height > oriented.width ? maxHeight : null,
+            interpolation: img.Interpolation.average,
+          )
+        : oriented;
+    final encoded = img.encodeJpg(normalized, quality: quality);
+    if (encoded.isEmpty) return bytes;
+    return Uint8List.fromList(encoded);
+  } catch (_) {
+    return bytes;
+  }
+}
+
+DateTime? _tryParseExportDate(String value) {
+  if (value.isEmpty) return null;
+  final iso = DateTime.tryParse(value);
+  if (iso != null) return iso;
+
+  final match = RegExp(
+    r'^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$',
+  ).firstMatch(value);
+  if (match == null) return null;
+
+  final day = int.tryParse(match.group(1) ?? '');
+  final month = int.tryParse(match.group(2) ?? '');
+  var year = int.tryParse(match.group(3) ?? '');
+  final hour = int.tryParse(match.group(4) ?? '0') ?? 0;
+  final minute = int.tryParse(match.group(5) ?? '0') ?? 0;
+  final second = int.tryParse(match.group(6) ?? '0') ?? 0;
+  if (day == null || month == null || year == null) return null;
+  if (year < 100) year += 2000;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return DateTime(year, month, day, hour, minute, second);
+}
+
+void _styleDateCell(xlsio.Range cell) {
+  cell.numberFormat = 'dd/mm/yyyy hh:mm';
+  cell.cellStyle.hAlign = xlsio.HAlignType.center;
+}
+
+String _attachmentTypeLabel(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'photo':
+      return 'Foto';
+    case 'video':
+      return 'Video';
+    case 'audio':
+      return 'Audio';
+    case 'gps':
+      return 'GPS';
+    case 'file':
+      return 'Archivo';
+    default:
+      return raw.trim().isEmpty ? 'Adjunto' : raw.trim();
+  }
+}
+
+String _attachmentOpenLabel(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'video':
+      return 'Abrir video';
+    case 'audio':
+      return 'Abrir audio';
+    case 'photo':
+      return 'Abrir foto';
+    case 'gps':
+      return 'Abrir mapa';
+    default:
+      return 'Abrir archivo';
+  }
+}
+
+void _addFileHyperlink(
+  xlsio.Worksheet sheet,
+  xlsio.Range range,
+  String target, {
+  required String displayText,
+}) {
+  final cleaned = target.trim();
+  if (cleaned.isEmpty) return;
+  try {
+    final lower = cleaned.toLowerCase();
+    final type = lower.startsWith('http://') ||
+            lower.startsWith('https://') ||
+            lower.startsWith('mailto:')
+        ? xlsio.HyperlinkType.url
+        : xlsio.HyperlinkType.file;
+    final link = sheet.hyperlinks.add(
+      range,
+      type,
+      cleaned,
+      'Abrir $cleaned',
+      displayText,
+    );
+    link.textToDisplay = displayText;
+    range.cellStyle.fontColor = _kLinkBlue;
+    range.cellStyle.bold = true;
+  } catch (_) {
+    range.setText(displayText);
+    range.cellStyle.fontColor = _kLinkBlue;
+  }
 }
 
 String _sanitizeWorksheetName(String name) {

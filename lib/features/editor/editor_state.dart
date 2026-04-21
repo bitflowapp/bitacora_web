@@ -17851,23 +17851,92 @@ class _EditorScreenState extends State<EditorScreen>
       rows.add(values);
     }
 
-    final doc = pw.Document();
+    final doc = pw.Document(
+      title:
+          'Bit Flow - ${_sheetName.trim().isEmpty ? 'Reporte' : _sheetName.trim()}',
+      author: 'Bit Flow',
+      creator: 'Bit Flow',
+      subject: 'Reporte tecnico de campo',
+    );
     final appVersion = await _readAppVersionForExport();
     final buildId = BuildInfo.buildIdLabel;
     final now = DateTime.now().toLocal();
     final exportedAt =
         '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
 
-    final attachmentRows = <List<String>>[];
+    const pdfBrand = PdfColor.fromInt(0xff007aff);
+    const pdfInk = PdfColor.fromInt(0xff1d1d1f);
+    const pdfMuted = PdfColor.fromInt(0xff6e6e73);
+    const pdfPaper = PdfColor.fromInt(0xfff5f7fb);
+    const pdfLine = PdfColor.fromInt(0xffd8e2ee);
+    const pdfHeaderFill = PdfColor.fromInt(0xffeaf3ff);
+
+    String clipText(String value, [int max = 110]) {
+      final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (normalized.length <= max) return normalized;
+      return '${normalized.substring(0, max - 1)}...';
+    }
+
+    bool isImageAttachment(PhotoAttachment item) {
+      final mime = item.mime.toLowerCase();
+      final name = item.filename.toLowerCase();
+      return mime.startsWith('image/') ||
+          name.endsWith('.jpg') ||
+          name.endsWith('.jpeg') ||
+          name.endsWith('.png') ||
+          name.endsWith('.webp');
+    }
+
+    String attachmentKind(PhotoAttachment item) {
+      final mime = item.mime.toLowerCase();
+      if (mime.startsWith('video/')) return 'Video';
+      if (isImageAttachment(item)) return 'Foto';
+      return 'Archivo';
+    }
+
+    String? fileLinkFromStoredRef(String storedRef, {bool audio = false}) {
+      final raw = storedRef.trim();
+      if (raw.isEmpty) return null;
+      final path =
+          audio ? _audioKeyFromRef(raw).trim() : _photoPathFromRef(raw);
+      if (path.isEmpty) return null;
+      if (path.startsWith('key:') ||
+          path.startsWith('mem:') ||
+          path.startsWith('blob:') ||
+          path.startsWith('b64:') ||
+          path.startsWith('data:')) {
+        return null;
+      }
+      if (path.startsWith('content://') ||
+          path.startsWith('http://') ||
+          path.startsWith('https://') ||
+          path.startsWith('file://')) {
+        return path;
+      }
+      final normalized = path.replaceAll('\\', '/');
+      if (normalized.startsWith('/')) return 'file://$normalized';
+      return 'file:///$normalized';
+    }
+
+    final attachmentRows = <({
+      String cell,
+      String kind,
+      String detail,
+      String date,
+      String? link,
+    })>[];
     final evidenceItems = <({
       String cell,
       String kind,
       String caption,
       String date,
       String? mapUrl,
+      String? fileUrl,
       Uint8List? thumb,
     })>[];
     var photoCount = 0;
+    var videoCount = 0;
+    var fileCount = 0;
     var audioCount = 0;
     var gpsCount = 0;
 
@@ -17886,12 +17955,14 @@ class _EditorScreenState extends State<EditorScreen>
           gpsCount++;
           final mapUrl =
               'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}';
-          attachmentRows.add(<String>[
-            cellLabel,
-            'GPS',
-            '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}',
-            _formatDateTimeShort(gps.timestamp.toLocal()),
-          ]);
+          attachmentRows.add((
+            cell: cellLabel,
+            kind: 'GPS',
+            detail: '${gps.lat.toStringAsFixed(6)}, '
+                '${gps.lng.toStringAsFixed(6)}',
+            date: _formatDateTimeShort(gps.timestamp.toLocal()),
+            link: mapUrl,
+          ));
           evidenceItems.add((
             cell: cellLabel,
             kind: 'GPS',
@@ -17899,42 +17970,59 @@ class _EditorScreenState extends State<EditorScreen>
                 'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
             mapUrl: mapUrl,
+            fileUrl: null,
             thumb: null,
           ));
         }
 
         for (final photo in meta.photos) {
           _throwIfOperationCancelledBy(shouldCancel);
-          photoCount++;
+          final kind = attachmentKind(photo);
+          if (kind == 'Foto') {
+            photoCount++;
+          } else if (kind == 'Video') {
+            videoCount++;
+          } else {
+            fileCount++;
+          }
           final caption = photo.caption.trim().isNotEmpty
               ? photo.caption.trim()
               : photo.filename.trim();
           final mapUrl = (photo.lat != null && photo.lon != null)
               ? 'https://www.google.com/maps/search/?api=1&query=${photo.lat},${photo.lon}'
               : null;
+          final fileUrl = fileLinkFromStoredRef(photo.storedRef);
           final dateText = _formatDateTimeShort(photo.addedAt.toLocal());
-          attachmentRows.add(<String>[
-            cellLabel,
-            'Foto',
-            caption.isEmpty ? photo.filename : caption,
-            dateText,
-          ]);
+          attachmentRows.add((
+            cell: cellLabel,
+            kind: kind,
+            detail: caption.isEmpty ? photo.filename : caption,
+            date: dateText,
+            link: fileUrl ?? mapUrl,
+          ));
 
           Uint8List? thumb;
-          final bytes = await _loadPhotoBytesFromAttachment(
-            photo,
-            preferThumb: true,
-          );
-          if (bytes != null && bytes.isNotEmpty) {
-            thumb = _compressThumb(bytes, maxW: 360, maxH: 240, quality: 70) ??
-                bytes;
+          if (kind == 'Foto') {
+            final bytes = await _loadPhotoBytesFromAttachment(
+              photo,
+              preferThumb: true,
+            );
+            if (bytes != null && bytes.isNotEmpty) {
+              thumb = _compressThumb(
+                bytes,
+                maxW: 900,
+                maxH: 620,
+                quality: 74,
+              );
+            }
           }
           evidenceItems.add((
             cell: cellLabel,
-            kind: 'Foto',
+            kind: kind,
             caption: caption.isEmpty ? photo.filename : caption,
             date: dateText,
             mapUrl: mapUrl,
+            fileUrl: fileUrl,
             thumb: thumb,
           ));
         }
@@ -17942,12 +18030,17 @@ class _EditorScreenState extends State<EditorScreen>
         for (final audio in meta.audios) {
           audioCount++;
           final dateText = _formatDateTimeShort(audio.addedAt.toLocal());
-          attachmentRows.add(<String>[
-            cellLabel,
-            'Audio',
-            audio.filename.trim().isEmpty ? 'audio' : audio.filename.trim(),
-            dateText,
-          ]);
+          final fileUrl = _audioIsFileRef(audio.storedRef)
+              ? fileLinkFromStoredRef(audio.storedRef, audio: true)
+              : null;
+          attachmentRows.add((
+            cell: cellLabel,
+            kind: 'Audio',
+            detail:
+                audio.filename.trim().isEmpty ? 'audio' : audio.filename.trim(),
+            date: dateText,
+            link: fileUrl,
+          ));
           evidenceItems.add((
             cell: cellLabel,
             kind: 'Audio',
@@ -17955,93 +18048,239 @@ class _EditorScreenState extends State<EditorScreen>
                 'Duracion ${(audio.durationMs / 1000).toStringAsFixed(1)}s',
             date: dateText,
             mapUrl: null,
+            fileUrl: fileUrl,
             thumb: null,
           ));
         }
       }
     }
 
-    final totalAttachments = photoCount + audioCount;
-    final evidencePreview = evidenceItems.take(24).toList(growable: false);
+    final totalAttachments = photoCount + videoCount + fileCount + audioCount;
+    final evidencePreview = evidenceItems.take(36).toList(growable: false);
+
+    pw.Widget linkText(String text, String? url) {
+      final child = pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 7.8,
+          color: url == null ? pdfInk : pdfBrand,
+          decoration: url == null ? null : pw.TextDecoration.underline,
+        ),
+      );
+      if (url == null || url.trim().isEmpty) return child;
+      return pw.UrlLink(destination: url, child: child);
+    }
+
+    pw.Widget sectionTitle(String title, {String? subtitle}) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(height: 14),
+          pw.Text(
+            title,
+            style: pw.TextStyle(
+              fontSize: 12.5,
+              color: pdfInk,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+            pw.SizedBox(height: 2),
+            pw.Text(
+              subtitle,
+              style: const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
+            ),
+          ],
+          pw.SizedBox(height: 6),
+        ],
+      );
+    }
 
     doc.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4.landscape,
-          margin: const pw.EdgeInsets.all(20),
+          margin: const pw.EdgeInsets.fromLTRB(24, 22, 24, 24),
+          theme: pw.ThemeData.withFont(
+            base: pw.Font.helvetica(),
+            bold: pw.Font.helveticaBold(),
+          ),
+        ),
+        footer: (context) => pw.Container(
+          padding: const pw.EdgeInsets.only(top: 8),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(color: pdfLine, width: 0.5),
+            ),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Bit Flow - Reporte tecnico',
+                style: const pw.TextStyle(fontSize: 7.5, color: pdfMuted),
+              ),
+              pw.Text(
+                'Pagina ${context.pageNumber} de ${context.pagesCount}',
+                style: const pw.TextStyle(fontSize: 7.5, color: pdfMuted),
+              ),
+            ],
+          ),
         ),
         build: (context) {
           pw.Widget metricChip(String label, String value) {
             return pw.Container(
+              width: 92,
               padding: const pw.EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 5,
+                horizontal: 9,
+                vertical: 8,
               ),
               decoration: pw.BoxDecoration(
-                color: PdfColors.grey200,
+                color: PdfColors.white,
                 borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: pdfLine, width: 0.7),
               ),
-              child: pw.Row(
-                mainAxisSize: pw.MainAxisSize.min,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    '$label: ',
+                    value,
                     style: pw.TextStyle(
-                      fontSize: 8,
+                      fontSize: 13,
+                      color: pdfInk,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
-                  pw.Text(value, style: const pw.TextStyle(fontSize: 8)),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    label,
+                    style: const pw.TextStyle(fontSize: 7.5, color: pdfMuted),
+                  ),
                 ],
               ),
             );
           }
 
           final content = <pw.Widget>[
-            pw.Text(
-              'BitFlow Reporte - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                color: pdfPaper,
+                borderRadius: pw.BorderRadius.circular(14),
+                border: pw.Border.all(color: pdfLine, width: 0.8),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Container(
+                    width: 5,
+                    height: 66,
+                    decoration: pw.BoxDecoration(
+                      color: pdfBrand,
+                      borderRadius: pw.BorderRadius.circular(3),
+                    ),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Bit Flow',
+                          style: pw.TextStyle(
+                            fontSize: 20,
+                            color: pdfInk,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Reporte tecnico - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+                          style:
+                              const pw.TextStyle(fontSize: 11, color: pdfMuted),
+                        ),
+                        pw.SizedBox(height: 8),
+                        pw.Text(
+                          'Exportado: $exportedAt',
+                          style:
+                              const pw.TextStyle(fontSize: 8.5, color: pdfInk),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(
+                        'Version $appVersion',
+                        style:
+                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Build $buildId',
+                        style:
+                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              'Exportado: $exportedAt',
-              style: const pw.TextStyle(fontSize: 10),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              'Version: $appVersion · Build: $buildId',
-              style: const pw.TextStyle(fontSize: 9),
-            ),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 12),
             pw.Wrap(
-              spacing: 6,
-              runSpacing: 6,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 metricChip('Filas', '${_rows.length}'),
-                metricChip('Celdas con dato', '${_countNonEmptyCells()}'),
+                metricChip('Celdas', '${_countNonEmptyCells()}'),
                 metricChip('Adjuntos', '$totalAttachments'),
                 metricChip('Fotos', '$photoCount'),
+                metricChip('Videos', '$videoCount'),
                 metricChip('Audios', '$audioCount'),
                 metricChip('GPS', '$gpsCount'),
                 if (includeReviewColumns)
                   metricChip('Revisadas', '$reviewedCount/${_rows.length}'),
               ],
             ),
-            pw.SizedBox(height: 12),
+            sectionTitle(
+              'Registros',
+              subtitle: 'Tabla principal limpia y alineada para revision.',
+            ),
           ];
 
           if (headers.isNotEmpty) {
             content.add(
               pw.TableHelper.fromTextArray(
                 headers: headers,
-                data: rows,
+                data: rows
+                    .map(
+                      (row) => row
+                          .map((value) => clipText(value, 85))
+                          .toList(growable: false),
+                    )
+                    .toList(growable: false),
+                cellPadding: const pw.EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 4,
+                ),
+                headerPadding: const pw.EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 6,
+                ),
+                border: pw.TableBorder.all(color: pdfLine, width: 0.35),
                 headerStyle: pw.TextStyle(
-                  fontSize: 9,
+                  fontSize: 8.2,
+                  color: pdfInk,
                   fontWeight: pw.FontWeight.bold,
                 ),
-                cellStyle: const pw.TextStyle(fontSize: 8),
+                cellStyle: const pw.TextStyle(fontSize: 7.4, color: pdfInk),
                 headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.grey300,
+                  color: pdfHeaderFill,
+                ),
+                rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
+                oddRowDecoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xfffbfdff),
                 ),
                 cellAlignments: {
                   for (int i = 0; i < headers.length; i++)
@@ -18055,17 +18294,10 @@ class _EditorScreenState extends State<EditorScreen>
 
           if (includeAttachments) {
             content
-              ..add(pw.SizedBox(height: 14))
-              ..add(
-                pw.Text(
-                  'Adjuntos por celda',
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              )
-              ..add(pw.SizedBox(height: 6));
+              ..add(sectionTitle(
+                'Adjuntos',
+                subtitle: 'Fotos, videos, audios, archivos y ubicaciones.',
+              ));
             if (attachmentRows.isEmpty) {
               content.add(
                 pw.Text(
@@ -18076,15 +18308,48 @@ class _EditorScreenState extends State<EditorScreen>
             } else {
               content.add(
                 pw.TableHelper.fromTextArray(
-                  headers: const <String>['Celda', 'Tipo', 'Detalle', 'Fecha'],
-                  data: attachmentRows,
+                  headers: const <String>[
+                    'Celda',
+                    'Tipo',
+                    'Detalle',
+                    'Fecha',
+                    'Link',
+                  ],
+                  data: [
+                    for (final item in attachmentRows)
+                      <dynamic>[
+                        item.cell,
+                        item.kind,
+                        clipText(item.detail, 80),
+                        item.date,
+                        item.link == null
+                            ? ''
+                            : linkText(
+                                item.kind == 'GPS' ? 'Abrir mapa' : 'Abrir',
+                                item.link,
+                              ),
+                      ],
+                  ],
+                  cellPadding: const pw.EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 4,
+                  ),
+                  headerPadding: const pw.EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 6,
+                  ),
+                  border: pw.TableBorder.all(color: pdfLine, width: 0.35),
                   headerStyle: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 9,
+                    fontSize: 8.2,
+                    color: pdfInk,
                   ),
-                  cellStyle: const pw.TextStyle(fontSize: 8),
+                  cellStyle: const pw.TextStyle(fontSize: 7.5, color: pdfInk),
                   headerDecoration: const pw.BoxDecoration(
-                    color: PdfColors.grey300,
+                    color: pdfHeaderFill,
+                  ),
+                  oddRowDecoration: const pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xfffbfdff),
                   ),
                 ),
               );
@@ -18092,43 +18357,48 @@ class _EditorScreenState extends State<EditorScreen>
 
             if (evidencePreview.isNotEmpty) {
               content
-                ..add(pw.SizedBox(height: 12))
-                ..add(
-                  pw.Text(
-                    'Evidencias',
-                    style: pw.TextStyle(
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                )
-                ..add(pw.SizedBox(height: 6))
+                ..add(sectionTitle(
+                  'Evidencias',
+                  subtitle:
+                      'Previsualizacion optimizada para mantener el PDF liviano.',
+                ))
                 ..add(
                   pw.Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
                       for (final item in evidencePreview)
                         pw.Container(
-                          width: 220,
-                          padding: const pw.EdgeInsets.all(8),
+                          width: item.thumb == null ? 180 : 250,
+                          padding: const pw.EdgeInsets.all(9),
                           decoration: pw.BoxDecoration(
-                            color: PdfColors.grey100,
-                            borderRadius: pw.BorderRadius.circular(8),
-                            border: pw.Border.all(
-                              color: PdfColors.grey400,
-                              width: 0.6,
-                            ),
+                            color: PdfColors.white,
+                            borderRadius: pw.BorderRadius.circular(12),
+                            border: pw.Border.all(color: pdfLine, width: 0.7),
                           ),
                           child: pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
-                              pw.Text(
-                                '${item.kind} · ${item.cell}',
-                                style: pw.TextStyle(
-                                  fontSize: 8.5,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
+                              pw.Row(
+                                mainAxisAlignment:
+                                    pw.MainAxisAlignment.spaceBetween,
+                                children: [
+                                  pw.Text(
+                                    item.kind,
+                                    style: pw.TextStyle(
+                                      fontSize: 8.5,
+                                      color: pdfBrand,
+                                      fontWeight: pw.FontWeight.bold,
+                                    ),
+                                  ),
+                                  pw.Text(
+                                    item.cell,
+                                    style: const pw.TextStyle(
+                                      fontSize: 7.5,
+                                      color: pdfMuted,
+                                    ),
+                                  ),
+                                ],
                               ),
                               if (item.thumb != null &&
                                   item.thumb!.isNotEmpty) ...[
@@ -18138,7 +18408,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   verticalRadius: 6,
                                   child: pw.Image(
                                     pw.MemoryImage(item.thumb!),
-                                    height: 70,
+                                    height: 138,
                                     width: double.infinity,
                                     fit: pw.BoxFit.cover,
                                   ),
@@ -18146,28 +18416,28 @@ class _EditorScreenState extends State<EditorScreen>
                               ],
                               pw.SizedBox(height: 5),
                               pw.Text(
-                                item.caption,
+                                clipText(item.caption, 96),
                                 maxLines: 2,
-                                style: const pw.TextStyle(fontSize: 8),
+                                style: const pw.TextStyle(
+                                  fontSize: 8,
+                                  color: pdfInk,
+                                ),
                               ),
                               pw.SizedBox(height: 2),
                               pw.Text(
                                 item.date,
-                                style: const pw.TextStyle(fontSize: 7.5),
+                                style: const pw.TextStyle(
+                                  fontSize: 7.5,
+                                  color: pdfMuted,
+                                ),
                               ),
                               if (item.mapUrl != null) ...[
                                 pw.SizedBox(height: 2),
-                                pw.UrlLink(
-                                  destination: item.mapUrl!,
-                                  child: pw.Text(
-                                    'Abrir en mapas',
-                                    style: pw.TextStyle(
-                                      fontSize: 7.5,
-                                      color: PdfColors.blue700,
-                                      decoration: pw.TextDecoration.underline,
-                                    ),
-                                  ),
-                                ),
+                                linkText('Abrir en mapas', item.mapUrl),
+                              ],
+                              if (item.fileUrl != null) ...[
+                                pw.SizedBox(height: 2),
+                                linkText('Abrir archivo', item.fileUrl),
                               ],
                             ],
                           ),
@@ -18273,6 +18543,8 @@ class _EditorScreenState extends State<EditorScreen>
             fileName: '',
             notes: _gpsNotes(gps),
             relativePath: '',
+            linkTarget:
+                'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}',
           ),
         );
         if (includeZip) {
@@ -18305,7 +18577,10 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           );
 
-          if (i == 0 && cell.col >= 0 && cell.col < dataCols) {
+          if (itemType == 'photo' &&
+              i == 0 &&
+              cell.col >= 0 &&
+              cell.col < dataCols) {
             final bytes = await _loadPhotoBytesFromAttachment(photo);
             if (bytes != null && bytes.isNotEmpty) {
               embeddedPhotos.add(

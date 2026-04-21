@@ -263,4 +263,53 @@ void main() {
     expect(file.existsSync(), isTrue);
     expect(file.lengthSync() > 0, isTrue);
   });
+
+  test('video attachments are exported as clickable file hyperlinks', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Actividad'],
+      rows: const [
+        ['Inspeccion de bomba'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'video',
+          fileName: 'A1_video.mp4',
+          notes: 'video de evidencia',
+          relativePath: 'attachments/video/A1_video.mp4',
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final names = archive.files
+        .map((f) => f.name.replaceAll('\\', '/'))
+        .toList(growable: false);
+    final relXml = archive.files
+        .where((f) => f.name.replaceAll('\\', '/').endsWith('.rels'))
+        .map((f) => utf8.decode(f.content as List<int>))
+        .join('\n');
+
+    expect(names.any((n) => n.startsWith('xl/worksheets/_rels/')), isTrue);
+    expect(relXml, contains('attachments/video/A1_video.mp4'));
+    expect(readSharedStrings(archive), contains('Abrir video'));
+  });
+
+  test('date-like values are stored with an Excel date format', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Fecha'],
+      rows: const [
+        ['2026-04-21T14:35:00'],
+        ['21/04/2026 14:35'],
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final styles = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/') == 'xl/styles.xml',
+    );
+    final stylesXml = utf8.decode(styles.content as List<int>).toLowerCase();
+
+    expect(stylesXml, contains('dd/mm/yyyy hh:mm'));
+  });
 }
