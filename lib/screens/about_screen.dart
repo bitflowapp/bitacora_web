@@ -182,7 +182,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Bitacoras tecnicas con foco en rapidez, claridad y confiabilidad.',
+            'Planillas tecnicas con foco en rapidez, claridad y confiabilidad.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
             ),

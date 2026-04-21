@@ -59,7 +59,7 @@ class LandingScreen extends StatelessWidget {
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'Bit Flow'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
@@ -107,6 +107,8 @@ class LandingScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 52),
                             _CtaBand(
+                              showWhatsApp:
+                                  config.contactWhatsApp.trim().isNotEmpty,
                               onPrimary: () => context.go('/app'),
                               onWhatsApp: () => _launchWhatsApp(config),
                             ),
@@ -154,7 +156,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bit Flow',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -174,7 +176,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitacora operativa offline',
+      subtitle: 'Planillas de campo offline',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -225,7 +227,7 @@ class _HeroSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Bitacora operativa con evidencias en un solo lugar',
+                    'Planillas de campo con evidencias en un solo lugar',
                     style: t.text.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -251,11 +253,12 @@ class _HeroSection extends StatelessWidget {
                         variant: AppButtonVariant.primary,
                         onPressed: onPrimary,
                       ),
-                      AppButton(
-                        label: 'WhatsApp',
-                        variant: AppButtonVariant.secondary,
-                        onPressed: onWhatsApp,
-                      ),
+                      if (config.contactWhatsApp.trim().isNotEmpty)
+                        AppButton(
+                          label: 'WhatsApp',
+                          variant: AppButtonVariant.secondary,
+                          onPressed: onWhatsApp,
+                        ),
                       AppButton(
                         label: 'Email',
                         variant: AppButtonVariant.ghost,
@@ -672,7 +675,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bit Flow',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -733,10 +736,12 @@ class _PriceCard extends StatelessWidget {
 
 class _CtaBand extends StatelessWidget {
   const _CtaBand({
+    required this.showWhatsApp,
     required this.onPrimary,
     required this.onWhatsApp,
   });
 
+  final bool showWhatsApp;
   final VoidCallback onPrimary;
   final VoidCallback onWhatsApp;
 
@@ -782,11 +787,12 @@ class _CtaBand extends StatelessWidget {
                     variant: AppButtonVariant.primary,
                     onPressed: onPrimary,
                   ),
-                  AppButton(
-                    label: 'WhatsApp',
-                    variant: AppButtonVariant.secondary,
-                    onPressed: onWhatsApp,
-                  ),
+                  if (showWhatsApp)
+                    AppButton(
+                      label: 'WhatsApp',
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onWhatsApp,
+                    ),
                 ],
               ),
             ],
@@ -871,11 +877,11 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bit Flow' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
-              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
+              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitflow.app' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
             Text(

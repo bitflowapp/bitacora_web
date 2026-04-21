@@ -17670,7 +17670,7 @@ class _EditorScreenState extends State<EditorScreen>
       final html = StringBuffer();
       final esc = const HtmlEscape(HtmlEscapeMode.element);
       final now = DateTime.now();
-      final title = _sheetName.trim().isEmpty ? 'Bitacora' : _sheetName.trim();
+      final title = _sheetName.trim().isEmpty ? 'Bit Flow' : _sheetName.trim();
 
       html.write('<!doctype html><html><head><meta charset=\"utf-8\">');
       html.write(
@@ -18873,6 +18873,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
 
       SheetStore.saveModel(targetSheetId, imported.model);
+      await SheetStore.flushPendingWrites();
       if (!mounted) return;
       _showActionSnack(
         imported.missingAssets > 0

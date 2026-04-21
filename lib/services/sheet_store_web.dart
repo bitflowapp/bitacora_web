@@ -17,6 +17,8 @@ class _HiveKv {
   _HiveKv(this._box);
 
   final Box<dynamic> _box;
+  final Set<Future<void>> _pendingWrites = <Future<void>>{};
+  Object? _lastWriteError;
 
   static const String _boxName = 'bitflow_sheets';
   static const String _migratedKey = '__sp_migrated_v1';
@@ -56,14 +58,39 @@ class _HiveKv {
   }
 
   void setString(String key, String value) {
-    unawaited(_box.put(key, value));
+    _track(_box.put(key, value));
   }
 
   void remove(String key) {
-    unawaited(_box.delete(key));
+    _track(_box.delete(key));
   }
 
   Set<String> getKeys() => _box.keys.whereType<String>().toSet();
+
+  Object? get lastWriteError => _lastWriteError;
+
+  Future<void> flushPendingWrites() async {
+    while (_pendingWrites.isNotEmpty) {
+      final pending = List<Future<void>>.of(_pendingWrites);
+      await Future.wait(pending);
+    }
+    final error = _lastWriteError;
+    if (error != null) {
+      _lastWriteError = null;
+      throw StateError('SheetStore write failed: $error');
+    }
+  }
+
+  void _track(Future<void> write) {
+    _pendingWrites.add(write);
+    unawaited(
+      write.catchError((Object error, StackTrace stackTrace) {
+        _lastWriteError = error;
+      }).whenComplete(() {
+        _pendingWrites.remove(write);
+      }),
+    );
+  }
 }
 
 /// Metadata para listar planillas.
@@ -166,6 +193,12 @@ class SheetStore {
   static Future<void> init() async {
     final sp = await SharedPreferences.getInstance();
     _kv = await _HiveKv.open(sp);
+  }
+
+  static Object? get lastWriteError => _kv?.lastWriteError;
+
+  static Future<void> flushPendingWrites() async {
+    await _kv?.flushPendingWrites();
   }
 
   static String _sheetKey(String id) => '$_sheetPrefix$id';

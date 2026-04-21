@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <base href="$FLUTTER_BASE_HREF" />
@@ -263,6 +263,11 @@
 
       function mountBadge(build) {
         try {
+          var params = new URLSearchParams(window.location.search || '');
+          var showBadge = params.get('debugBuild') === '1' ||
+            params.get('buildBadge') === '1';
+          if (!showBadge) return;
+
           var el = document.getElementById('build-badge');
           if (!el) {
             el = document.createElement('div');
@@ -289,7 +294,7 @@
             var reg = await navigator.serviceWorker.getRegistration();
             if (reg && reg.waiting) {
               // New SW is already installed and waiting — activate it cleanly.
-              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              reg.waiting.postMessage('skipWaiting');
             } else if (reg) {
               // Trigger an update check so the browser fetches a fresh SW.
               reg.update().catch(function () {});

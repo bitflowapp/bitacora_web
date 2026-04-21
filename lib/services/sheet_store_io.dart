@@ -110,6 +110,10 @@ class SheetStore {
     _prefs = await SharedPreferences.getInstance();
   }
 
+  static Object? get lastWriteError => null;
+
+  static Future<void> flushPendingWrites() async {}
+
   static String _sheetKey(String id) => '$_sheetPrefix$id';
 
   static String? loadRaw(String id) {

@@ -165,6 +165,22 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   Future<void> _handleRefresh() async => _loadSheets();
 
+  Future<bool> _flushSheetStoreOrNotify() async {
+    try {
+      await SheetStore.flushPendingWrites();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo guardar el cambio local: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
+  }
+
   List<SheetMeta> get _filtered {
     final q = _query.toLowerCase();
     if (q.isEmpty) return _items;
@@ -291,6 +307,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
   Future<void> _newBlank() async {
     _hapticLight();
     final id = SheetStore.createNew();
+    if (!await _flushSheetStoreOrNotify()) return;
     if (!mounted) return;
     await _open(id);
   }
@@ -298,6 +315,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
   Future<void> _newFromTemplate(TemplateKind kind) async {
     _hapticLight();
     final id = SheetStore.createFromTemplate(kind);
+    if (!await _flushSheetStoreOrNotify()) return;
     if (!mounted) return;
     await _open(id);
   }
@@ -450,6 +468,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
     if (newTitle.isEmpty) return;
 
     SheetStore.rename(it.id, newTitle);
+    if (!await _flushSheetStoreOrNotify()) return;
     _loadSheets();
     _hapticSelect();
   }
@@ -478,6 +497,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
     if (!mounted || ok != true) return;
 
     SheetStore.delete(it.id);
+    if (!await _flushSheetStoreOrNotify()) return;
+    if (!mounted) return;
     _removePinnedIfNeeded(it.id);
     _loadSheets();
 
