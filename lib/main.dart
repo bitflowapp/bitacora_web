@@ -13,7 +13,7 @@ import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
-import 'start_page.dart';
+import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
@@ -112,7 +112,7 @@ Future<void> main() async {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Gridnote - Error',
+                          'Bit Flow — Error',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -278,7 +278,7 @@ class _AppState extends State<App> {
     Widget buildBoot(Widget child) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Bitacora Web',
+        title: 'Bit Flow',
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
@@ -351,7 +351,7 @@ class _AppState extends State<App> {
 
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          title: 'Bitacora Web',
+          title: 'Bit Flow',
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
@@ -470,7 +470,7 @@ class _AppHome extends StatelessWidget {
         );
       }
       return AuthGate(
-        child: StartPage(
+        child: StartPageV2(
           isLight: isLight,
           onToggleTheme: onToggleTheme,
         ),
@@ -561,7 +561,7 @@ class _BootSplash extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Gridnote',
+                            'Bit Flow',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.2,
