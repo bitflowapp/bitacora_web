@@ -9895,6 +9895,35 @@ class _EditorScreenState extends State<EditorScreen>
                                         ),
                                       ),
                           ),
+                          if (isDesktop && !_zenModeEnabled)
+                            _DesktopBottomToolbar(
+                              palette: pal,
+                              selectionLabel: _selectionLabelForQuickActions(),
+                              selectedRowsCount: _batchTargetRows().length,
+                              pendingOfflineCount: _pendingOfflineCount,
+                              errorsCount: _invalidCells.length,
+                              lastLocalSavedAt: _lastSavedAt,
+                              onNewRecord: () => unawaited(
+                                _createNewRecordAction(
+                                  origin: 'bottom_toolbar',
+                                ),
+                              ),
+                              onSmartPaste: () => unawaited(
+                                _pasteTableSmartFromClipboard(
+                                  emitFeedback: true,
+                                  interactivePreview: true,
+                                ),
+                              ),
+                              onSearch: () => unawaited(_openSearchDialog()),
+                              onPhoto: () => unawaited(
+                                this._runPhotoForSelection(),
+                              ),
+                              onGps: () => unawaited(
+                                this._runGpsForSelection(),
+                              ),
+                              onExport: () => unawaited(_openExportMenu()),
+                              onPalette: () => unawaited(_openCommandPalette()),
+                            ),
                         ],
                       ),
                     ),

@@ -715,6 +715,227 @@ class _PremiumAppleHeader extends StatelessWidget {
   }
 }
 
+class _DesktopBottomToolbar extends StatelessWidget {
+  const _DesktopBottomToolbar({
+    required this.palette,
+    required this.selectionLabel,
+    required this.selectedRowsCount,
+    required this.pendingOfflineCount,
+    required this.errorsCount,
+    required this.lastLocalSavedAt,
+    required this.onNewRecord,
+    required this.onSmartPaste,
+    required this.onSearch,
+    required this.onPhoto,
+    required this.onGps,
+    required this.onExport,
+    required this.onPalette,
+  });
+
+  final _SheetPalette palette;
+  final String selectionLabel;
+  final int selectedRowsCount;
+  final int pendingOfflineCount;
+  final int errorsCount;
+  final DateTime? lastLocalSavedAt;
+  final VoidCallback onNewRecord;
+  final VoidCallback onSmartPaste;
+  final VoidCallback onSearch;
+  final VoidCallback onPhoto;
+  final VoidCallback onGps;
+  final VoidCallback onExport;
+  final VoidCallback onPalette;
+
+  String _savedText() {
+    final value = lastLocalSavedAt;
+    if (value == null) return 'Sin guardado local';
+    final local = value.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return 'Guardado $hh:$mm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = <String>[
+      selectionLabel,
+      if (selectedRowsCount > 1) '$selectedRowsCount filas',
+      _savedText(),
+      if (pendingOfflineCount > 0) '$pendingOfflineCount en cola',
+      if (errorsCount > 0) '$errorsCount errores',
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: palette.isLight ? 16 : 12,
+            sigmaY: palette.isLight ? 16 : 12,
+            tileMode: TileMode.decal,
+          ),
+          child: Container(
+            minHeight: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: palette.headerCardBg,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: palette.headerCardBorder,
+                width: palette.hairline,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: palette.isLight ? 0.08 : 0.36,
+                  ),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.cellTextMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  flex: 2,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.add_rounded,
+                          label: 'Registro',
+                          onTap: onNewRecord,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.table_chart_rounded,
+                          label: 'Pegar',
+                          onTap: onSmartPaste,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.search_rounded,
+                          label: 'Buscar',
+                          onTap: onSearch,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.photo_camera_rounded,
+                          label: 'Foto',
+                          onTap: onPhoto,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.my_location_rounded,
+                          label: 'GPS',
+                          onTap: onGps,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.ios_share_rounded,
+                          label: 'Exportar',
+                          onTap: onExport,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.bolt_rounded,
+                          label: 'Comandos',
+                          isPrimary: true,
+                          onTap: onPalette,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopToolbarButton extends StatelessWidget {
+  const _DesktopToolbarButton({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isPrimary = false,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isPrimary ? palette.accent : palette.pillBtnBg;
+    final fg = isPrimary
+        ? (palette.isLight ? Colors.white : Colors.black)
+        : palette.fg;
+    final border = isPrimary
+        ? palette.accent.withValues(alpha: 0.36)
+        : palette.pillBtnBorder;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: border, width: palette.hairline),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileCompactHeader extends StatelessWidget {
   const _MobileCompactHeader({
     required this.palette,
