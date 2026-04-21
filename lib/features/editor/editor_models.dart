@@ -1623,25 +1623,59 @@ class _SheetPalette {
 
   factory _SheetPalette.fromApp(AppThemeData t, {required double hairline}) {
     final c = t.colors;
-    final card = c.surfaceElevated;
     final accent = c.accent;
-    final gridBg = c.surfaceElevated;
-    final headerBg = c.surfaceMuted;
-    final zebraA = c.surface;
-    final zebraB = c.surfaceMuted.withValues(alpha: c.isLight ? 0.34 : 0.16);
-    final selectionFill = accent.withValues(alpha: c.isLight ? 0.10 : 0.18);
-    final selectionBorder = accent.withValues(alpha: c.isLight ? 0.46 : 0.62);
-    final focusRing = accent.withValues(alpha: c.isLight ? 0.32 : 0.48);
-    final chipBg = c.surfaceMuted;
-    final chipBorder = c.borderStrong;
-    final chipText = c.textPrimary;
+
+    // ── Grid surface ──────────────────────────────────────────────────────
+    // Pure white grid for max clarity in light mode (Google Sheets / Notion)
+    final gridBg = c.isLight ? const Color(0xFFFFFFFF) : c.surfaceElevated;
+
+    // Header: distinct neutral — darker than grid, lighter than content
+    final headerBg = c.isLight
+        ? const Color(0xFFF4F5F7)
+        : const Color(0xFF1A1A1F);
+
+    // Zebra: #F9FAFB is the Notion / Linear standard — visible but whisper-quiet
+    final zebraA = c.isLight ? const Color(0xFFFFFFFF) : c.surface;
+    final zebraB = c.isLight
+        ? const Color(0xFFF9FAFB)
+        : c.surfaceMuted.withValues(alpha: 0.28);
+
+    // Grid border: subtle neutral, avoids the blue-grey tint of Apple's E5E5EA
+    final gridBorder = c.isLight
+        ? const Color(0xFFEBEDF2)
+        : c.border;
+
+    // ── Selection ─────────────────────────────────────────────────────────
+    final selectionFill = accent.withValues(alpha: c.isLight ? 0.09 : 0.18);
+    final selectionBorder = accent.withValues(alpha: c.isLight ? 0.44 : 0.62);
+    final focusRing = accent.withValues(alpha: c.isLight ? 0.30 : 0.46);
+
+    // ── Chips / badges ─────────────────────────────────────────────────────
+    // Slightly more visible than background so badges read without being noisy
+    final chipBg = c.isLight
+        ? const Color(0xFFEFF0F3)
+        : c.surfaceMuted;
+    final chipBorder = c.isLight
+        ? const Color(0xFFDCDEE4)
+        : c.borderStrong;
+    // Muted chip text — meta-level, not primary attention
+    final chipText = c.isLight
+        ? const Color(0xFF5B6371)
+        : c.textSecondary;
+
+    // ── Header text: professional muted tone (Tailwind gray-600 equivalent) ─
+    final headerText = c.isLight
+        ? const Color(0xFF4B5563)
+        : const Color(0xFF9CA3AF);
+
+    final card = c.surfaceElevated;
 
     return _SheetPalette(
       isLight: c.isLight,
       hairline: hairline,
       gridBg: gridBg,
-      gridBorder: c.border,
-      headerText: c.textPrimary,
+      gridBorder: gridBorder,
+      headerText: headerText,
       zebraA: zebraA,
       zebraB: zebraB,
       cellText: c.textPrimary,
@@ -1669,11 +1703,11 @@ class _SheetPalette {
       accent: accent,
       statusBg: c.surfaceMuted,
       statusFg: c.textPrimary,
-      hintBg: c.surfaceMuted,
-      headerCardBg: card.withValues(alpha: c.isLight ? 0.92 : 0.75),
-      headerCardBorder: c.border,
-      pillBtnBg: c.surface,
-      pillBtnBorder: c.borderStrong,
+      hintBg: c.isLight ? const Color(0xFFEFF0F3) : c.surfaceMuted,
+      headerCardBg: card.withValues(alpha: c.isLight ? 0.93 : 0.76),
+      headerCardBorder: c.isLight ? const Color(0xFFDEE0E6) : c.border,
+      pillBtnBg: c.isLight ? const Color(0xFFFFFFFF) : c.surface,
+      pillBtnBorder: c.isLight ? const Color(0xFFDCDEE4) : c.borderStrong,
       hoverBg: c.hover,
       pressedBg: c.pressed,
       zebraBg: zebraB,

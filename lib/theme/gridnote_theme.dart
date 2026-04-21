@@ -536,30 +536,35 @@ class GridnoteTableStyle {
 
   factory GridnoteTableStyle.from(GridnoteTheme g) {
     final isLight = g.material.brightness == Brightness.light;
-    final divider = g.divider;
-
-    final headerBg = isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
-    final cellBg = isLight ? AppColors.lightBg : AppColors.darkBg;
-    final label = isLight ? AppColors.lightLabel : AppColors.darkLabel;
-    final secondaryLabel = isLight
-        ? AppColors.lightSecondaryLabel.withValues(alpha: 0.6)
-        : AppColors.darkSecondaryLabel;
+    final headerBg =
+        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF111827);
+    final cellBg = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF0B0F14);
+    final label = isLight ? const Color(0xFF111827) : AppColors.darkLabel;
+    final headerText =
+        isLight ? const Color(0xFF374151) : const Color(0xFFE5E7EB);
+    final secondaryLabel =
+        isLight ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF);
+    final gridLine =
+        isLight ? const Color(0xFFE5E7EB) : const Color(0xFF253041);
 
     return GridnoteTableStyle(
       zebra: true,
-      zebraColor: divider.withValues(alpha: isLight ? 0.10 : 0.18),
+      zebraColor: isLight ? const Color(0xFFF9FAFB) : const Color(0xFF111827),
       headerBg: headerBg,
-      headerText: label,
-      gridLine: divider.withValues(alpha: isLight ? 0.88 : 0.62),
+      headerText: headerText,
+      gridLine: gridLine,
       cellBg: cellBg,
       cellTextStyle: AppTypography.body.copyWith(
         color: label,
         fontWeight: FontWeight.w400,
+        fontSize: 13.5,
+        letterSpacing: -0.05,
       ),
       headerTextStyle: AppTypography.footnote.copyWith(
         color: secondaryLabel,
         fontWeight: FontWeight.w600,
-        letterSpacing: 0.12,
+        fontSize: 11.5,
+        letterSpacing: 0.5,
       ),
     );
   }

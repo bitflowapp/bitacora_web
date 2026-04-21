@@ -793,12 +793,12 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                   child: FloatingActionButton.small(
                     key: const ValueKey('mobile-fab-main'),
                     heroTag: 'mobile-fab-main',
-                    tooltip: 'Acciones rapidas',
+                    tooltip: 'Agregar registro',
                     onPressed: onMainTap,
                     backgroundColor: palette.appBarBg,
                     foregroundColor: palette.fg,
                     child: Icon(
-                      isOpen ? Icons.close_rounded : Icons.bolt_rounded,
+                      isOpen ? Icons.close_rounded : Icons.add_rounded,
                     ),
                   ),
                 ),

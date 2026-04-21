@@ -9,6 +9,13 @@ import 'validators.dart';
 typedef CellChanged = void Function(int rowIndex, int colIndex, String value);
 typedef RowSelected = void Function(int rowIndex);
 
+const Color _kGridEvenRow = Color(0xFFFFFFFF);
+const Color _kGridOddRow = Color(0xFFF9FAFB);
+const Color _kGridSelectedRow = Color(0x14007AFF);
+const Color _kGridBodyText = Color(0xFF111827);
+const Color _kGridSecondaryText = Color(0xFF6B7280);
+const Color _kGridAccent = Color(0xFF007AFF);
+
 class SmartDataSource extends DataGridSource {
   SmartDataSource({
     required List<String> headers,
@@ -34,6 +41,8 @@ class SmartDataSource extends DataGridSource {
 
   // ---- Estilo opcional ----
   GridnoteTableStyle? _style;
+  int _selectedRow = -1;
+
   void updateStyle(GridnoteTableStyle s) {
     _style = s;
     notifyListeners();
@@ -44,7 +53,9 @@ class SmartDataSource extends DataGridSource {
   String _k(int r, int c) => '$r:$c';
 
   void disposeControllers() {
-    for (final c in _ctls.values) c.dispose();
+    for (final c in _ctls.values) {
+      c.dispose();
+    }
     _ctls.clear();
   }
 
@@ -76,6 +87,7 @@ class SmartDataSource extends DataGridSource {
   void updateRows(List<List<dynamic>> rows) {
     _rows = rows.map((r) => r.map((e) => e.toString()).toList()).toList();
     _normalizeAll();
+    if (_selectedRow >= _rows.length) _selectedRow = _rows.length - 1;
     _pruneOrReuseControllers();
     _rebuildDgRows();
     notifyListeners();
@@ -130,7 +142,11 @@ class SmartDataSource extends DataGridSource {
 
   void selectRow(DataGridRow row) {
     final idx = _rowIndex(row);
-    if (idx >= 0) onRowSelected(idx);
+    if (idx >= 0) {
+      _selectedRow = idx;
+      notifyListeners();
+      onRowSelected(idx);
+    }
   }
 
   void _normalizeAll() {
@@ -154,25 +170,34 @@ class SmartDataSource extends DataGridSource {
   DataGridRowAdapter buildRow(DataGridRow row) {
     final r = _rowIndex(row);
     final t = _style;
+    final selected = r == _selectedRow;
+    final oddRow = r.isOdd;
+    final zebra = t?.zebra ?? true;
+    final bg = selected
+        ? _kGridSelectedRow
+        : zebra && oddRow
+            ? (t?.zebraColor ?? _kGridOddRow)
+            : (t?.cellBg ?? _kGridEvenRow);
 
-    final zebra = (t?.zebra ?? true) && r.isEven;
-    final bg =
-        zebra ? (t?.zebraColor ?? const Color(0x0C000000)) : Colors.transparent;
-
-    return DataGridRowAdapter(cells: <Widget>[
-      _indexCell(r, bg),
+    return DataGridRowAdapter(color: bg, cells: <Widget>[
+      _indexCell(r, bg, selected: selected),
       for (int c = 0; c < _headers.length; c++) _editCell(r, c, bg, t),
     ]);
   }
 
-  Widget _indexCell(int r, Color bg) {
+  Widget _indexCell(int r, Color bg, {required bool selected}) {
     return Container(
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       color: bg,
       child: Text(
         '${r + 1}',
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+        style: TextStyle(
+          color: selected ? _kGridAccent : _kGridSecondaryText,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          fontSize: 13.5,
+          letterSpacing: -0.05,
+        ),
       ),
     );
   }
@@ -192,7 +217,7 @@ class SmartDataSource extends DataGridSource {
 
     return Container(
       alignment: isNum ? Alignment.centerRight : Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
       color: bg,
       child: TextField(
         controller: ctl,
@@ -202,9 +227,19 @@ class SmartDataSource extends DataGridSource {
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : TextInputType.text,
         inputFormatters: inputFmt,
-        decoration:
-            const InputDecoration(isDense: true, border: InputBorder.none),
-        style: const TextStyle(fontSize: 13.5),
+        cursorColor: _kGridAccent,
+        decoration: const InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+        style: t?.cellTextStyle ??
+            const TextStyle(
+              color: _kGridBodyText,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w400,
+              letterSpacing: -0.05,
+            ),
         onChanged: (v) {
           _rows[r][c] = v;
           _debounce(() => onChanged(r, c, v));

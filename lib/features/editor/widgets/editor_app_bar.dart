@@ -106,14 +106,6 @@ class _PremiumAppleHeader extends StatelessWidget {
   final String? activeViewId;
   final bool pendingReviewViewActive;
 
-  String _formatLocalSaved(DateTime? value) {
-    if (value == null) return 'Ultimo guardado local: --:--';
-    final local = value.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return 'Ultimo guardado local: $hh:$mm';
-  }
-
   static String _columnLabel(int col) {
     var value = col + 1;
     final out = StringBuffer();
@@ -149,7 +141,7 @@ class _PremiumAppleHeader extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(14, top + 8, 14, 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
             Positioned.fill(
@@ -160,19 +152,19 @@ class _PremiumAppleHeader extends StatelessWidget {
               ),
             ),
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
               decoration: BoxDecoration(
                 color: palette.headerCardBg,
                 gradient: glassGradient,
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                     color: palette.headerCardBorder, width: palette.hairline),
                 boxShadow: [
                   BoxShadow(
                     color: palette.cellText
-                        .withValues(alpha: palette.isLight ? 0.10 : 0.46),
-                    blurRadius: 30,
-                    offset: const Offset(0, 14),
+                        .withValues(alpha: palette.isLight ? 0.07 : 0.32),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -182,8 +174,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                   final veryCompact = cs.maxWidth < 520;
 
                   final titleSize = veryCompact ? 30.0 : 34.0;
-                  final pillGap = veryCompact ? 8.0 : 10.0;
-
                   final iconRow = Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -313,232 +303,6 @@ class _PremiumAppleHeader extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _InlineMetaChip(
-                              palette: palette,
-                              icon: Icons.table_view_rounded,
-                              label: 'Vista base',
-                              onTap: () => onSelectView(null),
-                            ),
-                            for (final view in savedViews.take(5))
-                              _InlineMetaChip(
-                                palette: palette,
-                                icon: view.id == activeViewId
-                                    ? Icons.visibility_rounded
-                                    : Icons.visibility_outlined,
-                                label: view.name,
-                                onTap: () => onSelectView(view.id),
-                              ),
-                            _InlineMetaChip(
-                              palette: palette,
-                              icon: Icons.bookmark_add_outlined,
-                              label: 'Guardar vista',
-                              onTap: onSaveView,
-                            ),
-                            if (savedViews.isNotEmpty)
-                              _InlineMetaChip(
-                                palette: palette,
-                                icon: Icons.more_horiz_rounded,
-                                label: 'Gestionar vistas',
-                                onTap: onManageViews,
-                              ),
-                            _InlineMetaChip(
-                              palette: palette,
-                              icon: pendingReviewViewActive
-                                  ? Icons.pending_actions_rounded
-                                  : Icons.fact_check_outlined,
-                              label: pendingReviewViewActive
-                                  ? 'Pendientes'
-                                  : 'Ver pendientes',
-                              onTap: onTogglePendingReviewView,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _formatLocalSaved(lastLocalSavedAt),
-                          style: TextStyle(
-                            color: palette.fgMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: pillGap,
-                          runSpacing: 10,
-                          children: [
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.0),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.check_circle_outline_rounded,
-                                label: AppStrings.editorSave,
-                                semanticsLabel: AppStrings.semEditorSave,
-                                tooltip: 'Guardar cambios locales',
-                                onTap: onSave,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.1),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: true,
-                                icon: Icons.add_box_outlined,
-                                label: '+ Registro',
-                                semanticsLabel:
-                                    'Crear registro rapido de campo',
-                                tooltip: 'Crear un registro en modo campo',
-                                onTap: onQuickCapture,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.2),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.description_outlined,
-                                label: 'Formulario',
-                                semanticsLabel: 'Abrir modo formulario',
-                                tooltip: 'Editar fila en modo formulario',
-                                onTap: onForm,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.25),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.search_rounded,
-                                label: AppStrings.editorSearch,
-                                semanticsLabel: AppStrings.semEditorSearch,
-                                tooltip: 'Buscar en todas las celdas',
-                                onTap: onSearch,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.27),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.travel_explore_rounded,
-                                label: 'Buscar global',
-                                semanticsLabel:
-                                    'Buscar en esta planilla o en todas',
-                                tooltip: 'Busqueda global (Ctrl/Cmd+Shift+F)',
-                                onTap: onSearchEverywhere,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.3),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.pin_drop_outlined,
-                                label: 'Jump to...',
-                                semanticsLabel: 'Ir rapido por fila o ID',
-                                tooltip: 'Ir a fila o ID rapidamente',
-                                onTap: onJumpTo,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.4),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.view_column_rounded,
-                                label: 'Columnas',
-                                semanticsLabel:
-                                    'Abrir panel de configuracion de columnas',
-                                tooltip: 'Tipos, orden, visibilidad y fijar',
-                                onTap: onColumns,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.45),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.attach_file_rounded,
-                                label: 'Adjuntos',
-                                semanticsLabel:
-                                    'Abrir adjuntos de celda activa',
-                                tooltip: 'Abrir panel de adjuntos',
-                                onTap: onAttachments,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.47),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.history_rounded,
-                                label: 'Historial',
-                                semanticsLabel: 'Abrir historial de cambios',
-                                tooltip: 'Auditoria de cambios',
-                                onTap: onHistory,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.49),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.group_work_outlined,
-                                label: 'Colaborar',
-                                semanticsLabel:
-                                    'Flujo de colaboracion por paquete',
-                                tooltip:
-                                    'Exportar, importar y mergear paquetes',
-                                onTap: onCollaborate,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.5),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.ios_share_rounded,
-                                label: AppStrings.editorExport,
-                                semanticsLabel: AppStrings.semEditorExport,
-                                tooltip: 'Exportar o compartir planilla',
-                                onTap: onExport,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.6),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.layers_outlined,
-                                label: AppStrings.editorBatchActions,
-                                semanticsLabel: 'Abrir acciones por lote',
-                                tooltip:
-                                    'Acciones rapidas para filas seleccionadas',
-                                onTap: onBatch,
-                              ),
-                            ),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(1.65),
-                              child: _PillButton(
-                                palette: palette,
-                                filled: false,
-                                icon: Icons.verified_rounded,
-                                label: 'Marcar revisado',
-                                semanticsLabel:
-                                    'Marcar filas seleccionadas como revisadas',
-                                tooltip: 'Workflow de revision',
-                                onTap: onMarkReviewed,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
                         AppleToolbar(
                           items: [
                             AppleToolbarItem(
@@ -748,7 +512,7 @@ class _DesktopBottomToolbar extends StatelessWidget {
 
   String _savedText() {
     final value = lastLocalSavedAt;
-    if (value == null) return 'Sin guardado local';
+    if (value == null) return '--';
     final local = value.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
@@ -965,25 +729,6 @@ class _MobileCompactHeader extends StatelessWidget {
   final VoidCallback onOpenOfflineQueue;
   final DateTime? lastLocalSavedAt;
 
-  String _formatLocalSaved(DateTime? value) {
-    if (value == null) return 'Ultimo guardado local: --:--';
-    final local = value.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return 'Ultimo guardado local: $hh:$mm';
-  }
-
-  static String _columnLabel(int col) {
-    var value = col + 1;
-    final out = StringBuffer();
-    while (value > 0) {
-      final rem = (value - 1) % 26;
-      out.writeCharCode(65 + rem);
-      value = (value - 1) ~/ 26;
-    }
-    return out.toString().split('').reversed.join();
-  }
-
   @override
   Widget build(BuildContext context) {
     final label = title.trim().isEmpty ? 'Planilla' : title.trim();
@@ -1010,42 +755,13 @@ class _MobileCompactHeader extends StatelessWidget {
                 break;
             }
 
-            final pendingLabel =
-                pendingRequired > 0 ? ' | Errores: $pendingRequired' : '';
-            final queueLabel =
-                pendingOfflineCount > 0 ? ' | Cola: $pendingOfflineCount' : '';
-            final offlineLabel = offline.message?.trim().isNotEmpty == true
-                ? offline.message!.trim()
-                : 'Sincronizado';
-            final modeLabel = palette.isLight ? 'Claro' : 'Oscuro';
-            final localLabel =
-                _formatLocalSaved(lastLocalSavedAt ?? snap.savedAt)
-                    .replaceFirst('Ultimo guardado local: ', 'Local: ');
-            final activeCell = (selectedRow >= 0 && selectedCol >= 0)
-                ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
-                : '--';
-
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
               child: AppTopBar(
                 title: label,
                 subtitle:
-                    '$saveLabel$pendingLabel$queueLabel | Celda: $activeCell | $localLabel | Sync: $offlineLabel | $modeLabel',
+                    '$saveLabel${pendingRequired > 0 ? " · $pendingRequired err." : ""}${pendingOfflineCount > 0 ? " · $pendingOfflineCount cola" : ""}',
                 actions: [
-                  AppButton(
-                    label: AppStrings.editorSave,
-                    icon: Icons.check_circle_outline_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onSave,
-                  ),
-                  AppButton(
-                    label: 'Cola',
-                    icon: Icons.sync_alt_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onOpenOfflineQueue,
-                  ),
                   AppButton(
                     label: AppStrings.editorExport,
                     icon: Icons.ios_share_rounded,
@@ -1208,127 +924,6 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
         ),
       ),
     );
-  }
-}
-
-class _PillButton extends StatefulWidget {
-  const _PillButton({
-    required this.palette,
-    required this.filled,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    required this.semanticsLabel,
-    this.tooltip,
-  });
-
-  final _SheetPalette palette;
-  final bool filled;
-  final IconData icon;
-  final String label;
-  final String semanticsLabel;
-  final VoidCallback? onTap;
-  final String? tooltip;
-
-  @override
-  State<_PillButton> createState() => _PillButtonState();
-}
-
-class _PillButtonState extends State<_PillButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  void _setHovered(bool value) {
-    if (_hovered == value) return;
-    setState(() => _hovered = value);
-  }
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = widget.onTap == null;
-
-    final baseBg =
-        widget.filled ? widget.palette.cellText : widget.palette.pillBtnBg;
-    final bg = _pressed
-        ? baseBg.withValues(alpha: widget.filled ? 0.85 : 0.72)
-        : (_hovered
-            ? baseBg.withValues(alpha: widget.filled ? 0.94 : 0.9)
-            : baseBg);
-
-    final fg = widget.filled ? widget.palette.gridBg : widget.palette.fg;
-
-    final button = Opacity(
-      opacity: disabled ? 0.45 : 1.0,
-      child: MouseRegion(
-        onEnter: disabled ? null : (_) => _setHovered(true),
-        onExit: disabled ? null : (_) => _setHovered(false),
-        child: AnimatedScale(
-          duration: AppMotion.quick,
-          curve: AppMotion.standardOut,
-          scale: _pressed ? 0.985 : (_hovered ? 1.03 : 1.0),
-          child: AnimatedContainer(
-            duration: AppMotion.quick,
-            curve: AppMotion.standardOut,
-            decoration: BoxDecoration(
-              boxShadow: _hovered
-                  ? [
-                      BoxShadow(
-                        color: widget.palette.cellText.withValues(
-                            alpha: widget.palette.isLight ? 0.10 : 0.32),
-                        blurRadius: 12,
-                        offset: const Offset(0, 8),
-                      ),
-                    ]
-                  : const [],
-            ),
-            child: InkWell(
-              onTap: disabled ? null : widget.onTap,
-              onHighlightChanged: disabled ? null : _setPressed,
-              borderRadius: BorderRadius.circular(999),
-              child: Semantics(
-                button: true,
-                label: widget.semanticsLabel,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                        color: widget.palette.pillBtnBorder,
-                        width: widget.palette.hairline),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(widget.icon, size: 18, color: fg),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.label,
-                        style: TextStyle(
-                          color: fg,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                          height: 1.05,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    final tip = widget.tooltip?.trim() ?? '';
-    if (tip.isEmpty) return button;
-    return Tooltip(message: tip, child: button);
   }
 }
 

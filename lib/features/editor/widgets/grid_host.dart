@@ -24,34 +24,34 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
       return const _GridMetrics(
-        rowH: 53,
-        headerH: 49,
-        cellPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        headerPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        cellFontSize: 14.0,
-        headerFontSize: 13.2,
-        indexFontSize: 12.5,
+        rowH: 48,
+        headerH: 40,
+        cellPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        headerPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        cellFontSize: 13.5,
+        headerFontSize: 11.5,
+        indexFontSize: 11.5,
       );
     case _GridDensity.roomy:
       return const _GridMetrics(
-        rowH: 68,
-        headerH: 62,
-        cellPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        headerPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        cellFontSize: 15.6,
-        headerFontSize: 14.6,
-        indexFontSize: 13.8,
+        rowH: 64,
+        headerH: 52,
+        cellPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        headerPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        cellFontSize: 15.0,
+        headerFontSize: 12.5,
+        indexFontSize: 13.0,
       );
     case _GridDensity.normal:
     default:
       return const _GridMetrics(
-        rowH: 61,
-        headerH: 56,
-        cellPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-        headerPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-        cellFontSize: 15.5,
-        headerFontSize: 14.5,
-        indexFontSize: 13.7,
+        rowH: 56,
+        headerH: 44,
+        cellPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        headerPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        cellFontSize: 14.5,
+        headerFontSize: 12.0,
+        indexFontSize: 12.5,
       );
   }
 }
@@ -168,9 +168,12 @@ class _GridView extends StatelessWidget {
                 'boundedH=${c.hasBoundedHeight} boundedW=${c.hasBoundedWidth}',
               );
             }
-            final shellRadius = BorderRadius.circular(22);
-            final shellShadow = palette.cellText.withValues(
-              alpha: palette.isLight ? 0.05 : 0.2,
+            final shellRadius = BorderRadius.circular(16);
+            final shellShadowBase = palette.cellText.withValues(
+              alpha: palette.isLight ? 0.06 : 0.22,
+            );
+            final shellShadowNear = palette.cellText.withValues(
+              alpha: palette.isLight ? 0.03 : 0.10,
             );
 
             return Padding(
@@ -181,13 +184,18 @@ class _GridView extends StatelessWidget {
                   borderRadius: shellRadius,
                   border: Border.all(
                     color: palette.gridBorder,
-                    width: math.max(palette.hairline, 1).toDouble(),
+                    width: 0.75,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: shellShadow,
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
+                      color: shellShadowBase,
+                      blurRadius: 32,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: shellShadowNear,
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -464,8 +472,9 @@ class _GridView extends StatelessWidget {
         '#',
         style: TextStyle(
           color: palette.headerText,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           fontSize: metrics.indexFontSize,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -530,15 +539,15 @@ class _HeaderCell extends StatelessWidget {
               padding: metrics.headerPadding,
               alignment: Alignment.centerLeft,
               child: Text(
-                t.isEmpty ? ' ' : t,
+                t.isEmpty ? ' ' : t.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: palette.headerText,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   fontSize: metrics.headerFontSize,
                   height: 1.05,
-                  letterSpacing: 0.02,
+                  letterSpacing: 0.7,
                 ),
               ),
             ),
@@ -613,8 +622,8 @@ class _RowIndexCell extends StatelessWidget {
               child: Text(
                 index.toString(),
                 style: TextStyle(
-                  color: selected ? palette.cellText : palette.cellTextMuted,
-                  fontWeight: FontWeight.w800,
+                  color: selected ? palette.accent : palette.cellTextMuted,
+                  fontWeight: FontWeight.w500,
                   fontSize: metrics.indexFontSize,
                   height: 1.05,
                 ),
@@ -794,20 +803,20 @@ class _DataCell extends StatelessWidget {
 
   Widget _chip(Widget child, {VoidCallback? onTap}) {
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         color: palette.chipBg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: palette.chipBorder,
-          width: math.max(palette.hairline, 1).toDouble(),
+          width: math.max(palette.hairline, 0.75).toDouble(),
         ),
       ),
       child: child,
     );
     if (onTap == null) return chip;
     return InkWell(
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(6),
       onTap: onTap,
       child: chip,
     );

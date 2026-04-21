@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+import 'package:syncfusion_flutter_core/theme.dart';
 
 // Tema Gridnote
 import 'package:bitacora_web/theme/gridnote_theme.dart';
@@ -12,6 +13,11 @@ import 'package:bitacora_web/widgets/smart_datasource.dart';
 import 'package:bitacora_web/widgets/validators.dart';
 import 'package:bitacora_web/widgets/suggestions.dart';
 import 'package:bitacora_web/services/export_xlsx_service.dart';
+
+const double _kSmartGridRadius = 14;
+const double _kSmartGridHeaderHeight = 42;
+const double _kSmartGridRowHeight = 54;
+const double _kSmartGridLineWidth = 0.65;
 
 /// Hoja de cálculo avanzada con estilo tipo Apple.
 class SmartSheet extends StatefulWidget {
@@ -172,16 +178,19 @@ class _SmartSheetState extends State<SmartSheet> {
     cells.add(
       Container(
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        height: _kSmartGridHeaderHeight,
         decoration: BoxDecoration(
           color: t.headerBg,
           border: Border(
-            right: BorderSide(color: t.gridLine),
-            top: BorderSide(color: t.gridLine),
+            right: BorderSide(color: t.gridLine, width: _kSmartGridLineWidth),
+            top: BorderSide(color: t.gridLine, width: _kSmartGridLineWidth),
           ),
         ),
-        child: const Text('Σ', style: TextStyle(fontWeight: FontWeight.w700)),
+        child: Text(
+          'Σ',
+          style: t.headerTextStyle?.copyWith(color: t.headerText),
+        ),
       ),
     );
 
@@ -191,17 +200,22 @@ class _SmartSheetState extends State<SmartSheet> {
       cells.add(
         Container(
           alignment: Alignment.centerRight,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          height: _kSmartGridHeaderHeight,
           decoration: BoxDecoration(
             color: t.headerBg,
             border: Border(
-              right: BorderSide(color: t.gridLine),
-              top: BorderSide(color: t.gridLine),
+              right: BorderSide(color: t.gridLine, width: _kSmartGridLineWidth),
+              top: BorderSide(color: t.gridLine, width: _kSmartGridLineWidth),
             ),
           ),
-          child:
-              Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+          child: Text(
+            text,
+            style: t.cellTextStyle?.copyWith(
+              color: t.headerText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       );
     }
@@ -286,6 +300,9 @@ class _SmartSheetState extends State<SmartSheet> {
     _dataSource.updateStyle(tableStyle);
 
     final isLight = widget.theme.theme.material.brightness == Brightness.light;
+    final accent = widget.theme.theme.accent;
+    final selectionColor = accent.withValues(alpha: 0.08);
+    final hoverColor = accent.withValues(alpha: 0.045);
 
     return Shortcuts(
       shortcuts: _shortcuts,
@@ -299,41 +316,61 @@ class _SmartSheetState extends State<SmartSheet> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: tableStyle.cellBg,
-                  borderRadius: BorderRadius.circular(14),
-                  border:
-                      Border.all(color: tableStyle.gridLine.withOpacity(0.8)),
+                  borderRadius: BorderRadius.circular(_kSmartGridRadius),
+                  border: Border.all(
+                    color: tableStyle.gridLine,
+                    width: _kSmartGridLineWidth,
+                  ),
                   boxShadow: [
                     if (isLight)
                       const BoxShadow(
-                        blurRadius: 20,
-                        offset: Offset(0, 10),
-                        color: Color(0x15000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
+                        color: Color(0x0A111827),
                       ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(_kSmartGridRadius),
                   child: Column(
                     children: [
                       Expanded(
-                        child: SfDataGrid(
-                          key: _gridKey,
-                          source: _dataSource,
-                          columnWidthMode: ColumnWidthMode.none,
-                          allowEditing: true,
-                          navigationMode: GridNavigationMode.cell,
-                          selectionMode: SelectionMode.single,
-                          onSelectionChanged: (added, removed) {
-                            if (added.isNotEmpty) {
-                              _dataSource.selectRow(added.first);
-                            }
-                          },
-                          headerRowHeight: 42,
-                          rowHeight: 38,
-                          frozenColumnsCount: 1,
-                          gridLinesVisibility: GridLinesVisibility.both,
-                          headerGridLinesVisibility: GridLinesVisibility.both,
-                          columns: _buildColumns(tableStyle),
+                        child: SfDataGridTheme(
+                          data: SfDataGridThemeData(
+                            headerColor: tableStyle.headerBg,
+                            headerHoverColor: tableStyle.headerBg,
+                            gridLineColor: tableStyle.gridLine,
+                            gridLineStrokeWidth: _kSmartGridLineWidth,
+                            selectionColor: selectionColor,
+                            rowHoverColor: hoverColor,
+                            currentCellStyle: DataGridCurrentCellStyle(
+                              borderColor: accent.withValues(alpha: 0.32),
+                              borderWidth: 1.1,
+                            ),
+                            frozenPaneLineColor: tableStyle.gridLine,
+                            frozenPaneLineWidth: _kSmartGridLineWidth,
+                            frozenPaneElevation: 0,
+                          ),
+                          child: SfDataGrid(
+                            key: _gridKey,
+                            source: _dataSource,
+                            columnWidthMode: ColumnWidthMode.none,
+                            allowEditing: true,
+                            navigationMode: GridNavigationMode.cell,
+                            selectionMode: SelectionMode.single,
+                            onSelectionChanged: (added, removed) {
+                              if (added.isNotEmpty) {
+                                _dataSource.selectRow(added.first);
+                              }
+                            },
+                            headerRowHeight: _kSmartGridHeaderHeight,
+                            rowHeight: _kSmartGridRowHeight,
+                            frozenColumnsCount: 1,
+                            gridLinesVisibility: GridLinesVisibility.both,
+                            headerGridLinesVisibility:
+                                GridLinesVisibility.horizontal,
+                            columns: _buildColumns(tableStyle),
+                          ),
                         ),
                       ),
                       _buildTotalsRow(tableStyle),
@@ -358,11 +395,19 @@ class _SmartSheetState extends State<SmartSheet> {
         width: 60,
         label: Container(
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          color: t.headerBg,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: t.headerBg,
+            border: Border(
+              bottom: BorderSide(
+                color: t.gridLine,
+                width: _kSmartGridLineWidth,
+              ),
+            ),
+          ),
           child: Text(
             '#',
-            style: TextStyle(color: t.headerText, fontWeight: FontWeight.w700),
+            style: t.headerTextStyle,
           ),
         ),
       ),
@@ -377,14 +422,21 @@ class _SmartSheetState extends State<SmartSheet> {
           width: 180,
           label: Container(
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: t.headerBg,
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+            decoration: BoxDecoration(
+              color: t.headerBg,
+              border: Border(
+                bottom: BorderSide(
+                  color: t.gridLine,
+                  width: _kSmartGridLineWidth,
+                ),
+              ),
+            ),
             child: Text(
-              header,
+              header.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style:
-                  TextStyle(color: t.headerText, fontWeight: FontWeight.w700),
+              style: t.headerTextStyle,
             ),
           ),
         ),
