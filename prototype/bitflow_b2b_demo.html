@@ -2,8 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BitFlow · Gestión de Datos de Campo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A2540" />
+  <title>BitFlow · Gestión de planillas de campo</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,6 +13,7 @@
       --c-primary: #0A2540;
       --c-primary-soft: #0F2D52;
       --c-primary-line: #1B3C68;
+      --c-primary-hover: #14335D;
       --c-accent: #F97316;
       --c-accent-hover: #EA580C;
       --c-accent-soft: #FFF7ED;
@@ -26,17 +28,21 @@
       --c-ok-soft: #ECFDF5;
       --c-warn: #B45309;
       --c-warn-soft: #FEF3C7;
+      --c-warn-border: #FDE4B0;
       --c-err: #B91C1C;
       --c-err-soft: #FEF2F2;
       --c-zebra: #FAFBFC;
       --r-sm: 6px;
       --r-md: 10px;
       --r-lg: 14px;
+      --r-xl: 20px;
       --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
       --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
       --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --shadow-xl: 0 20px 50px rgba(15, 23, 42, 0.20);
       --t-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
       --t-med: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      --t-slow: 320ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * { box-sizing: border-box; }
@@ -49,23 +55,23 @@
       background: var(--c-bg);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
     }
 
-    button { font-family: inherit; }
-    input { font-family: inherit; }
+    button, input { font-family: inherit; }
 
-    /* ── Top Header ──────────────────────────────────────────────────── */
+    /* ── Header ──────────────────────────────────────────────────────── */
     .app-header {
       background: var(--c-primary);
       color: #fff;
       height: 60px;
       display: flex;
       align-items: center;
-      padding: 0 24px;
+      padding: 0 22px;
       border-bottom: 1px solid var(--c-primary-line);
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 50;
     }
 
     .brand {
@@ -75,7 +81,10 @@
       font-weight: 700;
       font-size: 16px;
       letter-spacing: -0.2px;
+      cursor: pointer;
+      transition: opacity var(--t-med);
     }
+    .brand:hover { opacity: 0.85; }
 
     .brand-mark {
       width: 32px;
@@ -88,7 +97,6 @@
       font-weight: 800;
       font-size: 15px;
       color: #fff;
-      letter-spacing: -0.5px;
     }
 
     .brand-sep {
@@ -102,39 +110,59 @@
       font-size: 13px;
       font-weight: 500;
       color: rgba(255,255,255,0.85);
+      max-width: 340px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .header-spacer { flex: 1; }
 
-    .header-sync {
-      display: flex;
+    .sync-icon {
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
+      gap: 7px;
+      padding: 6px 11px;
       border-radius: 999px;
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.1);
       font-size: 12px;
       font-weight: 500;
       color: rgba(255,255,255,0.9);
-      transition: background var(--t-med);
+      cursor: pointer;
+      transition: all var(--t-med);
+      margin-right: 12px;
     }
-    .header-sync:hover { background: rgba(255,255,255,0.12); }
+    .sync-icon:hover { background: rgba(255,255,255,0.14); }
+    .sync-icon.pending { background: rgba(245, 158, 11, 0.18); border-color: rgba(245, 158, 11, 0.35); color: #FCD34D; }
+    .sync-icon.error   { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.35); color: #FCA5A5; }
 
     .sync-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: #4ADE80;
-      box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.55);
+    }
+    .sync-icon.pending .sync-dot { background: #FBBF24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.55); }
+    .sync-icon.error   .sync-dot { background: #EF4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.55); }
+    .sync-icon.syncing {
+      background: rgba(249, 115, 22, 0.18);
+      border-color: rgba(249, 115, 22, 0.35);
+      color: #FDBA74;
+    }
+    .sync-icon.syncing .sync-dot { animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.6; }
     }
 
     .header-user {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-left: 16px;
-      padding: 4px 8px 4px 4px;
+      padding: 4px 10px 4px 4px;
       border-radius: 999px;
       cursor: pointer;
       transition: background var(--t-med);
@@ -154,37 +182,352 @@
       font-size: 12px;
       letter-spacing: 0.2px;
     }
-
     .user-meta { line-height: 1.2; }
     .user-name { font-size: 13px; font-weight: 600; color: #fff; }
     .user-role { font-size: 11px; color: rgba(255,255,255,0.6); }
+
+    /* ── Offline banner ──────────────────────────────────────────────── */
+    .offline-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: linear-gradient(180deg, #FEF3C7 0%, #FDE68A 100%);
+      border-bottom: 1px solid var(--c-warn-border);
+      color: #78350F;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--t-med);
+      animation: slideDown 300ms cubic-bezier(0.4, 0, 0.2, 1);
+      position: sticky;
+      top: 60px;
+      z-index: 40;
+    }
+    .offline-banner:hover { background: linear-gradient(180deg, #FDE68A 0%, #FCD34D 100%); }
+    .offline-banner strong { font-weight: 700; }
+    .offline-banner .chevron { opacity: 0.6; transition: transform var(--t-med); }
+    .offline-banner:hover .chevron { transform: translateX(3px); }
+
+    @keyframes slideDown {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
 
     /* ── Main ─────────────────────────────────────────────────────────── */
     main {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 28px 24px 40px;
+      padding: 28px 22px 40px;
     }
 
+    /* ── Dashboard ───────────────────────────────────────────────────── */
+    .dash-greeting {
+      margin-bottom: 24px;
+    }
+    .dash-greeting h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.6px;
+      margin: 0 0 4px;
+      color: var(--c-text);
+    }
+    .dash-greeting h1 .muted { color: var(--c-text-soft); font-weight: 500; }
+    .dash-greeting p { margin: 0; color: var(--c-text-soft); font-size: 14px; }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .kpi {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      padding: 18px 20px;
+      transition: all var(--t-med);
+    }
+    .kpi:hover {
+      border-color: var(--c-border-strong);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+    .kpi.accent  { border-left: 3px solid var(--c-accent); }
+    .kpi.warn    { border-left: 3px solid var(--c-warn);   }
+    .kpi.ok      { border-left: 3px solid var(--c-ok);     }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.6px;
+      line-height: 1.05;
+    }
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--c-text-soft);
+      margin-top: 6px;
+    }
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-left: 8px;
+      vertical-align: 4px;
+    }
+    .kpi-trend.up   { background: var(--c-ok-soft);   color: var(--c-ok);   }
+    .kpi-trend.warn { background: var(--c-warn-soft); color: var(--c-warn); }
+
+    /* ── Primary CTA ─────────────────────────────────────────────────── */
+    .cta-new {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 16px 22px;
+      background: var(--c-accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--r-lg);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.28);
+      transition: all var(--t-med);
+      margin-bottom: 28px;
+      letter-spacing: -0.1px;
+    }
+    .cta-new:hover {
+      background: var(--c-accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px rgba(249, 115, 22, 0.38);
+    }
+    .cta-new:active { transform: translateY(0); }
+
+    /* ── Sections ────────────────────────────────────────────────────── */
+    .section {
+      margin-bottom: 32px;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--c-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .section-link {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--c-text-soft);
+      cursor: pointer;
+      transition: color var(--t-med);
+    }
+    .section-link:hover { color: var(--c-accent); }
+
+    /* ── Templates ───────────────────────────────────────────────────── */
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .template {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      padding: 16px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      cursor: pointer;
+      transition: all var(--t-med);
+      text-align: left;
+    }
+    .template:hover {
+      border-color: var(--c-accent);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .template:hover .tpl-arrow { opacity: 1; transform: translateX(0); }
+
+    .tpl-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .tpl-body { flex: 1; min-width: 0; }
+    .tpl-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.1px;
+      color: var(--c-text);
+      margin: 0 0 2px;
+    }
+    .tpl-desc {
+      font-size: 12.5px;
+      color: var(--c-text-soft);
+      margin: 0;
+      line-height: 1.4;
+    }
+    .tpl-meta {
+      font-size: 11px;
+      color: var(--c-text-muted);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+    .tpl-arrow {
+      color: var(--c-accent);
+      opacity: 0;
+      transform: translateX(-6px);
+      transition: all var(--t-med);
+      flex-shrink: 0;
+    }
+
+    /* ── Recents ─────────────────────────────────────────────────────── */
+    .recent-list {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+    }
+
+    .recent {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--c-border);
+      cursor: pointer;
+      transition: background var(--t-fast);
+    }
+    .recent:last-child { border-bottom: none; }
+    .recent:hover { background: var(--c-zebra); }
+
+    .recent-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--c-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--c-primary);
+      flex-shrink: 0;
+    }
+
+    .recent-body { flex: 1; min-width: 0; }
+    .recent-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--c-text);
+      letter-spacing: -0.1px;
+      margin: 0 0 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .recent-meta {
+      font-size: 12px;
+      color: var(--c-text-soft);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .recent-meta .sep {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--c-text-muted);
+    }
+
+    /* ── Status pill ─────────────────────────────────────────────────── */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .status-icon {
+      width: 13px;
+      height: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .status-ok      { background: var(--c-ok-soft);   color: var(--c-ok);   }
+    .status-warn    { background: var(--c-warn-soft); color: var(--c-warn); }
+    .status-err     { background: var(--c-err-soft);  color: var(--c-err);  }
+    .status-pending { background: #EFF6FF; color: #1D4ED8; }
+    .status-closed  { background: #EDE9FE; color: #6D28D9; }
+    .status-idle    { background: #F1F5F9; color: #64748B; }
+
+    /* ── Page head (planilla) ────────────────────────────────────────── */
     .page-head {
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 22px;
     }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--c-text-soft);
+      cursor: pointer;
+      margin-bottom: 8px;
+      padding: 2px 0;
+      transition: color var(--t-med);
+    }
+    .back-link:hover { color: var(--c-accent); }
 
     .page-title {
       font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.4px;
       margin: 0 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-
-    .page-sub {
-      font-size: 13px;
-      color: var(--c-text-soft);
-    }
+    .page-sub { font-size: 13px; color: var(--c-text-soft); }
 
     .actions-row {
       display: flex;
@@ -192,7 +535,7 @@
       flex-wrap: wrap;
     }
 
-    /* ── Buttons ──────────────────────────────────────────────────────── */
+    /* ── Buttons ─────────────────────────────────────────────────────── */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -207,6 +550,7 @@
       transition: all var(--t-med);
       line-height: 1;
     }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
 
     .btn-primary {
       background: var(--c-accent);
@@ -214,21 +558,20 @@
       border-color: var(--c-accent);
       box-shadow: 0 1px 2px rgba(249, 115, 22, 0.2);
     }
-    .btn-primary:hover {
+    .btn-primary:hover:not(:disabled) {
       background: var(--c-accent-hover);
       border-color: var(--c-accent-hover);
       transform: translateY(-1px);
       box-shadow: 0 4px 10px rgba(249, 115, 22, 0.25);
     }
-    .btn-primary:active { transform: translateY(0); }
 
     .btn-secondary {
       background: var(--c-primary);
       color: #fff;
       border-color: var(--c-primary);
     }
-    .btn-secondary:hover {
-      background: var(--c-primary-soft);
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--c-primary-hover);
       transform: translateY(-1px);
       box-shadow: var(--shadow-md);
     }
@@ -238,7 +581,7 @@
       color: var(--c-text);
       border-color: var(--c-border);
     }
-    .btn-ghost:hover {
+    .btn-ghost:hover:not(:disabled) {
       border-color: var(--c-border-strong);
       background: var(--c-bg);
     }
@@ -262,90 +605,9 @@
       color: var(--c-text);
       border-color: var(--c-border);
     }
-
     .btn .icon { width: 15px; height: 15px; }
 
-    /* ── KPI Cards ────────────────────────────────────────────────────── */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .kpi {
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: var(--r-lg);
-      padding: 16px 18px;
-      transition: all var(--t-med);
-      position: relative;
-      overflow: hidden;
-    }
-    .kpi:hover {
-      border-color: var(--c-border-strong);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-md);
-    }
-
-    .kpi-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--c-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .kpi-value {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.6px;
-      color: var(--c-text);
-      line-height: 1.1;
-    }
-
-    .kpi-sub {
-      font-size: 12px;
-      color: var(--c-text-soft);
-      margin-top: 6px;
-    }
-
-    .kpi-trend {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 6px;
-      border-radius: 4px;
-      margin-left: 6px;
-    }
-    .kpi-trend.up { background: var(--c-ok-soft); color: var(--c-ok); }
-    .kpi-trend.warn { background: var(--c-warn-soft); color: var(--c-warn); }
-
-    .kpi-accent { border-left: 3px solid var(--c-accent); }
-    .kpi-warn { border-left: 3px solid var(--c-warn); }
-    .kpi-ok { border-left: 3px solid var(--c-ok); }
-
-    .progress {
-      height: 4px;
-      background: var(--c-border);
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: 10px;
-    }
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--c-accent), var(--c-accent-hover));
-      border-radius: 999px;
-      transition: width 400ms ease;
-    }
-
-    /* ── Table Card ───────────────────────────────────────────────────── */
+    /* ── Card ─────────────────────────────────────────────────────────── */
     .card {
       background: var(--c-surface);
       border: 1px solid var(--c-border);
@@ -354,13 +616,13 @@
       box-shadow: var(--shadow-sm);
     }
 
+    /* ── Planilla toolbar ────────────────────────────────────────────── */
     .toolbar {
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 14px 16px;
       border-bottom: 1px solid var(--c-border);
-      background: var(--c-surface);
     }
 
     .search {
@@ -420,18 +682,18 @@
 
     .toolbar-spacer { flex: 1; }
 
-    /* ── Warning Banner (instead of red errors) ──────────────────────── */
+    /* ── Warning banner (inline) ─────────────────────────────────────── */
     .warn-banner {
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 10px 16px;
       background: var(--c-warn-soft);
-      border-bottom: 1px solid #FDE4B0;
+      border-bottom: 1px solid var(--c-warn-border);
       color: #78350F;
       font-size: 13px;
     }
-    .warn-banner strong { font-weight: 600; }
+    .warn-banner strong { font-weight: 700; }
     .warn-banner .spacer { flex: 1; }
     .warn-link {
       font-weight: 600;
@@ -450,12 +712,7 @@
       border-collapse: collapse;
       font-size: 13px;
     }
-
-    thead {
-      background: #FAFBFC;
-      position: sticky;
-      top: 0;
-    }
+    thead { background: #FAFBFC; }
 
     th {
       text-align: left;
@@ -484,46 +741,87 @@
       color: var(--c-text);
       vertical-align: middle;
     }
-
     td.id {
       font-weight: 600;
       color: var(--c-primary);
       font-variant-numeric: tabular-nums;
     }
-
     td.num {
       font-variant-numeric: tabular-nums;
       text-align: right;
-      color: var(--c-text);
     }
-
     td.muted { color: var(--c-text-soft); }
 
-    /* ── Status Pills ────────────────────────────────────────────────── */
-    .status {
+    /* ── Attachment thumbnails ───────────────────────────────────────── */
+    .attach-cell {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--c-border);
+      position: relative;
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+      transition: transform var(--t-fast);
+    }
+    .thumb:hover { transform: scale(1.15); z-index: 2; box-shadow: var(--shadow-md); }
+    .thumb.audio {
+      background: linear-gradient(135deg, #1E40AF, #3B82F6);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .thumb.video {
+      background: linear-gradient(135deg, #7C3AED, #A78BFA);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .thumb-count {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11.5px;
+      padding: 3px 7px;
+      font-size: 11px;
       font-weight: 600;
-      line-height: 1.4;
-      white-space: nowrap;
-    }
-    .status-icon {
-      width: 14px;
-      height: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
+      color: var(--c-text-soft);
+      background: var(--c-bg);
+      border-radius: 5px;
+      margin-left: 2px;
     }
 
-    .status-ok { background: var(--c-ok-soft); color: var(--c-ok); }
-    .status-warn { background: var(--c-warn-soft); color: var(--c-warn); }
-    .status-err { background: var(--c-err-soft); color: var(--c-err); }
-    .status-idle { background: #F1F5F9; color: #64748B; }
+    /* GPS action chip */
+    .gps-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all var(--t-med);
+      white-space: nowrap;
+    }
+    .gps-chip.has {
+      background: var(--c-ok-soft);
+      color: var(--c-ok);
+    }
+    .gps-chip.capture {
+      background: var(--c-accent-soft);
+      color: var(--c-accent-hover);
+      border: 1px dashed #FDBA74;
+    }
+    .gps-chip.capture:hover {
+      background: var(--c-accent);
+      color: #fff;
+      border-color: var(--c-accent);
+      border-style: solid;
+    }
 
     /* ── Row actions ─────────────────────────────────────────────────── */
     .row-actions {
@@ -553,7 +851,6 @@
       color: var(--c-primary);
       box-shadow: var(--shadow-sm);
     }
-    .action-btn.danger:hover { color: var(--c-err); }
 
     /* ── Tooltip ─────────────────────────────────────────────────────── */
     [data-tip] { position: relative; }
@@ -581,7 +878,7 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* ── Footer / Status bar ─────────────────────────────────────────── */
+    /* ── Status bar footer ───────────────────────────────────────────── */
     .statusbar {
       padding: 10px 16px;
       border-top: 1px solid var(--c-border);
@@ -591,6 +888,7 @@
       gap: 14px;
       font-size: 12px;
       color: var(--c-text-soft);
+      flex-wrap: wrap;
     }
     .statusbar .dot {
       width: 4px;
@@ -599,343 +897,1705 @@
       background: var(--c-border-strong);
     }
 
-    /* ── Checkbox ────────────────────────────────────────────────────── */
-    .chk {
-      width: 16px;
-      height: 16px;
-      border: 1.5px solid var(--c-border-strong);
-      border-radius: 4px;
+    /* ── Modal ───────────────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 37, 64, 0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: backdropIn 200ms ease;
+    }
+    @keyframes backdropIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
       background: var(--c-surface);
+      border-radius: var(--r-xl);
+      max-width: 640px;
+      width: 100%;
+      max-height: calc(100vh - 40px);
+      overflow: hidden;
+      box-shadow: var(--shadow-xl);
+      display: flex;
+      flex-direction: column;
+      animation: modalIn 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal.wide { max-width: 820px; }
+
+    .modal-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .modal-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      flex: 1;
+    }
+    .modal-head .close {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--c-text-soft);
       cursor: pointer;
       transition: all var(--t-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-head .close:hover { background: var(--c-bg); color: var(--c-text); }
+
+    .modal-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+    .modal-foot {
+      padding: 14px 22px;
+      border-top: 1px solid var(--c-border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      background: var(--c-zebra);
+    }
+
+    /* ── Sync queue list ─────────────────────────────────────────────── */
+    .queue-summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--c-warn-soft);
+      border: 1px solid var(--c-warn-border);
+      border-radius: var(--r-md);
+      margin-bottom: 14px;
+      color: #78350F;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      background: var(--c-surface);
+      transition: all var(--t-fast);
+    }
+    .queue-item:hover { border-color: var(--c-border-strong); background: var(--c-zebra); }
+    .queue-item.syncing { border-color: var(--c-accent); background: var(--c-accent-soft); }
+    .queue-item.done { opacity: 0.55; }
+
+    .queue-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--c-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--c-primary);
+      flex-shrink: 0;
+    }
+    .queue-body { flex: 1; min-width: 0; }
+    .queue-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--c-text);
+      letter-spacing: -0.05px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .queue-title .tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--c-bg);
+      color: var(--c-text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .queue-sub {
+      font-size: 11.5px;
+      color: var(--c-text-soft);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .queue-meta {
+      font-size: 11px;
+      color: var(--c-text-muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    /* ── Signature canvas ─────────────────────────────────────────────── */
+    .sign-group { margin-bottom: 16px; }
+    .sign-group:last-child { margin-bottom: 0; }
+    .sign-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--c-text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sign-label .optional {
+      font-size: 10.5px;
+      color: var(--c-text-muted);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .sign-canvas-wrap {
+      position: relative;
+      background: #FAFBFC;
+      border: 2px dashed var(--c-border-strong);
+      border-radius: var(--r-md);
+      height: 130px;
+      overflow: hidden;
+      transition: border-color var(--t-med);
+    }
+    .sign-canvas-wrap.signed { border-style: solid; border-color: var(--c-ok); background: #fff; }
+    .sign-canvas-wrap canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .sign-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--c-text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .sign-clear {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--c-border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--c-text-soft);
+      transition: all var(--t-fast);
+      opacity: 0.85;
+    }
+    .sign-clear:hover { opacity: 1; background: #fff; color: var(--c-err); border-color: var(--c-err); }
+    .sign-meta {
+      margin-top: 6px;
+      font-size: 11.5px;
+      color: var(--c-text-soft);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .input {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      font-size: 13px;
+      color: var(--c-text);
+      background: var(--c-surface);
+      outline: none;
+      transition: all var(--t-med);
+    }
+    .input:focus {
+      border-color: var(--c-accent);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+    }
+
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      transition: all var(--t-med);
+      font-size: 13px;
+    }
+    .check:hover { border-color: var(--c-border-strong); }
+    .check.active { background: var(--c-accent-soft); border-color: var(--c-accent); }
+
+    .check-box {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 1.5px solid var(--c-border-strong);
+      background: var(--c-surface);
+      flex-shrink: 0;
+      margin-top: 1px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       color: #fff;
+      transition: all var(--t-fast);
     }
-    .chk.checked {
+    .check.active .check-box {
       background: var(--c-accent);
       border-color: var(--c-accent);
+    }
+    .check-body { flex: 1; }
+    .check-title { font-weight: 600; color: var(--c-text); }
+    .check-sub { font-size: 12px; color: var(--c-text-soft); margin-top: 2px; }
+
+    /* ── PDF Preview (closed planilla) ───────────────────────────────── */
+    .pdf-sheet {
+      background: #fff;
+      border-radius: var(--r-md);
+      border: 1px solid var(--c-border);
+      padding: 24px;
+      font-family: Georgia, 'Times New Roman', serif;
+      color: #0F172A;
+      box-shadow: var(--shadow-sm);
+    }
+    .pdf-sheet-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--c-primary);
+      margin-bottom: 18px;
+    }
+    .pdf-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: -apple-system, sans-serif;
+    }
+    .pdf-logo .mark {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--c-accent), var(--c-accent-hover));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 17px;
+    }
+    .pdf-logo-text .name { font-weight: 700; font-size: 15px; }
+    .pdf-logo-text .tag  { font-size: 11px; color: var(--c-text-soft); }
+
+    .pdf-docid {
+      text-align: right;
+      font-family: -apple-system, sans-serif;
+      font-size: 11px;
+      color: var(--c-text-soft);
+    }
+    .pdf-docid .id {
+      font-weight: 700;
+      color: var(--c-primary);
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+
+    .pdf-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 4px;
+      letter-spacing: -0.2px;
+      color: var(--c-primary);
+    }
+    .pdf-subtitle {
+      font-family: -apple-system, sans-serif;
+      font-size: 12px;
+      color: var(--c-text-soft);
+      margin-bottom: 16px;
+    }
+
+    .pdf-kvs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px 24px;
+      font-family: -apple-system, sans-serif;
+      font-size: 12.5px;
+      background: var(--c-bg);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .pdf-kvs .k { color: var(--c-text-soft); font-weight: 500; }
+    .pdf-kvs .v { font-weight: 600; color: var(--c-text); }
+
+    .pdf-sign-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .pdf-sign {
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+    .pdf-sign-img {
+      height: 70px;
+      background: #FAFBFC;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      border: 1px solid var(--c-border);
+      overflow: hidden;
+    }
+    .pdf-sign-img img { max-height: 100%; max-width: 100%; }
+    .pdf-sign-name {
+      font-family: -apple-system, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--c-text);
+    }
+    .pdf-sign-role {
+      font-family: -apple-system, sans-serif;
+      font-size: 11px;
+      color: var(--c-text-soft);
+    }
+
+    .pdf-foot {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding-top: 14px;
+      border-top: 1px solid var(--c-border);
+      font-family: -apple-system, sans-serif;
+    }
+    .pdf-foot-info { flex: 1; font-size: 10.5px; color: var(--c-text-soft); line-height: 1.55; }
+    .pdf-foot-info .hash {
+      font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+      background: var(--c-bg);
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: var(--c-text);
+      word-break: break-all;
+      font-size: 10px;
+    }
+
+    .qr {
+      width: 78px;
+      height: 78px;
+      background: #fff;
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 4px;
+      flex-shrink: 0;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    .toast-holder {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 150;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--c-primary);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: var(--r-md);
+      font-size: 13.5px;
+      font-weight: 500;
+      box-shadow: var(--shadow-xl);
+      pointer-events: auto;
+      animation: toastIn 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      min-width: 280px;
+      max-width: 440px;
+    }
+    .toast.success { background: var(--c-ok); }
+    .toast.warn    { background: var(--c-warn); }
+    .toast.error   { background: var(--c-err); }
+    .toast.fading { animation: toastOut 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(12px); }
+    }
+
+    /* ── Planilla closed (read-only) ─────────────────────────────────── */
+    .closed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #EDE9FE;
+      color: #6D28D9;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.1px;
+    }
+
+    /* ── Dev toggle (demo control only) ──────────────────────────────── */
+    .dev-toggle {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 200;
+      display: flex;
+      gap: 6px;
+      background: var(--c-primary);
+      color: #fff;
+      padding: 6px;
+      border-radius: 999px;
+      box-shadow: var(--shadow-lg);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .dev-toggle button {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      padding: 6px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all var(--t-fast);
+    }
+    .dev-toggle button.active {
+      background: var(--c-accent);
+      color: #fff;
     }
 
     /* ── Responsive ──────────────────────────────────────────────────── */
     @media (max-width: 1024px) {
-      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .kpi-grid { grid-template-columns: 1fr 1fr 1fr; }
       .page-head { flex-direction: column; align-items: stretch; }
       .col-hide-md { display: none; }
     }
 
-    @media (max-width: 640px) {
-      .app-header { padding: 0 14px; height: 56px; }
+    @media (max-width: 720px) {
+      .app-header { padding: 0 12px; height: 56px; }
       .brand-sep, .brand-project { display: none; }
       .user-meta { display: none; }
-      .header-sync { padding: 4px 9px; }
-      .header-sync .sync-text { display: none; }
-      main { padding: 18px 12px 32px; }
+      .sync-icon { padding: 4px 10px; margin-right: 6px; }
+      .sync-icon .sync-text { display: none; }
+
+      main { padding: 18px 12px 120px; }
+
+      .dash-greeting h1 { font-size: 21px; }
       .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-      .kpi { padding: 12px 14px; }
+      .kpi { padding: 14px; }
       .kpi-value { font-size: 22px; }
-      .actions-row { width: 100%; }
-      .actions-row .btn { flex: 1; justify-content: center; min-height: 44px; font-size: 14px; padding: 12px; }
-      .actions-row .btn-label-full { display: inline; }
+      .kpi-grid .kpi:nth-child(3) { grid-column: span 2; }
+
+      .cta-new { padding: 14px 18px; font-size: 14.5px; min-height: 52px; }
+
+      .template-grid { grid-template-columns: 1fr; }
+
+      .actions-row { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); }
+      .actions-row .btn {
+        justify-content: center;
+        min-height: 44px;
+        font-size: 13.5px;
+        padding: 10px 8px;
+      }
+      .actions-row .btn-label { display: none; }
+
       .toolbar { flex-wrap: wrap; }
       .search { max-width: none; width: 100%; }
       .col-hide-sm { display: none; }
       th, td { padding: 10px 10px; font-size: 12.5px; }
       .row-actions { opacity: 1; }
-      .page-title { font-size: 19px; }
+
+      .modal { border-radius: var(--r-lg); max-height: calc(100vh - 20px); }
+      .modal-head { padding: 14px 16px; }
+      .modal-body { padding: 16px; }
+      .modal-foot { padding: 12px 16px; flex-direction: column-reverse; }
+      .modal-foot .btn { width: 100%; justify-content: center; min-height: 44px; }
+
+      .pdf-sign-grid { grid-template-columns: 1fr; }
+      .pdf-kvs { grid-template-columns: 1fr; }
+
+      .dev-toggle { bottom: 12px; right: 12px; }
     }
 
-    /* ── Animations ──────────────────────────────────────────────────── */
+    /* ── Utility ─────────────────────────────────────────────────────── */
+    .fade-in { animation: fadeIn 250ms cubic-bezier(0.4, 0, 0.2, 1) both; }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(4px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .fade-in { animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel" data-presets="react">
-    const { useState, useMemo } = React;
+    const { useState, useMemo, useRef, useEffect, useCallback } = React;
 
-    // ── SVG Icons ──────────────────────────────────────────────
-    const Icon = ({ name, size = 15, stroke = 1.75 }) => {
+    // ══════════════════════════════════════════════════════════
+    // Icons (SVG set)
+    // ══════════════════════════════════════════════════════════
+    const Icon = ({
+      name,
+      size = 15,
+      stroke = 1.75,
+      fill = 'none',
+      className = '',
+      style,
+      ...props
+    }) => {
       const paths = {
-        bolt: <path d="M13 2L4.5 13h6l-1 7L18 9h-6l1-7z" />,
-        search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></>,
-        filter: <path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" />,
-        download: <><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
-        save: <><path d="M5 3h11l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" /><path d="M8 3v6h8V3" /><path d="M7 15h10v6H7z" /></>,
-        gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />,
-        chevron: <path d="M9 6l6 6-6 6" />,
-        eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>,
-        edit: <><path d="M16 3l5 5-12 12H4v-5L16 3z" /></>,
-        more: <><circle cx="12" cy="12" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>,
-        check: <path d="M5 12l5 5L20 7" />,
-        warn: <><path d="M12 3L2 21h20L12 3z" /><path d="M12 10v5" /><circle cx="12" cy="18" r="0.8" fill="currentColor" /></>,
-        x: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
-        upload: <><path d="M12 21V9" /><path d="M7 14l5-5 5 5" /><path d="M4 4h16" /></>,
-        clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-        trend: <><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></>,
-        shield: <path d="M12 2l9 4v6c0 5-3.5 9-9 10-5.5-1-9-5-9-10V6l9-4z" />,
-        alert: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><circle cx="12" cy="16" r="0.8" fill="currentColor" /></>,
+        bolt:      <path d="M13 2L4.5 13h6l-1 7L18 9h-6l1-7z" />,
+        search:    <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></>,
+        filter:    <path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" />,
+        download:  <><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
+        save:      <><path d="M5 3h11l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" /><path d="M8 3v6h8V3" /><path d="M7 15h10v6H7z" /></>,
+        gear:      <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8 2 2 0 11-2.8 2.8 1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3 2 2 0 11-2.8-2.8 1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8 2 2 0 112.8-2.8 1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3 2 2 0 112.8 2.8 1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" /></>,
+        chevron:   <path d="M9 6l6 6-6 6" />,
+        back:      <path d="M15 18l-6-6 6-6" />,
+        eye:       <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>,
+        edit:      <path d="M16 3l5 5-12 12H4v-5L16 3z" />,
+        more:      <><circle cx="12" cy="12" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>,
+        check:     <path d="M5 12l5 5L20 7" />,
+        check2:    <path d="M4 12l5 5L20 6" />,
+        warn:      <><path d="M12 3L2 21h20L12 3z" /><path d="M12 10v5" /><circle cx="12" cy="17" r="0.8" fill="currentColor" /></>,
+        x:         <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
+        close:     <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
+        upload:    <><path d="M12 21V9" /><path d="M7 14l5-5 5 5" /><path d="M4 4h16" /></>,
+        clock:     <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+        trend:     <><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></>,
+        shield:    <path d="M12 2l9 4v6c0 5-3.5 9-9 10-5.5-1-9-5-9-10V6l9-4z" />,
+        alert:     <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><circle cx="12" cy="16" r="0.8" fill="currentColor" /></>,
+        plus:      <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+        layers:    <><path d="M12 2l10 5-10 5L2 7l10-5z" /><path d="M2 12l10 5 10-5" /><path d="M2 17l10 5 10-5" /></>,
+        drop:      <path d="M12 2s7 7 7 12a7 7 0 01-14 0c0-5 7-12 7-12z" />,
+        hardhat:   <><path d="M4 18h16v-2a8 8 0 00-16 0v2z" /><path d="M10 10V6a2 2 0 014 0v4" /><path d="M3 18h18" /></>,
+        truck:     <><path d="M3 6h12v10H3z" /><path d="M15 10h4l3 4v2h-7" /><circle cx="7" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></>,
+        grid:      <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
+        zap:       <path d="M13 2L4.5 13h6l-1 7L18 9h-6l1-7z" />,
+        folder:    <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />,
+        cloud:     <path d="M7 18a5 5 0 110-10 7 7 0 0113 3 4 4 0 01-1 7H7z" />,
+        cloudCheck:<><path d="M7 18a5 5 0 110-10 7 7 0 0113 3 4 4 0 01-1 7H7z" /><path d="M8 14l2.5 2.5L15 12" /></>,
+        cloudX:    <><path d="M7 18a5 5 0 110-10 7 7 0 0113 3 4 4 0 01-1 7H7z" /><path d="M9 13l5 5M14 13l-5 5" /></>,
+        wifiOff:   <><path d="M1 9l2 2" /><path d="M16.72 11.06A10.94 10.94 0 0119 12.55" /><path d="M5 12.55a10.94 10.94 0 015.17-2.39" /><path d="M10.71 5.05A16 16 0 0122.58 9" /><path d="M1.42 9a15.91 15.91 0 014.7-2.88" /><path d="M8.53 16.11a6 6 0 016.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor"/><path d="M1 1l22 22" /></>,
+        pin:       <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></>,
+        mic:       <><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0014 0" /><path d="M12 18v4" /></>,
+        camera:    <><rect x="3" y="7" width="18" height="13" rx="2" /><circle cx="12" cy="13" r="3.5" /><path d="M8 7l2-3h4l2 3" /></>,
+        video:     <><rect x="3" y="6" width="14" height="12" rx="2" /><path d="M17 10l5-3v10l-5-3z" /></>,
+        photo:     <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M3 17l5-5 4 4 3-3 6 6" /></>,
+        pen:       <path d="M3 21l3-1 13-13-2-2L4 18l-1 3z" />,
+        lock:      <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 118 0v4" /></>,
+        unlock:    <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 017.87-1" /></>,
+        info:      <><circle cx="12" cy="12" r="9" /><path d="M12 10v6" /><circle cx="12" cy="8" r="0.8" fill="currentColor" /></>,
+        verified:  <><path d="M12 2l2 2 3-1 1 3 3 1-1 3 1 3-3 1-1 3-3-1-2 2-2-2-3 1-1-3-3-1 1-3-1-3 3-1 1-3 3 1 2-2z"/><path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2"/></>,
+        refresh:   <><path d="M21 12a9 9 0 11-3-6.7L21 8" /><path d="M21 3v5h-5" /></>,
       };
       return (
-        <svg className="icon" width={size} height={size} viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" strokeWidth={stroke}
-          strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className={['icon', className].filter(Boolean).join(' ')}
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill={fill} stroke="currentColor" strokeWidth={stroke}
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ display: 'block', flexShrink: 0, ...style }}
+          {...props}>
           {paths[name]}
         </svg>
       );
     };
 
-    // ── Realistic Neuquén field data ───────────────────────────
-    const rows = [
-      { id: 'LC-042', loc: 'Loma Campana', op: 'YPF',        pres: 28.4, temp: 68, flow: 142, time: '14:23', sup: 'J. Pérez',     status: 'ok'   },
-      { id: 'FP-018', loc: 'Fortín de Piedra', op: 'Tecpetrol', pres: 31.2, temp: 72, flow: 98,  time: '14:19', sup: 'M. Romero',    status: 'warn' },
-      { id: 'AN-073', loc: 'Añelo Norte',  op: 'Pan American', pres: 25.7, temp: 65, flow: 178, time: '14:12', sup: 'C. Sandoval',  status: 'ok'   },
-      { id: 'VM-204', loc: 'Vaca Muerta Sur', op: 'Shell',     pres: 34.8, temp: 75, flow: 112, time: '14:05', sup: 'R. Gutiérrez', status: 'ok'   },
-      { id: 'RC-091', loc: 'Rincón de los Sauces', op: 'Pluspetrol', pres: 22.3, temp: 61, flow: 87, time: '13:58', sup: 'L. Barrios', status: 'warn' },
-      { id: 'CS-055', loc: 'Centenario Sur', op: 'Capex',     pres: 29.1, temp: 69, flow: 134, time: '13:47', sup: 'D. Ferrari',   status: 'ok'   },
-      { id: 'ZB-112', loc: 'Zapala Bloque B', op: 'GyP',       pres: 27.6, temp: 66, flow: 121, time: '13:41', sup: 'A. Molina',    status: 'ok'   },
-      { id: 'PH-033', loc: 'Puesto Hernández', op: 'YPF',      pres: 33.5, temp: 74, flow: 156, time: '13:30', sup: 'J. Pérez',     status: 'warn' },
-      { id: 'EC-067', loc: 'El Chañar',      op: 'Vista',      pres: 26.8, temp: 64, flow: 103, time: '13:22', sup: 'P. Navarro',   status: 'ok'   },
-      { id: 'AG-128', loc: 'Aguada Pichana', op: 'Total',      pres: 30.4, temp: 71, flow: 145, time: '13:15', sup: 'C. Sandoval',  status: 'ok'   },
-    ];
-
-    const STATUS = {
-      ok:   { label: 'OK',        cls: 'status-ok',   icon: 'check' },
-      warn: { label: 'Revisar',   cls: 'status-warn', icon: 'warn'  },
-      err:  { label: 'Error',     cls: 'status-err',  icon: 'x'     },
-      idle: { label: 'Pendiente', cls: 'status-idle', icon: 'clock' },
+    // ══════════════════════════════════════════════════════════
+    // Status pill
+    // ══════════════════════════════════════════════════════════
+    const STATUS_MAP = {
+      ok:      { label: 'Sincronizado',  cls: 'status-ok',      icon: 'check2' },
+      warn:    { label: 'Con errores',   cls: 'status-warn',    icon: 'warn'   },
+      err:     { label: 'Error',         cls: 'status-err',     icon: 'x'      },
+      pending: { label: 'Pendiente',     cls: 'status-pending', icon: 'clock'  },
+      closed:  { label: 'Cerrada',       cls: 'status-closed',  icon: 'lock'   },
+      idle:    { label: 'En proceso',    cls: 'status-idle',    icon: 'clock'  },
     };
-
-    function StatusPill({ status }) {
-      const s = STATUS[status];
+    const SHOW_DEMO_CONTROLS = new URLSearchParams(window.location.search).get('demo') === '1';
+    const StatusPill = ({ status, label }) => {
+      const s = STATUS_MAP[status] || STATUS_MAP.idle;
       return (
         <span className={`status ${s.cls}`}>
           <span className="status-icon"><Icon name={s.icon} size={11} stroke={2.4} /></span>
-          {s.label}
+          {label || s.label}
         </span>
       );
-    }
+    };
 
-    // ── KPI Card ───────────────────────────────────────────────
-    function Kpi({ label, value, sub, variant, progress, trend }) {
+    // ══════════════════════════════════════════════════════════
+    // Mock data
+    // ══════════════════════════════════════════════════════════
+    const USER = { name: 'Marco Peralta', company: 'YPF · Loma Campana', role: 'Supervisor · Campo', initials: 'MP' };
+
+    const TEMPLATES = [
+      { id: 'resistividad', icon: 'zap',     bg: '#F97316', title: 'Resistividad de suelos', desc: 'Medición eléctrica del terreno', sector: 'Petrolero',   fields: 12 },
+      { id: 'caudales',     icon: 'drop',    bg: '#0EA5E9', title: 'Control de caudales',    desc: 'Riego y agua de pozo',            sector: 'Agrícola',    fields: 8  },
+      { id: 'obra',         icon: 'hardhat', bg: '#D97706', title: 'Inspección de obra',     desc: 'Avance y calidad de ejecución',   sector: 'Construcción',fields: 15 },
+      { id: 'ruta',         icon: 'truck',   bg: '#7C3AED', title: 'Ruta logística',         desc: 'Recorridos y entregas',           sector: 'Transporte',  fields: 10 },
+      { id: 'blank',        icon: 'grid',    bg: '#475569', title: 'Planilla vacía',         desc: 'Configuración manual',            sector: 'Personalizada', fields: 0  },
+    ];
+
+    const RECENTS = [
+      { id: 'P-0421', title: 'Loma Campana · Turno día',    template: 'Resistividad de suelos', rows: 47, updated: 'hace 2 min',  status: 'ok'      },
+      { id: 'P-0420', title: 'Vaca Muerta Sur · Turno noche', template: 'Resistividad de suelos', rows: 32, updated: 'hace 3 horas', status: 'warn'  },
+      { id: 'P-0418', title: 'Añelo · Caudales pozo 73',    template: 'Control de caudales',    rows: 18, updated: 'ayer',        status: 'pending' },
+    ];
+
+    // Planilla rows (hydrocarbon field data)
+    const initialRows = [
+      { id: 'LC-042', loc: 'Loma Campana',          op: 'YPF',         pres: 28.4, temp: 68, flow: 142, time: '14:23', sup: 'J. Pérez',     status: 'ok',   gps: true,  photos: ['img1','img2'], hasAudio: false, hasVideo: false },
+      { id: 'FP-018', loc: 'Fortín de Piedra',      op: 'Tecpetrol',   pres: 31.2, temp: 72, flow: 98,  time: '14:19', sup: 'M. Romero',    status: 'warn', gps: false, photos: ['img3'],       hasAudio: true,  hasVideo: false },
+      { id: 'AN-073', loc: 'Añelo Norte',           op: 'Pan American',pres: 25.7, temp: 65, flow: 178, time: '14:12', sup: 'C. Sandoval',  status: 'ok',   gps: true,  photos: ['img4','img5','img6'], hasAudio: false, hasVideo: true  },
+      { id: 'VM-204', loc: 'Vaca Muerta Sur',       op: 'Shell',       pres: 34.8, temp: 75, flow: 112, time: '14:05', sup: 'R. Gutiérrez', status: 'ok',   gps: true,  photos: ['img7'],       hasAudio: true,  hasVideo: false },
+      { id: 'RC-091', loc: 'Rincón de los Sauces',  op: 'Pluspetrol',  pres: 22.3, temp: 61, flow: 87,  time: '13:58', sup: 'L. Barrios',   status: 'warn', gps: false, photos: [],             hasAudio: false, hasVideo: false },
+      { id: 'CS-055', loc: 'Centenario Sur',        op: 'Capex',       pres: 29.1, temp: 69, flow: 134, time: '13:47', sup: 'D. Ferrari',   status: 'ok',   gps: true,  photos: ['img8','img9'], hasAudio: false, hasVideo: false },
+      { id: 'ZB-112', loc: 'Zapala Bloque B',       op: 'GyP',         pres: 27.6, temp: 66, flow: 121, time: '13:41', sup: 'A. Molina',    status: 'ok',   gps: true,  photos: ['img10'],      hasAudio: true,  hasVideo: false },
+      { id: 'PH-033', loc: 'Puesto Hernández',      op: 'YPF',         pres: 33.5, temp: 74, flow: 156, time: '13:30', sup: 'J. Pérez',     status: 'warn', gps: true,  photos: [],             hasAudio: false, hasVideo: false },
+    ];
+
+    const INITIAL_QUEUE = [
+      { id: 'LC-042',  type: 'Registro', title: 'Loma Campana',          sub: 'Presión 28.4 MPa · 14:23',   size: '2.4 KB',  icon: 'layers' },
+      { id: 'IMG-112', type: 'Foto',     title: 'Pozo FP-018',            sub: 'Válvula principal · 14:19',  size: '1.8 MB',  icon: 'camera' },
+      { id: 'AUD-008', type: 'Audio',    title: 'Nota de campo',          sub: 'Observación VM-204 · 42 s',  size: '348 KB',  icon: 'mic'    },
+      { id: 'IMG-113', type: 'Foto',     title: 'Pozo AN-073',            sub: 'Instalación · 14:12',        size: '2.1 MB',  icon: 'camera' },
+      { id: 'GPS-202', type: 'GPS',      title: 'Coordenadas RC-091',     sub: '38°54\'S · 68°35\'W',        size: '0.2 KB',  icon: 'pin'    },
+      { id: 'VID-005', type: 'Video',    title: 'Inspección AN-073',      sub: 'Clip 18 s',                  size: '4.7 MB',  icon: 'video'  },
+    ];
+
+    // Procedural thumbnails: deterministic pretty gradients per attachment
+    const thumbGradient = (seed) => {
+      const palettes = [
+        ['#0A2540','#1B3C68'], ['#7C3AED','#A78BFA'], ['#0EA5E9','#38BDF8'],
+        ['#059669','#34D399'], ['#B45309','#F59E0B'], ['#DC2626','#F87171'],
+        ['#1E40AF','#3B82F6'], ['#0F766E','#2DD4BF'], ['#92400E','#F97316'],
+        ['#4338CA','#818CF8'],
+      ];
+      let h = 0;
+      for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0xffffffff;
+      const p = palettes[Math.abs(h) % palettes.length];
+      return `linear-gradient(135deg, ${p[0]}, ${p[1]})`;
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Utilities
+    // ══════════════════════════════════════════════════════════
+    const sha256 = async (text) => {
+      if (!window.crypto?.subtle) {
+        // Fallback: deterministic hash-ish hex (64 chars)
+        let h = 0;
+        for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+        return Array.from({length: 64}, (_, i) => (((h + i*13) & 0xf)).toString(16)).join('');
+      }
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    };
+
+    const qrImageUrl = (payload) =>
+      `https://api.qrserver.com/v1/create-qr-code/?size=172x172&margin=1&data=${encodeURIComponent(payload)}`;
+
+    const short = (hash) => hash ? `${hash.slice(0, 12)}…${hash.slice(-6)}` : '';
+
+    // ══════════════════════════════════════════════════════════
+    // Signature canvas
+    // ══════════════════════════════════════════════════════════
+    const SignatureCanvas = React.forwardRef(({ onSigned }, ref) => {
+      const canvasRef = useRef(null);
+      const drawingRef = useRef(false);
+      const [hasInk, setHasInk] = useState(false);
+      const [strokeCount, setStrokeCount] = useState(0);
+      const [signedAt, setSignedAt] = useState(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width  = rect.width  * dpr;
+        canvas.height = rect.height * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.strokeStyle = '#0A2540';
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }, []);
+
+      const getPoint = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        };
+      };
+
+      const startDraw = (e) => {
+        e.preventDefault();
+        canvasRef.current.setPointerCapture(e.pointerId);
+        drawingRef.current = true;
+        const p = getPoint(e);
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      };
+      const moveDraw = (e) => {
+        if (!drawingRef.current) return;
+        const p = getPoint(e);
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      };
+      const endDraw = (e) => {
+        if (!drawingRef.current) return;
+        drawingRef.current = false;
+        setHasInk(true);
+        setStrokeCount(s => s + 1);
+        const now = new Date();
+        setSignedAt(now);
+        onSigned?.(canvasRef.current.toDataURL('image/png'));
+      };
+
+      const clear = () => {
+        const c = canvasRef.current;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+        setHasInk(false);
+        setStrokeCount(0);
+        setSignedAt(null);
+        onSigned?.(null);
+      };
+
+      React.useImperativeHandle(ref, () => ({
+        clear,
+        getDataURL: () => hasInk ? canvasRef.current.toDataURL('image/png') : null,
+        isSigned: () => hasInk,
+      }));
+
+      const timeStr = signedAt ? signedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : null;
+
       return (
-        <div className={`kpi kpi-${variant || 'default'} fade-in`}>
-          <div className="kpi-label">{label}</div>
-          <div className="kpi-value">
-            {value}
-            {trend && <span className={`kpi-trend ${trend.dir}`}>{trend.dir === 'up' ? '↑' : '⚠'} {trend.text}</span>}
+        <div>
+          <div className={`sign-canvas-wrap ${hasInk ? 'signed' : ''}`}>
+            <canvas
+              ref={canvasRef}
+              onPointerDown={startDraw}
+              onPointerMove={moveDraw}
+              onPointerUp={endDraw}
+              onPointerCancel={endDraw}
+            />
+            {!hasInk && (
+              <div className="sign-placeholder">
+                <Icon name="pen" size={14} stroke={2} /> &nbsp;Firmar con el dedo o mouse
+              </div>
+            )}
+            {hasInk && (
+              <button className="sign-clear" onClick={clear} data-tip="Limpiar firma">
+                <Icon name="x" size={13} stroke={2.2} />
+              </button>
+            )}
           </div>
-          {sub && <div className="kpi-sub">{sub}</div>}
-          {typeof progress === 'number' && (
-            <div className="progress"><div className="progress-bar" style={{ width: `${progress}%` }} /></div>
+          {hasInk && (
+            <div className="sign-meta">
+              <span><Icon name="check" size={11} stroke={2.5} /> Firma capturada</span>
+              {timeStr && <span>· {timeStr}</span>}
+              <span>· {strokeCount} trazos</span>
+            </div>
           )}
         </div>
       );
-    }
+    });
 
-    // ── Main App ───────────────────────────────────────────────
-    function App() {
+    // ══════════════════════════════════════════════════════════
+    // Toast system
+    // ══════════════════════════════════════════════════════════
+    let toastId = 0;
+    const ToastHolder = ({ toasts, onDone }) => (
+      <div className="toast-holder">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type || ''} ${t.fading ? 'fading' : ''}`}
+               onAnimationEnd={() => { if (t.fading) onDone(t.id); }}>
+            {t.icon && <Icon name={t.icon} size={16} stroke={2.2} />}
+            <span>{t.msg}</span>
+          </div>
+        ))}
+      </div>
+    );
+
+    const useToasts = () => {
+      const [toasts, setToasts] = useState([]);
+      const push = useCallback((msg, opts = {}) => {
+        const id = ++toastId;
+        setToasts(ts => [...ts, { id, msg, type: opts.type, icon: opts.icon }]);
+        setTimeout(() => setToasts(ts => ts.map(t => t.id === id ? { ...t, fading: true } : t)), opts.duration || 2800);
+      }, []);
+      const remove = useCallback((id) => setToasts(ts => ts.filter(t => t.id !== id)), []);
+      return { toasts, push, remove };
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Modal
+    // ══════════════════════════════════════════════════════════
+    const Modal = ({ title, icon, onClose, wide, children, footer }) => {
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        document.body.style.overflow = 'hidden';
+        return () => {
+          window.removeEventListener('keydown', onKey);
+          document.body.style.overflow = '';
+        };
+      }, [onClose]);
+      return (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className={`modal ${wide ? 'wide' : ''}`}>
+            <div className="modal-head">
+              {icon && <Icon name={icon} size={18} stroke={2} />}
+              <h2>{title}</h2>
+              <button className="close" onClick={onClose} data-tip="Cerrar"><Icon name="close" size={14} stroke={2.2} /></button>
+            </div>
+            <div className="modal-body">{children}</div>
+            {footer && <div className="modal-foot">{footer}</div>}
+          </div>
+        </div>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Header
+    // ══════════════════════════════════════════════════════════
+    const Header = ({ view, projectLabel, online, syncStatus, pendingCount, onBrandClick, onSyncClick }) => {
+      const syncState = !online ? 'pending' : syncStatus;
+      const syncLabels = {
+        ok:      'Sincronizado',
+        pending: `${pendingCount} en cola`,
+        syncing: 'Sincronizando…',
+        error:   'Error de sync',
+      };
+      const syncIcons = {
+        ok: 'cloudCheck',
+        pending: 'cloud',
+        syncing: 'refresh',
+        error: 'cloudX',
+      };
+      return (
+        <header className="app-header">
+          <div className="brand" onClick={onBrandClick}>
+            <div className="brand-mark">B</div>
+            <span>BitFlow</span>
+          </div>
+          {view === 'planilla' && (
+            <>
+              <div className="brand-sep" />
+              <div className="brand-project">{projectLabel}</div>
+            </>
+          )}
+          <div className="header-spacer" />
+          <button
+            className={`sync-icon ${syncState}`}
+            onClick={onSyncClick}
+            data-tip={online ? 'Estado de sincronización' : 'Sin conexión · ver cola'}
+          >
+            <Icon name={syncIcons[syncState]} size={14} stroke={2}
+                  className={syncState === 'syncing' ? 'spin' : ''} />
+            <span className="sync-text">{syncLabels[syncState]}</span>
+          </button>
+          <div className="header-user" data-tip="Cuenta · Preferencias">
+            <div className="avatar">{USER.initials}</div>
+            <div className="user-meta">
+              <div className="user-name">{USER.name}</div>
+              <div className="user-role">{USER.role}</div>
+            </div>
+          </div>
+        </header>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Offline banner
+    // ══════════════════════════════════════════════════════════
+    const OfflineBanner = ({ count, onTap }) => (
+      <div className="offline-banner" onClick={onTap}>
+        <Icon name="wifiOff" size={15} stroke={2.2} />
+        <span>Sin conexión · <strong>{count}</strong> {count === 1 ? 'registro pendiente' : 'registros en cola'}</span>
+        <Icon name="chevron" size={14} stroke={2.2} className="chevron" />
+      </div>
+    );
+
+    // ══════════════════════════════════════════════════════════
+    // Sync Queue Modal
+    // ══════════════════════════════════════════════════════════
+    const SyncQueueModal = ({ queue, online, syncing, onClose, onSync }) => {
+      const hasItems = queue.length > 0;
+      return (
+        <Modal
+          title="Cola de sincronización"
+          icon="cloud"
+          onClose={onClose}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+              <button
+                className="btn btn-primary"
+                disabled={!online || !hasItems || syncing}
+                onClick={onSync}
+              >
+                {syncing ? <><Icon name="refresh" size={14} className="spin" /> Sincronizando…</>
+                         : <><Icon name="upload" /> Sincronizar ahora</>}
+              </button>
+            </>
+          }
+        >
+          {!online && (
+            <div className="queue-summary">
+              <Icon name="wifiOff" size={16} stroke={2.2} />
+              <span>Estás sin conexión. Tus datos quedan guardados localmente y se sincronizan automáticamente cuando vuelva la red.</span>
+            </div>
+          )}
+          {!hasItems && (
+            <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--c-text-soft)' }}>
+              <Icon name="cloudCheck" size={36} stroke={1.5} />
+              <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600, color: 'var(--c-text)' }}>Todo al día</div>
+              <div style={{ fontSize: 12.5, marginTop: 4 }}>No hay registros pendientes de sincronizar.</div>
+            </div>
+          )}
+          {hasItems && (
+            <div className="queue-list">
+              {queue.map(q => (
+                <div key={q.id} className={`queue-item ${q.state || ''}`}>
+                  <div className="queue-icon"><Icon name={q.icon} size={16} stroke={2} /></div>
+                  <div className="queue-body">
+                    <div className="queue-title">
+                      {q.title}
+                      <span className="tag">{q.type}</span>
+                    </div>
+                    <div className="queue-sub">{q.sub}</div>
+                  </div>
+                  <div className="queue-meta">
+                    {q.state === 'syncing' && <Icon name="refresh" size={14} className="spin" />}
+                    {q.state === 'done' && <Icon name="check2" size={14} stroke={2.4} style={{ color: 'var(--c-ok)' }} />}
+                    {!q.state && q.size}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Signature Modal
+    // ══════════════════════════════════════════════════════════
+    const SignatureModal = ({ planilla, onClose, onConfirm }) => {
+      const opRef  = useRef(null);
+      const supRef = useRef(null);
+      const [opSigned, setOpSigned]   = useState(false);
+      const [supSigned, setSupSigned] = useState(false);
+      const [certified, setCertified] = useState(false);
+      const [supEmail, setSupEmail]   = useState('');
+      const [submitting, setSubmitting] = useState(false);
+
+      const canConfirm = opSigned && certified && !submitting;
+
+      const confirm = async () => {
+        if (!canConfirm) return;
+        setSubmitting(true);
+        const opImg  = opRef.current?.getDataURL();
+        const supImg = supRef.current?.getDataURL();
+        // Build hashable payload
+        const payload = JSON.stringify({
+          planilla: planilla.id,
+          title: planilla.title,
+          rows: planilla.rows,
+          operator: { name: USER.name, signed: true },
+          supervisor: { email: supEmail || null, signed: !!supImg },
+          timestamp: new Date().toISOString(),
+        });
+        const hash = await sha256(payload);
+        onConfirm({ opImg, supImg, supEmail, hash, timestamp: new Date() });
+      };
+
+      return (
+        <Modal
+          title="Cerrar y firmar planilla"
+          icon="lock"
+          wide
+          onClose={onClose}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+              <button className="btn btn-primary" disabled={!canConfirm} onClick={confirm}>
+                {submitting ? <><Icon name="refresh" size={14} className="spin" /> Cerrando…</>
+                            : <><Icon name="verified" /> Cerrar y generar PDF</>}
+              </button>
+            </>
+          }
+        >
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--c-text-soft)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
+              Planilla
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--c-text)' }}>{planilla.title}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--c-text-soft)', marginTop: 2 }}>
+              {planilla.rows} registros · {planilla.template}
+            </div>
+          </div>
+
+          <div className="sign-group">
+            <div className="sign-label">
+              <span>Firma del operador</span>
+              <span>{USER.name}</span>
+            </div>
+            <SignatureCanvas ref={opRef} onSigned={(d) => setOpSigned(!!d)} />
+          </div>
+
+          <div className="sign-group">
+            <div className="sign-label">
+              <span>Firma del supervisor</span>
+              <span className="optional">Opcional</span>
+            </div>
+            <SignatureCanvas ref={supRef} onSigned={(d) => setSupSigned(!!d)} />
+            <input
+              className="input"
+              type="email"
+              placeholder="O enviar link al email del supervisor"
+              value={supEmail}
+              onChange={(e) => setSupEmail(e.target.value)}
+              style={{ marginTop: 10 }}
+            />
+          </div>
+
+          <div
+            className={`check ${certified ? 'active' : ''}`}
+            onClick={() => setCertified(c => !c)}
+            style={{ marginTop: 4 }}
+          >
+            <div className="check-box">
+              {certified && <Icon name="check" size={12} stroke={3} />}
+            </div>
+            <div className="check-body">
+              <div className="check-title">Certifico que los datos son correctos</div>
+              <div className="check-sub">Al confirmar, la planilla queda cerrada y no podrá editarse. Se genera un hash SHA-256 firmado.</div>
+            </div>
+          </div>
+        </Modal>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // PDF Preview Modal
+    // ══════════════════════════════════════════════════════════
+    const PdfPreviewModal = ({ planilla, signature, onClose }) => {
+      const ts = signature.timestamp;
+      const tsStr = ts.toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' });
+      const docId = `DOC-${planilla.id}-${ts.getTime().toString(36).toUpperCase()}`;
+      const verifyUrl = `https://bitflow.app/verify?doc=${encodeURIComponent(docId)}&hash=${signature.hash}`;
+      return (
+        <Modal
+          title="PDF generado · Vista previa"
+          icon="download"
+          wide
+          onClose={onClose}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+              <button className="btn btn-secondary" onClick={onClose}>
+                <Icon name="upload" /> Compartir
+              </button>
+              <button className="btn btn-primary" onClick={onClose}>
+                <Icon name="download" /> Descargar PDF
+              </button>
+            </>
+          }
+        >
+          <div className="pdf-sheet">
+            <div className="pdf-sheet-head">
+              <div className="pdf-logo">
+                <div className="mark">B</div>
+                <div className="pdf-logo-text">
+                  <div className="name">BitFlow</div>
+                  <div className="tag">YPF · Loma Campana</div>
+                </div>
+              </div>
+              <div className="pdf-docid">
+                <div className="id">{docId}</div>
+                <div>Emitido {tsStr}</div>
+              </div>
+            </div>
+
+            <h3 className="pdf-title">{planilla.title}</h3>
+            <div className="pdf-subtitle">Reporte de campo · {planilla.template}</div>
+
+            <div className="pdf-kvs">
+              <div className="k">Planilla</div>     <div className="v">{planilla.id}</div>
+              <div className="k">Registros</div>    <div className="v">{planilla.rows}</div>
+              <div className="k">Operador</div>     <div className="v">{USER.name}</div>
+              <div className="k">Empresa</div>      <div className="v">{USER.company.split(' · ')[0]}</div>
+              <div className="k">Estado</div>       <div className="v">Cerrada · Firmada</div>
+              <div className="k">Timestamp</div>    <div className="v">{ts.toISOString()}</div>
+            </div>
+
+            <div className="pdf-sign-grid">
+              <div className="pdf-sign">
+                <div className="pdf-sign-img">
+                  {signature.opImg && <img src={signature.opImg} alt="Firma operador" />}
+                </div>
+                <div className="pdf-sign-name">{USER.name}</div>
+                <div className="pdf-sign-role">Operador · {USER.role.split(' · ')[0]}</div>
+              </div>
+              <div className="pdf-sign">
+                <div className="pdf-sign-img">
+                  {signature.supImg ? <img src={signature.supImg} alt="Firma supervisor" />
+                    : <div style={{ fontFamily: '-apple-system, sans-serif', fontSize: 11, color: 'var(--c-text-muted)', textAlign: 'center' }}>
+                        {signature.supEmail
+                          ? <>Pendiente · enviado a<br/><strong>{signature.supEmail}</strong></>
+                          : 'Sin firma de supervisor'}
+                      </div>}
+                </div>
+                <div className="pdf-sign-name">{signature.supEmail || 'Supervisor a confirmar'}</div>
+                <div className="pdf-sign-role">Supervisor {signature.supImg ? '· Firmado' : '· Pendiente'}</div>
+              </div>
+            </div>
+
+            <div className="pdf-foot">
+              <div className="pdf-foot-info">
+                <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: 4 }}>Verificación de integridad</div>
+                <div>Hash SHA-256: <span className="hash">{signature.hash}</span></div>
+                <div style={{ marginTop: 4 }}>Escaneá el QR o ingresá el código {docId} en bitflow.app/verify para validar este documento.</div>
+              </div>
+              <img className="qr" src={qrImageUrl(verifyUrl)} alt="QR de verificación del documento" />
+            </div>
+          </div>
+        </Modal>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Dashboard view
+    // ══════════════════════════════════════════════════════════
+    const Dashboard = ({ activeCount, pendingCount, completedCount, onNew, onTemplate, onOpen }) => {
+      const now = new Date();
+      const hour = now.getHours();
+      const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+
+      return (
+        <>
+          <div className="dash-greeting fade-in">
+            <h1>{greet}, {USER.name.split(' ')[0]} <span className="muted">· {USER.company}</span></h1>
+            <p>Elegí un template para arrancar o continuá una planilla reciente.</p>
+          </div>
+
+          <div className="kpi-grid">
+            <div className="kpi accent fade-in">
+              <div className="kpi-label"><Icon name="folder" size={12} stroke={2} /> PLANILLAS ACTIVAS</div>
+              <div className="kpi-value">{activeCount}</div>
+              <div className="kpi-sub">En carga este turno</div>
+            </div>
+            <div className="kpi warn fade-in">
+              <div className="kpi-label"><Icon name="cloud" size={12} stroke={2} /> PENDIENTES DE SYNC</div>
+              <div className="kpi-value">
+                {pendingCount}
+                {pendingCount > 0 && <span className="kpi-trend warn">cola</span>}
+              </div>
+              <div className="kpi-sub">{pendingCount === 0 ? 'Todo sincronizado' : 'Se suben al recuperar red'}</div>
+            </div>
+            <div className="kpi ok fade-in">
+              <div className="kpi-label"><Icon name="shield" size={12} stroke={2} /> COMPLETADAS · MES</div>
+              <div className="kpi-value">
+                {completedCount}
+                <span className="kpi-trend up">↑ 14</span>
+              </div>
+              <div className="kpi-sub">Firmadas y cerradas</div>
+            </div>
+          </div>
+
+          <button className="cta-new" onClick={onNew}>
+            <Icon name="plus" size={18} stroke={2.4} /> Nueva planilla
+          </button>
+
+          <div className="section">
+            <div className="section-head">
+              <span className="section-title">Templates</span>
+            </div>
+            <div className="template-grid">
+              {TEMPLATES.map(t => (
+                <button key={t.id} className="template fade-in" onClick={() => onTemplate(t)}>
+                  <div className="tpl-icon" style={{ background: t.bg }}>
+                    <Icon name={t.icon} size={22} stroke={2} />
+                  </div>
+                  <div className="tpl-body">
+                    <div className="tpl-title">{t.title}</div>
+                    <div className="tpl-desc">{t.desc}</div>
+                    <div className="tpl-meta">{t.sector}{t.fields > 0 ? ` · ${t.fields} campos` : ''}</div>
+                  </div>
+                  <div className="tpl-arrow"><Icon name="chevron" size={16} stroke={2.2} /></div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="section">
+            <div className="section-head">
+              <span className="section-title">Recientes</span>
+              <span className="section-link">Ver todas →</span>
+            </div>
+            <div className="recent-list">
+              {RECENTS.map(r => (
+                <div key={r.id} className="recent" onClick={() => onOpen(r)}>
+                  <div className="recent-icon"><Icon name="layers" size={17} stroke={2} /></div>
+                  <div className="recent-body">
+                    <div className="recent-title">{r.title}</div>
+                    <div className="recent-meta">
+                      <span>{r.template}</span>
+                      <span className="sep" />
+                      <span>{r.rows} registros</span>
+                      <span className="sep" />
+                      <span>Actualizada {r.updated}</span>
+                    </div>
+                  </div>
+                  <StatusPill status={r.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Attachment cell (real thumbnails + actionable GPS)
+    // ══════════════════════════════════════════════════════════
+    const AttachCell = ({ row, onCapture, onOpen }) => {
+      const thumbs = [];
+      row.photos.forEach((id, i) => {
+        thumbs.push(
+          <div key={`p${id}`} className="thumb"
+               style={{ background: thumbGradient(id) }}
+               data-tip={`Foto · ${id}`}
+               onClick={(e) => { e.stopPropagation(); onOpen('photo', row); }} />
+        );
+      });
+      if (row.hasAudio) thumbs.push(
+        <div key="a" className="thumb audio" data-tip="Audio de campo"
+             onClick={(e) => { e.stopPropagation(); onOpen('audio', row); }}>
+          <Icon name="mic" size={12} stroke={2.2} />
+        </div>
+      );
+      if (row.hasVideo) thumbs.push(
+        <div key="v" className="thumb video" data-tip="Video"
+             onClick={(e) => { e.stopPropagation(); onOpen('video', row); }}>
+          <Icon name="video" size={12} stroke={2.2} />
+        </div>
+      );
+      return (
+        <div className="attach-cell">
+          {thumbs.slice(0, 3)}
+          {thumbs.length > 3 && <span className="thumb-count">+{thumbs.length - 3}</span>}
+          {thumbs.length === 0 && (
+            <button
+              className="gps-chip capture"
+              onClick={(e) => { e.stopPropagation(); onCapture('photo', row); }}
+              data-tip="Adjuntar evidencia"
+            >
+              <Icon name="camera" size={11} stroke={2.2} /> Adjuntar
+            </button>
+          )}
+        </div>
+      );
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Planilla view
+    // ══════════════════════════════════════════════════════════
+    const Planilla = ({ planilla, rows, locked, online, onBack, onExport, onOpenSync, onCapture, pushToast }) => {
       const [activeFilter, setActiveFilter] = useState('all');
       const [query, setQuery] = useState('');
-      const [selected, setSelected] = useState(new Set());
 
-      const filtered = useMemo(() => {
-        return rows.filter(r => {
-          if (activeFilter === 'warn' && r.status !== 'warn') return false;
-          if (activeFilter === 'ok'   && r.status !== 'ok')   return false;
-          if (query.trim()) {
-            const q = query.toLowerCase();
-            return r.id.toLowerCase().includes(q) ||
-                   r.loc.toLowerCase().includes(q) ||
-                   r.op.toLowerCase().includes(q) ||
-                   r.sup.toLowerCase().includes(q);
-          }
-          return true;
-        });
-      }, [activeFilter, query]);
+      const filtered = useMemo(() => rows.filter(r => {
+        if (activeFilter === 'warn' && r.status !== 'warn') return false;
+        if (activeFilter === 'ok'   && r.status !== 'ok')   return false;
+        if (query.trim()) {
+          const q = query.toLowerCase();
+          return r.id.toLowerCase().includes(q) ||
+                 r.loc.toLowerCase().includes(q) ||
+                 r.op.toLowerCase().includes(q) ||
+                 r.sup.toLowerCase().includes(q);
+        }
+        return true;
+      }), [activeFilter, query, rows]);
 
       const pendingCount = rows.filter(r => r.status === 'warn').length;
       const okCount      = rows.filter(r => r.status === 'ok').length;
-      const totalRecords = 247;
-      const loadedRecords = 218;
-      const completion = Math.round((loadedRecords / totalRecords) * 100);
 
-      const toggleRow = (id) => {
-        setSelected(s => {
-          const n = new Set(s);
-          n.has(id) ? n.delete(id) : n.add(id);
-          return n;
-        });
+      const handleGps = (row) => {
+        pushToast(`📍 GPS capturado para ${row.id}`, { type: 'success', icon: 'check2' });
+      };
+      const handleAttach = (kind, row) => {
+        const label = kind === 'photo' ? 'Foto adjunta' : kind === 'audio' ? 'Audio grabado' : 'Archivo adjunto';
+        pushToast(`${label} · ${row.id}`, { type: 'success', icon: 'check2' });
       };
 
       return (
         <>
-          <header className="app-header">
-            <div className="brand">
-              <div className="brand-mark">B</div>
-              <span>BitFlow</span>
-            </div>
-            <div className="brand-sep" />
-            <div className="brand-project">Planilla YPF · Loma Campana · Turno Día</div>
-            <div className="header-spacer" />
-            <div className="header-sync" data-tip="Sincronización automática activa">
-              <span className="sync-dot" />
-              <span className="sync-text">Sincronizado hace 2 min</span>
-            </div>
-            <div className="header-user" data-tip="Cuenta · Preferencias">
-              <div className="avatar">MP</div>
-              <div className="user-meta">
-                <div className="user-name">Marco Peralta</div>
-                <div className="user-role">Supervisor · Campo</div>
+          <div className="page-head fade-in">
+            <div>
+              <div className="back-link" onClick={onBack}>
+                <Icon name="back" size={13} stroke={2.2} /> Volver al inicio
               </div>
+              <h1 className="page-title">
+                {planilla.title}
+                {locked && <span className="closed-badge"><Icon name="lock" size={11} stroke={2.2} /> Cerrada · No editable</span>}
+              </h1>
+              <p className="page-sub">{planilla.template} · {rows.length} registros</p>
             </div>
-          </header>
-
-          <main>
-            <div className="page-head">
-              <div>
-                <h1 className="page-title">Registros de Campo</h1>
-                <p className="page-sub">Jornada del martes 22 de abril · {loadedRecords} de {totalRecords} registros cargados</p>
-              </div>
-              <div className="actions-row">
-                <button className="btn btn-ghost" data-tip="Guardar cambios locales">
-                  <Icon name="save" /> Guardar
-                </button>
-                <button className="btn btn-secondary" data-tip="Generar reporte en PDF">
-                  <Icon name="download" /> Exportar PDF
-                </button>
-                <button className="btn btn-primary" data-tip="Procesar y validar datos">
-                  <Icon name="bolt" /> Procesar datos
-                </button>
-              </div>
+            <div className="actions-row">
+              <button className="btn btn-ghost" data-tip="Guardar cambios" disabled={locked}>
+                <Icon name="save" /> <span className="btn-label">Guardar</span>
+              </button>
+              <button className="btn btn-secondary" data-tip="Generar PDF" disabled={locked ? false : pendingCount > 0} onClick={onExport}>
+                <Icon name="download" /> <span className="btn-label">Exportar PDF</span>
+              </button>
+              <button className="btn btn-primary" data-tip={locked ? 'Planilla cerrada' : 'Cerrar y firmar'} disabled={locked} onClick={onExport}>
+                <Icon name="verified" /> <span className="btn-label">{locked ? 'Cerrada' : 'Cerrar y firmar'}</span>
+              </button>
             </div>
+          </div>
 
-            <div className="kpi-grid">
-              <Kpi
-                label={<><Icon name="trend" size={12} /> COMPLETADO</>}
-                value={`${completion}%`}
-                sub={`${loadedRecords} de ${totalRecords} registros`}
-                variant="accent"
-                progress={completion}
-              />
-              <Kpi
-                label={<><Icon name="alert" size={12} /> REQUIEREN REVISIÓN</>}
-                value={pendingCount}
-                sub="Revisá antes de exportar"
-                variant="warn"
-                trend={{ dir: 'warn', text: 'hoy' }}
-              />
-              <Kpi
-                label={<><Icon name="shield" size={12} /> VALIDADOS</>}
-                value={okCount}
-                sub="Sin observaciones"
-                variant="ok"
-                trend={{ dir: 'up', text: '+12' }}
-              />
-              <Kpi
-                label={<><Icon name="clock" size={12} /> ÚLTIMA ACTUALIZACIÓN</>}
-                value="14:23"
-                sub="Hace 2 minutos · Auto"
-              />
+          <div className="card fade-in">
+            <div className="toolbar">
+              <div className="search">
+                <span className="search-icon"><Icon name="search" size={15} /></span>
+                <input placeholder="Buscar pozo, locación, operador…" value={query} onChange={e => setQuery(e.target.value)} />
+              </div>
+              <button className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}  onClick={() => setActiveFilter('all')}>Todos <span style={{ opacity: 0.7 }}>{rows.length}</span></button>
+              <button className={`filter-chip ${activeFilter === 'ok' ? 'active' : ''}`}   onClick={() => setActiveFilter('ok')}>Validados <span style={{ opacity: 0.7 }}>{okCount}</span></button>
+              <button className={`filter-chip ${activeFilter === 'warn' ? 'active' : ''}`} onClick={() => setActiveFilter('warn')}>A revisar <span style={{ opacity: 0.7 }}>{pendingCount}</span></button>
+              <div className="toolbar-spacer" />
+              <button className="btn-icon" data-tip="Filtros"><Icon name="filter" size={15} /></button>
+              <button className="btn-icon" data-tip="Columnas"><Icon name="gear" size={15} /></button>
             </div>
 
-            <div className="card">
-              <div className="toolbar">
-                <div className="search">
-                  <span className="search-icon"><Icon name="search" size={15} /></span>
-                  <input
-                    placeholder="Buscar pozo, locación, operador…"
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                  />
-                </div>
-                <button className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}  onClick={() => setActiveFilter('all')}>Todos <span style={{ opacity: 0.7 }}>{rows.length}</span></button>
-                <button className={`filter-chip ${activeFilter === 'ok' ? 'active' : ''}`}   onClick={() => setActiveFilter('ok')}>Validados <span style={{ opacity: 0.7 }}>{okCount}</span></button>
-                <button className={`filter-chip ${activeFilter === 'warn' ? 'active' : ''}`} onClick={() => setActiveFilter('warn')}>A revisar <span style={{ opacity: 0.7 }}>{pendingCount}</span></button>
-                <div className="toolbar-spacer" />
-                <button className="btn-icon" data-tip="Filtros avanzados"><Icon name="filter" size={15} /></button>
-                <button className="btn-icon" data-tip="Configurar columnas"><Icon name="gear" size={15} /></button>
+            {pendingCount > 0 && !locked && (
+              <div className="warn-banner">
+                <Icon name="warn" size={16} stroke={2} />
+                <span><strong>{pendingCount} registros</strong> requieren revisión antes de exportar el reporte final.</span>
+                <span className="spacer" />
+                <span className="warn-link" onClick={() => setActiveFilter('warn')}>Ver registros →</span>
               </div>
+            )}
 
-              {pendingCount > 0 && (
-                <div className="warn-banner">
-                  <Icon name="warn" size={16} stroke={2} />
-                  <span><strong>{pendingCount} registros</strong> requieren revisión antes de exportar el reporte final.</span>
-                  <span className="spacer" />
-                  <span className="warn-link" onClick={() => setActiveFilter('warn')}>Ver registros →</span>
-                </div>
-              )}
-
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 36 }}></th>
-                      <th style={{ width: 56 }} className="center">Estado</th>
-                      <th>Pozo</th>
-                      <th className="col-hide-sm">Locación</th>
-                      <th className="col-hide-md">Operador</th>
-                      <th className="right">Presión (MPa)</th>
-                      <th className="right col-hide-sm">Temp (°C)</th>
-                      <th className="right col-hide-md">Caudal (m³/d)</th>
-                      <th className="col-hide-md">Supervisor</th>
-                      <th>Hora</th>
-                      <th style={{ width: 110 }} className="right">Acciones</th>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 56 }} className="center">Estado</th>
+                    <th>Pozo</th>
+                    <th className="col-hide-sm">Locación</th>
+                    <th className="col-hide-md">Operador</th>
+                    <th className="right">Presión (MPa)</th>
+                    <th className="right col-hide-sm">Temp (°C)</th>
+                    <th className="right col-hide-md">Caudal (m³/d)</th>
+                    <th>Ubicación</th>
+                    <th>Adjuntos</th>
+                    <th className="col-hide-md">Supervisor</th>
+                    <th>Hora</th>
+                    <th style={{ width: 110 }} className="right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(r => (
+                    <tr key={r.id}>
+                      <td className="center"><StatusPill status={r.status === 'warn' ? 'warn' : 'ok'} label={r.status === 'warn' ? 'Revisar' : 'OK'} /></td>
+                      <td className="id">{r.id}</td>
+                      <td className="col-hide-sm">{r.loc}</td>
+                      <td className="col-hide-md muted">{r.op}</td>
+                      <td className="num">{r.pres.toFixed(1)}</td>
+                      <td className="num col-hide-sm">{r.temp}</td>
+                      <td className="num col-hide-md">{r.flow}</td>
+                      <td>
+                        {r.gps
+                          ? <span className="gps-chip has" data-tip="Coordenadas capturadas"><Icon name="pin" size={11} stroke={2.2} /> GPS</span>
+                          : <button className="gps-chip capture" onClick={() => handleGps(r)} data-tip="Capturar GPS ahora"><Icon name="pin" size={11} stroke={2.2} /> Capturar GPS</button>}
+                      </td>
+                      <td><AttachCell row={r} onCapture={handleAttach} onOpen={() => {}} /></td>
+                      <td className="col-hide-md muted">{r.sup}</td>
+                      <td className="muted">{r.time}</td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="action-btn" data-tip="Ver detalle"><Icon name="eye" size={15} /></button>
+                          <button className="action-btn" data-tip="Editar" disabled={locked}><Icon name="edit" size={14} /></button>
+                          <button className="action-btn" data-tip="Más acciones"><Icon name="more" size={15} /></button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(r => {
-                      const checked = selected.has(r.id);
-                      return (
-                        <tr key={r.id}>
-                          <td>
-                            <div className={`chk ${checked ? 'checked' : ''}`} onClick={() => toggleRow(r.id)}>
-                              {checked && <Icon name="check" size={11} stroke={3} />}
-                            </div>
-                          </td>
-                          <td className="center"><StatusPill status={r.status} /></td>
-                          <td className="id">{r.id}</td>
-                          <td className="col-hide-sm">{r.loc}</td>
-                          <td className="col-hide-md muted">{r.op}</td>
-                          <td className="num">{r.pres.toFixed(1)}</td>
-                          <td className="num col-hide-sm">{r.temp}</td>
-                          <td className="num col-hide-md">{r.flow}</td>
-                          <td className="col-hide-md muted">{r.sup}</td>
-                          <td className="muted">{r.time}</td>
-                          <td>
-                            <div className="row-actions">
-                              <button className="action-btn" data-tip="Ver detalle"><Icon name="eye" size={15} /></button>
-                              <button className="action-btn" data-tip="Editar registro"><Icon name="edit" size={14} /></button>
-                              <button className="action-btn" data-tip="Más acciones"><Icon name="more" size={15} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="statusbar">
-                <span>{filtered.length} de {rows.length} visibles</span>
-                <span className="dot" />
-                <span>{selected.size > 0 ? `${selected.size} seleccionados` : 'Nada seleccionado'}</span>
-                <span className="dot" />
-                <span>Guardado automático activo</span>
-                <span style={{ flex: 1 }} />
-                <span>v2.4.1 · BitFlow Enterprise</span>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </main>
+
+            <div className="statusbar">
+              <span>{filtered.length} de {rows.length} visibles</span>
+              <span className="dot" />
+              <span>{online ? 'Guardado automático activo' : 'Guardado offline activo'}</span>
+              <span style={{ flex: 1 }} />
+              <span>v2.4.1 · BitFlow Enterprise</span>
+            </div>
+          </div>
         </>
       );
-    }
+    };
+
+    // ══════════════════════════════════════════════════════════
+    // Root App
+    // ══════════════════════════════════════════════════════════
+    const App = () => {
+      const [view, setView]         = useState('dashboard'); // 'dashboard' | 'planilla'
+      const [online, setOnline]     = useState(true);
+      const [syncState, setSyncState] = useState('ok'); // 'ok' | 'pending' | 'syncing' | 'error'
+      const [modal, setModal]       = useState(null);   // 'queue' | 'sign' | 'pdf' | null
+      const [queue, setQueue]       = useState([]);     // INITIAL_QUEUE when offline
+      const [rows]                  = useState(initialRows);
+      const [planilla, setPlanilla] = useState({
+        id: 'P-0421',
+        title: 'Loma Campana · Turno día',
+        template: 'Resistividad de suelos',
+        rows: initialRows.length,
+      });
+      const [locked, setLocked]   = useState(false);
+      const [signature, setSignature] = useState(null);
+      const { toasts, push, remove } = useToasts();
+
+      // When offline → queue grows; when online → queue drains
+      useEffect(() => {
+        if (!online) {
+          setQueue(INITIAL_QUEUE);
+          setSyncState('pending');
+        }
+      }, [online]);
+
+      const goOnline = async () => {
+        if (queue.length === 0) {
+          setOnline(true);
+          setSyncState('ok');
+          return;
+        }
+        setOnline(true);
+        setSyncState('syncing');
+        push('Reconectado · sincronizando…', { type: 'warn', icon: 'cloud' });
+        // Fake sync progress
+        for (let i = 0; i < queue.length; i++) {
+          await new Promise(r => setTimeout(r, 320));
+          setQueue(q => q.map((it, idx) => idx === i ? { ...it, state: 'syncing' } : it));
+          await new Promise(r => setTimeout(r, 220));
+          setQueue(q => q.map((it, idx) => idx === i ? { ...it, state: 'done' } : it));
+        }
+        await new Promise(r => setTimeout(r, 320));
+        const n = queue.length;
+        setQueue([]);
+        setSyncState('ok');
+        push(`${n} registros sincronizados`, { type: 'success', icon: 'check2' });
+      };
+
+      const handleOnlineToggle = (next) => {
+        if (next === online) return;
+        if (next === false) {
+          setOnline(false);
+          setSyncState('pending');
+          push('Sin conexión · trabajando offline', { type: 'warn', icon: 'wifiOff', duration: 2000 });
+        } else {
+          goOnline();
+        }
+      };
+
+      const handleManualSync = async () => {
+        if (!online) return;
+        if (queue.length === 0) {
+          push('Todo al día', { type: 'success', icon: 'check2', duration: 1500 });
+          return;
+        }
+        setSyncState('syncing');
+        for (let i = 0; i < queue.length; i++) {
+          await new Promise(r => setTimeout(r, 280));
+          setQueue(q => q.map((it, idx) => idx === i ? { ...it, state: 'done' } : it));
+        }
+        await new Promise(r => setTimeout(r, 260));
+        const n = queue.length;
+        setQueue([]);
+        setSyncState('ok');
+        push(`${n} registros sincronizados`, { type: 'success', icon: 'check2' });
+        setModal(null);
+      };
+
+      const handleExport = () => {
+        if (locked) {
+          setModal('pdf');
+          return;
+        }
+        setModal('sign');
+      };
+
+      const handleSignConfirm = (sig) => {
+        setSignature(sig);
+        setLocked(true);
+        setModal('pdf');
+        push('Planilla cerrada y firmada', { type: 'success', icon: 'verified' });
+      };
+
+      const handleTemplate = (t) => {
+        setPlanilla({
+          id: `P-${Math.floor(Math.random() * 9000 + 1000)}`,
+          title: `${t.title} · nueva`,
+          template: t.title,
+          rows: 0,
+        });
+        setLocked(false);
+        setSignature(null);
+        setView('planilla');
+      };
+
+      const openRecent = (r) => {
+        setPlanilla({ id: r.id, title: r.title, template: r.template, rows: r.rows });
+        setLocked(r.status === 'closed');
+        setSignature(null);
+        setView('planilla');
+      };
+
+      const projectLabel = `${planilla.template} · ${USER.company.split(' · ').slice(-1)[0]}`;
+
+      return (
+        <>
+          <Header
+            view={view}
+            projectLabel={projectLabel}
+            online={online}
+            syncStatus={syncState}
+            pendingCount={queue.length}
+            onBrandClick={() => setView('dashboard')}
+            onSyncClick={() => setModal('queue')}
+          />
+          {!online && <OfflineBanner count={queue.length} onTap={() => setModal('queue')} />}
+          <main>
+            {view === 'dashboard'
+              ? <Dashboard
+                  activeCount={8}
+                  pendingCount={queue.length}
+                  completedCount={47}
+                  onNew={() => handleTemplate(TEMPLATES[4])}
+                  onTemplate={handleTemplate}
+                  onOpen={openRecent}
+                />
+              : <Planilla
+                  planilla={planilla}
+                  rows={rows}
+                  locked={locked}
+                  online={online}
+                  onBack={() => setView('dashboard')}
+                  onExport={handleExport}
+                  onOpenSync={() => setModal('queue')}
+                  onCapture={() => {}}
+                  pushToast={push}
+                />
+            }
+          </main>
+
+          {modal === 'queue' && (
+            <SyncQueueModal
+              queue={queue}
+              online={online}
+              syncing={syncState === 'syncing'}
+              onClose={() => setModal(null)}
+              onSync={handleManualSync}
+            />
+          )}
+          {modal === 'sign' && (
+            <SignatureModal
+              planilla={planilla}
+              onClose={() => setModal(null)}
+              onConfirm={handleSignConfirm}
+            />
+          )}
+          {modal === 'pdf' && signature && (
+            <PdfPreviewModal
+              planilla={planilla}
+              signature={signature}
+              onClose={() => setModal(null)}
+            />
+          )}
+
+          <ToastHolder toasts={toasts} onDone={remove} />
+
+          {SHOW_DEMO_CONTROLS && (
+            <div className="dev-toggle">
+              <span style={{ padding: '0 8px', fontSize: 10, opacity: 0.65 }}>DEMO</span>
+              <button className={online ? 'active' : ''} onClick={() => handleOnlineToggle(true)}>Online</button>
+              <button className={!online ? 'active' : ''} onClick={() => handleOnlineToggle(false)}>Offline</button>
+            </div>
+          )}
+        </>
+      );
+    };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
