@@ -874,8 +874,9 @@ class _DataCell extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 10,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: palette.chipText,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ),
@@ -900,11 +901,12 @@ class _DataCell extends StatelessWidget {
           const SizedBox(width: 8),
           _chip(
             Text(
-              'Procesando...',
+              'Procesando…',
               style: TextStyle(
                 color: palette.chipText,
                 fontSize: 10,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -952,9 +954,9 @@ class _DataCell extends StatelessWidget {
                   style: TextStyle(
                     color: palette.cellText,
                     fontSize: metrics.cellFontSize,
-                    height: 1.1,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    letterSpacing: selected ? -0.10 : 0,
+                    height: 1.15,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    letterSpacing: selected ? -0.05 : 0,
                   ),
                 ),
               ),
@@ -991,11 +993,12 @@ class _DataCell extends StatelessWidget {
               iconWidget,
               const SizedBox(width: 3),
               Text(
-                'F$photosCount',
+                '$photosCount',
                 style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: palette.chipText,
+                  letterSpacing: 0.2,
                 ),
               ),
             ],
@@ -1007,21 +1010,7 @@ class _DataCell extends StatelessWidget {
     if (hasAudio) {
       badges.add(
         _chip(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.graphic_eq_rounded, size: 12, color: palette.chipText),
-              const SizedBox(width: 3),
-              Text(
-                'A',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: palette.chipText,
-                ),
-              ),
-            ],
-          ),
+          Icon(Icons.graphic_eq_rounded, size: 12, color: palette.chipText),
           onTap: onAttachmentsTap,
         ),
       );
@@ -1029,24 +1018,10 @@ class _DataCell extends StatelessWidget {
     if (hasGps) {
       badges.add(
         _chip(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.my_location_rounded,
-                size: 11,
-                color: palette.chipText,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                'GPS',
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  color: palette.chipText,
-                ),
-              ),
-            ],
+          Icon(
+            Icons.my_location_rounded,
+            size: 11,
+            color: palette.chipText,
           ),
           onTap: onAttachmentsTap,
         ),
@@ -1183,8 +1158,10 @@ class _PhotosCell extends StatelessWidget {
             count == 0 ? '0' : '$count',
             style: TextStyle(
               color: palette.fg,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
               height: 1.05,
+              letterSpacing: 0.2,
             ),
           ),
         ),

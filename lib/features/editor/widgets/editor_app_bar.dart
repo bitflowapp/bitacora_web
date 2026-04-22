@@ -229,7 +229,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                     style: TextStyle(
                       color: palette.fg,
                       fontSize: titleSize,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w700,
                       height: 1.02,
                       letterSpacing: -0.6,
                     ),
@@ -457,13 +457,13 @@ class _PremiumAppleHeader extends StatelessWidget {
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(20),
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
                         palette.cellText
-                            .withValues(alpha: palette.isLight ? 0.06 : 0.10),
+                            .withValues(alpha: palette.isLight ? 0.04 : 0.08),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.35],
@@ -532,7 +532,7 @@ class _DesktopBottomToolbar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
           filter: ImageFilter.blur(
             sigmaX: palette.isLight ? 16 : 12,
@@ -540,11 +540,11 @@ class _DesktopBottomToolbar extends StatelessWidget {
             tileMode: TileMode.decal,
           ),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 58),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: palette.headerCardBg,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: palette.headerCardBorder,
                 width: palette.hairline,
@@ -552,10 +552,10 @@ class _DesktopBottomToolbar extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(
-                    alpha: palette.isLight ? 0.08 : 0.36,
+                    alpha: palette.isLight ? 0.05 : 0.25,
                   ),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -569,7 +569,7 @@ class _DesktopBottomToolbar extends StatelessWidget {
                     style: TextStyle(
                       color: palette.cellTextMuted,
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w500,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -665,30 +665,31 @@ class _DesktopToolbarButton extends StatelessWidget {
         : palette.pillBtnBorder;
 
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.only(left: 6),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: border, width: palette.hairline),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 16, color: fg),
+                Icon(icon, size: 15, color: fg),
                 const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
                     color: fg,
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ],
@@ -802,24 +803,25 @@ class _InlineMetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: palette.hintBg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: palette.border, width: palette.hairline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: palette.fgMuted),
-          const SizedBox(width: 6),
+          Icon(icon, size: 12, color: palette.fgMuted),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
               color: palette.fgMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
               height: 1.05,
+              letterSpacing: 0.1,
             ),
           ),
         ],
@@ -828,7 +830,7 @@ class _InlineMetaChip extends StatelessWidget {
     if (onTap == null) return content;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(8),
       child: content,
     );
   }
@@ -882,7 +884,7 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
         child: AnimatedScale(
           duration: AppMotion.quick,
           curve: AppMotion.standardOut,
-          scale: _pressed ? 0.97 : (_hovered ? 1.05 : 1.0),
+          scale: _pressed ? 0.96 : 1.0,
           child: AnimatedContainer(
             duration: AppMotion.quick,
             curve: AppMotion.standardOut,
@@ -891,9 +893,9 @@ class _IconCircleButtonState extends State<_IconCircleButton> {
                   ? [
                       BoxShadow(
                         color: widget.palette.cellText.withValues(
-                            alpha: widget.palette.isLight ? 0.10 : 0.36),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
+                            alpha: widget.palette.isLight ? 0.06 : 0.22),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
                       ),
                     ]
                   : const [],

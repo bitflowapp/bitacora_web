@@ -28,8 +28,9 @@ class _StatusBar extends StatelessWidget {
               text,
               style: TextStyle(
                 color: fg,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 height: 1.05,
+                fontSize: 13,
               ),
             ),
           ),
@@ -38,18 +39,21 @@ class _StatusBar extends StatelessWidget {
             TextButton(
               onPressed: onAction,
               style: TextButton.styleFrom(
-                minimumSize: const Size(0, 30),
+                minimumSize: const Size(0, 28),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 foregroundColor: fg,
                 backgroundColor: fg.withValues(alpha: 0.12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: Text(
                 actionLabel!,
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
               ),
             ),
           ],
@@ -93,7 +97,7 @@ class _ValidationErrorsPanel extends StatelessWidget {
                     style: TextStyle(
                       color: palette.fg,
                       fontSize: 13.5,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -136,8 +140,8 @@ class _ValidationErrorsPanel extends StatelessWidget {
                             issue.label,
                             style: TextStyle(
                               color: palette.fg,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -148,8 +152,8 @@ class _ValidationErrorsPanel extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: palette.fgMuted,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11.5,
+                                fontWeight: FontWeight.w400,
+                                fontSize: 12,
                               ),
                             ),
                           ),
@@ -201,30 +205,31 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Micro onboarding (3 pasos)',
+              'Primeros pasos',
               style: TextStyle(
                 color: palette.fg,
-                fontWeight: FontWeight.w800,
-                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                letterSpacing: -0.1,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               compact
-                  ? '30s: abre palette (Ctrl/Cmd+K o rayo), pega con preview+undo y exporta.'
-                  : 'Guia 30s: palette (Ctrl/Cmd+K o rayo), smart paste con undo y exportar.',
+                  ? 'Abre el menú, pega tu tabla y exporta en segundos.'
+                  : 'Usa el menú de comandos, pega una tabla y exporta con un toque.',
               style: TextStyle(
                 color: palette.fgMuted,
-                fontSize: 12.2,
-                height: 1.25,
-                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                height: 1.35,
+                fontWeight: FontWeight.w400,
               ),
             ),
             const SizedBox(height: 8),
             if (compact)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: palette.hintBg,
                   borderRadius: BorderRadius.circular(10),
@@ -234,53 +239,51 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Palette (Ctrl/Cmd+K / rayo) · Smart paste + Undo · Exportar',
+                  'Menú · Pegar tabla · Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
-                    fontSize: 11.3,
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    height: 1.25,
+                    letterSpacing: 0.2,
                   ),
                 ),
               )
             else ...const [
               _TourStepItem(
                 icon: Icons.bolt_rounded,
-                title: '1) Command palette',
-                body:
-                    'Abrela con Ctrl/Cmd+K en desktop o con el boton rayo en mobile.',
+                title: 'Menú de comandos',
+                body: 'Abre todas las acciones con Ctrl/Cmd+K.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.table_chart_rounded,
-                title: '2) Smart paste + Undo',
-                body:
-                    'Pega TSV/CSV, revisa preview y revierte con Undo si hace falta.',
+                title: 'Pegar desde Excel',
+                body: 'Copia tu tabla y pégala. Revisa el preview y confirma.',
               ),
               SizedBox(height: 6),
               _TourStepItem(
                 icon: Icons.ios_share_rounded,
-                title: '3) Exportar',
-                body:
-                    'Cuando cierres la carga, exporta en XLSX o PDF desde el menu.',
+                title: 'Exportar PDF o Excel',
+                body: 'Un toque para generar el reporte profesional.',
               ),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
                   child: AppButton(
-                    label: 'Entendido',
+                    label: 'Listo',
                     icon: Icons.check_rounded,
                     size: AppButtonSize.sm,
-                    variant: AppButtonVariant.secondary,
+                    variant: AppButtonVariant.primary,
                     onPressed: onAcknowledge,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: AppButton(
-                    label: 'No mostrar mas',
+                    label: 'Ocultar',
                     icon: Icons.visibility_off_outlined,
                     size: AppButtonSize.sm,
                     variant: AppButtonVariant.ghost,
@@ -315,20 +318,20 @@ class _TourStepItem extends StatelessWidget {
     );
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: pal.hintBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: pal.border, width: pal.hairline),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 14, color: pal.fgMuted),
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 15, color: pal.accent),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,9 +340,10 @@ class _TourStepItem extends StatelessWidget {
                   title,
                   style: TextStyle(
                     color: pal.fg,
-                    fontSize: 11.8,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -347,9 +351,9 @@ class _TourStepItem extends StatelessWidget {
                   body,
                   style: TextStyle(
                     color: pal.fgMuted,
-                    fontSize: 11.3,
-                    fontWeight: FontWeight.w600,
-                    height: 1.22,
+                    fontSize: 11.8,
+                    fontWeight: FontWeight.w400,
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -413,22 +417,22 @@ class _InlineSearchBar extends StatelessWidget {
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isDense: true,
-                  hintText: 'Buscar en celdas...',
+                  hintText: 'Buscar...',
                   hintStyle: TextStyle(color: palette.fgMuted),
                 ),
                 style: TextStyle(
                   color: palette.fg,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                   height: 1.1,
                 ),
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: palette.hintBg,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: palette.border,
                   width: palette.hairline,
@@ -438,8 +442,9 @@ class _InlineSearchBar extends StatelessWidget {
                 counterText,
                 style: TextStyle(
                   color: palette.fgMuted,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w500,
                   fontSize: 11.5,
+                  letterSpacing: 0.2,
                 ),
               ),
             ),
@@ -519,13 +524,14 @@ class _SelectionQuickActionsBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Acciones rapidas Â· $rowsLabel Â· $selectionLabel',
+              '$rowsLabel · $selectionLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: palette.fgMuted,
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+                letterSpacing: 0.1,
               ),
             ),
             const SizedBox(height: 8),
@@ -627,47 +633,39 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hoja vacia',
+            'Tu planilla está vacía',
             style: TextStyle(
               color: palette.fg,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.1,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Empieza en segundos: crea un registro, pega una tabla o importa cuando este habilitado.',
+            'Agrega un registro o pega una tabla desde Excel para empezar.',
             style: TextStyle(
               color: palette.fgMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              height: 1.35,
             ),
           ),
           const SizedBox(height: 10),
           AppButton(
             key: const ValueKey('empty-state-cta-new-record'),
-            label: 'Nuevo registro',
-            icon: Icons.add_box_outlined,
+            label: 'Agregar registro',
+            icon: Icons.add_rounded,
             variant: AppButtonVariant.primary,
             onPressed: onNewRecord,
           ),
           const SizedBox(height: 8),
           AppButton(
             key: const ValueKey('empty-state-cta-smart-paste'),
-            label: 'Pegar tabla',
+            label: 'Pegar desde Excel',
             icon: Icons.table_chart_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: onSmartPaste,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tip: pega TSV/CSV y aparece preview para confirmar.',
-            style: TextStyle(
-              color: palette.fgMuted,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-            ),
           ),
           const SizedBox(height: 8),
           AppButton(
@@ -749,18 +747,27 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                     ? const SizedBox.shrink()
                     : Container(
                         key: const ValueKey('mobile-fab-panel'),
-                        width: 210,
-                        margin: const EdgeInsets.only(bottom: 8),
+                        width: 220,
+                        margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: palette.menuBg.withValues(
-                            alpha: palette.isLight ? 0.96 : 0.86,
+                            alpha: palette.isLight ? 0.98 : 0.90,
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: palette.borderStrong,
+                            color: palette.border,
                             width: palette.hairline,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: palette.isLight ? 0.08 : 0.40,
+                              ),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -790,15 +797,19 @@ class _MobileExpandableFabMenu extends StatelessWidget {
                 child: AnimatedOpacity(
                   duration: openDuration,
                   opacity: hidden ? 0 : 1,
-                  child: FloatingActionButton.small(
+                  child: FloatingActionButton(
                     key: const ValueKey('mobile-fab-main'),
                     heroTag: 'mobile-fab-main',
-                    tooltip: 'Agregar registro',
+                    tooltip: 'Agregar',
                     onPressed: onMainTap,
-                    backgroundColor: palette.appBarBg,
-                    foregroundColor: palette.fg,
+                    backgroundColor: palette.accent,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    highlightElevation: 4,
+                    shape: const CircleBorder(),
                     child: Icon(
                       isOpen ? Icons.close_rounded : Icons.add_rounded,
+                      size: 26,
                     ),
                   ),
                 ),
@@ -1074,11 +1085,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                       decoration: BoxDecoration(
                         color: palette.editorBg.withValues(
-                          alpha: palette.isLight ? 0.97 : 0.88,
+                          alpha: palette.isLight ? 0.98 : 0.90,
                         ),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: palette.borderStrong,
+                          color: palette.border,
                           width: palette.hairline,
                         ),
                       ),
@@ -1094,10 +1105,10 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: palette.fgMuted,
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: FontWeight.w600,
                                     fontSize: metrics.headerFontSize,
                                     height: 1.05,
-                                    letterSpacing: 0.1,
+                                    letterSpacing: 0.4,
                                   ),
                                 ),
                               ),
@@ -1259,8 +1270,8 @@ class _MobileEditorField extends StatelessWidget {
         color: palette.fg,
         fontSize: fontSize,
         height: 1.08,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.15,
+        fontWeight: FontWeight.w500,
+        letterSpacing: -0.1,
       ),
       cursorColor: palette.accent,
       decoration: InputDecoration(
