@@ -1066,32 +1066,38 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Nueva planilla',
-                      subtitle: 'Empieza en blanco',
-                      icon: Icons.add_box_rounded,
-                      shortcut: 'Ctrl/Cmd + N',
-                      onTap: _createBlankSheet,
+                      title: 'Proteccion Catodica',
+                      subtitle: 'ON/OFF, IR drop, cupon y evidencia',
+                      icon: Icons.bolt_rounded,
+                      shortcut: '1 click',
+                      onTap: () => _createTemplateSheet(
+                        TemplateKind.proteccionCatodica,
+                      ),
+                      featured: true,
                     ),
                     _QuickActionData(
-                      title: 'Abrir reciente',
-                      subtitle: 'Retomar ultimo trabajo',
+                      title: recent.isEmpty ? 'Nueva planilla' : 'Continuar',
+                      subtitle: recent.isEmpty
+                          ? 'Crear hoja tecnica en blanco'
+                          : 'Retomar ultimo relevamiento',
                       icon: Icons.history_rounded,
                       shortcut: 'Ctrl/Cmd + O',
-                      onTap: _openMostRecent,
+                      onTap:
+                          recent.isEmpty ? _createBlankSheet : _openMostRecent,
+                    ),
+                    _QuickActionData(
+                      title: 'Galeria tecnica',
+                      subtitle: 'PC, resistividades, checklist',
+                      icon: Icons.dashboard_customize_rounded,
+                      shortcut: 'Templates',
+                      onTap: _showTemplateChooser,
                     ),
                     _QuickActionData(
                       title: 'Buscar archivos',
-                      subtitle: 'Quick Search global',
+                      subtitle: 'Abrir por nombre o reciente',
                       icon: Icons.search_rounded,
                       shortcut: 'Ctrl/Cmd + K',
                       onTap: _openQuickSearch,
-                    ),
-                    _QuickActionData(
-                      title: 'Automatizar tarea',
-                      subtitle: 'Sugerencias inteligentes',
-                      icon: Icons.auto_fix_high_rounded,
-                      shortcut: 'Smart',
-                      onTap: _openAutomationSheet,
                     ),
                   ];
 
@@ -1116,7 +1122,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                   palette: palette,
                                   message: _contextMessage,
                                   subtitle:
-                                      'Centro de control rapido para trabajo diario',
+                                      'Inicio rapido para relevamientos tecnicos de campo',
                                   onMore: _openMoreSheet,
                                   onThemeToggle: widget.onToggleTheme,
                                   isLight: widget.isLight,
@@ -1124,9 +1130,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                 const SizedBox(height: 18),
                                 _SectionTitle(
                                   palette: palette,
-                                  title: 'Acciones rapidas',
+                                  title: 'Empezar ahora',
                                   subtitle:
-                                      'Solo 4 acciones clave para arrancar en segundos',
+                                      'Proteccion catodica, ultimos trabajos y templates sin friccion',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1149,7 +1155,8 @@ class _StartPageV2State extends State<StartPageV2> {
                                 _SectionTitle(
                                   palette: palette,
                                   title: 'Continuar trabajo',
-                                  subtitle: 'Recientes, favoritos y fijados',
+                                  subtitle:
+                                      'Lo operativo queda visible para retomar rapido',
                                 ),
                                 const SizedBox(height: 10),
                                 isWide
@@ -1253,9 +1260,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                 const SizedBox(height: 18),
                                 _SectionTitle(
                                   palette: palette,
-                                  title: 'Automatizaciones',
+                                  title: 'Sugerencias y plantillas',
                                   subtitle:
-                                      'Sugerencias dinamicas segun uso real',
+                                      'Atajos para relevamientos repetitivos y respaldos',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1373,69 +1380,82 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: palette.card,
-        borderRadius: BorderRadius.circular(AppSpacing.xl),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: palette.accentSoft,
-              borderRadius: BorderRadius.circular(AppSpacing.md),
-              border: Border.all(color: palette.border),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              'BF',
-              style: TextStyle(
-                color: palette.textPrimary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
-              ),
-            ),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
+            blurRadius: 28,
+            offset: const Offset(0, 18),
           ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bit Flow',
-                  style: AppTypography.headline.copyWith(
-                    color: palette.textPrimary,
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final brand = Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: palette.textPrimary,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'BF',
+                  style: TextStyle(
+                    color: palette.background,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 2),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: Text(
-                    message,
-                    key: ValueKey<String>(message),
-                    style: AppTypography.subheadline.copyWith(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w600,
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bit Flow',
+                      style: AppTypography.headline.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Text(
+                        message,
+                        key: ValueKey<String>(message),
+                        style: AppTypography.subheadline.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: AppTypography.caption1.copyWith(
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  subtitle,
-                  style: AppTypography.caption1.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Wrap(
+              ),
+            ],
+          );
+
+          final actions = Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: onThemeToggle,
@@ -1455,8 +1475,8 @@ class _Header extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onMore,
                 style: FilledButton.styleFrom(
-                  backgroundColor: palette.accent,
-                  foregroundColor: palette.card,
+                  backgroundColor: palette.textPrimary,
+                  foregroundColor: palette.background,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -1465,8 +1485,27 @@ class _Header extends StatelessWidget {
                 label: const Text('Mas'),
               ),
             ],
-          ),
-        ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                brand,
+                const SizedBox(height: 14),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: brand),
+              const SizedBox(width: AppSpacing.lg),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1519,6 +1558,7 @@ class _QuickActionData {
     required this.icon,
     required this.shortcut,
     required this.onTap,
+    this.featured = false,
   });
 
   final String title;
@@ -1526,6 +1566,12 @@ class _QuickActionData {
   final IconData icon;
   final String shortcut;
   final Future<void> Function() onTap;
+  final bool featured;
+}
+
+Color _onFeaturedSurface(_StartPalette palette) {
+  final featuredIsLight = palette.textPrimary.computeLuminance() > 0.5;
+  return featuredIsLight ? palette.background : Colors.white;
 }
 
 class _QuickActionTile extends StatelessWidget {
@@ -1541,9 +1587,14 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final featuredFg = _onFeaturedSurface(palette);
+    final foreground = data.featured ? featuredFg : palette.textPrimary;
+    final secondary = data.featured
+        ? featuredFg.withValues(alpha: 0.74)
+        : palette.textSecondary;
     return _ActionSurface(
-      backgroundColor: palette.card,
-      borderColor: palette.border,
+      backgroundColor: data.featured ? palette.textPrimary : palette.card,
+      borderColor: data.featured ? Colors.transparent : palette.border,
       disabled: disabled,
       onTap: () => unawaited(data.onTap()),
       child: Column(
@@ -1555,15 +1606,22 @@ class _QuickActionTile extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: palette.accentSoft,
+                  color: data.featured
+                      ? featuredFg.withValues(alpha: 0.14)
+                      : palette.accentSoft,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(data.icon, color: palette.accent),
+                child: Icon(
+                  data.icon,
+                  color: data.featured ? featuredFg : palette.accent,
+                ),
               ),
               const Spacer(),
               _ShortcutBadge(
                 palette: palette,
                 label: data.shortcut,
+                inverted: data.featured,
+                invertedColor: featuredFg,
               ),
             ],
           ),
@@ -1571,8 +1629,8 @@ class _QuickActionTile extends StatelessWidget {
           Text(
             data.title,
             style: TextStyle(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w700,
+              color: foreground,
+              fontWeight: FontWeight.w800,
               fontSize: 14,
               fontFamily: 'SF Pro Text',
             ),
@@ -1581,7 +1639,7 @@ class _QuickActionTile extends StatelessWidget {
           Text(
             data.subtitle,
             style: TextStyle(
-              color: palette.textSecondary,
+              color: secondary,
               fontSize: 12,
               fontFamily: 'SF Pro Text',
             ),
@@ -1913,24 +1971,34 @@ class _ShortcutBadge extends StatelessWidget {
   const _ShortcutBadge({
     required this.palette,
     required this.label,
+    this.inverted = false,
+    this.invertedColor,
   });
 
   final _StartPalette palette;
   final String label;
+  final bool inverted;
+  final Color? invertedColor;
 
   @override
   Widget build(BuildContext context) {
+    final invertedFg = invertedColor ?? Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: palette.accentSoft,
+        color:
+            inverted ? invertedFg.withValues(alpha: 0.14) : palette.accentSoft,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: palette.border),
+        border: Border.all(
+          color: inverted ? invertedFg.withValues(alpha: 0.18) : palette.border,
+        ),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: palette.textSecondary,
+          color: inverted
+              ? invertedFg.withValues(alpha: 0.82)
+              : palette.textSecondary,
           fontSize: 10,
           fontWeight: FontWeight.w700,
           fontFamily: 'SF Pro Text',

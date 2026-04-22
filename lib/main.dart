@@ -334,22 +334,10 @@ class _AppState extends State<App> {
 
         final status =
             snap.data ?? const _BootStatus(firebaseOk: false, storeOk: false);
-        if (!status.storeOk) {
+        final isPublicLanding = _isPublicLandingUri(Uri.base);
+        if (!status.storeOk && !isPublicLanding) {
           return buildBoot(
-            _BootSplash(
-              isLight: _isLight,
-              onToggleTheme: _toggleTheme,
-              subtitle: 'Almacenamiento no inicio',
-              details: _formatBootErrors(status),
-              actions: [
-                _PillButton(
-                  label: 'Reintentar',
-                  onPressed: () {
-                    setState(_startBoot);
-                  },
-                ),
-              ],
-            ),
+            _storageBootSplash(status),
           );
         }
 
@@ -374,20 +362,32 @@ class _AppState extends State<App> {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => buildRootPageForUri(
-            uri: state.uri,
-            isLight: _isLight,
-            onToggleTheme: _toggleTheme,
-            firebaseOk: status.firebaseOk,
-          ),
+          builder: (context, state) {
+            final template = resolveDemoTemplateFromSlug(
+                state.uri.queryParameters['template']);
+            if (template != null && !status.storeOk) {
+              return _storageBootScreen(status);
+            }
+            return buildRootPageForUri(
+              uri: state.uri,
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+              firebaseOk: status.firebaseOk,
+            );
+          },
         ),
         GoRoute(
           path: '/app',
-          builder: (context, state) => _AppHome(
-            isLight: _isLight,
-            onToggleTheme: _toggleTheme,
-            firebaseOk: status.firebaseOk,
-          ),
+          builder: (context, state) {
+            if (!status.storeOk) {
+              return _storageBootScreen(status);
+            }
+            return _AppHome(
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+              firebaseOk: status.firebaseOk,
+            );
+          },
         ),
         GoRoute(
           path: '/demo',
@@ -412,6 +412,32 @@ class _AppState extends State<App> {
     );
   }
 
+  Widget _storageBootScreen(_BootStatus status) {
+    return AnimatedVideoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: _storageBootSplash(status),
+      ),
+    );
+  }
+
+  Widget _storageBootSplash(_BootStatus status) {
+    return _BootSplash(
+      isLight: _isLight,
+      onToggleTheme: _toggleTheme,
+      subtitle: 'Almacenamiento no inicio',
+      details: _formatBootErrors(status),
+      actions: [
+        _PillButton(
+          label: 'Reintentar',
+          onPressed: () {
+            setState(_startBoot);
+          },
+        ),
+      ],
+    );
+  }
+
   void _toggleTheme() {
     setState(() => _isLight = !_isLight);
   }
@@ -426,6 +452,13 @@ class _AppState extends State<App> {
     }
     return lines.join('\n');
   }
+}
+
+bool _isPublicLandingUri(Uri uri) {
+  final isRoot = uri.path.isEmpty || uri.path == '/';
+  final hasDemoTemplate =
+      resolveDemoTemplateFromSlug(uri.queryParameters['template']) != null;
+  return isRoot && !hasDemoTemplate;
 }
 
 Widget buildRootPageForUri({

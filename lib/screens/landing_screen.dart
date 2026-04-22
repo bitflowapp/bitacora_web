@@ -114,10 +114,12 @@ class _LandingScreenState extends State<LandingScreen>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final isWide = media.size.width >= 920;
+    final width = media.size.width;
+    final isWide = width >= 980;
+    final isCompact = width < 640;
     final palette = _LandingPalette.from(widget.isLight);
     final salesChannelLabel = _hasWhatsApp ? 'WhatsApp ventas' : 'Email ventas';
-    void openPcDemo()     => context.go('/?template=proteccion-catodica');
+    void openPcDemo() => context.go('/?template=proteccion-catodica');
 
     return Scaffold(
       backgroundColor: palette.pageBg,
@@ -127,56 +129,77 @@ class _LandingScreenState extends State<LandingScreen>
           child: SlideTransition(
             position: _slide,
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: isWide ? 48 : 20,
-                vertical: 28,
+              padding: EdgeInsets.fromLTRB(
+                isWide ? 48 : 20,
+                isCompact ? 18 : 28,
+                isWide ? 48 : 20,
+                24,
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1120),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TopBar(
-                        palette: palette,
-                        isLight: widget.isLight,
-                        onToggleTheme: widget.onToggleTheme,
-                        onContact: _openSalesContact,
-                      ),
-                      const SizedBox(height: 36),
-                      _Hero(
-                        palette: palette,
-                        isWide: isWide,
-                        salesChannelLabel: salesChannelLabel,
-                        onOpenDemo: openPcDemo,
-                        onOpenApp: () => context.go('/app'),
-                        onContact: _openSalesContact,
-                      ),
-                      const SizedBox(height: 48),
-                      _VerticalStrip(palette: palette, isWide: isWide),
-                      const SizedBox(height: 48),
-                      _Benefits(palette: palette, isWide: isWide),
-                      const SizedBox(height: 48),
-                      _ComparisonTable(palette: palette, isWide: isWide),
-                      const SizedBox(height: 48),
-                      _Pricing(
-                        palette: palette,
-                        isWide: isWide,
-                        onContact: _openSalesContact,
-                        onOpenDemo: openPcDemo,
-                      ),
-                      const SizedBox(height: 48),
-                      _FooterCTA(
-                        palette: palette,
-                        isWide: isWide,
-                        salesChannelLabel: salesChannelLabel,
-                        onContact: _openSalesContact,
-                        onCopyEmail: _copyEmail,
-                      ),
-                      const SizedBox(height: 24),
-                      _Legal(palette: palette),
-                      const SizedBox(height: 16),
-                    ],
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _TopBar(
+                          palette: palette,
+                          isLight: widget.isLight,
+                          onToggleTheme: widget.onToggleTheme,
+                          onContact: _openSalesContact,
+                        ),
+                        const SizedBox(height: 36),
+                        _Hero(
+                          palette: palette,
+                          isWide: isWide,
+                          salesChannelLabel: salesChannelLabel,
+                          onOpenDemo: openPcDemo,
+                          onOpenApp: () => context.go('/app'),
+                          onContact: _openSalesContact,
+                        ),
+                        const SizedBox(height: 28),
+                        _QuickStart(
+                          palette: palette,
+                          isWide: isWide,
+                          onOpenDemo: openPcDemo,
+                          onOpenApp: () => context.go('/app'),
+                          onContact: _openSalesContact,
+                          salesChannelLabel: salesChannelLabel,
+                        ),
+                        const SizedBox(height: 56),
+                        _VerticalStrip(
+                          palette: palette,
+                          isWide: isWide,
+                          onOpenDemo: openPcDemo,
+                          onOpenApp: () => context.go('/app'),
+                        ),
+                        const SizedBox(height: 56),
+                        _Benefits(palette: palette, isWide: isWide),
+                        const SizedBox(height: 56),
+                        _Workflow(palette: palette, isWide: isWide),
+                        const SizedBox(height: 56),
+                        _ComparisonTable(palette: palette, isWide: isWide),
+                        const SizedBox(height: 56),
+                        _Pricing(
+                          palette: palette,
+                          isWide: isWide,
+                          onContact: _openSalesContact,
+                          onOpenDemo: openPcDemo,
+                        ),
+                        const SizedBox(height: 56),
+                        _FooterCTA(
+                          palette: palette,
+                          isWide: isWide,
+                          salesChannelLabel: salesChannelLabel,
+                          onContact: _openSalesContact,
+                          onCopyEmail: _copyEmail,
+                        ),
+                        const SizedBox(height: 24),
+                        _Legal(palette: palette),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -192,51 +215,72 @@ class _LandingPalette {
   const _LandingPalette({
     required this.pageBg,
     required this.cardBg,
+    required this.elevatedBg,
     required this.cardBorder,
     required this.textPrimary,
     required this.textSecondary,
     required this.accent,
     required this.accentSoft,
+    required this.success,
+    required this.warning,
     required this.accentContrast,
     required this.divider,
+    required this.shadow,
   });
 
   final Color pageBg;
   final Color cardBg;
+  final Color elevatedBg;
   final Color cardBorder;
   final Color textPrimary;
   final Color textSecondary;
   final Color accent;
   final Color accentSoft;
+  final Color success;
+  final Color warning;
   final Color accentContrast;
   final Color divider;
+  final Color shadow;
 
   factory _LandingPalette.from(bool isLight) {
     if (isLight) {
       return const _LandingPalette(
-        pageBg: Color(0xFFF6F8FB),
+        pageBg: Color(0xFFF5F5F7),
         cardBg: Colors.white,
-        cardBorder: Color(0xFFE3E7EE),
-        textPrimary: Color(0xFF0F172A),
-        textSecondary: Color(0xFF4B5563),
-        accent: Color(0xFF0B63CE),
-        accentSoft: Color(0x140B63CE),
+        elevatedBg: Color(0xFFFBFBFD),
+        cardBorder: Color(0xFFE5E5EA),
+        textPrimary: Color(0xFF1D1D1F),
+        textSecondary: Color(0xFF6E6E73),
+        accent: Color(0xFF0066CC),
+        accentSoft: Color(0x140066CC),
+        success: Color(0xFF157F3E),
+        warning: Color(0xFF9A6A00),
         accentContrast: Colors.white,
-        divider: Color(0xFFE5E7EB),
+        divider: Color(0xFFE5E5EA),
+        shadow: Color(0x14000000),
       );
     }
     return const _LandingPalette(
-      pageBg: Color(0xFF0B0D1A),
-      cardBg: Color(0xFF111528),
+      pageBg: Color(0xFF050506),
+      cardBg: Color(0xFF101114),
+      elevatedBg: Color(0xFF17181C),
       cardBorder: Color(0x22FFFFFF),
-      textPrimary: Color(0xFFF5F7FB),
-      textSecondary: Color(0xFFAAB2C0),
-      accent: Color(0xFF3B82F6),
-      accentSoft: Color(0x263B82F6),
+      textPrimary: Color(0xFFF5F5F7),
+      textSecondary: Color(0xFFA1A1AA),
+      accent: Color(0xFF5E9BFF),
+      accentSoft: Color(0x245E9BFF),
+      success: Color(0xFF5ED685),
+      warning: Color(0xFFFFC557),
       accentContrast: Colors.white,
       divider: Color(0x22FFFFFF),
+      shadow: Color(0x66000000),
     );
   }
+}
+
+Color _onTextPrimary(_LandingPalette palette) {
+  final primaryIsLight = palette.textPrimary.computeLuminance() > 0.5;
+  return primaryIsLight ? palette.pageBg : palette.accentContrast;
 }
 
 class _TopBar extends StatelessWidget {
@@ -275,23 +319,56 @@ class _TopBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 560) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _BrandMark(palette: palette),
-              const SizedBox(height: 14),
-              actions,
-            ],
+          return _TopBarShell(
+            palette: palette,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _BrandMark(palette: palette),
+                const SizedBox(height: 14),
+                actions,
+              ],
+            ),
           );
         }
-        return Row(
-          children: [
-            _BrandMark(palette: palette),
-            const Spacer(),
-            actions,
-          ],
+        return _TopBarShell(
+          palette: palette,
+          child: Row(
+            children: [
+              _BrandMark(palette: palette),
+              const Spacer(),
+              actions,
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _TopBarShell extends StatelessWidget {
+  const _TopBarShell({required this.palette, required this.child});
+
+  final _LandingPalette palette;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: palette.cardBg.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow,
+            blurRadius: 28,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -310,17 +387,21 @@ class _BrandMark extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: palette.accent,
-            borderRadius: BorderRadius.circular(12),
+            color: palette.textPrimary,
+            borderRadius: BorderRadius.circular(13),
             boxShadow: [
               BoxShadow(
-                color: palette.accent.withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                color: palette.shadow,
+                blurRadius: 18,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 24),
+          child: Icon(
+            Icons.grid_view_rounded,
+            color: palette.pageBg,
+            size: 22,
+          ),
         ),
         const SizedBox(width: 12),
         Text(
@@ -359,42 +440,31 @@ class _Hero extends StatelessWidget {
     final textBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: palette.accentSoft,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            'Para equipos de ingenieria en campo',
-            style: TextStyle(
-              color: palette.accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
+        _Eyebrow(
+          palette: palette,
+          icon: Icons.engineering_rounded,
+          label: 'Software B2B para equipos tecnicos en campo',
         ),
         const SizedBox(height: 18),
         Text(
-          'Del campo al informe, sin pasar por la oficina.',
+          'Relevamientos tecnicos listos para exportar.',
           style: TextStyle(
             color: palette.textPrimary,
-            fontSize: isWide ? 44 : 32,
-            height: 1.05,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.2,
+            fontSize: isWide ? 58 : 38,
+            height: 0.98,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.1,
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          'Bit Flow es la planilla de relevamientos para proteccion catodica, '
-          'puesta a tierra y mediciones tecnicas. Cada celda lleva foto, GPS '
-          'y audio firmados. Exporta Excel con fotos embebidas, PDF y ZIP. '
-          'Funciona sin conexion y sincroniza solo cuando vuelve la senal.',
+          'Bit Flow ordena proteccion catodica, puesta a tierra e inspecciones '
+          'con evidencia. Carga mediciones, fotos, GPS y notas en una planilla '
+          'consistente; despues exporta XLSX, PDF o backup ZIP sin rehacer el '
+          'trabajo en la oficina.',
           style: TextStyle(
             color: palette.textSecondary,
-            fontSize: isWide ? 17 : 15,
+            fontSize: isWide ? 18 : 15.5,
             height: 1.5,
           ),
         ),
@@ -404,17 +474,17 @@ class _Hero extends StatelessWidget {
           runSpacing: 12,
           children: [
             _SolidButton(
-              label: 'Abrir demo',
+              label: 'Crear planilla tecnica',
               palette: palette,
-              onPressed: onOpenDemo,
-              icon: Icons.play_arrow_rounded,
+              onPressed: onOpenApp,
+              icon: Icons.add_rounded,
               large: true,
             ),
             _GhostButton(
-              label: 'Entrar a la app',
+              label: 'Abrir demo PC',
               palette: palette,
-              onPressed: onOpenApp,
-              icon: Icons.login_rounded,
+              onPressed: onOpenDemo,
+              icon: Icons.play_arrow_rounded,
               large: true,
             ),
             _GhostButton(
@@ -427,24 +497,14 @@ class _Hero extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Icon(
-              Icons.shield_outlined,
-              size: 16,
-              color: palette.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Offline-first  -  Excel / PDF / ZIP  -  GPS + foto + audio por celda',
-                style: TextStyle(
-                  color: palette.textSecondary,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-              ),
-            ),
+            _TrustChip(palette: palette, label: 'Proteccion catodica'),
+            _TrustChip(palette: palette, label: 'Puesta a tierra'),
+            _TrustChip(palette: palette, label: 'Fotos + GPS + audio'),
+            _TrustChip(palette: palette, label: 'XLSX / PDF / ZIP'),
           ],
         ),
       ],
@@ -473,6 +533,72 @@ class _Hero extends StatelessWidget {
   }
 }
 
+class _Eyebrow extends StatelessWidget {
+  const _Eyebrow({
+    required this.palette,
+    required this.icon,
+    required this.label,
+  });
+
+  final _LandingPalette palette;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: palette.elevatedBg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: palette.accent),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrustChip extends StatelessWidget {
+  const _TrustChip({required this.palette, required this.label});
+
+  final _LandingPalette palette;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: palette.accentSoft,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.accent.withValues(alpha: 0.16)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: palette.textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _HeroPreview extends StatelessWidget {
   const _HeroPreview({required this.palette});
 
@@ -483,46 +609,73 @@ class _HeroPreview extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.cardBg,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: palette.cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 16),
+            color: palette.shadow,
+            blurRadius: 38,
+            offset: const Offset(0, 26),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.grid_view_rounded,
-                    color: palette.accent, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'Relevamiento PC - Gasoducto Norte',
-                  style: TextStyle(
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
                     color: palette.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.bolt_rounded,
+                    color: palette.pageBg,
+                    size: 20,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Relevamiento PC - Gasoducto Norte',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        '4 mediciones listas para revisar',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE7F7EC),
+                    color: palette.success.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
+                  child: Text(
                     'sincronizado',
                     style: TextStyle(
-                      color: Color(0xFF137D3B),
+                      color: palette.success,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -532,6 +685,28 @@ class _HeroPreview extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Divider(height: 1, color: palette.divider),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricPill(
+                    palette: palette,
+                    label: 'Estado',
+                    value: '3 OK / 1 Obs',
+                    icon: Icons.rule_rounded,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricPill(
+                    palette: palette,
+                    label: 'Evidencia',
+                    value: 'Fotos + GPS',
+                    icon: Icons.photo_camera_rounded,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             _PreviewRow(
               palette: palette,
@@ -568,17 +743,76 @@ class _HeroPreview extends StatelessWidget {
                 Icon(Icons.download_rounded,
                     size: 16, color: palette.textSecondary),
                 const SizedBox(width: 6),
-                Text(
-                  'Exportar Excel con fotos  -  PDF firmado  -  ZIP backup',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 12,
+                Expanded(
+                  child: Text(
+                    'Exportar Excel con fotos - PDF firmado - ZIP backup',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({
+    required this.palette,
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final _LandingPalette palette;
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: palette.elevatedBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: palette.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -605,58 +839,73 @@ class _PreviewRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isObs = estado.toLowerCase() != 'ok';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: palette.pageBg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _PreviewCell(
-              label: 'Prog', value: progresiva, palette: palette, flex: 3),
-          _PreviewCell(label: 'ON', value: on, palette: palette, flex: 2),
-          _PreviewCell(label: 'OFF', value: off, palette: palette, flex: 2),
-          _PreviewCell(label: 'Cupon', value: cupon, palette: palette, flex: 3),
-          Expanded(
-            flex: 2,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (hasPhoto) ...[
-                  Icon(Icons.photo_camera_rounded,
-                      size: 14, color: palette.textSecondary),
-                  const SizedBox(width: 4),
-                  Icon(Icons.place_rounded,
-                      size: 14, color: palette.textSecondary),
-                  const SizedBox(width: 8),
-                ],
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isObs
-                        ? const Color(0xFFFFF1CC)
-                        : const Color(0xFFE7F7EC),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    estado,
-                    style: TextStyle(
-                      color: isObs
-                          ? const Color(0xFF8A5A00)
-                          : const Color(0xFF137D3B),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isObs = estado.toLowerCase() != 'ok';
+        final showEvidenceIcons = hasPhoto && constraints.maxWidth >= 390;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: palette.elevatedBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: palette.cardBorder.withValues(alpha: 0.7),
             ),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              _PreviewCell(
+                  label: 'Prog', value: progresiva, palette: palette, flex: 3),
+              _PreviewCell(label: 'ON', value: on, palette: palette, flex: 2),
+              _PreviewCell(label: 'OFF', value: off, palette: palette, flex: 2),
+              _PreviewCell(
+                  label: 'Cupon', value: cupon, palette: palette, flex: 3),
+              Expanded(
+                flex: 2,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (showEvidenceIcons) ...[
+                      Icon(
+                        Icons.photo_camera_rounded,
+                        size: 14,
+                        color: palette.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.place_rounded,
+                        size: 14,
+                        color: palette.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isObs
+                            ? palette.warning.withValues(alpha: 0.14)
+                            : palette.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        estado,
+                        style: TextStyle(
+                          color: isObs ? palette.warning : palette.success,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -711,34 +960,284 @@ class _PreviewCell extends StatelessWidget {
   }
 }
 
-class _VerticalStrip extends StatelessWidget {
-  const _VerticalStrip({required this.palette, required this.isWide});
+class _QuickStart extends StatelessWidget {
+  const _QuickStart({
+    required this.palette,
+    required this.isWide,
+    required this.onOpenDemo,
+    required this.onOpenApp,
+    required this.onContact,
+    required this.salesChannelLabel,
+  });
 
   final _LandingPalette palette;
   final bool isWide;
+  final VoidCallback onOpenDemo;
+  final VoidCallback onOpenApp;
+  final VoidCallback onContact;
+  final String salesChannelLabel;
 
   @override
   Widget build(BuildContext context) {
-    final items = const <(IconData icon, String title, String subtitle)>[
-      (
+    final items = <_QuickStartAction>[
+      _QuickStartAction(
+        icon: Icons.bolt_rounded,
+        title: 'Proteccion catodica',
+        subtitle: 'Abrir template con ON/OFF, IR drop, cupon y evidencia.',
+        cta: 'Demo PC',
+        onTap: onOpenDemo,
+        featured: true,
+      ),
+      _QuickStartAction(
+        icon: Icons.add_chart_rounded,
+        title: 'Crear planilla tecnica',
+        subtitle: 'Entrar al inicio y crear una hoja lista para trabajo real.',
+        cta: 'Abrir app',
+        onTap: onOpenApp,
+      ),
+      _QuickStartAction(
+        icon: Icons.history_rounded,
+        title: 'Continuar trabajo',
+        subtitle: 'Recientes, favoritos y fijados quedan a un click.',
+        cta: 'Ir al home',
+        onTap: onOpenApp,
+      ),
+      _QuickStartAction(
+        icon: salesChannelLabel.startsWith('WhatsApp')
+            ? Icons.chat_rounded
+            : Icons.mail_outline_rounded,
+        title: 'Caso B2B',
+        subtitle: 'Mostrar Bit Flow con tu flujo de relevamiento.',
+        cta: salesChannelLabel,
+        onTap: onContact,
+      ),
+    ];
+
+    return Container(
+      padding: EdgeInsets.all(isWide ? 18 : 14),
+      decoration: BoxDecoration(
+        color: palette.cardBg,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow,
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cols = isWide ? 4 : (constraints.maxWidth < 620 ? 1 : 2);
+          final gap = 12.0;
+          final width = (constraints.maxWidth - gap * (cols - 1)) / cols;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final item in items)
+                SizedBox(
+                  width: width,
+                  child: _QuickStartCard(
+                    palette: palette,
+                    action: item,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _QuickStartAction {
+  const _QuickStartAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.onTap,
+    this.featured = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String cta;
+  final VoidCallback onTap;
+  final bool featured;
+}
+
+class _QuickStartCard extends StatefulWidget {
+  const _QuickStartCard({required this.palette, required this.action});
+
+  final _LandingPalette palette;
+  final _QuickStartAction action;
+
+  @override
+  State<_QuickStartCard> createState() => _QuickStartCardState();
+}
+
+class _QuickStartCardState extends State<_QuickStartCard> {
+  bool _hover = false;
+  bool _press = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final action = widget.action;
+    final featuredFg = _onTextPrimary(palette);
+    final fg = action.featured ? featuredFg : palette.textPrimary;
+    final secondary = action.featured
+        ? featuredFg.withValues(alpha: 0.78)
+        : palette.textSecondary;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() {
+        _hover = false;
+        _press = false;
+      }),
+      child: GestureDetector(
+        onTap: action.onTap,
+        onTapDown: (_) => setState(() => _press = true),
+        onTapCancel: () => setState(() => _press = false),
+        onTapUp: (_) => setState(() => _press = false),
+        child: AnimatedScale(
+          scale: _press ? 0.985 : (_hover ? 1.01 : 1),
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: action.featured ? palette.textPrimary : palette.elevatedBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: action.featured
+                    ? Colors.transparent
+                    : palette.cardBorder.withValues(alpha: _hover ? 1 : 0.72),
+              ),
+              boxShadow: [
+                if (_hover)
+                  BoxShadow(
+                    color: palette.shadow,
+                    blurRadius: 22,
+                    offset: const Offset(0, 14),
+                  ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: action.featured
+                            ? featuredFg.withValues(alpha: 0.14)
+                            : palette.accentSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        action.icon,
+                        color: action.featured ? featuredFg : palette.accent,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 18,
+                      color: secondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  action.title,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  action.subtitle,
+                  style: TextStyle(
+                    color: secondary,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  action.cta,
+                  style: TextStyle(
+                    color: action.featured ? featuredFg : palette.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerticalStrip extends StatelessWidget {
+  const _VerticalStrip({
+    required this.palette,
+    required this.isWide,
+    required this.onOpenDemo,
+    required this.onOpenApp,
+  });
+
+  final _LandingPalette palette;
+  final bool isWide;
+  final VoidCallback onOpenDemo;
+  final VoidCallback onOpenApp;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <_UseCase>[
+      _UseCase(
         Icons.bolt_rounded,
         'Proteccion catodica',
-        'ON/OFF, IR drop, cupon polarizado, evidencia por progresiva.',
+        'ON/OFF, IR drop, cupon, estado y evidencia por progresiva.',
+        'Abrir demo',
+        onOpenDemo,
+        featured: true,
       ),
-      (
+      _UseCase(
         Icons.electrical_services_rounded,
         'Puesta a tierra',
         'Resistividad de suelo Wenner/Schlumberger, continuidad, malla.',
+        'Crear hoja',
+        onOpenApp,
       ),
-      (
+      _UseCase(
         Icons.settings_input_antenna_rounded,
         'Inspeccion tecnica',
-        'Gasoducto, oleoducto, subestacion. Firma de revisor al cierre.',
+        'Gasoducto, oleoducto, subestacion y activos con evidencia fotografica.',
+        'Empezar',
+        onOpenApp,
       ),
-      (
+      _UseCase(
         Icons.engineering_rounded,
         'Mediciones tecnicas',
         'Continuidad, interferencias, puntos criticos y evidencia con GPS.',
+        'Abrir app',
+        onOpenApp,
       ),
     ];
 
@@ -747,15 +1246,14 @@ class _VerticalStrip extends StatelessWidget {
       children: [
         _SectionTitle(
           palette: palette,
-          eyebrow: 'Verticales iniciales',
-          title: 'Disenado para relevamientos tecnicos de campo.',
+          eyebrow: 'Templates y casos de uso',
+          title: 'Arranca con estructura tecnica, no con una planilla vacia.',
         ),
         const SizedBox(height: 20),
         LayoutBuilder(builder: (context, constraints) {
           final cols = isWide ? 4 : (constraints.maxWidth < 520 ? 1 : 2);
           final gap = 14.0;
-          final cellWidth =
-              (constraints.maxWidth - gap * (cols - 1)) / cols;
+          final cellWidth = (constraints.maxWidth - gap * (cols - 1)) / cols;
           return Wrap(
             spacing: gap,
             runSpacing: gap,
@@ -765,9 +1263,7 @@ class _VerticalStrip extends StatelessWidget {
                   width: cellWidth,
                   child: _VerticalCard(
                     palette: palette,
-                    icon: item.$1,
-                    title: item.$2,
-                    subtitle: item.$3,
+                    item: item,
                   ),
                 ),
             ],
@@ -778,59 +1274,117 @@ class _VerticalStrip extends StatelessWidget {
   }
 }
 
-class _VerticalCard extends StatelessWidget {
-  const _VerticalCard({
-    required this.palette,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+class _UseCase {
+  const _UseCase(
+    this.icon,
+    this.title,
+    this.subtitle,
+    this.cta,
+    this.onTap, {
+    this.featured = false,
   });
 
-  final _LandingPalette palette;
   final IconData icon;
   final String title;
   final String subtitle;
+  final String cta;
+  final VoidCallback onTap;
+  final bool featured;
+}
+
+class _VerticalCard extends StatelessWidget {
+  const _VerticalCard({
+    required this.palette,
+    required this.item,
+  });
+
+  final _LandingPalette palette;
+  final _UseCase item;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: palette.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: palette.accentSoft,
-              borderRadius: BorderRadius.circular(10),
+    final featuredFg = _onTextPrimary(palette);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: item.featured ? palette.textPrimary : palette.cardBg,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: item.featured ? Colors.transparent : palette.cardBorder,
             ),
-            child: Icon(icon, color: palette.accent, size: 20),
+            boxShadow: [
+              BoxShadow(
+                color: palette.shadow,
+                blurRadius: item.featured ? 30 : 18,
+                offset: const Offset(0, 16),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.1,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: item.featured
+                      ? featuredFg.withValues(alpha: 0.14)
+                      : palette.accentSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  item.icon,
+                  color: item.featured ? featuredFg : palette.accent,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                item.title,
+                style: TextStyle(
+                  color: item.featured ? featuredFg : palette.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                item.subtitle,
+                style: TextStyle(
+                  color: item.featured
+                      ? featuredFg.withValues(alpha: 0.74)
+                      : palette.textSecondary,
+                  fontSize: 13,
+                  height: 1.42,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text(
+                    item.cta,
+                    style: TextStyle(
+                      color: item.featured ? featuredFg : palette.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: item.featured ? featuredFg : palette.accent,
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -846,34 +1400,34 @@ class _Benefits extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = const <(IconData, String, String)>[
       (
-        Icons.sensors_rounded,
-        'Evidencia pegada al dato',
-        'Foto, audio y GPS atados a la celda de la progresiva medida.',
+        Icons.timer_rounded,
+        'Menos carga duplicada',
+        'El tecnico registra una vez y exporta el informe sin transcribir.',
       ),
       (
-        Icons.description_rounded,
-        'Excel que no se rompe',
-        'XLSX con fotos embebidas + hoja Attachments + manifest ZIP.',
-      ),
-      (
-        Icons.cloud_off_rounded,
-        'Offline real',
-        'IndexedDB + cola de sync. La senal vuelve, el dato se va.',
+        Icons.photo_camera_back_rounded,
+        'Evidencia ubicada',
+        'Fotos, audio y GPS quedan asociados al dato que justifican.',
       ),
       (
         Icons.rule_rounded,
-        'Validacion antes de firmar',
-        'Reglas por columna: requerido, rango, enum, regex.',
+        'Registros consistentes',
+        'Columnas de numero, fecha y estado reducen errores de captura.',
       ),
       (
-        Icons.mic_none_rounded,
-        'Dicta y ordena',
-        'Comandos de voz: "marcar urgente", "autonumerar", "rellenar listo x 3".',
+        Icons.file_download_done_rounded,
+        'Salida entregable',
+        'XLSX con fotos, PDF y ZIP de respaldo para auditoria o envio.',
       ),
       (
-        Icons.workspace_premium_rounded,
-        'Firma de revisor',
-        'Metadata RevisadoPor / RevisadoEn en el informe final.',
+        Icons.cloud_off_rounded,
+        'Trabajo local',
+        'Pensado para campo: carga local y exportacion cuando el equipo vuelve.',
+      ),
+      (
+        Icons.people_alt_rounded,
+        'Equipo alineado',
+        'Contratistas, inspeccion y mantenimiento usan la misma estructura.',
       ),
     ];
 
@@ -882,15 +1436,14 @@ class _Benefits extends StatelessWidget {
       children: [
         _SectionTitle(
           palette: palette,
-          eyebrow: 'Por que Bit Flow',
-          title: 'Lo que un tecnico necesita en campo, y un supervisor al cerrar.',
+          eyebrow: 'Ahorro real',
+          title: 'Menos caos operativo entre campo, oficina y entrega.',
         ),
         const SizedBox(height: 20),
         LayoutBuilder(builder: (context, constraints) {
           final cols = isWide ? 3 : (constraints.maxWidth < 520 ? 1 : 2);
           final gap = 14.0;
-          final cellWidth =
-              (constraints.maxWidth - gap * (cols - 1)) / cols;
+          final cellWidth = (constraints.maxWidth - gap * (cols - 1)) / cols;
           return Wrap(
             spacing: gap,
             runSpacing: gap,
@@ -963,6 +1516,139 @@ class _BenefitCard extends StatelessWidget {
   }
 }
 
+class _Workflow extends StatelessWidget {
+  const _Workflow({required this.palette, required this.isWide});
+
+  final _LandingPalette palette;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = const <(String, String, IconData)>[
+      (
+        '1. Elegir template',
+        'Proteccion catodica, puesta a tierra o planilla tecnica propia.',
+        Icons.dashboard_customize_rounded,
+      ),
+      (
+        '2. Medir y evidenciar',
+        'Carga valores, fotos, audio, observaciones y posicion GPS.',
+        Icons.add_location_alt_rounded,
+      ),
+      (
+        '3. Revisar estado',
+        'Detecta observaciones y mantiene el registro legible para supervisar.',
+        Icons.fact_check_rounded,
+      ),
+      (
+        '4. Exportar',
+        'Entrega XLSX, PDF o ZIP sin reconstruir el informe desde cero.',
+        Icons.file_download_done_rounded,
+      ),
+    ];
+
+    return Container(
+      padding: EdgeInsets.all(isWide ? 24 : 18),
+      decoration: BoxDecoration(
+        color: palette.cardBg,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: palette.shadow,
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionTitle(
+            palette: palette,
+            eyebrow: 'Flujo de trabajo',
+            title: 'De la medicion al entregable en cuatro pasos claros.',
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cols = isWide ? 4 : (constraints.maxWidth < 620 ? 1 : 2);
+              final gap = 12.0;
+              final width = (constraints.maxWidth - gap * (cols - 1)) / cols;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final step in steps)
+                    SizedBox(
+                      width: width,
+                      child: _WorkflowStep(
+                        palette: palette,
+                        title: step.$1,
+                        body: step.$2,
+                        icon: step.$3,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkflowStep extends StatelessWidget {
+  const _WorkflowStep({
+    required this.palette,
+    required this.title,
+    required this.body,
+    required this.icon,
+  });
+
+  final _LandingPalette palette;
+  final String title;
+  final String body;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.elevatedBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: palette.accent, size: 22),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            body,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 12.5,
+              height: 1.42,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ComparisonTable extends StatelessWidget {
   const _ComparisonTable({required this.palette, required this.isWide});
 
@@ -972,12 +1658,11 @@ class _ComparisonTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = const <(String, bool, bool, bool)>[
-      ('Foto + GPS + medicion en un solo registro', false, false, true),
-      ('Funciona sin senal', false, false, true),
-      ('Validacion por columna (numero, rango, enum)', false, true, true),
-      ('XLSX con fotos embebidas', false, false, true),
-      ('PDF firmado por revisor', false, false, true),
-      ('ZIP backup restaurable', false, false, true),
+      ('Medicion + evidencia en el mismo registro', false, false, true),
+      ('Plantillas tecnicas reutilizables', false, true, true),
+      ('Estados y columnas consistentes', false, true, true),
+      ('XLSX/PDF/ZIP para entregar o respaldar', false, false, true),
+      ('Continuar trabajos recientes', false, false, true),
     ];
 
     return Container(
@@ -992,8 +1677,8 @@ class _ComparisonTable extends StatelessWidget {
         children: [
           _SectionTitle(
             palette: palette,
-            eyebrow: 'Comparativa honesta',
-            title: 'Por que no alcanza con Excel, WhatsApp o Google Forms.',
+            eyebrow: 'Donde se gana tiempo',
+            title: 'Lo importante queda junto: medicion, evidencia y salida.',
           ),
           const SizedBox(height: 16),
           _CompareHeader(palette: palette),
@@ -1128,7 +1813,8 @@ class _CheckMark extends StatelessWidget {
         ),
       );
     }
-    final c = strong ? (palette?.accent ?? const Color(0xFF0B63CE))
+    final c = strong
+        ? (palette?.accent ?? const Color(0xFF0B63CE))
         : const Color(0xFF137D3B);
     return Icon(Icons.check_rounded, color: c, size: 20);
   }
@@ -1154,15 +1840,14 @@ class _Pricing extends StatelessWidget {
       children: [
         _SectionTitle(
           palette: palette,
-          eyebrow: 'Como se compra',
-          title: 'Piloto pago acotado. Licencia por equipo. O a medida.',
+          eyebrow: 'Implementacion',
+          title: 'Empeza acotado y escala cuando el flujo ya esta validado.',
         ),
         const SizedBox(height: 20),
         LayoutBuilder(builder: (context, constraints) {
           final cols = isWide ? 3 : (constraints.maxWidth < 560 ? 1 : 2);
           final gap = 14.0;
-          final cellWidth =
-              (constraints.maxWidth - gap * (cols - 1)) / cols;
+          final cellWidth = (constraints.maxWidth - gap * (cols - 1)) / cols;
           return Wrap(
             spacing: gap,
             runSpacing: gap,
@@ -1174,13 +1859,13 @@ class _Pricing extends StatelessWidget {
                   title: 'Piloto 30 dias',
                   price: 'Precio cerrado',
                   description:
-                      '1 proyecto. Hasta 3 tecnicos. Templates PC + Puesta a tierra. Soporte chat.',
+                      'Un proyecto tecnico para probar Bit Flow con un entregable real.',
                   ctaLabel: 'Agendar piloto',
                   onCta: onContact,
                   bullets: const [
-                    'Setup guiado en 1 taller de 2 hs',
-                    'Entregable XLSX + PDF listo',
-                    'Devuelvo licencia si no sirve',
+                    'Template PC y ajustes iniciales',
+                    'Export XLSX/PDF/ZIP validado',
+                    'Revision del flujo con el equipo',
                   ],
                 ),
               ),
@@ -1191,14 +1876,14 @@ class _Pricing extends StatelessWidget {
                   title: 'Equipo de campo',
                   price: 'Mensual',
                   description:
-                      'Usuarios ilimitados dentro de la empresa. Plantillas custom. PDF con logo del cliente.',
+                      'Uso continuo para cuadrillas, inspeccion y supervisores.',
                   ctaLabel: 'Ver demo',
                   onCta: onOpenDemo,
                   highlight: true,
                   bullets: const [
-                    'Todas las templates tecnicas',
-                    'Backup ZIP + restore verificado',
-                    'Soporte email 24-48 hs',
+                    'Templates tecnicas reutilizables',
+                    'Recientes, favoritos y fijados',
+                    'Soporte de implementacion',
                   ],
                 ),
               ),
@@ -1209,13 +1894,13 @@ class _Pricing extends StatelessWidget {
                   title: 'A medida',
                   price: 'A cotizar',
                   description:
-                      'Integracion con SGI/SharePoint/API. Capacitacion on-site. SLA.',
+                      'Para empresas que necesitan plantillas o entregables propios.',
                   ctaLabel: 'Hablar con ventas',
                   onCta: onContact,
                   bullets: const [
                     'Templates exclusivas por cliente',
-                    'API REST para Power BI / SAP',
-                    'SLA de respuesta acordado',
+                    'Formato de informe alineado al cliente',
+                    'Capacitacion y soporte acordado',
                   ],
                 ),
               ),
@@ -1286,8 +1971,8 @@ class _PricingCard extends StatelessWidget {
               if (highlight) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: palette.accentSoft,
                     borderRadius: BorderRadius.circular(999),
@@ -1380,7 +2065,7 @@ class _FooterCTA extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Hablemos 15 minutos.',
+          'Mostralo con un caso real.',
           style: TextStyle(
             color: palette.accentContrast,
             fontSize: isWide ? 26 : 22,
@@ -1390,7 +2075,7 @@ class _FooterCTA extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Contame tu flujo de relevamiento y te muestro Bit Flow con un caso tuyo real.',
+          'Pasame un flujo de proteccion catodica, puesta a tierra o inspeccion, y vemos si Bit Flow lo puede ordenar sin agregar burocracia.',
           style: TextStyle(
             color: palette.accentContrast.withValues(alpha: 0.92),
             fontSize: 14,
@@ -1535,10 +2220,10 @@ class _SectionTitle extends StatelessWidget {
           title,
           style: TextStyle(
             color: palette.textPrimary,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.3,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            height: 1.08,
+            letterSpacing: -0.6,
           ),
         ),
       ],
@@ -1572,16 +2257,18 @@ class _SolidButton extends StatelessWidget {
           : Icon(icon, size: large ? 20 : 18),
       label: Text(label),
       style: ElevatedButton.styleFrom(
-        backgroundColor: palette.accent,
-        foregroundColor: palette.accentContrast,
+        backgroundColor: palette.textPrimary,
+        foregroundColor: _onTextPrimary(palette),
+        disabledBackgroundColor: palette.textSecondary,
         padding: EdgeInsets.symmetric(
-          horizontal: large ? 22 : 16,
-          vertical: large ? 16 : 12,
+          horizontal: large ? 24 : 17,
+          vertical: large ? 17 : 13,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(999),
         ),
         elevation: 0,
+        shadowColor: Colors.transparent,
         textStyle: TextStyle(
           fontSize: large ? 15 : 14,
           fontWeight: FontWeight.w800,
@@ -1619,6 +2306,7 @@ class _GhostButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: palette.textPrimary,
         side: BorderSide(color: palette.cardBorder),
+        backgroundColor: palette.cardBg.withValues(alpha: 0.66),
         padding: EdgeInsets.symmetric(
           horizontal: large ? 20 : 14,
           vertical: large ? 16 : 12,
@@ -1635,4 +2323,3 @@ class _GhostButton extends StatelessWidget {
     );
   }
 }
-/*  */
