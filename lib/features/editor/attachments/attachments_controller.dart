@@ -181,14 +181,14 @@ extension _EditorAttachments on _EditorScreenState {
   String _audioMessageForCause(String cause) {
     switch (cause) {
       case _causeMicDenied:
-        return 'No se pudo iniciar la grabacion. Causa: mic_denied.';
+        return 'No se pudo iniciar la grabación. Causa: mic_denied.';
       case _causeMicUnsupported:
-        return 'Grabacion no disponible en este navegador. Causa: mic_unsupported.';
+        return 'Grabación no disponible en este navegador. Causa: mic_unsupported.';
       case _causeStorageBlocked:
         return 'No se pudo guardar el audio. Causa: storage_blocked.';
       default:
         final c = cause.trim().isEmpty ? 'unknown' : cause.trim();
-        return 'No se pudo iniciar la grabacion de audio. Causa: $c.';
+        return 'No se pudo iniciar la grabación de audio. Causa: $c.';
     }
   }
 
@@ -1996,7 +1996,7 @@ extension _EditorAttachments on _EditorScreenState {
     _pendingRecordedVideo = null;
     if (videoPath == null || xf == null) {
       _showActionSnack(
-        'Grabacion de video cancelada.',
+        'Grabación de video cancelada.',
         isError: true,
         icon: Icons.videocam_off_rounded,
       );
@@ -2551,7 +2551,7 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('Grabacion no disponible'),
+          title: const Text('Grabación no disponible'),
           content: Text(
             'No se puede grabar audio en este navegador para la celda $cellLabel.\n\n'
             'Puedes adjuntar un audio existente desde archivo.\n'
@@ -2814,7 +2814,7 @@ extension _EditorAttachments on _EditorScreenState {
       _resetAudioRecordingUiState();
     });
     _showActionSnack(
-      'Grabacion cancelada.',
+      'Grabación cancelada.',
       isError: false,
       icon: Icons.close_rounded,
     );
@@ -2941,8 +2941,8 @@ extension _EditorAttachments on _EditorScreenState {
       final label = _cellLabelForRef(cell);
       _showActionSnack(
         label.isEmpty
-            ? 'Ya hay una grabacion en curso.'
-            : 'Ya hay una grabacion en curso en celda $label.',
+            ? 'Ya hay una grabación en curso.'
+            : 'Ya hay una grabación en curso en celda $label.',
         isError: false,
         icon: Icons.mic_rounded,
       );

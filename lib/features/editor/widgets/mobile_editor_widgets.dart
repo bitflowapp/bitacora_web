@@ -229,7 +229,8 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
             if (compact)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: palette.hintBg,
                   borderRadius: BorderRadius.circular(10),
@@ -1034,7 +1035,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
         const SingleActivator(LogicalKeyboardKey.tab, shift: true): onPrev!,
     };
 
-    // ??? iOS Web: 0 exacto puede hacer que Safari ???no considere??? el input visible.
+    // iOS Web: 0 exacto puede hacer que Safari no considere visible el input.
     final opacity = isOpen ? 1.0 : 0.01;
 
     final label = title.trim().isEmpty ? 'Editar' : title.trim();
@@ -1113,6 +1114,15 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 ),
                               ),
                               _MobilePanelIconButton(
+                                icon: Icons.close_rounded,
+                                tooltip: 'Cancelar',
+                                onTap: onCancel,
+                                palette: palette,
+                                iconSize: 18,
+                                splashRadius: 16,
+                                padding: const EdgeInsets.all(4),
+                              ),
+                              _MobilePanelIconButton(
                                 icon: Icons.chevron_left_rounded,
                                 tooltip: 'Anterior',
                                 onTap: onPrev,
@@ -1132,7 +1142,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                               ),
                               _MobilePanelIconButton(
                                 icon: Icons.check_rounded,
-                                tooltip: 'Done',
+                                tooltip: 'Guardar',
                                 onTap: onDone,
                                 palette: palette,
                                 iconSize: 18,
@@ -1169,14 +1179,43 @@ class _MobileInlineEditorBar extends StatelessWidget {
                           if (validationHint != null &&
                               validationHint!.trim().isNotEmpty) ...[
                             const SizedBox(height: 6),
-                            Text(
-                              validationHint!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: palette.fgMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                            Container(
+                              constraints: const BoxConstraints(minHeight: 24),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: palette.accent.withValues(
+                                  alpha: palette.isLight ? 0.10 : 0.18,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: palette.accent.withValues(alpha: 0.28),
+                                  width: palette.hairline,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 13,
+                                    color: palette.accent,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      validationHint!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: palette.fg,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -1224,7 +1263,7 @@ class _MobilePanelIconButton extends StatelessWidget {
       icon: Icon(icon, color: fg, size: iconSize),
       padding: padding,
       splashRadius: splashRadius,
-      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       visualDensity: VisualDensity.compact,
     );
   }
@@ -1261,10 +1300,12 @@ class _MobileEditorField extends StatelessWidget {
       textAlignVertical: TextAlignVertical.center,
       textInputAction:
           onNext == null ? TextInputAction.done : TextInputAction.next,
+      keyboardType: TextInputType.text,
       keyboardAppearance: palette.isLight ? Brightness.light : Brightness.dark,
       scrollPadding: EdgeInsets.zero,
       autocorrect: false,
       enableSuggestions: false,
+      enableInteractiveSelection: true,
       textCapitalization: TextCapitalization.none,
       style: TextStyle(
         color: palette.fg,

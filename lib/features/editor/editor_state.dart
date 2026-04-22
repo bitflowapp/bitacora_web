@@ -186,6 +186,7 @@ class _EditorScreenState extends State<EditorScreen>
   VoidCallback? _cellDraftListener;
   VoidCallback? _mobileDraftListener;
   Timer? _cellDraftSyncT;
+  Timer? _mobileDraftSyncT;
 
   // Blink visual
   final ValueNotifier<_CellRef?> _blinkCell = ValueNotifier<_CellRef?>(null);
@@ -256,6 +257,7 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _kbEnsureDebounceT;
   Timer? _mobileEnsureLateT;
   Timer? _mobileFocusRetryT;
+  String? _mobileLastValidationHint;
 
   // Undo/Redo
   final List<_SheetSnapshot> _undo = <_SheetSnapshot>[];
@@ -582,6 +584,7 @@ class _EditorScreenState extends State<EditorScreen>
     _photoFlowClearT?.cancel();
     _quickCaptureSyncTimer?.cancel();
     _audioRecordingTicker?.cancel();
+    _mobileDraftSyncT?.cancel();
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
@@ -4518,15 +4521,50 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _attachMobileDraftListener() {
     if (_mobileDraftListener != null) return;
-    _mobileDraftListener = () {};
+    _mobileDraftListener = () {
+      _syncMobileDraft();
+      _refreshMobileValidationHint();
+
+      // A tiny trailing sync catches IME/composition updates on Android/iOS
+      // without forcing whole-screen rebuilds on every keystroke.
+      _mobileDraftSyncT?.cancel();
+      _mobileDraftSyncT = Timer(const Duration(milliseconds: 80), () {
+        if (!mounted || !_mobileEditorOpen) return;
+        _syncMobileDraft();
+        _refreshMobileValidationHint();
+      });
+    };
     _mobileEC.addListener(_mobileDraftListener!);
   }
 
   void _detachMobileDraftListener() {
+    _mobileDraftSyncT?.cancel();
     final listener = _mobileDraftListener;
     if (listener == null) return;
     _mobileEC.removeListener(listener);
     _mobileDraftListener = null;
+  }
+
+  void _syncMobileDraft() {
+    if (!_mobileEditorOpen) return;
+    final value = _mobileEC.text;
+
+    if (_mobileEditingHeader) {
+      _setDraftHeader(_mobileCol, value);
+      return;
+    }
+
+    if (_mobileRow < 0 || _mobileRow >= _rows.length) return;
+    if (_mobileCol < 0 || _mobileCol >= _headers.length - 1) return;
+    _setDraftCell(_mobileRow, _mobileCol, value);
+  }
+
+  void _refreshMobileValidationHint() {
+    if (!_mobileEditorOpen || _mobileEditingHeader) return;
+    final next = _mobileValidationHint;
+    if (next == _mobileLastValidationHint) return;
+    _mobileLastValidationHint = next;
+    if (mounted) setState(() {});
   }
 
   bool _isSmokeRequested() {
@@ -8811,7 +8849,7 @@ class _EditorScreenState extends State<EditorScreen>
                               Text(
                                 _audioTranscriptionAvailable
                                     ? 'Transcripcion en vivo - $elapsed'
-                                    : 'Grabacion local - $elapsed',
+                                    : 'Grabación local - $elapsed',
                                 style: TextStyle(
                                   color: pal.fgMuted,
                                   fontSize: 12,
@@ -11320,6 +11358,7 @@ class _EditorScreenState extends State<EditorScreen>
       baseOffset: 0,
       extentOffset: _mobileEC.text.length,
     );
+    _mobileLastValidationHint = _mobileValidationHint;
     _attachMobileDraftListener();
 
     if (!_mobileEditorOpen) {
@@ -11374,7 +11413,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.videocam_outlined,
-        label: 'Grabar video',
+        label: 'Video',
         onTap: () => unawaited(_attachVideoForCell(r, c)),
       ),
       _MobileAction(
@@ -11397,7 +11436,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.my_location_outlined,
-        label: 'GPS -> Pegar',
+        label: 'Capturar GPS',
         onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
       ),
       _MobileAction(
@@ -11419,37 +11458,44 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _requestMobileFocusWithRetry() {
     if (!_mobileEditorOpen) return;
-    _mobileFocus.requestFocus();
-    try {
-      SystemChannels.textInput.invokeMethod('TextInput.show');
-    } catch (_) {}
+
+    void requestKeyboard() {
+      if (!_mobileEditorOpen) return;
+      _mobileFocus.requestFocus();
+      try {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      } catch (_) {}
+    }
+
+    void markOpenPhase() {
+      if (_mobilePhase == _MobileEditPhase.opening ||
+          _mobilePhase == _MobileEditPhase.switching) {
+        setState(() => _mobilePhase = _MobileEditPhase.open);
+      }
+    }
+
+    requestKeyboard();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_mobileEditorOpen) return;
-      if (!_mobileFocus.hasFocus) {
-        _mobileFocus.requestFocus();
-        try {
-          SystemChannels.textInput.invokeMethod('TextInput.show');
-        } catch (_) {}
-      }
-      if (_mobilePhase == _MobileEditPhase.opening ||
-          _mobilePhase == _MobileEditPhase.switching) {
-        setState(() => _mobilePhase = _MobileEditPhase.open);
-      }
+      requestKeyboard();
+      markOpenPhase();
     });
 
     _mobileFocusRetryT?.cancel();
-    _mobileFocusRetryT = Timer(const Duration(milliseconds: 120), () {
-      if (!mounted || !_mobileEditorOpen) return;
-      if (!_mobileFocus.hasFocus) {
-        _mobileFocus.requestFocus();
-        try {
-          SystemChannels.textInput.invokeMethod('TextInput.show');
-        } catch (_) {}
+    var attempts = 0;
+    _mobileFocusRetryT = Timer.periodic(const Duration(milliseconds: 90), (t) {
+      if (!mounted || !_mobileEditorOpen) {
+        t.cancel();
+        return;
       }
-      if (_mobilePhase == _MobileEditPhase.opening ||
-          _mobilePhase == _MobileEditPhase.switching) {
-        setState(() => _mobilePhase = _MobileEditPhase.open);
+      attempts += 1;
+      requestKeyboard();
+      if (attempts >= 2) {
+        markOpenPhase();
+      }
+      if ((_mobileFocus.hasFocus && attempts >= 3) || attempts >= 6) {
+        t.cancel();
       }
     });
   }
@@ -11518,10 +11564,18 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               ListTile(
                 leading: const Icon(Icons.check_rounded),
-                title: const Text('Done'),
+                title: const Text('Guardar'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _commitMobileEdit();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close_rounded),
+                title: const Text('Cancelar edición'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _cancelMobileEdit();
                 },
               ),
               if (canCopy)
@@ -11553,7 +11607,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('Grabar video'),
+                  title: const Text('Video'),
                   onTap: () {
                     Navigator.pop(ctx);
                     unawaited(_attachVideoForCell(row, _mobileCol));
@@ -11577,7 +11631,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   title: Text(
                     _audioRecording
-                        ? 'Detener grabacion'
+                        ? 'Detener grabación'
                         : 'Grabar audio en esta celda',
                   ),
                   onTap: () {
@@ -11601,7 +11655,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('GPS -> Pegar en esta celda'),
+                  title: const Text('Capturar GPS'),
                   onTap: () {
                     unawaited(
                       _requestGpsForCell(row, _mobileCol, forceWriteText: true),
@@ -11642,7 +11696,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
   }
 
-  static const double _kMobilePanelCompactH = 140.0;
+  static const double _kMobilePanelCompactH = 152.0;
   void _ensureRowVisibleForKeyboard(int row) {
     if (!mounted) return;
     if (!_vScroll.hasClients) return;
@@ -11826,6 +11880,7 @@ class _EditorScreenState extends State<EditorScreen>
       baseOffset: 0,
       extentOffset: _mobileEC.text.length,
     );
+    _mobileLastValidationHint = _mobileValidationHint;
 
     _requestMobileFocusWithRetry();
 
@@ -11877,6 +11932,7 @@ class _EditorScreenState extends State<EditorScreen>
       baseOffset: 0,
       extentOffset: _mobileEC.text.length,
     );
+    _mobileLastValidationHint = _mobileValidationHint;
 
     _requestMobileFocusWithRetry();
 
@@ -11912,6 +11968,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileCol = 0;
     _mobileTitle = '';
     _mobileActions = const [];
+    _mobileLastValidationHint = null;
 
     try {
       _mobileFocus.unfocus();
@@ -11942,6 +11999,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileCol = 0;
     _mobileTitle = '';
     _mobileActions = const [];
+    _mobileLastValidationHint = null;
 
     try {
       _mobileFocus.unfocus();
@@ -16568,6 +16626,14 @@ class _EditorScreenState extends State<EditorScreen>
 
   @visibleForTesting
   String debugCellText(int r, int c) => _getCellText(r, c);
+
+  @visibleForTesting
+  String debugEffectiveCellText(int r, int c) => _effectiveCell(r, c);
+
+  @visibleForTesting
+  bool debugHasCellDraft(int r, int c) => _draftCells.containsKey(
+        _CellRef(r, c),
+      );
 
   @visibleForTesting
   void debugSetCellDraft(int r, int c, String value) {

@@ -54,4 +54,54 @@ void main() {
     expect(panelSize.height, lessThan(screenH * 0.6));
     expect(state.debugMobileEnsureVisibleCalls, greaterThan(beforeEnsureCalls));
   });
+
+  testWidgets('mobile edit syncs draft live and cancel discards it',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'mobile-live-draft-test',
+          initialHeaders: <String>['Prog.', 'Obs.', 'Photos'],
+          initialRows: <List<String>>[
+            <String>['0+000', 'lectura inicial', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(EditorScreen)) as dynamic;
+    state.debugOpenMobileEditorForCell(0, 1);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+
+    final field = find.descendant(
+      of: find.byKey(const ValueKey('mobileInlineEditorField')),
+      matching: find.byType(TextField),
+    );
+    expect(field, findsOneWidget);
+
+    await tester.enterText(field, 'terreno húmedo, lectura estable');
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(state.debugHasCellDraft(0, 1), isTrue);
+    expect(
+      state.debugEffectiveCellText(0, 1),
+      'terreno húmedo, lectura estable',
+    );
+    expect(state.debugCellText(0, 1), 'lectura inicial');
+
+    await tester.tap(find.byTooltip('Cancelar'));
+    await tester.pumpAndSettle();
+
+    expect(state.debugMobileEditorOpen, isFalse);
+    expect(state.debugHasCellDraft(0, 1), isFalse);
+    expect(state.debugCellText(0, 1), 'lectura inicial');
+  });
 }
