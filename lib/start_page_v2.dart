@@ -291,16 +291,22 @@ class _StartPageV2State extends State<StartPageV2> {
         final items =
             <(TemplateKind kind, String title, String subtitle, IconData icon)>[
           (
+            TemplateKind.proteccionCatodica,
+            'Proteccion Catodica',
+            'Progresiva, punto, ON/OFF, IR drop, cupon.',
+            Icons.bolt_rounded,
+          ),
+          (
+            TemplateKind.resistividades,
+            'Resistividades',
+            'Fecha, progresiva, 1m, 3m, 5m.',
+            Icons.straighten_rounded,
+          ),
+          (
             TemplateKind.plantilla,
             'Plantilla base',
             'Actividad, detalle, estado, responsable.',
             Icons.auto_awesome_rounded,
-          ),
-          (
-            TemplateKind.resistividades,
-            'Nueva medicion',
-            'Fecha, progresiva, 1m, 3m, 5m.',
-            Icons.straighten_rounded,
           ),
           (
             TemplateKind.inventario,
@@ -557,10 +563,10 @@ class _StartPageV2State extends State<StartPageV2> {
         },
       ),
       _AutomationSuggestion(
-        title: 'Crear nueva medicion',
+        title: 'Nuevo relevamiento PC',
         subtitle: '$templateSubtitle Uso: $templateCount',
-        icon: Icons.straighten_rounded,
-        onTap: () => _createTemplateSheet(TemplateKind.resistividades),
+        icon: Icons.bolt_rounded,
+        onTap: () => _createTemplateSheet(TemplateKind.proteccionCatodica),
       ),
       _AutomationSuggestion(
         title: 'Importar datos',
@@ -575,6 +581,10 @@ class _StartPageV2State extends State<StartPageV2> {
             : 'Plantilla guardada: $_lastTemplate',
         icon: Icons.auto_awesome_motion_rounded,
         onTap: () async {
+          if (_lastTemplate == TemplateKind.proteccionCatodica.name) {
+            await _createTemplateSheet(TemplateKind.proteccionCatodica);
+            return;
+          }
           if (_lastTemplate == TemplateKind.resistividades.name) {
             await _createTemplateSheet(TemplateKind.resistividades);
             return;

@@ -112,6 +112,7 @@ class SheetMeta {
 enum TemplateKind {
   plantilla,
   resistividades,
+  proteccionCatodica,
   inventario,
   checklist,
 }
@@ -634,6 +635,31 @@ class SheetStore {
             _TemplateColumn(label: '1 m (Ohm)', type: 'number'),
             _TemplateColumn(label: '3 m (Ohm)', type: 'number'),
             _TemplateColumn(label: '5 m (Ohm)', type: 'number'),
+            _TemplateColumn(label: 'Observaciones', type: 'text'),
+          ],
+        );
+      case TemplateKind.proteccionCatodica:
+        return const _TemplateDefinition(
+          name: 'Relevamiento Proteccion Catodica',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Progresiva', type: 'number'),
+            _TemplateColumn(label: 'Punto de medicion', type: 'text'),
+            _TemplateColumn(label: 'Potencial ON (V)', type: 'number'),
+            _TemplateColumn(label: 'Potencial OFF (V)', type: 'number'),
+            _TemplateColumn(label: 'IR drop (V)', type: 'number'),
+            _TemplateColumn(
+              label: 'Cupon',
+              type: 'status',
+              defaultValue: 'Polarizado',
+              options: <String>['Polarizado', 'Despolarizado', 'N/A'],
+            ),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
             _TemplateColumn(label: 'Observaciones', type: 'text'),
           ],
         );

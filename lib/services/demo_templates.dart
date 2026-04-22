@@ -16,6 +16,73 @@ class DemoTemplateSpec {
 
 const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   DemoTemplateSpec(
+    slug: 'proteccion-catodica',
+    name: 'Proteccion Catodica',
+    sheetName: 'Demo Proteccion Catodica',
+    headers: <String>[
+      'Fecha',
+      'Progresiva',
+      'Punto de medicion',
+      'Potencial ON (V)',
+      'Potencial OFF (V)',
+      'IR drop (V)',
+      'Cupon',
+      'Estado',
+      'Observaciones',
+      'Fotos'
+    ],
+    rows: <List<String>>[
+      <String>[
+        '2026-04-22',
+        '12+000',
+        'CMP-120',
+        '-1.12',
+        '-0.92',
+        '0.20',
+        'Polarizado',
+        'OK',
+        'Caja limpia. Referencia Cu/CuSO4 estable.',
+        ''
+      ],
+      <String>[
+        '2026-04-22',
+        '12+025',
+        'CMP-121',
+        '-1.08',
+        '-0.88',
+        '0.20',
+        'Polarizado',
+        'OK',
+        'Sin dano visible. Registrar foto de tapa.',
+        ''
+      ],
+      <String>[
+        '2026-04-22',
+        '12+050',
+        'CMP-122',
+        '-0.82',
+        '-0.61',
+        '0.21',
+        'Despolarizado',
+        'Obs',
+        'Revisar continuidad y repetir medicion en contraprueba.',
+        ''
+      ],
+      <String>[
+        '2026-04-22',
+        '12+075',
+        'Junta aislante',
+        '-1.01',
+        '-0.84',
+        '0.17',
+        'N/A',
+        'OK',
+        'Lectura dentro de rango operativo del tramo.',
+        ''
+      ],
+    ],
+  ),
+  DemoTemplateSpec(
     slug: 'campo',
     name: 'Campo',
     sheetName: 'Demo Campo',
@@ -77,8 +144,15 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
 DemoTemplateSpec? resolveDemoTemplateFromSlug(String? slug) {
   final normalized = (slug ?? '').trim().toLowerCase();
   if (normalized.isEmpty) return null;
+  final aliases = <String, String>{
+    'pc': 'proteccion-catodica',
+    'proteccion': 'proteccion-catodica',
+    'proteccioncatodica': 'proteccion-catodica',
+    'proteccion_catodica': 'proteccion-catodica',
+  };
+  final effective = aliases[normalized] ?? normalized;
   for (final spec in kDemoTemplateSpecs) {
-    if (spec.slug == normalized) return spec;
+    if (spec.slug == effective) return spec;
   }
   return null;
 }
