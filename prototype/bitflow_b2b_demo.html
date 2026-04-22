@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BitFlow · Gestión de Datos de Campo</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --c-primary: #0A2540;
+      --c-primary-soft: #0F2D52;
+      --c-primary-line: #1B3C68;
+      --c-accent: #F97316;
+      --c-accent-hover: #EA580C;
+      --c-accent-soft: #FFF7ED;
+      --c-bg: #F6F7F9;
+      --c-surface: #FFFFFF;
+      --c-border: #E4E7EC;
+      --c-border-strong: #CBD0D8;
+      --c-text: #0F172A;
+      --c-text-soft: #475569;
+      --c-text-muted: #94A3B8;
+      --c-ok: #059669;
+      --c-ok-soft: #ECFDF5;
+      --c-warn: #B45309;
+      --c-warn-soft: #FEF3C7;
+      --c-err: #B91C1C;
+      --c-err-soft: #FEF2F2;
+      --c-zebra: #FAFBFC;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --t-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --t-med: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--c-text);
+      background: var(--c-bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    button { font-family: inherit; }
+    input { font-family: inherit; }
+
+    /* ── Top Header ──────────────────────────────────────────────────── */
+    .app-header {
+      background: var(--c-primary);
+      color: #fff;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--c-primary-line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--c-accent), var(--c-accent-hover));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-sep {
+      width: 1px;
+      height: 22px;
+      background: var(--c-primary-line);
+      margin: 0 16px;
+    }
+
+    .brand-project {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .header-spacer { flex: 1; }
+
+    .header-sync {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.9);
+      transition: background var(--t-med);
+    }
+    .header-sync:hover { background: rgba(255,255,255,0.12); }
+
+    .sync-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4ADE80;
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+    }
+
+    .header-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 16px;
+      padding: 4px 8px 4px 4px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background var(--t-med);
+    }
+    .header-user:hover { background: rgba(255,255,255,0.08); }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--c-accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.2px;
+    }
+
+    .user-meta { line-height: 1.2; }
+    .user-name { font-size: 13px; font-weight: 600; color: #fff; }
+    .user-role { font-size: 11px; color: rgba(255,255,255,0.6); }
+
+    /* ── Main ─────────────────────────────────────────────────────────── */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 28px 24px 40px;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      margin: 0 0 4px;
+    }
+
+    .page-sub {
+      font-size: 13px;
+      color: var(--c-text-soft);
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 14px;
+      border-radius: var(--r-md);
+      border: 1px solid transparent;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all var(--t-med);
+      line-height: 1;
+    }
+
+    .btn-primary {
+      background: var(--c-accent);
+      color: #fff;
+      border-color: var(--c-accent);
+      box-shadow: 0 1px 2px rgba(249, 115, 22, 0.2);
+    }
+    .btn-primary:hover {
+      background: var(--c-accent-hover);
+      border-color: var(--c-accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(249, 115, 22, 0.25);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: var(--c-primary);
+      color: #fff;
+      border-color: var(--c-primary);
+    }
+    .btn-secondary:hover {
+      background: var(--c-primary-soft);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-ghost {
+      background: var(--c-surface);
+      color: var(--c-text);
+      border-color: var(--c-border);
+    }
+    .btn-ghost:hover {
+      border-color: var(--c-border-strong);
+      background: var(--c-bg);
+    }
+
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--r-md);
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--c-text-soft);
+      cursor: pointer;
+      transition: all var(--t-med);
+    }
+    .btn-icon:hover {
+      background: var(--c-bg);
+      color: var(--c-text);
+      border-color: var(--c-border);
+    }
+
+    .btn .icon { width: 15px; height: 15px; }
+
+    /* ── KPI Cards ────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .kpi {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      padding: 16px 18px;
+      transition: all var(--t-med);
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi:hover {
+      border-color: var(--c-border-strong);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.6px;
+      color: var(--c-text);
+      line-height: 1.1;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--c-text-soft);
+      margin-top: 6px;
+    }
+
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+    .kpi-trend.up { background: var(--c-ok-soft); color: var(--c-ok); }
+    .kpi-trend.warn { background: var(--c-warn-soft); color: var(--c-warn); }
+
+    .kpi-accent { border-left: 3px solid var(--c-accent); }
+    .kpi-warn { border-left: 3px solid var(--c-warn); }
+    .kpi-ok { border-left: 3px solid var(--c-ok); }
+
+    .progress {
+      height: 4px;
+      background: var(--c-border);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--c-accent), var(--c-accent-hover));
+      border-radius: 999px;
+      transition: width 400ms ease;
+    }
+
+    /* ── Table Card ───────────────────────────────────────────────────── */
+    .card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--c-border);
+      background: var(--c-surface);
+    }
+
+    .search {
+      position: relative;
+      flex: 1;
+      max-width: 340px;
+    }
+    .search input {
+      width: 100%;
+      height: 34px;
+      padding: 0 12px 0 34px;
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      font-size: 13px;
+      color: var(--c-text);
+      background: var(--c-bg);
+      outline: none;
+      transition: all var(--t-med);
+    }
+    .search input:focus {
+      background: var(--c-surface);
+      border-color: var(--c-accent);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+    }
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--c-text-muted);
+      pointer-events: none;
+    }
+
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--c-text-soft);
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all var(--t-med);
+    }
+    .filter-chip:hover {
+      border-color: var(--c-border-strong);
+      color: var(--c-text);
+    }
+    .filter-chip.active {
+      background: var(--c-primary);
+      color: #fff;
+      border-color: var(--c-primary);
+    }
+
+    .toolbar-spacer { flex: 1; }
+
+    /* ── Warning Banner (instead of red errors) ──────────────────────── */
+    .warn-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--c-warn-soft);
+      border-bottom: 1px solid #FDE4B0;
+      color: #78350F;
+      font-size: 13px;
+    }
+    .warn-banner strong { font-weight: 600; }
+    .warn-banner .spacer { flex: 1; }
+    .warn-link {
+      font-weight: 600;
+      color: #78350F;
+      text-decoration: underline;
+      cursor: pointer;
+      transition: opacity var(--t-med);
+    }
+    .warn-link:hover { opacity: 0.7; }
+
+    /* ── Table ───────────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      background: #FAFBFC;
+      position: sticky;
+      top: 0;
+    }
+
+    th {
+      text-align: left;
+      padding: 11px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-soft);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--c-border);
+      white-space: nowrap;
+    }
+    th.center { text-align: center; }
+    th.right { text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--c-border);
+      transition: background var(--t-fast);
+    }
+    tbody tr:nth-child(even) { background: var(--c-zebra); }
+    tbody tr:hover { background: #F1F5FB; }
+    tbody tr:last-child { border-bottom: none; }
+
+    td {
+      padding: 11px 14px;
+      color: var(--c-text);
+      vertical-align: middle;
+    }
+
+    td.id {
+      font-weight: 600;
+      color: var(--c-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    td.num {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--c-text);
+    }
+
+    td.muted { color: var(--c-text-soft); }
+
+    /* ── Status Pills ────────────────────────────────────────────────── */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .status-icon {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .status-ok { background: var(--c-ok-soft); color: var(--c-ok); }
+    .status-warn { background: var(--c-warn-soft); color: var(--c-warn); }
+    .status-err { background: var(--c-err-soft); color: var(--c-err); }
+    .status-idle { background: #F1F5F9; color: #64748B; }
+
+    /* ── Row actions ─────────────────────────────────────────────────── */
+    .row-actions {
+      display: flex;
+      gap: 2px;
+      justify-content: flex-end;
+      opacity: 0;
+      transition: opacity var(--t-med);
+    }
+    tbody tr:hover .row-actions { opacity: 1; }
+
+    .action-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--c-text-soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all var(--t-fast);
+    }
+    .action-btn:hover {
+      background: var(--c-surface);
+      color: var(--c-primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .action-btn.danger:hover { color: var(--c-err); }
+
+    /* ── Tooltip ─────────────────────────────────────────────────────── */
+    [data-tip] { position: relative; }
+    [data-tip]::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: var(--c-primary);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 9px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: all var(--t-med);
+      z-index: 100;
+      letter-spacing: 0.1px;
+    }
+    [data-tip]:hover::after {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Footer / Status bar ─────────────────────────────────────────── */
+    .statusbar {
+      padding: 10px 16px;
+      border-top: 1px solid var(--c-border);
+      background: #FAFBFC;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 12px;
+      color: var(--c-text-soft);
+    }
+    .statusbar .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--c-border-strong);
+    }
+
+    /* ── Checkbox ────────────────────────────────────────────────────── */
+    .chk {
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--c-border-strong);
+      border-radius: 4px;
+      background: var(--c-surface);
+      cursor: pointer;
+      transition: all var(--t-fast);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .chk.checked {
+      background: var(--c-accent);
+      border-color: var(--c-accent);
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .page-head { flex-direction: column; align-items: stretch; }
+      .col-hide-md { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      .app-header { padding: 0 14px; height: 56px; }
+      .brand-sep, .brand-project { display: none; }
+      .user-meta { display: none; }
+      .header-sync { padding: 4px 9px; }
+      .header-sync .sync-text { display: none; }
+      main { padding: 18px 12px 32px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .kpi { padding: 12px 14px; }
+      .kpi-value { font-size: 22px; }
+      .actions-row { width: 100%; }
+      .actions-row .btn { flex: 1; justify-content: center; min-height: 44px; font-size: 14px; padding: 12px; }
+      .actions-row .btn-label-full { display: inline; }
+      .toolbar { flex-wrap: wrap; }
+      .search { max-width: none; width: 100%; }
+      .col-hide-sm { display: none; }
+      th, td { padding: 10px 10px; font-size: 12.5px; }
+      .row-actions { opacity: 1; }
+      .page-title { font-size: 19px; }
+    }
+
+    /* ── Animations ──────────────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo } = React;
+
+    // ── SVG Icons ──────────────────────────────────────────────
+    const Icon = ({ name, size = 15, stroke = 1.75 }) => {
+      const paths = {
+        bolt: <path d="M13 2L4.5 13h6l-1 7L18 9h-6l1-7z" />,
+        search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></>,
+        filter: <path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" />,
+        download: <><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
+        save: <><path d="M5 3h11l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" /><path d="M8 3v6h8V3" /><path d="M7 15h10v6H7z" /></>,
+        gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />,
+        chevron: <path d="M9 6l6 6-6 6" />,
+        eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>,
+        edit: <><path d="M16 3l5 5-12 12H4v-5L16 3z" /></>,
+        more: <><circle cx="12" cy="12" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>,
+        check: <path d="M5 12l5 5L20 7" />,
+        warn: <><path d="M12 3L2 21h20L12 3z" /><path d="M12 10v5" /><circle cx="12" cy="18" r="0.8" fill="currentColor" /></>,
+        x: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
+        upload: <><path d="M12 21V9" /><path d="M7 14l5-5 5 5" /><path d="M4 4h16" /></>,
+        clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+        trend: <><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></>,
+        shield: <path d="M12 2l9 4v6c0 5-3.5 9-9 10-5.5-1-9-5-9-10V6l9-4z" />,
+        alert: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><circle cx="12" cy="16" r="0.8" fill="currentColor" /></>,
+      };
+      return (
+        <svg className="icon" width={size} height={size} viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" strokeWidth={stroke}
+          strokeLinecap="round" strokeLinejoin="round">
+          {paths[name]}
+        </svg>
+      );
+    };
+
+    // ── Realistic Neuquén field data ───────────────────────────
+    const rows = [
+      { id: 'LC-042', loc: 'Loma Campana', op: 'YPF',        pres: 28.4, temp: 68, flow: 142, time: '14:23', sup: 'J. Pérez',     status: 'ok'   },
+      { id: 'FP-018', loc: 'Fortín de Piedra', op: 'Tecpetrol', pres: 31.2, temp: 72, flow: 98,  time: '14:19', sup: 'M. Romero',    status: 'warn' },
+      { id: 'AN-073', loc: 'Añelo Norte',  op: 'Pan American', pres: 25.7, temp: 65, flow: 178, time: '14:12', sup: 'C. Sandoval',  status: 'ok'   },
+      { id: 'VM-204', loc: 'Vaca Muerta Sur', op: 'Shell',     pres: 34.8, temp: 75, flow: 112, time: '14:05', sup: 'R. Gutiérrez', status: 'ok'   },
+      { id: 'RC-091', loc: 'Rincón de los Sauces', op: 'Pluspetrol', pres: 22.3, temp: 61, flow: 87, time: '13:58', sup: 'L. Barrios', status: 'warn' },
+      { id: 'CS-055', loc: 'Centenario Sur', op: 'Capex',     pres: 29.1, temp: 69, flow: 134, time: '13:47', sup: 'D. Ferrari',   status: 'ok'   },
+      { id: 'ZB-112', loc: 'Zapala Bloque B', op: 'GyP',       pres: 27.6, temp: 66, flow: 121, time: '13:41', sup: 'A. Molina',    status: 'ok'   },
+      { id: 'PH-033', loc: 'Puesto Hernández', op: 'YPF',      pres: 33.5, temp: 74, flow: 156, time: '13:30', sup: 'J. Pérez',     status: 'warn' },
+      { id: 'EC-067', loc: 'El Chañar',      op: 'Vista',      pres: 26.8, temp: 64, flow: 103, time: '13:22', sup: 'P. Navarro',   status: 'ok'   },
+      { id: 'AG-128', loc: 'Aguada Pichana', op: 'Total',      pres: 30.4, temp: 71, flow: 145, time: '13:15', sup: 'C. Sandoval',  status: 'ok'   },
+    ];
+
+    const STATUS = {
+      ok:   { label: 'OK',        cls: 'status-ok',   icon: 'check' },
+      warn: { label: 'Revisar',   cls: 'status-warn', icon: 'warn'  },
+      err:  { label: 'Error',     cls: 'status-err',  icon: 'x'     },
+      idle: { label: 'Pendiente', cls: 'status-idle', icon: 'clock' },
+    };
+
+    function StatusPill({ status }) {
+      const s = STATUS[status];
+      return (
+        <span className={`status ${s.cls}`}>
+          <span className="status-icon"><Icon name={s.icon} size={11} stroke={2.4} /></span>
+          {s.label}
+        </span>
+      );
+    }
+
+    // ── KPI Card ───────────────────────────────────────────────
+    function Kpi({ label, value, sub, variant, progress, trend }) {
+      return (
+        <div className={`kpi kpi-${variant || 'default'} fade-in`}>
+          <div className="kpi-label">{label}</div>
+          <div className="kpi-value">
+            {value}
+            {trend && <span className={`kpi-trend ${trend.dir}`}>{trend.dir === 'up' ? '↑' : '⚠'} {trend.text}</span>}
+          </div>
+          {sub && <div className="kpi-sub">{sub}</div>}
+          {typeof progress === 'number' && (
+            <div className="progress"><div className="progress-bar" style={{ width: `${progress}%` }} /></div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Main App ───────────────────────────────────────────────
+    function App() {
+      const [activeFilter, setActiveFilter] = useState('all');
+      const [query, setQuery] = useState('');
+      const [selected, setSelected] = useState(new Set());
+
+      const filtered = useMemo(() => {
+        return rows.filter(r => {
+          if (activeFilter === 'warn' && r.status !== 'warn') return false;
+          if (activeFilter === 'ok'   && r.status !== 'ok')   return false;
+          if (query.trim()) {
+            const q = query.toLowerCase();
+            return r.id.toLowerCase().includes(q) ||
+                   r.loc.toLowerCase().includes(q) ||
+                   r.op.toLowerCase().includes(q) ||
+                   r.sup.toLowerCase().includes(q);
+          }
+          return true;
+        });
+      }, [activeFilter, query]);
+
+      const pendingCount = rows.filter(r => r.status === 'warn').length;
+      const okCount      = rows.filter(r => r.status === 'ok').length;
+      const totalRecords = 247;
+      const loadedRecords = 218;
+      const completion = Math.round((loadedRecords / totalRecords) * 100);
+
+      const toggleRow = (id) => {
+        setSelected(s => {
+          const n = new Set(s);
+          n.has(id) ? n.delete(id) : n.add(id);
+          return n;
+        });
+      };
+
+      return (
+        <>
+          <header className="app-header">
+            <div className="brand">
+              <div className="brand-mark">B</div>
+              <span>BitFlow</span>
+            </div>
+            <div className="brand-sep" />
+            <div className="brand-project">Planilla YPF · Loma Campana · Turno Día</div>
+            <div className="header-spacer" />
+            <div className="header-sync" data-tip="Sincronización automática activa">
+              <span className="sync-dot" />
+              <span className="sync-text">Sincronizado hace 2 min</span>
+            </div>
+            <div className="header-user" data-tip="Cuenta · Preferencias">
+              <div className="avatar">MP</div>
+              <div className="user-meta">
+                <div className="user-name">Marco Peralta</div>
+                <div className="user-role">Supervisor · Campo</div>
+              </div>
+            </div>
+          </header>
+
+          <main>
+            <div className="page-head">
+              <div>
+                <h1 className="page-title">Registros de Campo</h1>
+                <p className="page-sub">Jornada del martes 22 de abril · {loadedRecords} de {totalRecords} registros cargados</p>
+              </div>
+              <div className="actions-row">
+                <button className="btn btn-ghost" data-tip="Guardar cambios locales">
+                  <Icon name="save" /> Guardar
+                </button>
+                <button className="btn btn-secondary" data-tip="Generar reporte en PDF">
+                  <Icon name="download" /> Exportar PDF
+                </button>
+                <button className="btn btn-primary" data-tip="Procesar y validar datos">
+                  <Icon name="bolt" /> Procesar datos
+                </button>
+              </div>
+            </div>
+
+            <div className="kpi-grid">
+              <Kpi
+                label={<><Icon name="trend" size={12} /> COMPLETADO</>}
+                value={`${completion}%`}
+                sub={`${loadedRecords} de ${totalRecords} registros`}
+                variant="accent"
+                progress={completion}
+              />
+              <Kpi
+                label={<><Icon name="alert" size={12} /> REQUIEREN REVISIÓN</>}
+                value={pendingCount}
+                sub="Revisá antes de exportar"
+                variant="warn"
+                trend={{ dir: 'warn', text: 'hoy' }}
+              />
+              <Kpi
+                label={<><Icon name="shield" size={12} /> VALIDADOS</>}
+                value={okCount}
+                sub="Sin observaciones"
+                variant="ok"
+                trend={{ dir: 'up', text: '+12' }}
+              />
+              <Kpi
+                label={<><Icon name="clock" size={12} /> ÚLTIMA ACTUALIZACIÓN</>}
+                value="14:23"
+                sub="Hace 2 minutos · Auto"
+              />
+            </div>
+
+            <div className="card">
+              <div className="toolbar">
+                <div className="search">
+                  <span className="search-icon"><Icon name="search" size={15} /></span>
+                  <input
+                    placeholder="Buscar pozo, locación, operador…"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                  />
+                </div>
+                <button className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}  onClick={() => setActiveFilter('all')}>Todos <span style={{ opacity: 0.7 }}>{rows.length}</span></button>
+                <button className={`filter-chip ${activeFilter === 'ok' ? 'active' : ''}`}   onClick={() => setActiveFilter('ok')}>Validados <span style={{ opacity: 0.7 }}>{okCount}</span></button>
+                <button className={`filter-chip ${activeFilter === 'warn' ? 'active' : ''}`} onClick={() => setActiveFilter('warn')}>A revisar <span style={{ opacity: 0.7 }}>{pendingCount}</span></button>
+                <div className="toolbar-spacer" />
+                <button className="btn-icon" data-tip="Filtros avanzados"><Icon name="filter" size={15} /></button>
+                <button className="btn-icon" data-tip="Configurar columnas"><Icon name="gear" size={15} /></button>
+              </div>
+
+              {pendingCount > 0 && (
+                <div className="warn-banner">
+                  <Icon name="warn" size={16} stroke={2} />
+                  <span><strong>{pendingCount} registros</strong> requieren revisión antes de exportar el reporte final.</span>
+                  <span className="spacer" />
+                  <span className="warn-link" onClick={() => setActiveFilter('warn')}>Ver registros →</span>
+                </div>
+              )}
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 36 }}></th>
+                      <th style={{ width: 56 }} className="center">Estado</th>
+                      <th>Pozo</th>
+                      <th className="col-hide-sm">Locación</th>
+                      <th className="col-hide-md">Operador</th>
+                      <th className="right">Presión (MPa)</th>
+                      <th className="right col-hide-sm">Temp (°C)</th>
+                      <th className="right col-hide-md">Caudal (m³/d)</th>
+                      <th className="col-hide-md">Supervisor</th>
+                      <th>Hora</th>
+                      <th style={{ width: 110 }} className="right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(r => {
+                      const checked = selected.has(r.id);
+                      return (
+                        <tr key={r.id}>
+                          <td>
+                            <div className={`chk ${checked ? 'checked' : ''}`} onClick={() => toggleRow(r.id)}>
+                              {checked && <Icon name="check" size={11} stroke={3} />}
+                            </div>
+                          </td>
+                          <td className="center"><StatusPill status={r.status} /></td>
+                          <td className="id">{r.id}</td>
+                          <td className="col-hide-sm">{r.loc}</td>
+                          <td className="col-hide-md muted">{r.op}</td>
+                          <td className="num">{r.pres.toFixed(1)}</td>
+                          <td className="num col-hide-sm">{r.temp}</td>
+                          <td className="num col-hide-md">{r.flow}</td>
+                          <td className="col-hide-md muted">{r.sup}</td>
+                          <td className="muted">{r.time}</td>
+                          <td>
+                            <div className="row-actions">
+                              <button className="action-btn" data-tip="Ver detalle"><Icon name="eye" size={15} /></button>
+                              <button className="action-btn" data-tip="Editar registro"><Icon name="edit" size={14} /></button>
+                              <button className="action-btn" data-tip="Más acciones"><Icon name="more" size={15} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="statusbar">
+                <span>{filtered.length} de {rows.length} visibles</span>
+                <span className="dot" />
+                <span>{selected.size > 0 ? `${selected.size} seleccionados` : 'Nada seleccionado'}</span>
+                <span className="dot" />
+                <span>Guardado automático activo</span>
+                <span style={{ flex: 1 }} />
+                <span>v2.4.1 · BitFlow Enterprise</span>
+              </div>
+            </div>
+          </main>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
