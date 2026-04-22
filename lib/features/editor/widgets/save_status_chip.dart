@@ -154,6 +154,8 @@ class SyncStatusChip extends StatelessWidget {
               label: label,
               icon: _iconFor(snap.state),
               busy: busy,
+              leadingDotColor: _dotColorFor(snap.state),
+              pulseDot: snap.state != OfflineSyncState.synced,
             ),
           ),
         );
@@ -176,17 +178,21 @@ class SyncStatusChip extends StatelessWidget {
   String _labelFor(OfflineSyncSnapshot snap) {
     switch (snap.state) {
       case OfflineSyncState.offline:
-        return 'Offline / Pendiente sync';
+        final pending = snap.pendingCount;
+        if (pending > 0) return 'Sin conexión · $pending en cola';
+        return 'Sin conexión';
       case OfflineSyncState.pending:
         final pending = snap.pendingCount;
-        if (pending > 1) return 'Pendiente sync ($pending)';
-        return 'Pendiente sync';
+        if (pending > 1) return 'Sin conexión · $pending en cola';
+        return 'Sin conexión · 1 en cola';
       case OfflineSyncState.syncing:
-        return 'Sincronizando...';
+        return 'Sincronizando…';
       case OfflineSyncState.synced:
         return 'Sincronizado';
       case OfflineSyncState.failed:
-        return 'Fallo (reintentar)';
+        final pending = snap.pendingCount;
+        if (pending > 0) return 'Reintentar · $pending en cola';
+        return 'Reintentar sincronización';
     }
   }
 
@@ -205,19 +211,35 @@ class SyncStatusChip extends StatelessWidget {
     }
   }
 
+  Color _dotColorFor(OfflineSyncState state) {
+    final light = palette.isLight;
+    const greenLight = Color(0xFF34C759);
+    const greenDark = Color(0xFF30D158);
+    const amberLight = Color(0xFFFF9F0A);
+    const amberDark = Color(0xFFFFA726);
+    switch (state) {
+      case OfflineSyncState.synced:
+        return light ? greenLight : greenDark;
+      case OfflineSyncState.syncing:
+        return palette.accent;
+      case OfflineSyncState.pending:
+      case OfflineSyncState.offline:
+      case OfflineSyncState.failed:
+        return light ? amberLight : amberDark;
+    }
+  }
+
   (Color, Color, Color) _colorsFor(OfflineSyncState state) {
+    final light = palette.isLight;
+    final dot = _dotColorFor(state);
     switch (state) {
       case OfflineSyncState.offline:
-        return (
-          palette.hintBg,
-          palette.border,
-          palette.fgMuted,
-        );
       case OfflineSyncState.pending:
+      case OfflineSyncState.failed:
         return (
-          palette.selectionFill,
-          palette.selectionBorder.withValues(alpha: 0.4),
-          palette.selectionBorder,
+          dot.withValues(alpha: light ? 0.12 : 0.20),
+          dot.withValues(alpha: light ? 0.42 : 0.55),
+          dot,
         );
       case OfflineSyncState.syncing:
         return (
@@ -227,15 +249,9 @@ class SyncStatusChip extends StatelessWidget {
         );
       case OfflineSyncState.synced:
         return (
-          palette.hintBg,
-          palette.border,
-          palette.fgMuted,
-        );
-      case OfflineSyncState.failed:
-        return (
-          palette.selectionFill,
-          palette.selectionBorder,
-          palette.selectionBorder,
+          dot.withValues(alpha: light ? 0.10 : 0.18),
+          dot.withValues(alpha: light ? 0.35 : 0.45),
+          dot,
         );
     }
   }
@@ -251,6 +267,8 @@ class _StatusChipShell extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.busy,
+    this.leadingDotColor,
+    this.pulseDot = false,
   });
 
   final _SheetPalette palette;
@@ -260,6 +278,8 @@ class _StatusChipShell extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool busy;
+  final Color? leadingDotColor;
+  final bool pulseDot;
 
   @override
   Widget build(BuildContext context) {
@@ -284,6 +304,13 @@ class _StatusChipShell extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (leadingDotColor != null) ...[
+            _PulsingDot(
+              color: leadingDotColor!,
+              pulse: pulseDot && !busy,
+            ),
+            const SizedBox(width: 6),
+          ],
           if (busy)
             SizedBox(
               width: 14,
@@ -296,17 +323,89 @@ class _StatusChipShell extends StatelessWidget {
           else
             Icon(icon, size: 14, color: fg),
           const SizedBox(width: 6),
-          Text(
-            label,
+          AnimatedDefaultTextStyle(
+            duration: AppMotion.quick,
+            curve: AppMotion.standardOut,
             style: TextStyle(
               color: fg,
               fontWeight: FontWeight.w800,
               fontSize: 12,
               height: 1.05,
             ),
+            child: Text(label),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot({required this.color, required this.pulse});
+
+  final Color color;
+  final bool pulse;
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (widget.pulse) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulsingDot old) {
+    super.didUpdateWidget(old);
+    if (widget.pulse && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.pulse && _ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value;
+        final glow = widget.pulse ? 0.35 + 0.45 * t : 0.0;
+        return Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+            boxShadow: glow > 0
+                ? [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: glow),
+                      blurRadius: 6 + 4 * t,
+                      spreadRadius: 0.5 + 1.5 * t,
+                    ),
+                  ]
+                : null,
+          ),
+        );
+      },
     );
   }
 }

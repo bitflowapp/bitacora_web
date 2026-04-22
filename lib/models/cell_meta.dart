@@ -231,6 +231,7 @@ class AudioAttachment {
     required this.durationMs,
     required this.storedRef,
     required this.addedAt,
+    this.transcript = '',
   });
 
   final String id;
@@ -240,16 +241,21 @@ class AudioAttachment {
   final int durationMs;
   final String storedRef;
   final DateTime addedAt;
+  final String transcript;
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': filename,
-        'mime': mime,
-        'size': size,
-        'durationMs': durationMs,
-        'storedRef': storedRef,
-        'addedAt': addedAt.toIso8601String(),
-      };
+  Map<String, dynamic> toJson() {
+    final cleanTranscript = transcript.trim();
+    return {
+      'id': id,
+      'name': filename,
+      'mime': mime,
+      'size': size,
+      'durationMs': durationMs,
+      'storedRef': storedRef,
+      'addedAt': addedAt.toIso8601String(),
+      if (cleanTranscript.isNotEmpty) 'transcript': cleanTranscript,
+    };
+  }
 
   static AudioAttachment? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -262,6 +268,7 @@ class AudioAttachment {
       storedRef: (raw['storedRef'] ?? '').toString(),
       addedAt: DateTime.tryParse((raw['addedAt'] ?? '').toString()) ??
           DateTime.now(),
+      transcript: (raw['transcript'] ?? '').toString(),
     );
   }
 
@@ -273,6 +280,7 @@ class AudioAttachment {
         durationMs: durationMs,
         storedRef: storedRef,
         addedAt: addedAt,
+        transcript: transcript,
       );
 
   AudioAttachment copyWith({
@@ -282,6 +290,7 @@ class AudioAttachment {
     int? durationMs,
     String? storedRef,
     DateTime? addedAt,
+    String? transcript,
   }) =>
       AudioAttachment(
         id: id,
@@ -291,6 +300,7 @@ class AudioAttachment {
         durationMs: durationMs ?? this.durationMs,
         storedRef: storedRef ?? this.storedRef,
         addedAt: addedAt ?? this.addedAt,
+        transcript: transcript ?? this.transcript,
       );
 }
 

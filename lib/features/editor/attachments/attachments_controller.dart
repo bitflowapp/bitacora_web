@@ -1688,30 +1688,58 @@ extension _EditorAttachments on _EditorScreenState {
         final hasAudios = currentMeta.audios.isNotEmpty;
         final canOpenViewer = hasPhotos || hasAudios;
 
-        Widget statChip(IconData icon, String label) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        Widget statChip(IconData icon, String label, {VoidCallback? onTap}) {
+          final content = Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: pal.chipBg,
+              color: onTap != null
+                  ? AppTheme.of(context)
+                      .colors
+                      .accent
+                      .withValues(alpha: pal.isLight ? 0.12 : 0.20)
+                  : pal.chipBg,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: pal.chipBorder,
+                color: onTap != null
+                    ? AppTheme.of(context)
+                        .colors
+                        .accent
+                        .withValues(alpha: pal.isLight ? 0.45 : 0.55)
+                    : pal.chipBorder,
                 width: math.max(pal.hairline, 1).toDouble(),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 14, color: pal.chipText),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: onTap != null
+                      ? AppTheme.of(context).colors.accent
+                      : pal.chipText,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
-                    color: pal.chipText,
-                    fontWeight: FontWeight.w700,
+                    color: onTap != null
+                        ? AppTheme.of(context).colors.accent
+                        : pal.chipText,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
+            ),
+          );
+          if (onTap == null) return content;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: onTap,
+              child: content,
             ),
           );
         }
@@ -1801,10 +1829,41 @@ extension _EditorAttachments on _EditorScreenState {
                           'Fotos ${currentMeta.photos.length}'),
                       statChip(Icons.graphic_eq_rounded,
                           'Audios ${currentMeta.audios.length}'),
-                      statChip(Icons.my_location_rounded,
-                          hasGps ? 'GPS activo' : 'Sin GPS'),
+                      if (hasGps)
+                        statChip(
+                          Icons.my_location_rounded,
+                          'GPS activo',
+                        )
+                      else
+                        statChip(
+                          Icons.my_location_rounded,
+                          'Capturar GPS',
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            unawaited(_requestGpsForCell(
+                              r,
+                              c,
+                              forceWriteText: true,
+                            ));
+                          },
+                        ),
                     ],
                   ),
+                  if (hasPhotos) ...[
+                    const SizedBox(height: 10),
+                    _AttachmentsPhotoStrip(
+                      photos: currentMeta.photos,
+                      palette: pal,
+                      loadBytes: (photo) => _loadPhotoBytesFromAttachment(
+                        photo,
+                        preferThumb: true,
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _openPhotosSheetForCell(r, c);
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   AppCard(
                     radius: 14,
@@ -2616,10 +2675,156 @@ extension _EditorAttachments on _EditorScreenState {
     return '';
   }
 
+  void _startAudioRecordingTicker() {
+    _audioRecordingTicker?.cancel();
+    _audioRecordingTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      final startedAt = _audioRecordingStartedAt;
+      if (!_audioRecording || startedAt == null || !mounted) return;
+      _setEditorState(() {
+        _audioRecordingElapsed = DateTime.now().difference(startedAt);
+      });
+    });
+  }
+
+  void _resetAudioRecordingUiState() {
+    _audioRecordingTicker?.cancel();
+    _audioRecordingTicker = null;
+    _audioRecordingStartedAt = null;
+    _audioRecordingElapsed = Duration.zero;
+    _audioTranscriptPartial = '';
+    _audioTranscriptFinal = '';
+    _audioInputLevel = 0;
+    _audioTranscriptFuture = null;
+    _audioTranscriptionAvailable = false;
+  }
+
+  Future<void> _startAudioTranscriptionSession(int sessionId) async {
+    final speech = SpeechService.I;
+    final future = () async {
+      try {
+        final available = await speech.init(preferredLocale: 'es');
+        if (!mounted ||
+            !_audioRecording ||
+            _audioRecordingSessionId != sessionId) {
+          return null;
+        }
+        _setEditorState(() => _audioTranscriptionAvailable = available);
+        if (!available) return null;
+        while (mounted &&
+            _audioRecording &&
+            _audioRecordingSessionId == sessionId) {
+          final text = await speech.listenOnce(
+            localeId: speech.currentLocale,
+            autoTimeout: const Duration(seconds: 75),
+            partial: (value) {
+              final clean = value.trim();
+              if (clean.isEmpty ||
+                  !mounted ||
+                  !_audioRecording ||
+                  _audioRecordingSessionId != sessionId) {
+                return;
+              }
+              _setEditorState(() => _audioTranscriptPartial = clean);
+            },
+            level: (value) {
+              if (!mounted ||
+                  !_audioRecording ||
+                  _audioRecordingSessionId != sessionId) {
+                return;
+              }
+              _setEditorState(() => _audioInputLevel = value.clamp(0.0, 1.0));
+            },
+          );
+          final clean = text?.trim() ?? '';
+          if (clean.isNotEmpty &&
+              mounted &&
+              _audioRecording &&
+              _audioRecordingSessionId == sessionId) {
+            _setEditorState(() {
+              final previous = _audioTranscriptFinal.trim();
+              _audioTranscriptFinal =
+                  previous.isEmpty ? clean : '$previous $clean';
+              _audioTranscriptPartial = '';
+            });
+          }
+          if (!mounted ||
+              !_audioRecording ||
+              _audioRecordingSessionId != sessionId) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 180));
+        }
+        final resolved = _audioTranscriptFinal.trim();
+        if (resolved.isNotEmpty) return resolved;
+        final partial = _audioTranscriptPartial.trim();
+        return partial.isEmpty ? null : partial;
+      } catch (e, st) {
+        DiagnosticsLog.I.record(
+          type: DiagnosticActionType.audio,
+          ok: false,
+          message: 'audio_transcription_failed $e',
+        );
+        debugPrint('[EditorScreen] audio_transcription_failed $e');
+        debugPrint(st.toString());
+        return null;
+      }
+    }();
+    _audioTranscriptFuture = future;
+    await future;
+  }
+
+  Future<String> _finishAudioTranscription() async {
+    try {
+      await SpeechService.I.stop();
+    } catch (_) {}
+    final pending = _audioTranscriptFuture;
+    String? finalText;
+    if (pending != null) {
+      finalText = await pending.timeout(
+        const Duration(milliseconds: 800),
+        onTimeout: () {
+          final partial = _audioTranscriptPartial.trim();
+          return partial.isEmpty ? null : partial;
+        },
+      );
+    }
+    final resolved = (finalText ?? _audioTranscriptFinal).trim();
+    if (resolved.isNotEmpty) return resolved;
+    return _audioTranscriptPartial.trim();
+  }
+
+  Future<void> _cancelAudioRecording() async {
+    if (!_audioRecording) return;
+    try {
+      await _audioService.stopAudioRecording();
+    } catch (e) {
+      DiagnosticsLog.I.record(
+        type: DiagnosticActionType.audio,
+        ok: false,
+        message: 'audio_cancel_stop_failed $e',
+      );
+    }
+    try {
+      await SpeechService.I.cancel();
+    } catch (_) {}
+    if (!mounted) return;
+    _setEditorState(() {
+      _audioRecording = false;
+      _recordingAudioCellRef = null;
+      _resetAudioRecordingUiState();
+    });
+    _showActionSnack(
+      'Grabacion cancelada.',
+      isError: false,
+      icon: Icons.close_rounded,
+    );
+  }
+
   Future<void> _saveAudioAttachment(
     CellRef target,
     RecordedAudio recording, {
     required String source,
+    String transcript = '',
   }) async {
     await _refreshAttachmentCapabilitiesIfWeb();
     final attachmentId = _genAttachmentId('au_');
@@ -2663,6 +2868,7 @@ extension _EditorAttachments on _EditorScreenState {
             durationMs: value.duration.inMilliseconds,
             storedRef: storedRef,
             addedAt: DateTime.now(),
+            transcript: transcript.trim(),
           );
           final idx = _cellIndexForRef(target);
           if (idx == null) {
@@ -2838,7 +3044,16 @@ extension _EditorAttachments on _EditorScreenState {
     _setEditorState(() {
       _audioRecording = true;
       _recordingAudioCellRef = ref;
+      _audioRecordingStartedAt = DateTime.now();
+      _audioRecordingElapsed = Duration.zero;
+      _audioTranscriptPartial = '';
+      _audioTranscriptFinal = '';
+      _audioInputLevel = 0;
+      _audioTranscriptionAvailable = false;
+      _audioRecordingSessionId++;
     });
+    _startAudioRecordingTicker();
+    unawaited(_startAudioTranscriptionSession(_audioRecordingSessionId));
     final cellLabel = _cellLabelForRef(ref);
     _showActionSnack('Grabando audio en celda $cellLabel...',
         isError: false, icon: Icons.mic_rounded);
@@ -2848,11 +3063,13 @@ extension _EditorAttachments on _EditorScreenState {
     if (!_audioRecording) return;
     final target = _recordingAudioCellRef;
     final recording = await _audioService.stopAudioRecording();
+    final transcript = await _finishAudioTranscription();
     if (!mounted) return;
 
     _setEditorState(() {
       _audioRecording = false;
       _recordingAudioCellRef = null;
+      _resetAudioRecordingUiState();
     });
 
     if (recording == null || target == null) {
@@ -2865,7 +3082,12 @@ extension _EditorAttachments on _EditorScreenState {
           isError: true, icon: Icons.mic_off_rounded);
       return;
     }
-    await _saveAudioAttachment(target, recording, source: 'record');
+    await _saveAudioAttachment(
+      target,
+      recording,
+      source: 'record',
+      transcript: transcript,
+    );
   }
 
   void _addAudioToCell(int r, int c, AudioAttachment attachment) {
@@ -3065,6 +3287,19 @@ extension _EditorAttachments on _EditorScreenState {
                             fontSize: 12,
                           ),
                         ),
+                        if (a.transcript.trim().isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            a.transcript.trim(),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: pal.fgMuted,
+                              fontSize: 12,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -3618,4 +3853,189 @@ extension _EditorAttachments on _EditorScreenState {
       return null;
     }
   }
+}
+
+class _AttachmentsPhotoStrip extends StatelessWidget {
+  const _AttachmentsPhotoStrip({
+    required this.photos,
+    required this.palette,
+    required this.loadBytes,
+    required this.onTap,
+    this.maxVisible = 5,
+    this.thumbSize = 56,
+  });
+
+  final List<PhotoAttachment> photos;
+  final _SheetPalette palette;
+  final Future<Uint8List?> Function(PhotoAttachment) loadBytes;
+  final VoidCallback onTap;
+  final int maxVisible;
+  final double thumbSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photos.isEmpty) return const SizedBox.shrink();
+    final visible = photos.take(maxVisible).toList(growable: false);
+    final extra = photos.length - visible.length;
+
+    return Semantics(
+      button: true,
+      label: 'Ver ${photos.length} fotos adjuntas',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                for (var i = 0; i < visible.length; i++) ...[
+                  _AttachmentsPhotoThumb(
+                    key: ValueKey(
+                      'photostrip_${visible[i].storedRef}_${visible[i].thumbRef.hashCode}',
+                    ),
+                    photo: visible[i],
+                    size: thumbSize,
+                    palette: palette,
+                    loadBytes: loadBytes,
+                  ),
+                  if (i != visible.length - 1) const SizedBox(width: 6),
+                ],
+                if (extra > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    width: thumbSize,
+                    height: thumbSize,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: palette.headerBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: palette.border,
+                        width: math.max(palette.hairline, 1).toDouble(),
+                      ),
+                    ),
+                    child: Text(
+                      '+$extra',
+                      style: TextStyle(
+                        color: palette.fg,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachmentsPhotoThumb extends StatefulWidget {
+  const _AttachmentsPhotoThumb({
+    super.key,
+    required this.photo,
+    required this.size,
+    required this.palette,
+    required this.loadBytes,
+  });
+
+  final PhotoAttachment photo;
+  final double size;
+  final _SheetPalette palette;
+  final Future<Uint8List?> Function(PhotoAttachment) loadBytes;
+
+  @override
+  State<_AttachmentsPhotoThumb> createState() => _AttachmentsPhotoThumbState();
+}
+
+class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
+  Uint8List? _bytes;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await widget.loadBytes(widget.photo);
+      if (!mounted) return;
+      setState(() {
+        _bytes = data;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.palette;
+    Widget child;
+    if (_bytes != null && _bytes!.isNotEmpty) {
+      child = Image.memory(
+        _bytes!,
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _fallback(pal),
+      );
+    } else if (_loading) {
+      child = Container(
+        width: widget.size,
+        height: widget.size,
+        color: pal.headerBg,
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: pal.fgMuted,
+          ),
+        ),
+      );
+    } else {
+      child = _fallback(pal);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: pal.border,
+              width: math.max(pal.hairline, 1).toDouble(),
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback(_SheetPalette pal) => Container(
+        color: pal.headerBg,
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.image_outlined,
+          color: pal.fgMuted,
+          size: 20,
+        ),
+      );
 }

@@ -41,6 +41,7 @@ void main() {
           durationMs: 4200,
           storedRef: 'mem://a1',
           addedAt: DateTime(2026, 2, 3, 10, 17, 0),
+          transcript: 'Lectura estable con viento leve',
         ),
       ],
     );
@@ -57,6 +58,7 @@ void main() {
     expect(decoded.photos.first.filename, 'foto.jpg');
     expect(decoded.audios.length, 1);
     expect(decoded.audios.first.filename, 'audio.m4a');
+    expect(decoded.audios.first.transcript, 'Lectura estable con viento leve');
   });
 
   testWidgets('EditorScreen writes gps text into selected cell',

@@ -17,7 +17,7 @@ import 'screens/xlsx_demo_screen.dart';
 import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
-import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
+import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
@@ -90,7 +90,7 @@ Future<void> main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      // UI controlada (en vez de pantalla roja en producciÃ³n web)
+      // UI controlada (en vez de pantalla roja en producción web)
       return Material(
         color: const Color(0xFF0B0D1A),
         child: Center(
@@ -327,7 +327,7 @@ class _AppState extends State<App> {
             _BootSplash(
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
-              subtitle: 'Inicializandoâ€¦',
+              subtitle: 'Inicializando…',
             ),
           );
         }
@@ -494,15 +494,9 @@ class _AppHome extends StatelessWidget {
       ),
     );
 
-    if (firebaseOk) return body;
-    return Stack(
-      children: [
-        body,
-        const _TopNotice(
-          message: 'Firebase no inicio. Modo offline habilitado.',
-        ),
-      ],
-    );
+    // Demo mode: do not surface Firebase/offline notices to managers.
+    // The offline indicator in the editor header is the canonical signal.
+    return body;
   }
 }
 
@@ -579,7 +573,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         _PillButton(
-                          label: isLight ? 'Noche' : 'DÃ­a',
+                          label: isLight ? 'Noche' : 'Día',
                           outlined: true,
                           onPressed: onToggleTheme,
                         ),
@@ -717,60 +711,6 @@ class _PillButton extends StatelessWidget {
         label,
         style:
             theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _TopNotice extends StatelessWidget {
-  const _TopNotice({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: cs.surface.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: theme.dividerColor.withValues(alpha: 0.5),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    blurRadius: 16,
-                    offset: Offset(0, 8),
-                    color: Color(0x22000000),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      message,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

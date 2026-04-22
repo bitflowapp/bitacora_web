@@ -3,7 +3,8 @@ import 'dart:async' hide unawaited;
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter, TileMode;
+import 'dart:ui' as ui show PictureRecorder, ImageByteFormat;
+import 'dart:ui' show FontFeature, ImageFilter, TileMode;
 
 import 'package:archive/archive.dart';
 import 'package:audioplayers/audioplayers.dart';

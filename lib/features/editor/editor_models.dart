@@ -834,6 +834,7 @@ class _ExportPrep {
   const _ExportPrep({
     required this.attachments,
     required this.embeddedPhotos,
+    required this.gpsByRow,
     required this.photoItems,
     required this.audioItems,
     required this.manifest,
@@ -842,6 +843,7 @@ class _ExportPrep {
 
   final List<AttachmentRow> attachments;
   final List<EmbeddedPhoto> embeddedPhotos;
+  final List<GpsExport?> gpsByRow;
   final List<_ZipPhotoItem> photoItems;
   final List<_ZipAudioItem> audioItems;
   final Map<String, dynamic> manifest;
@@ -1630,9 +1632,8 @@ class _SheetPalette {
     final gridBg = c.isLight ? const Color(0xFFFFFFFF) : c.surfaceElevated;
 
     // Header: distinct neutral — darker than grid, lighter than content
-    final headerBg = c.isLight
-        ? const Color(0xFFF4F5F7)
-        : const Color(0xFF1A1A1F);
+    final headerBg =
+        c.isLight ? const Color(0xFFF4F5F7) : const Color(0xFF1A1A1F);
 
     // Zebra: #F9FAFB is the Notion / Linear standard — visible but whisper-quiet
     final zebraA = c.isLight ? const Color(0xFFFFFFFF) : c.surface;
@@ -1641,9 +1642,7 @@ class _SheetPalette {
         : c.surfaceMuted.withValues(alpha: 0.28);
 
     // Grid border: subtle neutral, avoids the blue-grey tint of Apple's E5E5EA
-    final gridBorder = c.isLight
-        ? const Color(0xFFEBEDF2)
-        : c.border;
+    final gridBorder = c.isLight ? const Color(0xFFEBEDF2) : c.border;
 
     // ── Selection ─────────────────────────────────────────────────────────
     final selectionFill = accent.withValues(alpha: c.isLight ? 0.09 : 0.18);
@@ -1652,21 +1651,14 @@ class _SheetPalette {
 
     // ── Chips / badges ─────────────────────────────────────────────────────
     // Slightly more visible than background so badges read without being noisy
-    final chipBg = c.isLight
-        ? const Color(0xFFEFF0F3)
-        : c.surfaceMuted;
-    final chipBorder = c.isLight
-        ? const Color(0xFFDCDEE4)
-        : c.borderStrong;
+    final chipBg = c.isLight ? const Color(0xFFEFF0F3) : c.surfaceMuted;
+    final chipBorder = c.isLight ? const Color(0xFFDCDEE4) : c.borderStrong;
     // Muted chip text — meta-level, not primary attention
-    final chipText = c.isLight
-        ? const Color(0xFF5B6371)
-        : c.textSecondary;
+    final chipText = c.isLight ? const Color(0xFF5B6371) : c.textSecondary;
 
     // ── Header text: professional muted tone (Tailwind gray-600 equivalent) ─
-    final headerText = c.isLight
-        ? const Color(0xFF4B5563)
-        : const Color(0xFF9CA3AF);
+    final headerText =
+        c.isLight ? const Color(0xFF4B5563) : const Color(0xFF9CA3AF);
 
     final card = c.surfaceElevated;
 

@@ -243,6 +243,15 @@ class _EditorScreenState extends State<EditorScreen>
   CellRef? _recordingAudioCellRef;
   XFile? _pendingRecordedVideo;
   bool _audioRecording = false;
+  Timer? _audioRecordingTicker;
+  DateTime? _audioRecordingStartedAt;
+  Duration _audioRecordingElapsed = Duration.zero;
+  String _audioTranscriptPartial = '';
+  String _audioTranscriptFinal = '';
+  double _audioInputLevel = 0;
+  Future<String?>? _audioTranscriptFuture;
+  bool _audioTranscriptionAvailable = false;
+  int _audioRecordingSessionId = 0;
   String? _playingAudioId;
   Timer? _kbEnsureDebounceT;
   Timer? _mobileEnsureLateT;
@@ -572,6 +581,7 @@ class _EditorScreenState extends State<EditorScreen>
     _mobileFocusRetryT?.cancel();
     _photoFlowClearT?.cancel();
     _quickCaptureSyncTimer?.cancel();
+    _audioRecordingTicker?.cancel();
     _mobileFocus.removeListener(_handleMobileFocusChange);
     _kbController.kbInsetDp.removeListener(_handleKbInsetChanged);
     _kbController.dispose();
@@ -616,6 +626,7 @@ class _EditorScreenState extends State<EditorScreen>
     _inlineSearchFocus.dispose();
     _engineApi.dispose();
     _backupTimer?.cancel();
+    unawaited(SpeechService.I.cancel());
     unawaited(_audioService.dispose());
     _audioCompleteSub?.cancel();
     _audioPlayer.dispose();
@@ -5200,9 +5211,8 @@ class _EditorScreenState extends State<EditorScreen>
             lastCol = col;
             break;
           case FlowBotActionType.exportPdfPreset:
-            final preset = (action.presetId ?? 'default').trim().toLowerCase();
             await _exportPdf(
-              includeAttachments: preset != 'lite',
+              includeAttachments: true,
               share: false,
             );
             applied += 1;
@@ -8660,6 +8670,283 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Widget _buildAudioRecordingOverlay(
+    _SheetPalette pal, {
+    required bool isDesktop,
+  }) {
+    const orange = Color(0xFFF97316);
+    const orangeDark = Color(0xFFC2410C);
+    final cellLabel = _cellLabelForRef(_recordingAudioCellRef);
+    final transcript = _audioTranscriptFinal.trim().isNotEmpty
+        ? _audioTranscriptFinal.trim()
+        : _audioTranscriptPartial.trim();
+    final elapsed = _formatDuration(_audioRecordingElapsed);
+    final bottom = isDesktop ? 20.0 : 94.0;
+
+    Widget actionButton({
+      required String label,
+      required IconData icon,
+      required VoidCallback onPressed,
+      required bool filled,
+    }) {
+      return TextButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+        style: TextButton.styleFrom(
+          foregroundColor: filled ? Colors.white : orangeDark,
+          backgroundColor: filled ? orange : orange.withValues(alpha: 0.10),
+          minimumSize: const Size(0, 38),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+
+    return Positioned(
+      left: 14,
+      right: 14,
+      bottom: bottom,
+      child: RepaintBoundary(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isDesktop ? 520 : 390),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: pal.isLight
+                      ? Colors.white.withValues(alpha: 0.98)
+                      : const Color(0xFF171717).withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: orange.withValues(alpha: pal.isLight ? 0.34 : 0.48),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          orange.withValues(alpha: pal.isLight ? 0.20 : 0.28),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(
+                            begin: 0,
+                            end: (_audioInputLevel * 0.35 + 0.65)
+                                .clamp(0.65, 1.0),
+                          ),
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOut,
+                          builder: (context, scale, child) {
+                            return Transform.scale(
+                              scale: scale,
+                              child: child,
+                            );
+                          },
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [orange, orangeDark],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: orange.withValues(alpha: 0.34),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.mic_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cellLabel.isEmpty
+                                    ? 'Grabando audio'
+                                    : 'Grabando audio - $cellLabel',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: pal.fg,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.1,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _audioTranscriptionAvailable
+                                    ? 'Transcripcion en vivo - $elapsed'
+                                    : 'Grabacion local - $elapsed',
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: orange.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            elapsed,
+                            style: const TextStyle(
+                              color: orangeDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                        begin: 0,
+                        end: _audioInputLevel.clamp(0.0, 1.0),
+                      ),
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, level, _) {
+                        return SizedBox(
+                          height: 34,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: List<Widget>.generate(24, (index) {
+                              final phase =
+                                  (index / 23.0 * math.pi * 2.0) + level;
+                              final wave = (math.sin(phase) + 1) / 2;
+                              final height =
+                                  8 + (level * 20) + (wave * 8 * level);
+                              return Expanded(
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOutCubic,
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                    ),
+                                    height: height.clamp(8.0, 32.0),
+                                    decoration: BoxDecoration(
+                                      color: orange.withValues(
+                                        alpha: 0.22 + (level * 0.58),
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: orange.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: orange.withValues(alpha: 0.13),
+                        ),
+                      ),
+                      child: Text(
+                        transcript.isEmpty
+                            ? 'Habla normalmente. BitFlow va transcribiendo la nota.'
+                            : transcript,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: transcript.isEmpty ? pal.fgMuted : pal.fg,
+                          fontSize: 12.5,
+                          height: 1.3,
+                          fontWeight: transcript.isEmpty
+                              ? FontWeight.w500
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: actionButton(
+                            label: 'Cancelar',
+                            icon: Icons.close_rounded,
+                            filled: false,
+                            onPressed: () => unawaited(_cancelAudioRecording()),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: actionButton(
+                            label: 'Guardar',
+                            icon: Icons.check_rounded,
+                            filled: true,
+                            onPressed: () => unawaited(_stopAudioRecording()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ------------------------------ Build -----------------------------------
 
   @override
@@ -8996,7 +9283,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Validacion: ${_invalidCells.length} celda(s) con error.',
+                                  '⚠ ${_invalidCells.length} registros requieren revisión',
                               icon: Icons.rule_rounded,
                               actionLabel: _errorsPanelOpen
                                   ? 'Ocultar errores'
@@ -10072,6 +10359,11 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                     if (_perfHarnessRequested && kDebugMode)
                       _buildPerfOverlay(
+                        pal,
+                        isDesktop: isDesktop,
+                      ),
+                    if (_audioRecording)
+                      _buildAudioRecordingOverlay(
                         pal,
                         isDesktop: isDesktop,
                       ),
@@ -15826,9 +16118,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return false;
     final decision = await showAppModal<bool>(
       context: context,
-      title: 'Hay errores de validacion',
+      title: 'Revisar antes de exportar',
       child: Text(
-        'Se detectaron ${_invalidCells.length} celdas con error. Puedes exportar igual o revisar antes.',
+        '${_invalidCells.length} registros requieren revisión. Podés exportar igual o revisarlos antes.',
       ),
       actions: [
         AppButton(
@@ -17126,6 +17418,7 @@ class _EditorScreenState extends State<EditorScreen>
     bool includeAttachments = true,
     bool share = false,
   }) async {
+    includeAttachments = true; // Demo/comercial: evidencia siempre incluida.
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
     _beginLongOperation(
@@ -17146,6 +17439,7 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
         attachments: prep.attachments,
+        gpsByRow: prep.gpsByRow,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -17196,7 +17490,9 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _exportPdf({
     bool includeAttachments = true,
     bool share = false,
+    _PlanillaSignatureResult? signature,
   }) async {
+    includeAttachments = true; // Demo/comercial: evidencia siempre incluida.
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
     _beginLongOperation(
@@ -17210,6 +17506,7 @@ class _EditorScreenState extends State<EditorScreen>
       final pdfBytes = await _buildPdfBytesForExport(
         includeAttachments: includeAttachments,
         shouldCancel: _isLongOperationCancelled,
+        signature: signature,
       );
       if (!mounted) return;
       _throwIfLongOperationCancelled();
@@ -17275,6 +17572,7 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
         attachments: prep.attachments,
+        gpsByRow: prep.gpsByRow,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -17784,6 +18082,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildXlsxBytesForExport({
     required List<EmbeddedPhoto> embeddedPhotos,
     required List<AttachmentRow> attachments,
+    required List<GpsExport?> gpsByRow,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
@@ -17804,6 +18103,7 @@ class _EditorScreenState extends State<EditorScreen>
       rows: rows,
       embeddedPhotos: embeddedPhotos,
       attachments: attachments,
+      gpsByRow: gpsByRow,
       sheetName: _sheetName,
       includeIndexColumn: false,
       includeCoverSheet: true,
@@ -17814,6 +18114,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildPdfBytesForExport({
     required bool includeAttachments,
     bool Function()? shouldCancel,
+    _PlanillaSignatureResult? signature,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
     final dataCols = math.max(0, _headers.length - 1);
@@ -18034,19 +18335,25 @@ class _EditorScreenState extends State<EditorScreen>
           final fileUrl = _audioIsFileRef(audio.storedRef)
               ? fileLinkFromStoredRef(audio.storedRef, audio: true)
               : null;
+          final transcript = audio.transcript.trim();
+          final durationText =
+              'Duracion ${(audio.durationMs / 1000).toStringAsFixed(1)}s';
+          final audioDetail = transcript.isEmpty
+              ? (audio.filename.trim().isEmpty
+                  ? durationText
+                  : '${audio.filename.trim()} - $durationText')
+              : '$durationText - $transcript';
           attachmentRows.add((
             cell: cellLabel,
             kind: 'Audio',
-            detail:
-                audio.filename.trim().isEmpty ? 'audio' : audio.filename.trim(),
+            detail: audioDetail,
             date: dateText,
             link: fileUrl,
           ));
           evidenceItems.add((
             cell: cellLabel,
             kind: 'Audio',
-            caption:
-                'Duracion ${(audio.durationMs / 1000).toStringAsFixed(1)}s',
+            caption: transcript.isEmpty ? durationText : transcript,
             date: dateText,
             mapUrl: null,
             fileUrl: fileUrl,
@@ -18057,7 +18364,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final totalAttachments = photoCount + videoCount + fileCount + audioCount;
-    final evidencePreview = evidenceItems.take(36).toList(growable: false);
+    final evidencePreview = evidenceItems.toList(growable: false);
 
     pw.Widget linkText(String text, String? url) {
       final child = pw.Text(
@@ -18361,7 +18668,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ..add(sectionTitle(
                   'Evidencias',
                   subtitle:
-                      'Previsualizacion optimizada para mantener el PDF liviano.',
+                      'Todas las fotos, videos, audios, archivos y ubicaciones registradas.',
                 ))
                 ..add(
                   pw.Wrap(
@@ -18448,6 +18755,88 @@ class _EditorScreenState extends State<EditorScreen>
                 );
             }
           }
+
+          if (signature != null) {
+            final signedAtText =
+                '${signature.signedAt.toLocal().year}-${_two(signature.signedAt.toLocal().month)}-${_two(signature.signedAt.toLocal().day)} '
+                '${_two(signature.signedAt.toLocal().hour)}:${_two(signature.signedAt.toLocal().minute)}';
+            content
+              ..add(sectionTitle(
+                'Firma y cierre de planilla',
+                subtitle:
+                    'Certificación firmada digitalmente por el responsable de campo.',
+              ))
+              ..add(
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(14),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.white,
+                    borderRadius: pw.BorderRadius.circular(12),
+                    border: pw.Border.all(color: pdfLine, width: 0.8),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Certifico que los datos son correctos',
+                              style: pw.TextStyle(
+                                fontSize: 10.5,
+                                color: pdfInk,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              'Firmante: ${signature.signedBy}',
+                              style: const pw.TextStyle(
+                                fontSize: 9,
+                                color: pdfInk,
+                              ),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              'Fecha y hora: $signedAtText',
+                              style: const pw.TextStyle(
+                                fontSize: 9,
+                                color: pdfMuted,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            pw.Text(
+                              'Planilla cerrada y firmada desde Bit Flow.',
+                              style: const pw.TextStyle(
+                                fontSize: 8.5,
+                                color: pdfMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      pw.SizedBox(width: 18),
+                      pw.Container(
+                        width: 220,
+                        height: 110,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.white,
+                          borderRadius: pw.BorderRadius.circular(8),
+                          border: pw.Border.all(color: pdfLine, width: 0.6),
+                        ),
+                        padding: const pw.EdgeInsets.all(6),
+                        child: pw.Image(
+                          pw.MemoryImage(signature.pngBytes),
+                          fit: pw.BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+          }
+
           return content;
         },
       ),
@@ -18468,6 +18857,7 @@ class _EditorScreenState extends State<EditorScreen>
     final manifestCells = <String, Map<String, dynamic>>{};
     final manifestAssets = <Map<String, dynamic>>[];
     final dataCols = math.max(0, _headers.length - 1);
+    final gpsByRow = List<GpsExport?>.filled(_rows.length, null);
     final exportedAtUtc = DateTime.now().toUtc();
     final packageSheetJson = _buildPackageSheetJson(
       exportedAtUtc: exportedAtUtc,
@@ -18487,6 +18877,7 @@ class _EditorScreenState extends State<EditorScreen>
       return _ExportPrep(
         attachments: attachments,
         embeddedPhotos: embeddedPhotos,
+        gpsByRow: gpsByRow,
         photoItems: photoItems,
         audioItems: audioItems,
         manifest: manifest,
@@ -18514,6 +18905,30 @@ class _EditorScreenState extends State<EditorScreen>
       return CellKey.fromKey(raw);
     }
 
+    String? exportLinkFromStoredRef(String storedRef, {bool audio = false}) {
+      final raw = storedRef.trim();
+      if (raw.isEmpty) return null;
+      final path =
+          audio ? _audioKeyFromRef(raw).trim() : _photoPathFromRef(raw);
+      if (path.isEmpty) return null;
+      if (path.startsWith('key:') ||
+          path.startsWith('mem:') ||
+          path.startsWith('blob:') ||
+          path.startsWith('b64:') ||
+          path.startsWith('data:')) {
+        return null;
+      }
+      if (path.startsWith('content://') ||
+          path.startsWith('http://') ||
+          path.startsWith('https://') ||
+          path.startsWith('file://')) {
+        return path;
+      }
+      final normalized = path.replaceAll('\\', '/');
+      if (normalized.startsWith('/')) return 'file://$normalized';
+      return 'file:///$normalized';
+    }
+
     final entries = _cellMeta.entries.toList();
     entries.sort((a, b) {
       final ca = resolveCellKey(a.key);
@@ -18537,6 +18952,15 @@ class _EditorScreenState extends State<EditorScreen>
 
       if (meta.gps != null) {
         final gps = meta.gps!;
+        if (cell.row >= 0 && cell.row < gpsByRow.length) {
+          gpsByRow[cell.row] = GpsExport(
+            lat: gps.lat,
+            lng: gps.lng,
+            accuracy: gps.accuracyM,
+            ts: gps.timestamp,
+            isLastKnown: gps.source.toLowerCase().contains('last'),
+          );
+        }
         attachments.add(
           AttachmentRow(
             cellRef: cellRef,
@@ -18546,6 +18970,9 @@ class _EditorScreenState extends State<EditorScreen>
             relativePath: '',
             linkTarget:
                 'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}',
+            lat: gps.lat,
+            lng: gps.lng,
+            addedAt: gps.timestamp,
           ),
         );
         if (includeZip) {
@@ -18567,6 +18994,22 @@ class _EditorScreenState extends State<EditorScreen>
               ? 'photos'
               : (itemType == 'video' ? 'video' : 'files');
           final relPath = 'attachments/$folder/$fileName';
+          Uint8List? previewBytes;
+          if (itemType == 'photo') {
+            final bytes = await _loadPhotoBytesFromAttachment(
+              photo,
+              preferThumb: true,
+            );
+            if (bytes != null && bytes.isNotEmpty) {
+              previewBytes = _compressThumb(
+                    bytes,
+                    maxW: 720,
+                    maxH: 520,
+                    quality: 76,
+                  ) ??
+                  bytes;
+            }
+          }
 
           attachments.add(
             AttachmentRow(
@@ -18575,6 +19018,11 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               notes: _photoNotes(photo),
               relativePath: relPath,
+              linkTarget: exportLinkFromStoredRef(photo.storedRef),
+              previewBytes: previewBytes,
+              lat: photo.lat,
+              lng: photo.lon,
+              addedAt: photo.addedAt,
             ),
           );
 
@@ -18582,7 +19030,8 @@ class _EditorScreenState extends State<EditorScreen>
               i == 0 &&
               cell.col >= 0 &&
               cell.col < dataCols) {
-            final bytes = await _loadPhotoBytesFromAttachment(photo);
+            final bytes =
+                previewBytes ?? await _loadPhotoBytesFromAttachment(photo);
             if (bytes != null && bytes.isNotEmpty) {
               embeddedPhotos.add(
                 EmbeddedPhoto(
@@ -18615,6 +19064,9 @@ class _EditorScreenState extends State<EditorScreen>
               'size': photo.size,
               'path': relPath,
               'addedAt': photo.addedAt.toIso8601String(),
+              if (photo.lat != null) 'lat': photo.lat,
+              if (photo.lon != null) 'lng': photo.lon,
+              if (photo.accuracyM != null) 'accuracyM': photo.accuracyM,
             };
             manifestPhotos.add(photoManifest);
             manifestAssets.add(photoManifest);
@@ -18640,6 +19092,12 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               notes: _audioNotes(audio),
               relativePath: relPath,
+              linkTarget: exportLinkFromStoredRef(
+                audio.storedRef,
+                audio: true,
+              ),
+              addedAt: audio.addedAt,
+              transcript: audio.transcript,
             ),
           );
 
@@ -18662,6 +19120,8 @@ class _EditorScreenState extends State<EditorScreen>
               'durationMs': audio.durationMs,
               'path': relPath,
               'addedAt': audio.addedAt.toIso8601String(),
+              if (audio.transcript.trim().isNotEmpty)
+                'transcript': audio.transcript.trim(),
             };
             manifestAudios.add(audioManifest);
             manifestAssets.add(audioManifest);
@@ -18692,6 +19152,7 @@ class _EditorScreenState extends State<EditorScreen>
     return _ExportPrep(
       attachments: attachments,
       embeddedPhotos: embeddedPhotos,
+      gpsByRow: gpsByRow,
       photoItems: photoItems,
       audioItems: audioItems,
       manifest: manifest,
@@ -19931,9 +20392,16 @@ Este paquete incluye:
   }
 
   String _audioNotes(AudioAttachment audio) {
-    return 'addedAt=${audio.addedAt.toIso8601String()}; '
-        'duration=${_formatDuration(Duration(milliseconds: audio.durationMs))}; '
-        'size=${_formatBytes(audio.size)}';
+    final parts = <String>[
+      'addedAt=${audio.addedAt.toIso8601String()}',
+      'duration=${_formatDuration(Duration(milliseconds: audio.durationMs))}',
+      'size=${_formatBytes(audio.size)}',
+    ];
+    final transcript = audio.transcript.trim();
+    if (transcript.isNotEmpty) {
+      parts.add('transcript=$transcript');
+    }
+    return parts.join('; ');
   }
 
   Future<Uint8List?> _loadAudioBytesFromAttachment(

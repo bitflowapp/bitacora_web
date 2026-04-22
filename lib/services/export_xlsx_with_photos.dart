@@ -86,6 +86,11 @@ class AttachmentRow {
     required this.notes,
     required this.relativePath,
     this.linkTarget,
+    this.previewBytes,
+    this.lat,
+    this.lng,
+    this.addedAt,
+    this.transcript = '',
   });
 
   final String cellRef;
@@ -94,6 +99,13 @@ class AttachmentRow {
   final String notes;
   final String relativePath;
   final String? linkTarget;
+  final Uint8List? previewBytes;
+  final double? lat;
+  final double? lng;
+  final DateTime? addedAt;
+  final String transcript;
+
+  bool get hasPreview => previewBytes != null && previewBytes!.isNotEmpty;
 
   String get effectiveLinkTarget {
     final explicit = linkTarget?.trim() ?? '';
@@ -618,8 +630,13 @@ void _buildAttachmentsSheet(
     'Tipo',
     'Archivo',
     'Notas',
+    'Transcripcion',
+    'Fecha',
+    'Lat',
+    'Lon',
     'Abrir',
     'Ruta',
+    'Vista',
   ];
 
   for (int c = 0; c < headers.length; c++) {
@@ -643,7 +660,19 @@ void _buildAttachmentsSheet(
     sheet.getRangeByIndex(row, 2).setText(_attachmentTypeLabel(item.type));
     sheet.getRangeByIndex(row, 3).setText(item.fileName);
     sheet.getRangeByIndex(row, 4).setText(item.notes);
-    final openCell = sheet.getRangeByIndex(row, 5);
+    sheet.getRangeByIndex(row, 5).setText(item.transcript.trim());
+    if (item.addedAt != null) {
+      final dateCell = sheet.getRangeByIndex(row, 6);
+      dateCell.setDateTime(item.addedAt!);
+      _styleDateCell(dateCell);
+    }
+    if (item.lat != null) {
+      sheet.getRangeByIndex(row, 7).setNumber(item.lat!);
+    }
+    if (item.lng != null) {
+      sheet.getRangeByIndex(row, 8).setNumber(item.lng!);
+    }
+    final openCell = sheet.getRangeByIndex(row, 9);
     if (target.isNotEmpty) {
       _addFileHyperlink(
         sheet,
@@ -654,7 +683,35 @@ void _buildAttachmentsSheet(
     } else {
       openCell.setText('');
     }
-    sheet.getRangeByIndex(row, 6).setText(item.relativePath);
+    sheet.getRangeByIndex(row, 10).setText(item.relativePath);
+
+    final previewCell = sheet.getRangeByIndex(row, 11);
+    if (item.hasPreview) {
+      sheet.setRowHeightInPixels(row, 92);
+      try {
+        final imageBytes = _prepareImageForOffice(
+          item.previewBytes!,
+          maxWidth: 760,
+          maxHeight: 560,
+          quality: 76,
+        );
+        final picture = sheet.pictures.addBase64(
+          row,
+          11,
+          base64Encode(imageBytes),
+        );
+        picture.width = 104;
+        picture.height = 78;
+      } catch (_) {
+        previewCell.setText('Imagen no disponible');
+      }
+    } else if (item.type == 'video') {
+      previewCell.setText('Video adjunto');
+    } else if (item.type == 'audio') {
+      previewCell.setText(item.transcript.trim().isEmpty
+          ? 'Audio adjunto'
+          : 'Audio transcripto');
+    }
   }
 
   final lastRow = attachments.length + 1;
@@ -676,6 +733,7 @@ void _buildAttachmentsSheet(
       sheet.autoFitColumn(c);
     } catch (_) {}
   }
+  sheet.setColumnWidthInPixels(11, 120);
 }
 
 bool _hasGps(List<GpsExport?>? gpsByRow) {

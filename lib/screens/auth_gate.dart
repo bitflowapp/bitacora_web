@@ -122,22 +122,9 @@ class _AuthGateState extends State<AuthGate> {
           valueListenable: AuthService.I.user,
           builder: (context, user, _) => widget.child,
         ),
-        if (_error.trim().isNotEmpty && !kReleaseMode)
-          _AccessWarningBanner(
-            message: _error,
-            onDismiss: () {
-              if (!mounted) return;
-              setState(() => _error = '');
-            },
-            onRetry: () {
-              if (!mounted) return;
-              setState(() {
-                _ready = false;
-                _error = '';
-              });
-              unawaited(_boot());
-            },
-          ),
+        // Demo mode: access warning banner intentionally suppressed so managers
+        // never see "Modo demo activo: login deshabilitado" or similar notices.
+        // Errors are logged silently via AppErrorReporter.
       ],
     );
   }
@@ -302,79 +289,3 @@ class _LicenseGateState extends State<_LicenseGate> {
   }
 }
 
-class _AccessWarningBanner extends StatelessWidget {
-  const _AccessWarningBanner({
-    required this.message,
-    required this.onDismiss,
-    required this.onRetry,
-  });
-
-  final String message;
-  final VoidCallback onDismiss;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surface
-                      .withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color:
-                        Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
-                      color: Color(0x22000000),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Sesion local recuperada: $message',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: onDismiss,
-                      child: const Text('Ocultar'),
-                    ),
-                    const SizedBox(width: 6),
-                    TextButton(
-                      onPressed: onRetry,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
