@@ -1826,13 +1826,71 @@ class _PendingPanelScreenState extends State<PendingPanelScreen> {
           if (items.isEmpty) {
             return _CorporateEmpty(
               icon: Icons.task_alt_rounded,
-              title: '¡Al día!',
+              title: 'Al día en todos los proyectos',
               message:
                   'No hay filas observadas ni corregidas pendientes de acción.',
             );
           }
-          return _PendingList(items: items);
+          final projectCount =
+              items.map((i) => i.projectId).toSet().length;
+          final rowWord =
+              items.length == 1 ? 'fila' : 'filas';
+          final projWord =
+              projectCount == 1 ? 'proyecto' : 'proyectos';
+          final t = context.tokens;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${items.length} $rowWord en $projectCount $projWord',
+                style: t.text.labelSmall
+                    ?.copyWith(color: t.colors.textSecondary),
+              ),
+              SizedBox(height: t.spacing.md),
+              _PendingList(items: items),
+            ],
+          );
         },
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(bottom: t.spacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: color),
+              SizedBox(width: t.spacing.xs),
+              Text(
+                label,
+                style: t.text.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: t.spacing.xs),
+          Divider(height: 1, color: t.colors.border),
+        ],
       ),
     );
   }
@@ -1843,15 +1901,15 @@ class _PendingList extends StatelessWidget {
 
   final List<PendingReviewItem> items;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _groupedSection(
+    BuildContext context,
+    List<PendingReviewItem> sectionItems,
+  ) {
     final t = context.tokens;
-    // Agrupar por proyecto.
     final grouped = <String, List<PendingReviewItem>>{};
-    for (final item in items) {
+    for (final item in sectionItems) {
       grouped.putIfAbsent(item.projectId, () => []).add(item);
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1864,6 +1922,37 @@ class _PendingList extends StatelessWidget {
           SizedBox(height: t.spacing.sm),
           for (final item in entry.value) _PendingItemCard(item: item),
           SizedBox(height: t.spacing.lg),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final toCorrect =
+        items.where((i) => i.review.status == 'observada').toList();
+    final toReview =
+        items.where((i) => i.review.status == 'corregida').toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (toCorrect.isNotEmpty) ...[
+          _SectionHeader(
+            label: 'Para corregir',
+            icon: Icons.flag_rounded,
+            color: t.colors.dangerFg,
+          ),
+          _groupedSection(context, toCorrect),
+        ],
+        if (toReview.isNotEmpty) ...[
+          _SectionHeader(
+            label: 'Para revisar',
+            icon: Icons.build_circle_rounded,
+            color: t.colors.successFg,
+          ),
+          _groupedSection(context, toReview),
         ],
       ],
     );
@@ -2184,27 +2273,16 @@ class _NotificationsList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (unread > 0)
-          AppCard(
-            color: t.colors.accentMuted,
-            radius: t.radii.lg,
-            shadows: const <BoxShadow>[],
-            child: Row(
-              children: [
-                Icon(Icons.notifications_active_rounded,
-                    color: t.colors.accent, size: 18),
-                SizedBox(width: t.spacing.sm),
-                Text(
-                  '$unread notificación${unread == 1 ? '' : 'es'} sin leer',
-                  style: t.text.bodySmall?.copyWith(
-                    color: t.colors.accent,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+        if (unread > 0) ...[
+          Text(
+            '$unread sin leer',
+            style: t.text.labelSmall?.copyWith(
+              color: t.colors.accent,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        if (unread > 0) SizedBox(height: t.spacing.md),
+          SizedBox(height: t.spacing.sm),
+        ],
         for (final notif in notifs) _NotifCard(notif: notif, onTap: onMarkRead),
       ],
     );
@@ -2221,7 +2299,7 @@ class _NotifCard extends StatelessWidget {
         NotifType.filaObservada => Icons.flag_rounded,
         NotifType.filaCorregida => Icons.build_circle_rounded,
         NotifType.filaAprobada => Icons.check_circle_rounded,
-        NotifType.comentarioNuevo => Icons.chat_bubble_rounded,
+        NotifType.comentarioNuevo => Icons.edit_note_rounded,
       };
 
   Color _color(BuildContext ctx) {
@@ -2249,7 +2327,12 @@ class _NotifCard extends StatelessWidget {
     final t = context.tokens;
     final color = _color(context);
 
-    return AppCard(
+    final actorPart = notif.actorLabel?.trim() ?? '';
+    final titleText = actorPart.isNotEmpty
+        ? '$actorPart · ${notif.notifType.label}'
+        : notif.notifType.label;
+
+    final card = AppCard(
       onTap: () {
         unawaited(onTap(notif));
         if (notif.sheetLocalId?.isNotEmpty ?? false) {
@@ -2257,9 +2340,7 @@ class _NotifCard extends StatelessWidget {
         }
       },
       radius: t.radii.lg,
-      color: notif.isRead
-          ? t.colors.surfaceElevated
-          : t.colors.accentMuted.withValues(alpha: 0.40),
+      color: t.colors.surfaceElevated,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2281,7 +2362,7 @@ class _NotifCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        notif.notifType.label,
+                        titleText,
                         style: t.text.bodySmall?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
@@ -2307,23 +2388,14 @@ class _NotifCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (notif.actorLabel?.trim().isNotEmpty ?? false) ...[
-                  SizedBox(height: 2),
-                  Text(
-                    'Por: ${notif.actorLabel}',
-                    style: t.text.labelSmall?.copyWith(
-                      color: t.colors.textSecondary,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
           if (!notif.isRead)
             Container(
-              width: 8,
-              height: 8,
-              margin: EdgeInsets.only(left: t.spacing.sm, top: 4),
+              width: 6,
+              height: 6,
+              margin: EdgeInsets.only(left: t.spacing.sm, top: 6),
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
@@ -2331,6 +2403,26 @@ class _NotifCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    if (notif.isRead) return card;
+    return Stack(
+      children: [
+        card,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(t.radii.lg),
+              child: Row(
+                children: [
+                  Container(width: 3, color: t.colors.accent),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

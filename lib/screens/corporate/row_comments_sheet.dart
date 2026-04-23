@@ -242,54 +242,35 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: t.colors.accentMuted,
-              borderRadius: BorderRadius.circular(t.radii.md),
-            ),
-            child: Icon(Icons.chat_bubble_outline_rounded,
-                color: t.colors.accent, size: 20),
-          ),
-          SizedBox(width: t.spacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Comentarios de fila',
-                  style: t.text.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                Text(
                   rowLabel.isNotEmpty ? rowLabel : 'Fila sin identificador',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: t.text.bodySmall
+                  style: t.text.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'Anotaciones técnicas',
+                  style: t.text.labelSmall
                       ?.copyWith(color: t.colors.textSecondary),
                 ),
               ],
             ),
           ),
-          if (commentCount > 0)
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: t.spacing.sm,
-                vertical: 2,
-              ),
-              decoration: BoxDecoration(
-                color: t.colors.accentMuted,
-                borderRadius: BorderRadius.circular(t.radii.pill),
-              ),
-              child: Text(
-                '$commentCount',
-                style: t.text.bodySmall?.copyWith(
-                  color: t.colors.accent,
-                  fontWeight: FontWeight.w800,
-                ),
+          if (commentCount > 0) ...[
+            Text(
+              '$commentCount',
+              style: t.text.bodySmall?.copyWith(
+                color: t.colors.textSecondary,
+                fontWeight: FontWeight.w700,
               ),
             ),
+            SizedBox(width: t.spacing.xs),
+          ],
           IconButton(
             icon: const Icon(Icons.close_rounded),
             onPressed: onClose,
@@ -331,17 +312,17 @@ class _EmptyBody extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline_rounded,
+          Icon(Icons.rate_review_rounded,
               size: 36, color: t.colors.textSecondary),
           SizedBox(height: t.spacing.md),
           Text(
-            'Sin comentarios todavía',
+            'Sin anotaciones registradas',
             style: t.text.titleSmall
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
           SizedBox(height: t.spacing.xs),
           Text(
-            'Agregá una observación, nota o respuesta para esta fila.',
+            'Agregá una observación, nota o respuesta formal para esta fila.',
             textAlign: TextAlign.center,
             style: t.text.bodySmall
                 ?.copyWith(color: t.colors.textSecondary, height: 1.4),
@@ -497,22 +478,26 @@ class _CommentTile extends StatelessWidget {
             ),
           ),
           if (!isReply && onReply != null)
-            TextButton.icon(
-              onPressed: () => onReply!(comment),
-              icon: Icon(Icons.reply_rounded, size: 14,
-                  color: t.colors.textSecondary),
-              label: Text(
-                'Responder',
-                style: t.text.labelSmall
-                    ?.copyWith(color: t.colors.textSecondary),
-              ),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.symmetric(
-                  horizontal: t.spacing.sm,
-                  vertical: 2,
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: OutlinedButton.icon(
+                onPressed: () => onReply!(comment),
+                icon: Icon(Icons.subdirectory_arrow_right_rounded, size: 13),
+                label: const Text('Responder'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: t.colors.textSecondary,
+                  side: BorderSide(color: t.colors.border),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: t.spacing.sm,
+                    vertical: 4,
+                  ),
+                  minimumSize: const Size(0, 28),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: t.text.labelSmall,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(t.radii.pill),
+                  ),
                 ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
           SizedBox(height: t.spacing.xs),
@@ -691,30 +676,60 @@ class _TypeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+
+    late final Color borderColor;
+    late final Color fgColor;
+    late final Color bgColor;
+    late final double hPad;
+    late final double vPad;
+
+    switch (type) {
+      case RowCommentType.observacion:
+        borderColor = t.colors.dangerFg;
+        fgColor = t.colors.dangerFg;
+        bgColor = selected ? t.colors.dangerBg : t.colors.surfaceMuted;
+        hPad = t.spacing.sm;
+        vPad = 4;
+      case RowCommentType.resolucion:
+        borderColor = t.colors.successFg;
+        fgColor = t.colors.successFg;
+        bgColor = selected ? t.colors.successBg : t.colors.surfaceMuted;
+        hPad = t.spacing.sm;
+        vPad = 4;
+      case RowCommentType.respuesta:
+        borderColor = selected ? t.colors.accent : t.colors.border;
+        fgColor = selected
+            ? (t.colors.isLight ? Colors.white : Colors.black)
+            : t.colors.accent;
+        bgColor = selected ? t.colors.accent : t.colors.surfaceMuted;
+        hPad = t.spacing.sm;
+        vPad = 4;
+      case RowCommentType.nota:
+        borderColor = t.colors.border;
+        fgColor = t.colors.textSecondary;
+        bgColor = t.colors.surfaceMuted;
+        hPad = t.spacing.xs;
+        vPad = 3;
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
-        padding: EdgeInsets.symmetric(
-          horizontal: t.spacing.sm,
-          vertical: 4,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
         decoration: BoxDecoration(
-          color: selected ? t.colors.accent : t.colors.surfaceMuted,
+          color: bgColor,
           borderRadius: BorderRadius.circular(t.radii.pill),
           border: Border.all(
-            color: selected
-                ? t.colors.accent
-                : t.colors.border,
+            color: borderColor,
+            width: type == RowCommentType.observacion && !selected ? 1.5 : 1.0,
           ),
         ),
         child: Text(
           type.label,
           style: t.text.labelSmall?.copyWith(
-            color: selected
-                ? (t.colors.isLight ? Colors.white : Colors.black)
-                : t.colors.textSecondary,
+            color: fgColor,
             fontWeight: FontWeight.w700,
           ),
         ),
