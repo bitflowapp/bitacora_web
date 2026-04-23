@@ -28,12 +28,12 @@ class SmartSheet extends StatefulWidget {
   final String sheetName;
 
   const SmartSheet({
-    Key? key,
+    super.key,
     required this.theme,
     required this.initialHeaders,
     required this.initialRows,
     this.sheetName = 'Hoja inteligente',
-  }) : super(key: key);
+  });
 
   @override
   State<SmartSheet> createState() => _SmartSheetState();
@@ -407,9 +407,6 @@ class _SmartSheetState extends State<SmartSheet> {
     _dataSource.updateStyle(tableStyle);
 
     final isLight = widget.theme.theme.material.brightness == Brightness.light;
-    final accent = widget.theme.theme.accent;
-    final selectionColor = accent.withValues(alpha: 0.08);
-    final hoverColor = accent.withValues(alpha: 0.045);
 
     return Shortcuts(
       shortcuts: _shortcuts,
@@ -430,10 +427,11 @@ class _SmartSheetState extends State<SmartSheet> {
                   ),
                   boxShadow: [
                     if (isLight)
-                      const BoxShadow(
+                      BoxShadow(
                         blurRadius: 24,
                         offset: Offset(0, 12),
-                        color: Color(0x0A111827),
+                        color: widget.theme.theme.material.colorScheme.shadow
+                            .withValues(alpha: 0.06),
                       ),
                   ],
                 ),
@@ -448,10 +446,10 @@ class _SmartSheetState extends State<SmartSheet> {
                             headerHoverColor: tableStyle.headerBg,
                             gridLineColor: tableStyle.gridLine,
                             gridLineStrokeWidth: _kSmartGridLineWidth,
-                            selectionColor: selectionColor,
-                            rowHoverColor: hoverColor,
+                            selectionColor: tableStyle.selectionBg,
+                            rowHoverColor: tableStyle.hoverBg,
                             currentCellStyle: DataGridCurrentCellStyle(
-                              borderColor: accent.withValues(alpha: 0.32),
+                              borderColor: tableStyle.focusRing,
                               borderWidth: 1.1,
                             ),
                             frozenPaneLineColor: tableStyle.gridLine,

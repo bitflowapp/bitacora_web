@@ -57,11 +57,17 @@ class GridnoteTheme {
 class GridnoteTableStyle {
   const GridnoteTableStyle({
     this.zebra = true,
-    this.zebraColor = const Color(0x0C000000),
+    required this.zebraColor,
     required this.headerBg,
     required this.headerText,
     required this.gridLine,
     required this.cellBg,
+    required this.selectionBg,
+    required this.hoverBg,
+    required this.focusRing,
+    required this.rowIndexText,
+    required this.rowIndexSelectedText,
+    required this.cursorColor,
     this.cellTextStyle,
     this.headerTextStyle,
   });
@@ -73,41 +79,74 @@ class GridnoteTableStyle {
   final Color headerText;
   final Color gridLine;
   final Color cellBg;
+  final Color selectionBg;
+  final Color hoverBg;
+  final Color focusRing;
+  final Color rowIndexText;
+  final Color rowIndexSelectedText;
+  final Color cursorColor;
 
   final TextStyle? cellTextStyle;
   final TextStyle? headerTextStyle;
 
   factory GridnoteTableStyle.from(GridnoteTheme g) {
-    final isLight = g.material.brightness == Brightness.light;
-    final headerBg =
-        isLight ? const Color(0xFFFFFFFF) : const Color(0xFF111827);
-    final cellBg = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF0B0F14);
-    final label = isLight ? const Color(0xFF111827) : AppColors.darkLabel;
-    final headerText =
-        isLight ? const Color(0xFF374151) : const Color(0xFFE5E7EB);
-    final secondaryLabel =
-        isLight ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF);
-    final gridLine =
-        isLight ? const Color(0xFFE5E7EB) : const Color(0xFF253041);
+    final theme = g.material;
+    final scheme = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    final accent = g.accent;
+
+    final cellBg = isLight ? AppColors.lightBg : AppColors.darkBg;
+    final headerBase =
+        isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
+    final headerBg = Color.alphaBlend(
+      accent.withValues(alpha: isLight ? 0.026 : 0.060),
+      headerBase,
+    );
+    final zebraColor = Color.alphaBlend(
+      accent.withValues(alpha: isLight ? 0.014 : 0.050),
+      isLight ? AppColors.lightBg : AppColors.darkSecondaryBg,
+    );
+    final gridLine = Color.alphaBlend(
+      accent.withValues(alpha: isLight ? 0.028 : 0.055),
+      g.divider.withValues(alpha: isLight ? 0.96 : 0.90),
+    );
+    final headerText = isLight
+        ? scheme.onSurface.withValues(alpha: 0.74)
+        : scheme.onSurface.withValues(alpha: 0.86);
+    final secondaryLabel = isLight
+        ? scheme.onSurface.withValues(alpha: 0.54)
+        : scheme.onSurfaceVariant;
+    final bodyText = scheme.onSurface.withValues(alpha: isLight ? 0.92 : 0.94);
+    final selectionBg = accent.withValues(alpha: isLight ? 0.10 : 0.18);
+    final hoverBg = accent.withValues(alpha: isLight ? 0.035 : 0.085);
+    final focusRing = accent.withValues(alpha: isLight ? 0.58 : 0.80);
 
     return GridnoteTableStyle(
       zebra: true,
-      zebraColor: isLight ? const Color(0xFFF9FAFB) : const Color(0xFF111827),
+      zebraColor: zebraColor,
       headerBg: headerBg,
       headerText: headerText,
       gridLine: gridLine,
       cellBg: cellBg,
-      cellTextStyle: AppTypography.body.copyWith(
-        color: label,
-        fontWeight: FontWeight.w400,
+      selectionBg: selectionBg,
+      hoverBg: hoverBg,
+      focusRing: focusRing,
+      rowIndexText: secondaryLabel,
+      rowIndexSelectedText: accent,
+      cursorColor: accent,
+      cellTextStyle: AppTypography.footnote.copyWith(
+        color: bodyText,
+        fontWeight: FontWeight.w500,
         fontSize: 13.5,
-        letterSpacing: -0.05,
+        height: 1.28,
+        letterSpacing: -0.04,
       ),
-      headerTextStyle: AppTypography.footnote.copyWith(
-        color: secondaryLabel,
-        fontWeight: FontWeight.w600,
+      headerTextStyle: AppTypography.caption1.copyWith(
+        color: headerText,
+        fontWeight: FontWeight.w700,
         fontSize: 11.5,
-        letterSpacing: 0.5,
+        height: 1.18,
+        letterSpacing: 0.42,
       ),
     );
   }
@@ -119,6 +158,12 @@ class GridnoteTableStyle {
     Color? headerText,
     Color? gridLine,
     Color? cellBg,
+    Color? selectionBg,
+    Color? hoverBg,
+    Color? focusRing,
+    Color? rowIndexText,
+    Color? rowIndexSelectedText,
+    Color? cursorColor,
     TextStyle? cellTextStyle,
     TextStyle? headerTextStyle,
   }) {
@@ -129,6 +174,12 @@ class GridnoteTableStyle {
       headerText: headerText ?? this.headerText,
       gridLine: gridLine ?? this.gridLine,
       cellBg: cellBg ?? this.cellBg,
+      selectionBg: selectionBg ?? this.selectionBg,
+      hoverBg: hoverBg ?? this.hoverBg,
+      focusRing: focusRing ?? this.focusRing,
+      rowIndexText: rowIndexText ?? this.rowIndexText,
+      rowIndexSelectedText: rowIndexSelectedText ?? this.rowIndexSelectedText,
+      cursorColor: cursorColor ?? this.cursorColor,
       cellTextStyle: cellTextStyle ?? this.cellTextStyle,
       headerTextStyle: headerTextStyle ?? this.headerTextStyle,
     );
