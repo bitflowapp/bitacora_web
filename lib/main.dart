@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:ui' show PointerDeviceKind, PlatformDispatcher;
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:bitacora_web/design_system/colors.dart' as ds;
+import 'package:bitacora_web/design_system/typography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -23,6 +25,7 @@ import 'services/engine_math_client.dart'; // si lo seguís usando en otras part
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
+import 'theme/app_theme.dart';
 import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
 
@@ -92,9 +95,23 @@ Future<void> main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
+      final brightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      final isLight = brightness != Brightness.dark;
+      final background = ds.AppColors.bg(brightness);
+      final surface =
+          isLight ? ds.AppColors.lightBg : ds.AppColors.darkSecondaryBg;
+      final secondarySurface = ds.AppColors.secondaryBg(brightness);
+      final border = isLight
+          ? ds.AppColors.lightOpaqueSeparator.withValues(alpha: 0.42)
+          : ds.AppColors.darkOpaqueSeparator.withValues(alpha: 0.78);
+      final titleColor = ds.AppColors.label(brightness);
+      final bodyColor = ds.AppColors.secondaryLabel(brightness);
+      final accent = ds.AppColors.accent(brightness);
+      final accentSoft = accent.withValues(alpha: isLight ? 0.10 : 0.18);
       // UI controlada (en vez de pantalla roja en producción web)
       return Material(
-        color: const Color(0xFF0B0D1A),
+        color: background,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
@@ -102,36 +119,89 @@ Future<void> main() async {
               padding: const EdgeInsets.all(18),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xCC0B0D1A),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0x22FFFFFF)),
+                  color: surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: border),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   child: DefaultTextStyle(
-                    style: const TextStyle(
-                      color: Colors.white,
-                      height: 1.25,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
+                    style: AppTypography.footnote.copyWith(
+                      color: bodyColor,
+                      height: 1.35,
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Bit Flow — Error',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: null,
+                        Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: accentSoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.error_outline_rounded,
+                                color: accent,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Bit Flow - Error',
+                                    style: AppTypography.title3.copyWith(
+                                      color: titleColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'No se pudo renderizar este bloque.',
+                                    style: AppTypography.footnote.copyWith(
+                                      color: bodyColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          details.exceptionAsString(),
+                          style: AppTypography.footnote.copyWith(
+                            color: titleColor,
+                            height: 1.35,
+                            fontFamily: 'monospace',
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(details.exceptionAsString()),
                         if (kDebugMode && details.stack != null) ...[
-                          const SizedBox(height: 10),
-                          Text(details.stack.toString()),
+                          const SizedBox(height: 12),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: secondarySurface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                details.stack.toString(),
+                                style: AppTypography.caption1.copyWith(
+                                  color: bodyColor,
+                                  height: 1.3,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -655,10 +725,14 @@ class _BootSplash extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final cardBg = theme.brightness == Brightness.dark
-        ? const Color(0xCC0B0D1A)
-        : const Color(0xCCFFFFFF);
+    final tokens = AppTheme.of(context);
+    final colors = tokens.colors;
+    final radii = tokens.radii;
+    final shadows = tokens.shadows;
+    final cardBg =
+        colors.surfaceElevated.withValues(alpha: colors.isLight ? 0.94 : 0.92);
+    final detailBg =
+        colors.surfaceMuted.withValues(alpha: colors.isLight ? 0.72 : 0.88);
 
     return SafeArea(
       child: Center(
@@ -666,16 +740,12 @@ class _BootSplash extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 520),
           child: Padding(
             padding: const EdgeInsets.all(18),
-            child: Card(
-              elevation: 0,
-              color: cardBg,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: BorderSide(
-                  color: theme.brightness == Brightness.dark
-                      ? const Color(0x22FFFFFF)
-                      : const Color(0x14000000),
-                ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(radii.xl),
+                border: Border.all(color: colors.borderStrong),
+                boxShadow: shadows.soft,
               ),
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -690,11 +760,11 @@ class _BootSplash extends StatelessWidget {
                           height: 38,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            color: cs.primary.withValues(alpha: 0.14),
+                            color: colors.accentMuted,
                           ),
                           child: Icon(
                             Icons.grid_view_rounded,
-                            color: cs.primary,
+                            color: colors.accent,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -702,6 +772,7 @@ class _BootSplash extends StatelessWidget {
                           child: Text(
                             'Bit Flow',
                             style: theme.textTheme.titleLarge?.copyWith(
+                              color: colors.textPrimary,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.2,
                             ),
@@ -718,7 +789,7 @@ class _BootSplash extends StatelessWidget {
                     Text(
                       subtitle,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurface.withValues(alpha: 0.78),
+                        color: colors.textSecondary,
                         height: 1.2,
                       ),
                     ),
@@ -728,22 +799,16 @@ class _BootSplash extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          color: theme.brightness == Brightness.dark
-                              ? const Color(0x14000000)
-                              : const Color(0x0A000000),
-                          border: Border.all(
-                            color: theme.brightness == Brightness.dark
-                                ? const Color(0x22FFFFFF)
-                                : const Color(0x14000000),
-                          ),
+                          borderRadius: BorderRadius.circular(radii.sm),
+                          color: detailBg,
+                          border: Border.all(color: colors.border),
                         ),
                         child: Text(
                           details!,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontFamily: 'monospace',
                             height: 1.2,
-                            color: cs.onSurface.withValues(alpha: 0.78),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
@@ -752,17 +817,20 @@ class _BootSplash extends StatelessWidget {
                     Row(
                       children: [
                         if (showProgress) ...[
-                          const SizedBox(
+                          SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colors.accent,
+                            ),
                           ),
                           const SizedBox(width: 10),
                         ] else ...[
                           Icon(
                             Icons.warning_amber_rounded,
                             size: 18,
-                            color: cs.onSurface.withValues(alpha: 0.7),
+                            color: colors.warningFg,
                           ),
                           const SizedBox(width: 10),
                         ],
@@ -772,7 +840,7 @@ class _BootSplash extends StatelessWidget {
                                 ? 'Inicializando en segundo plano.'
                                 : 'Sin spinner infinito: puedes reintentar sin recargar.',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurface.withValues(alpha: 0.7),
+                              color: colors.textSecondary,
                               height: 1.25,
                             ),
                           ),
@@ -812,15 +880,14 @@ class _PillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final tokens = AppTheme.of(context);
+    final colors = tokens.colors;
 
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(999),
       side: outlined
           ? BorderSide(
-              color: theme.brightness == Brightness.dark
-                  ? const Color(0x33FFFFFF)
-                  : const Color(0x22000000),
+              color: colors.borderStrong,
             )
           : BorderSide.none,
     );
@@ -832,11 +899,11 @@ class _PillButton extends StatelessWidget {
       shape: WidgetStateProperty.all(shape),
       elevation: WidgetStateProperty.all(0),
       backgroundColor: outlined
-          ? WidgetStateProperty.all(Colors.transparent)
-          : WidgetStateProperty.all(cs.primary.withValues(alpha: 0.14)),
-      foregroundColor:
-          WidgetStateProperty.all(outlined ? cs.onSurface : cs.primary),
-      overlayColor: WidgetStateProperty.all(cs.primary.withValues(alpha: 0.10)),
+          ? WidgetStateProperty.all(colors.surface.withValues(alpha: 0))
+          : WidgetStateProperty.all(colors.accentMuted),
+      foregroundColor: WidgetStateProperty.all(
+          outlined ? colors.textPrimary : colors.accent),
+      overlayColor: WidgetStateProperty.all(colors.focusRing),
     );
 
     return TextButton(
