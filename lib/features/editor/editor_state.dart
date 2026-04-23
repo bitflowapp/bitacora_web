@@ -6,6 +6,7 @@ class EditorScreen extends StatefulWidget {
   const EditorScreen({
     super.key,
     required this.sheetId,
+    this.initialProjectId,
     this.initialName,
     this.initialHeaders,
     this.initialRows,
@@ -19,6 +20,7 @@ class EditorScreen extends StatefulWidget {
   });
 
   final String sheetId;
+  final String? initialProjectId;
   final String? initialName;
   final List<String>? initialHeaders;
   final List<List<String>>? initialRows;
@@ -415,6 +417,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   // ??? para evitar setState dentro de dispose
   bool _isDisposing = false;
+  String? _projectId;
+  CorporateRole? _projectRole;
+  bool _reviewContextLoading = false;
 
   // ------------------------------ Init/Dispose ----------------------------
 
@@ -506,6 +511,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_perfHarnessRequested && kDebugMode) {
       unawaited(_initPerfHarness());
     }
+    unawaited(_loadReviewContext());
     unawaited(_loadGpsMode());
     unawaited(_loadAutoGpsBatch());
     unawaited(_loadGridDensity());
@@ -554,12 +560,151 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  Future<void> _loadReviewContext() async {
+    final projectId = widget.initialProjectId?.trim() ?? '';
+    final userId = AuthService.I.currentUser?.id.trim() ?? '';
+
+    if (projectId.isEmpty || userId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _projectId = projectId.isEmpty ? null : projectId;
+        _projectRole = null;
+        _reviewContextLoading = false;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _projectId = projectId;
+      _reviewContextLoading = true;
+    });
+
+    CorporateRole? role;
+    try {
+      final repo = createCorporateRepository();
+      final detail = await repo.getProjectDetail(projectId);
+      if (detail != null) {
+        for (final member in detail.members) {
+          if (member.userId == userId) {
+            role = member.role;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() {
+      _projectId = projectId;
+      _projectRole = role;
+      _reviewContextLoading = false;
+    });
+  }
+
+  String? _currentActorId() {
+    final raw = AuthService.I.currentUser?.id.trim() ?? '';
+    return raw.isEmpty ? null : raw;
+  }
+
+  CorporateRole? _currentProjectRole() => _projectRole;
+
+  bool _canObserveRows() {
+    final role = _currentProjectRole();
+    return role == CorporateRole.supervisor ||
+        role == CorporateRole.coordinador ||
+        role == CorporateRole.admin;
+  }
+
+  bool _canApproveRows() => _canObserveRows();
+
+  bool _canCorrectRows() {
+    final role = _currentProjectRole();
+    if (role == null) return false;
+    return role == CorporateRole.tecnico ||
+        role == CorporateRole.supervisor ||
+        role == CorporateRole.coordinador ||
+        role == CorporateRole.admin;
+  }
+
+  bool _rowHasReviewEvidence(_RowModel row) {
+    return _rowEvidenceForRow(row.id).isNotEmpty;
+  }
+
+  List<_RowEvidenceItem> _rowEvidenceForRow(String rowId) {
+    final out = <_RowEvidenceItem>[];
+    for (final entry in _cellMeta.entries) {
+      final ref = CellRef.fromKey(entry.key, defaultSheetId: widget.sheetId);
+      if (ref == null || ref.rowId != rowId) continue;
+      final meta = entry.value;
+      if (meta.isEmpty) continue;
+      final cellLabel = _cellLabelForRef(ref);
+      for (final photo in meta.photos) {
+        out.add(
+          _RowEvidenceItem(
+            refKey: ref.key,
+            cellLabel: cellLabel,
+            kind: _attachmentKindLabel(photo.mime, photo.filename),
+            title: photo.caption.trim().isNotEmpty
+                ? photo.caption.trim()
+                : photo.filename.trim().isNotEmpty
+                    ? photo.filename.trim()
+                    : 'Adjunto',
+            timestamp: photo.addedAt,
+            storedRef: photo.storedRef,
+          ),
+        );
+      }
+      for (final audio in meta.audios) {
+        out.add(
+          _RowEvidenceItem(
+            refKey: ref.key,
+            cellLabel: cellLabel,
+            kind: 'Audio',
+            title: audio.transcript.trim().isNotEmpty
+                ? audio.transcript.trim()
+                : audio.filename.trim().isNotEmpty
+                    ? audio.filename.trim()
+                    : 'Audio',
+            timestamp: audio.addedAt,
+            storedRef: audio.storedRef,
+          ),
+        );
+      }
+    }
+    out.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return out;
+  }
+
+  String _attachmentKindLabel(String mime, String filename) {
+    final lowerMime = mime.toLowerCase();
+    final lowerName = filename.toLowerCase();
+    if (lowerMime.startsWith('video/') ||
+        lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.mov') ||
+        lowerName.endsWith('.webm')) {
+      return 'Video';
+    }
+    if (lowerMime.startsWith('audio/')) return 'Audio';
+    if (lowerMime.startsWith('image/') ||
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.webp')) {
+      return 'Foto';
+    }
+    return 'Archivo';
+  }
+
   @override
   void didUpdateWidget(covariant EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (widget.sheetId != oldWidget.sheetId) {
       _resetDraftsAndEditors();
+    }
+    if (widget.initialProjectId != oldWidget.initialProjectId) {
+      unawaited(_loadReviewContext());
     }
 
     // Si el padre cambia isLight, lo reflejamos localmente.
@@ -1146,6 +1291,13 @@ class _EditorScreenState extends State<EditorScreen>
           id: id,
           cells: _normalizeRow(row.cells, cols),
           photos: row.photos,
+          reviewState: row.reviewState,
+          createdBy: row.createdBy,
+          updatedBy: row.updatedBy,
+          approvedBy: row.approvedBy,
+          approvedAt: row.approvedAt,
+          observedAt: row.observedAt,
+          correctedAt: row.correctedAt,
           gpsLat: row.gpsLat,
           gpsLng: row.gpsLng,
           gpsAccuracyM: row.gpsAccuracyM,
@@ -1615,6 +1767,13 @@ class _EditorScreenState extends State<EditorScreen>
           photos: row.photos.map((p) => p.copyWithoutThumb()).toList(
                 growable: false,
               ),
+          reviewState: row.reviewState,
+          createdBy: row.createdBy,
+          updatedBy: row.updatedBy,
+          approvedBy: row.approvedBy,
+          approvedAt: row.approvedAt,
+          observedAt: row.observedAt,
+          correctedAt: row.correctedAt,
           gpsLat: row.gpsLat,
           gpsLng: row.gpsLng,
           gpsAccuracyM: row.gpsAccuracyM,
@@ -4559,7 +4718,16 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    _rows[r].cells[c] = next;
+    final row = _rows[r].copy();
+    row.cells[c] = next;
+    final nextState = row.reviewState == 'observada'
+        ? 'corregida'
+        : (row.reviewState == 'aprobada' ? 'sin_revision' : row.reviewState);
+    _rows[r] = row.copyWithReview(
+      reviewState: nextState,
+      actorId: _currentActorId(),
+      reviewedAt: DateTime.now(),
+    );
     _draftCells.remove(ref);
     _markDirty(snapshot: true);
     _bumpRowVersionById(rowId);
@@ -6388,13 +6556,15 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _reviewActorName() {
-    if (kIsWeb) return 'Usuario web';
-    return 'Usuario app';
+    final user = AuthService.I.currentUser;
+    final label = (user?.name ?? user?.email ?? '').trim();
+    if (label.isNotEmpty) return label;
+    return kIsWeb ? 'Usuario web' : 'Usuario app';
   }
 
-  Future<void> _setReviewedForRows(
+  Future<void> _setReviewStateForRows(
     Iterable<int> rows, {
-    required bool reviewed,
+    required String reviewState,
   }) async {
     final targets = rows
         .where((r) => r >= 0 && r < _rows.length)
@@ -6410,24 +6580,69 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     final now = DateTime.now();
-    final actor = _reviewActorName();
+    final actorId = _currentActorId();
     var changed = 0;
     final changedRowIds = <String>[];
     for (final r in targets) {
       final row = _rows[r];
-      final nextBy = reviewed ? actor : null;
-      final nextAt = reviewed ? now : null;
-      if (row.reviewed == reviewed &&
-          (row.reviewedBy ?? '') == (nextBy ?? '') &&
+      final normalizedState = _normalizeReviewState(reviewState);
+      if (normalizedState == 'aprobada') {
+        if (!_canApproveRows()) {
+          _showActionSnack(
+            'Solo supervisor, coordinador o admin pueden aprobar filas.',
+            isError: false,
+            icon: Icons.lock_outline_rounded,
+          );
+          return;
+        }
+        if (actorId != null &&
+            (row.createdBy == actorId || row.updatedBy == actorId)) {
+          _showActionSnack(
+            'No puedes aprobar tu propio trabajo. Debe revisarlo otra persona.',
+            isError: false,
+            icon: Icons.block_rounded,
+          );
+          return;
+        }
+      }
+      if (normalizedState == 'observada' && !_canObserveRows()) {
+        _showActionSnack(
+          'Solo supervisor, coordinador o admin pueden observar filas.',
+          isError: false,
+          icon: Icons.lock_outline_rounded,
+        );
+        return;
+      }
+      if (normalizedState == 'corregida' && !_canCorrectRows()) {
+        _showActionSnack(
+          'No tienes permiso para marcar filas como corregidas.',
+          isError: false,
+          icon: Icons.lock_outline_rounded,
+        );
+        return;
+      }
+      final nextReview = row.copyWithReview(
+        reviewState: normalizedState,
+        actorId: actorId,
+        reviewedAt: now,
+      );
+      if (row.reviewState == nextReview.reviewState &&
+          row.createdBy == nextReview.createdBy &&
+          row.updatedBy == nextReview.updatedBy &&
+          row.approvedBy == nextReview.approvedBy &&
+          (row.approvedAt?.millisecondsSinceEpoch ?? -1) ==
+              (nextReview.approvedAt?.millisecondsSinceEpoch ?? -1) &&
+          (row.observedAt?.millisecondsSinceEpoch ?? -1) ==
+              (nextReview.observedAt?.millisecondsSinceEpoch ?? -1) &&
+          (row.correctedAt?.millisecondsSinceEpoch ?? -1) ==
+              (nextReview.correctedAt?.millisecondsSinceEpoch ?? -1) &&
+          row.reviewed == nextReview.reviewed &&
+          (row.reviewedBy ?? '') == (nextReview.reviewedBy ?? '') &&
           (row.reviewedAt?.millisecondsSinceEpoch ?? -1) ==
-              (nextAt?.millisecondsSinceEpoch ?? -1)) {
+              (nextReview.reviewedAt?.millisecondsSinceEpoch ?? -1)) {
         continue;
       }
-      _rows[r] = row.copyWithReview(
-        reviewed: reviewed,
-        reviewedBy: nextBy,
-        reviewedAt: nextAt,
-      );
+      _rows[r] = nextReview;
       changedRowIds.add(row.id);
       changed++;
     }
@@ -6435,7 +6650,7 @@ class _EditorScreenState extends State<EditorScreen>
       _showActionSnack(
         'Sin cambios para aplicar.',
         isError: false,
-        icon: reviewed ? Icons.verified_rounded : Icons.pending_actions_rounded,
+        icon: _reviewIconForState(reviewState),
       );
       return;
     }
@@ -6448,27 +6663,39 @@ class _EditorScreenState extends State<EditorScreen>
       _bumpGridVersion();
     }
     _showActionSnack(
-      reviewed
-          ? '$changed fila(s) marcadas como revisadas.'
-          : '$changed fila(s) marcadas como pendientes.',
+      _reviewStateActionLabel(reviewState, changed),
       isError: false,
-      icon: reviewed ? Icons.verified_rounded : Icons.pending_actions_rounded,
+      icon: _reviewIconForState(reviewState),
     );
     _addHistoryEvent(
-      type: reviewed ? 'review_signoff' : 'review_pending',
-      message: reviewed
-          ? 'Marcar revisado ($changed fila/s)'
-          : 'Marcar pendiente ($changed fila/s)',
+      type: 'row_review_state',
+      message: _reviewStateActionLabel(reviewState, changed),
       origin: 'quick_action',
       row: targets.first,
     );
   }
 
   Future<void> _markSelectedRowsReviewed() =>
-      _setReviewedForRows(_batchTargetRows(), reviewed: true);
+      _setReviewStateForRows(_batchTargetRows(), reviewState: 'aprobada');
 
   Future<void> _markSelectedRowsPendingReview() =>
-      _setReviewedForRows(_batchTargetRows(), reviewed: false);
+      _setReviewStateForRows(_batchTargetRows(), reviewState: 'sin_revision');
+
+  Future<void> _markSelectedRowsObserved() =>
+      _setReviewStateForRows(_batchTargetRows(), reviewState: 'observada');
+
+  Future<void> _markSelectedRowsCorrected() =>
+      _setReviewStateForRows(_batchTargetRows(), reviewState: 'corregida');
+
+  Future<void> _setReviewedForRows(
+    Iterable<int> rows, {
+    required bool reviewed,
+  }) {
+    return _setReviewStateForRows(
+      rows,
+      reviewState: reviewed ? 'aprobada' : 'sin_revision',
+    );
+  }
 
   void _setReviewFilterMode(_ReviewFilterMode mode) {
     if (_reviewFilterMode == mode) return;
@@ -6487,7 +6714,7 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ReviewFilterMode.reviewed:
         _showActionSnack(
-          'Vista solo revisadas activa.',
+          'Vista solo aprobadas activa.',
           isError: false,
           icon: Icons.verified_rounded,
         );
@@ -6508,6 +6735,36 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     _setReviewFilterMode(_ReviewFilterMode.pending);
+  }
+
+  IconData _reviewIconForState(String reviewState) {
+    switch (_normalizeReviewState(reviewState)) {
+      case 'observada':
+        return Icons.flag_outlined;
+      case 'corregida':
+        return Icons.edit_note_rounded;
+      case 'aprobada':
+        return Icons.verified_rounded;
+      case 'sin_revision':
+      default:
+        return Icons.pending_actions_rounded;
+    }
+  }
+
+  String _reviewStateActionLabel(String reviewState, int count) {
+    final normalized = _normalizeReviewState(reviewState);
+    final noun = count == 1 ? 'fila' : 'filas';
+    switch (normalized) {
+      case 'observada':
+        return '$count $noun marcadas como observadas.';
+      case 'corregida':
+        return '$count $noun marcadas como corregidas.';
+      case 'aprobada':
+        return '$count $noun aprobadas.';
+      case 'sin_revision':
+      default:
+        return '$count $noun marcadas sin revision.';
+    }
   }
 
   void _jumpToFirstValidationIssue() {
@@ -9816,344 +10073,351 @@ class _EditorScreenState extends State<EditorScreen>
                                             child: Stack(
                                               children: [
                                                 RepaintBoundary(
-                                              child:
-                                                  ValueListenableBuilder<int>(
-                                                valueListenable: _gridVersion,
-                                                builder: (ctx, _, __) {
-                                                  _trackGridHostBuild(
-                                                      'desktop');
-                                                  return _GridView(
-                                                    palette: pal,
-                                                    metrics: metrics,
-                                                    headers: displayHeaders,
-                                                    rowModels: visibleRowModels,
-                                                    cellTextAt: (r, c) {
-                                                      final actualRow =
+                                                  child: ValueListenableBuilder<
+                                                      int>(
+                                                    valueListenable:
+                                                        _gridVersion,
+                                                    builder: (ctx, _, __) {
+                                                      _trackGridHostBuild(
+                                                          'desktop');
+                                                      return _GridView(
+                                                        palette: pal,
+                                                        metrics: metrics,
+                                                        headers: displayHeaders,
+                                                        rowModels:
+                                                            visibleRowModels,
+                                                        cellTextAt: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _effectiveCell(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        cellHasGps: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellHasGps(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        cellHasAudios: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellHasAudios(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        cellPhotoThumb: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellPhotoThumb(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        cellPhotoCount: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellPhotoCount(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        cellInlinePreviewAt:
+                                                            (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellInlinePreviewAt(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        columnWrapLines: (c) {
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _colWrapLines(
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        columnTextAlign: (c) {
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _colTextAlign(
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        columnVerticalAlign:
+                                                            (c) {
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _colVerticalAlign(
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        isAttachmentProcessing:
+                                                            (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _cellIsAttachmentProcessing(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        decodeThumb:
+                                                            _decodeThumbCached,
+                                                        isInvalid: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _invalidCells
+                                                              .contains(
+                                                            _CellRef(
+                                                              actualRow,
+                                                              actualCol,
+                                                            ),
+                                                          );
+                                                        },
+                                                        isSearchHit: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _isSearchHit(
+                                                            actualRow,
+                                                            actualCol,
+                                                          );
+                                                        },
+                                                        vScroll: _vScroll,
+                                                        hScroll: _hScroll,
+                                                        selRow:
+                                                            selectedDisplayRow,
+                                                        selCol:
+                                                            selectedDisplayCol,
+                                                        selectedRows:
+                                                            selectedDisplayRows,
+                                                        blink: _blinkCell,
+                                                        editorLink: _editorLink,
+                                                        overlayTargetCell:
+                                                            _overlayTargetCell ==
+                                                                    null
+                                                                ? null
+                                                                : _CellRef(
+                                                                    _overlayTargetCell!
+                                                                        .r,
+                                                                    _displayColumnIndexForActual(
+                                                                      _overlayTargetCell!
+                                                                          .c,
+                                                                      displayColumns,
+                                                                    ),
+                                                                  ),
+                                                        overlayTargetHeaderCol:
+                                                            _overlayTargetHeaderCol ==
+                                                                    null
+                                                                ? null
+                                                                : _displayColumnIndexForActual(
+                                                                    _overlayTargetHeaderCol!,
+                                                                    displayColumns,
+                                                                  ),
+                                                        onSelect: (r, c) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          _setSelectionAndRefreshGrid(
+                                                            actualRow,
+                                                            actualCol,
+                                                            blink: true,
+                                                          );
+                                                        },
+                                                        onRowIndexTap: (r) =>
+                                                            _handleRowIndexTap(
                                                           _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _effectiveCell(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellHasGps: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellHasGps(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellHasAudios: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellHasAudios(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellPhotoThumb: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellPhotoThumb(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellPhotoCount: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellPhotoCount(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    cellInlinePreviewAt:
-                                                        (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellInlinePreviewAt(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnWrapLines: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colWrapLines(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnTextAlign: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colTextAlign(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    columnVerticalAlign: (c) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _colVerticalAlign(
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    isAttachmentProcessing:
-                                                        (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _cellIsAttachmentProcessing(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    decodeThumb:
-                                                        _decodeThumbCached,
-                                                    isInvalid: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _invalidCells
-                                                          .contains(
-                                                        _CellRef(
-                                                          actualRow,
-                                                          actualCol,
+                                                            r,
+                                                            visibleRows,
+                                                          ),
                                                         ),
-                                                      );
-                                                    },
-                                                    isSearchHit: (r, c) {
-                                                      final actualRow =
+                                                        onEditRequested:
+                                                            (r, c, w) {
+                                                          final actualRow =
+                                                              _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _beginEditCell(
+                                                            context,
+                                                            pal,
+                                                            actualRow,
+                                                            actualCol,
+                                                            w,
+                                                          );
+                                                        },
+                                                        onHeaderEditRequested:
+                                                            (c, w) {
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          return _beginEditHeader(
+                                                            context,
+                                                            pal,
+                                                            actualCol,
+                                                            w,
+                                                          );
+                                                        },
+                                                        onContextMenu: (pos, r,
+                                                            c, isHeader) {
+                                                          final actualRow = isHeader
+                                                              ? r
+                                                              : _actualRowFromDisplay(
+                                                                  r,
+                                                                  visibleRows,
+                                                                );
+                                                          final actualCol =
+                                                              _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          );
+                                                          unawaited(
+                                                            _openContextMenu(
+                                                              context,
+                                                              pal,
+                                                              pos,
+                                                              actualRow,
+                                                              actualCol,
+                                                              isHeader,
+                                                            ),
+                                                          );
+                                                        },
+                                                        onDeleteRow: (r) =>
+                                                            _deleteRow(
                                                           _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _isSearchHit(
-                                                        actualRow,
-                                                        actualCol,
-                                                      );
-                                                    },
-                                                    vScroll: _vScroll,
-                                                    hScroll: _hScroll,
-                                                    selRow: selectedDisplayRow,
-                                                    selCol: selectedDisplayCol,
-                                                    selectedRows:
-                                                        selectedDisplayRows,
-                                                    blink: _blinkCell,
-                                                    editorLink: _editorLink,
-                                                    overlayTargetCell:
-                                                        _overlayTargetCell ==
-                                                                null
-                                                            ? null
-                                                            : _CellRef(
-                                                                _overlayTargetCell!
-                                                                    .r,
-                                                                _displayColumnIndexForActual(
-                                                                  _overlayTargetCell!
-                                                                      .c,
-                                                                  displayColumns,
-                                                                ),
-                                                              ),
-                                                    overlayTargetHeaderCol:
-                                                        _overlayTargetHeaderCol ==
-                                                                null
-                                                            ? null
-                                                            : _displayColumnIndexForActual(
-                                                                _overlayTargetHeaderCol!,
-                                                                displayColumns,
-                                                              ),
-                                                    onSelect: (r, c) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      _setSelectionAndRefreshGrid(
-                                                        actualRow,
-                                                        actualCol,
-                                                        blink: true,
-                                                      );
-                                                    },
-                                                    onRowIndexTap: (r) =>
-                                                        _handleRowIndexTap(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                    ),
-                                                    onEditRequested: (r, c, w) {
-                                                      final actualRow =
-                                                          _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _beginEditCell(
-                                                        context,
-                                                        pal,
-                                                        actualRow,
-                                                        actualCol,
-                                                        w,
-                                                      );
-                                                    },
-                                                    onHeaderEditRequested:
-                                                        (c, w) {
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      return _beginEditHeader(
-                                                        context,
-                                                        pal,
-                                                        actualCol,
-                                                        w,
-                                                      );
-                                                    },
-                                                    onContextMenu:
-                                                        (pos, r, c, isHeader) {
-                                                      final actualRow = isHeader
-                                                          ? r
-                                                          : _actualRowFromDisplay(
-                                                              r,
-                                                              visibleRows,
-                                                            );
-                                                      final actualCol =
-                                                          _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      );
-                                                      unawaited(
-                                                        _openContextMenu(
-                                                          context,
-                                                          pal,
-                                                          pos,
-                                                          actualRow,
-                                                          actualCol,
-                                                          isHeader,
+                                                            r,
+                                                            visibleRows,
+                                                          ),
                                                         ),
+                                                        onPickPhoto: (r) =>
+                                                            _startPhotoFlowForCell(
+                                                          _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          ),
+                                                          _headers.length - 1,
+                                                        ),
+                                                        onOpenAttachments: (r,
+                                                                c) =>
+                                                            _openAttachmentPanelForCell(
+                                                          _actualRowFromDisplay(
+                                                            r,
+                                                            visibleRows,
+                                                          ),
+                                                          _actualColumnFromDisplay(
+                                                            c,
+                                                            displayColumns,
+                                                          ),
+                                                        ),
+                                                        rowVersionListenable:
+                                                            _rowVersionListenable,
+                                                        onRowBuild:
+                                                            _trackGridRowBuild,
+                                                        onCellBuild:
+                                                            _trackGridCellBuild,
                                                       );
                                                     },
-                                                    onDeleteRow: (r) =>
-                                                        _deleteRow(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                    ),
-                                                    onPickPhoto: (r) =>
-                                                        _startPhotoFlowForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _headers.length - 1,
-                                                    ),
-                                                    onOpenAttachments: (r, c) =>
-                                                        _openAttachmentPanelForCell(
-                                                      _actualRowFromDisplay(
-                                                        r,
-                                                        visibleRows,
-                                                      ),
-                                                      _actualColumnFromDisplay(
-                                                        c,
-                                                        displayColumns,
-                                                      ),
-                                                    ),
-                                                    rowVersionListenable:
-                                                        _rowVersionListenable,
-                                                    onRowBuild:
-                                                        _trackGridRowBuild,
-                                                    onCellBuild:
-                                                        _trackGridCellBuild,
-                                                  );
-                                                },
-                                              ),
-                                            ),
+                                                  ),
+                                                ),
                                                 TraceModeOverlay(
                                                   active: _traceModeActive,
                                                   geometryBuilder: () =>
@@ -10166,12 +10430,11 @@ class _EditorScreenState extends State<EditorScreen>
                                                     _hScroll,
                                                     _vScroll,
                                                   ],
-                                                  preferredTargetRow:
-                                                      _selRow >= 0 &&
-                                                              _selRow <
-                                                                  _rows.length
-                                                          ? _selRow
-                                                          : null,
+                                                  preferredTargetRow: _selRow >=
+                                                              0 &&
+                                                          _selRow < _rows.length
+                                                      ? _selRow
+                                                      : null,
                                                   preferredTargetCol: _selCol >=
                                                               0 &&
                                                           _selCol <
@@ -10518,8 +10781,7 @@ class _EditorScreenState extends State<EditorScreen>
                         onOverflow: _openMobileOverflowSheet,
                         onCancel: _cancelMobileEdit,
                         onDone: _commitMobileEdit,
-                        onDictate: () =>
-                            unawaited(_dictateIntoActiveCell()),
+                        onDictate: () => unawaited(_dictateIntoActiveCell()),
                         dictationActive: _dictationActive,
                         dictationStatus: _dictationStatus,
                       ),
@@ -10575,8 +10837,8 @@ class _EditorScreenState extends State<EditorScreen>
                                   ),
                                 ),
                                 _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-trace'),
+                                  key:
+                                      const ValueKey('mobile-fab-action-trace'),
                                   icon: Icons.gesture_rounded,
                                   label: _traceModeActive
                                       ? 'Trazo activo'
@@ -10637,8 +10899,8 @@ class _EditorScreenState extends State<EditorScreen>
                                   onTap: _undoOnce,
                                 ),
                                 _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-trace'),
+                                  key:
+                                      const ValueKey('mobile-fab-action-trace'),
                                   icon: Icons.gesture_rounded,
                                   label: _traceModeActive
                                       ? 'Trazo activo'
@@ -11225,11 +11487,12 @@ class _EditorScreenState extends State<EditorScreen>
             : null);
 
     for (int r = 0; r < _rows.length; r++) {
-      if (_reviewFilterMode == _ReviewFilterMode.pending && _rows[r].reviewed) {
+      if (_reviewFilterMode == _ReviewFilterMode.pending &&
+          _normalizeReviewState(_rows[r].reviewState) != 'sin_revision') {
         continue;
       }
       if (_reviewFilterMode == _ReviewFilterMode.reviewed &&
-          !_rows[r].reviewed) {
+          _normalizeReviewState(_rows[r].reviewState) != 'aprobada') {
         continue;
       }
       if (statusCol != null && statusFilter.isNotEmpty) {
@@ -13567,16 +13830,41 @@ class _EditorScreenState extends State<EditorScreen>
       );
       actions.add(
         _CtxAction(
-          'Marcar revisado',
-          Icons.verified_rounded,
-          () => unawaited(_setReviewedForRows(<int>[r], reviewed: true)),
+          'Ver revision',
+          Icons.fact_check_outlined,
+          () => unawaited(_openRowReviewSheet(r, c)),
         ),
       );
       actions.add(
         _CtxAction(
-          'Marcar pendiente',
-          Icons.pending_actions_rounded,
-          () => unawaited(_setReviewedForRows(<int>[r], reviewed: false)),
+          'Adjuntar evidencia',
+          Icons.add_photo_alternate_outlined,
+          () => unawaited(_startPhotoFlowForCell(r, c)),
+          runOnTap: true,
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Observar fila',
+          Icons.flag_outlined,
+          () => unawaited(
+              _setReviewStateForRows(<int>[r], reviewState: 'observada')),
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Marcar corregida',
+          Icons.edit_note_rounded,
+          () => unawaited(
+              _setReviewStateForRows(<int>[r], reviewState: 'corregida')),
+        ),
+      );
+      actions.add(
+        _CtxAction(
+          'Aprobar fila',
+          Icons.verified_rounded,
+          () => unawaited(
+              _setReviewStateForRows(<int>[r], reviewState: 'aprobada')),
         ),
       );
 
@@ -13690,6 +13978,205 @@ class _EditorScreenState extends State<EditorScreen>
     action.run();
   }
 
+  Future<void> _openRowReviewSheet(int r, int c) async {
+    if (r < 0 || r >= _rows.length) return;
+    final row = _rows[r];
+    final evidence = _rowEvidenceForRow(row.id);
+    final status = _normalizeReviewState(row.reviewState);
+    final canObserve = _canObserveRows();
+    final canCorrect = _canCorrectRows();
+    final canApprove = _canApproveRows();
+    final actorId = _currentActorId();
+    final selfApprovalBlocked = actorId != null &&
+        (row.createdBy == actorId || row.updatedBy == actorId);
+
+    if (!mounted) return;
+    await showAppModal<void>(
+      context: context,
+      title: 'Revision de fila ${r + 1}',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ReviewStatePill(status: status),
+              const SizedBox(height: 12),
+              Text(
+                'Autoría y control',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              _ReviewMetaLine(
+                label: 'Creada por',
+                value: row.createdBy ?? 'Sin registrar',
+              ),
+              _ReviewMetaLine(
+                label: 'Actualizada por',
+                value: row.updatedBy ?? 'Sin registrar',
+              ),
+              _ReviewMetaLine(
+                label: 'Aprobada por',
+                value: row.approvedBy ?? 'Sin registrar',
+              ),
+              _ReviewMetaLine(
+                label: 'Estado',
+                value: _reviewStateLabel(status),
+              ),
+              if (row.observedAt != null)
+                _ReviewMetaLine(
+                  label: 'Observada en',
+                  value: _formatDateTimeShort(row.observedAt!.toLocal()),
+                ),
+              if (row.correctedAt != null)
+                _ReviewMetaLine(
+                  label: 'Corregida en',
+                  value: _formatDateTimeShort(row.correctedAt!.toLocal()),
+                ),
+              if (row.approvedAt != null || row.reviewedAt != null)
+                _ReviewMetaLine(
+                  label: 'Aprobada en',
+                  value: _formatDateTimeShort(
+                    (row.approvedAt ?? row.reviewedAt)!.toLocal(),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text(
+                'Evidencia vinculada',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              if (evidence.isEmpty)
+                Text(
+                  'No hay evidencia vinculada a esta fila.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 260),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: evidence.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (context, index) {
+                      final item = evidence[index];
+                      return AppCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        radius: 12,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            item.kind == 'Video'
+                                ? Icons.videocam_rounded
+                                : item.kind == 'Audio'
+                                    ? Icons.graphic_eq_rounded
+                                    : item.kind == 'Foto'
+                                        ? Icons.photo_rounded
+                                        : Icons.attach_file_rounded,
+                          ),
+                          title: Text(item.title),
+                          subtitle: Text(
+                            '${item.kind} · ${item.cellLabel} · ${_formatDateTimeShort(item.timestamp)}',
+                          ),
+                          onTap: item.storedRef.trim().isEmpty
+                              ? null
+                              : () => unawaited(
+                                    _openAttachmentPanelFromRef(item.refKey),
+                                  ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text(
+                'Acciones',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppButton(
+                    label: 'Observar',
+                    icon: Icons.flag_outlined,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: canObserve
+                        ? () => unawaited(
+                              _setReviewStateForRows(
+                                <int>[r],
+                                reviewState: 'observada',
+                              ),
+                            )
+                        : null,
+                  ),
+                  AppButton(
+                    label: 'Corregida',
+                    icon: Icons.edit_note_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: canCorrect
+                        ? () => unawaited(
+                              _setReviewStateForRows(
+                                <int>[r],
+                                reviewState: 'corregida',
+                              ),
+                            )
+                        : null,
+                  ),
+                  AppButton(
+                    label: 'Aprobar',
+                    icon: Icons.verified_rounded,
+                    onPressed: canApprove && !selfApprovalBlocked
+                        ? () => unawaited(
+                              _setReviewStateForRows(
+                                <int>[r],
+                                reviewState: 'aprobada',
+                              ),
+                            )
+                        : null,
+                    tooltip: selfApprovalBlocked
+                        ? 'No puedes aprobar tu propio trabajo.'
+                        : null,
+                  ),
+                  AppButton(
+                    label: 'Adjuntar evidencia',
+                    icon: Icons.add_photo_alternate_outlined,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => unawaited(_startPhotoFlowForCell(r, c)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAttachmentPanelFromRef(String refKey) async {
+    final ref = CellRef.fromKey(refKey, defaultSheetId: widget.sheetId);
+    if (ref == null) return;
+    final idx = _cellIndexForRef(ref);
+    if (idx == null) return;
+    await _openAttachmentPanelForCell(idx.r, idx.c);
+  }
+
   // ------------------------------ Automatizaciones ------------------------
 
   void _duplicateRow(int r, {bool announce = true}) {
@@ -13727,6 +14214,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     final safeTimes = times.clamp(1, 100);
     final src = _rows[r];
+    final actorId = _currentActorId();
     final copies = <_RowModel>[];
     for (int i = 0; i < safeTimes; i++) {
       final newId = _genStableId('r_');
@@ -13734,6 +14222,9 @@ class _EditorScreenState extends State<EditorScreen>
         id: newId,
         cells: List<String>.from(src.cells),
         photos: src.photos.map((p) => p.copy()).toList(),
+        reviewState: 'sin_revision',
+        createdBy: actorId,
+        updatedBy: actorId,
         gpsLat: src.gpsLat,
         gpsLng: src.gpsLng,
         gpsAccuracyM: src.gpsAccuracyM,
@@ -14128,7 +14619,13 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   _RowModel _buildSmartDefaultRow() {
-    final row = _RowModel.empty(_headers.length, id: _genStableId('r_'));
+    final actorId = _currentActorId();
+    final row =
+        _RowModel.empty(_headers.length, id: _genStableId('r_')).copyWithReview(
+      reviewState: 'sin_revision',
+      actorId: actorId,
+      reviewedAt: DateTime.now(),
+    );
     final dataCols = _headers.length - 1;
     if (dataCols <= 0) return row;
 
@@ -14181,7 +14678,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (row.photos.isNotEmpty) return false;
     if (row.gpsLat != null || row.gpsLng != null) return false;
-    if (row.reviewed) return false;
+    if (_normalizeReviewState(row.reviewState) != 'sin_revision') return false;
     if (_rowHasMetaForRow(row.id)) return false;
     return true;
   }
@@ -14394,7 +14891,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (row.photos.isNotEmpty) return true;
     if (row.gpsLat != null || row.gpsLng != null) return true;
-    if (row.reviewed) return true;
+    if (_normalizeReviewState(row.reviewState) != 'sin_revision') return true;
     if (_rowHasMetaForRow(row.id)) return true;
     return false;
   }
@@ -18465,7 +18962,7 @@ class _EditorScreenState extends State<EditorScreen>
     final dataCols = math.max(0, _headers.length - 1);
     final includeReviewColumns = _rows.any(
       (row) =>
-          row.reviewed ||
+          _normalizeReviewState(row.reviewState) != 'sin_revision' ||
           (row.reviewedBy?.trim().isNotEmpty ?? false) ||
           row.reviewedAt != null,
     );
@@ -18485,14 +18982,13 @@ class _EditorScreenState extends State<EditorScreen>
         values.add(row.cells[c]);
       }
       if (includeReviewColumns) {
-        final reviewed = row.reviewed;
-        if (reviewed) reviewedCount++;
-        values.add(reviewed ? 'Si' : 'No');
-        values.add(row.reviewedBy ?? '');
+        final reviewState = _normalizeReviewState(row.reviewState);
+        if (reviewState == 'aprobada') reviewedCount++;
+        values.add(_reviewStateLabel(reviewState));
+        values.add(row.approvedBy ?? row.reviewedBy ?? '');
+        final reviewedAt = row.approvedAt ?? row.reviewedAt;
         values.add(
-          row.reviewedAt == null
-              ? ''
-              : _formatDateTimeShort(row.reviewedAt!.toLocal()),
+          reviewedAt == null ? '' : _formatDateTimeShort(reviewedAt.toLocal()),
         );
       }
       rows.add(values);

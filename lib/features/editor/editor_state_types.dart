@@ -104,6 +104,142 @@ class _EditorLongOperationCancelled implements Exception {
   const _EditorLongOperationCancelled();
 }
 
+class _RowEvidenceItem {
+  const _RowEvidenceItem({
+    required this.refKey,
+    required this.cellLabel,
+    required this.kind,
+    required this.title,
+    required this.timestamp,
+    required this.storedRef,
+  });
+
+  final String refKey;
+  final String cellLabel;
+  final String kind;
+  final String title;
+  final DateTime timestamp;
+  final String storedRef;
+}
+
+String _reviewStateLabel(String raw) {
+  switch (_normalizeReviewState(raw)) {
+    case 'observada':
+      return 'Observada';
+    case 'corregida':
+      return 'Corregida';
+    case 'aprobada':
+      return 'Aprobada';
+    case 'sin_revision':
+    default:
+      return 'Sin revision';
+  }
+}
+
+class _ReviewStatePill extends StatelessWidget {
+  const _ReviewStatePill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    final colors = _reviewStateColorsForAppTheme(t, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border, width: 1),
+      ),
+      child: Text(
+        _reviewStateLabel(status),
+        style: TextStyle(
+          color: colors.fg,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+({Color bg, Color border, Color fg}) _reviewStateColorsForAppTheme(
+  AppThemeData theme,
+  String reviewState,
+) {
+  switch (_normalizeReviewState(reviewState)) {
+    case 'observada':
+      return (
+        bg: theme.colors.accentMuted,
+        border: theme.colors.accent.withValues(alpha: 0.28),
+        fg: theme.colors.accent,
+      );
+    case 'corregida':
+      return (
+        bg: theme.colors.warningBg,
+        border: theme.colors.warningFg.withValues(alpha: 0.30),
+        fg: theme.colors.warningFg,
+      );
+    case 'aprobada':
+      return (
+        bg: theme.colors.successBg,
+        border: theme.colors.successFg.withValues(alpha: 0.24),
+        fg: theme.colors.successFg,
+      );
+    case 'sin_revision':
+    default:
+      return (
+        bg: theme.colors.surfaceMuted,
+        border: theme.colors.border,
+        fg: theme.colors.textSecondary,
+      );
+  }
+}
+
+class _ReviewMetaLine extends StatelessWidget {
+  const _ReviewMetaLine({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 124,
+            child: Text(
+              label,
+              style: t.text.bodyMedium?.copyWith(
+                color: t.colors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: t.text.bodyMedium?.copyWith(
+                color: t.colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 typedef _DebugSaveImageHook = Future<AttachmentSaveResult?> Function({
   required CellRef cellRef,
   required String attachmentId,

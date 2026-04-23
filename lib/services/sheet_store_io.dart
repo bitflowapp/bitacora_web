@@ -282,6 +282,8 @@ class SheetStore {
         if (photos is List && photos.isNotEmpty) next['photos'] = photos;
         final gps = rowRaw['gps'];
         if (gps is Map && gps.isNotEmpty) next['gps'] = gps;
+        final review = rowRaw['review'];
+        if (review is Map && review.isNotEmpty) next['review'] = review;
         rows.add(next);
         continue;
       }
@@ -661,6 +663,10 @@ class SheetStore {
       final gps = existing?['gps'];
       if (gps is Map && gps.isNotEmpty) {
         next['gps'] = gps;
+      }
+      final review = existing?['review'];
+      if (review is Map && review.isNotEmpty) {
+        next['review'] = review;
       }
       out.add(next);
     }

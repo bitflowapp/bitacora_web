@@ -370,6 +370,13 @@ class _RowModel {
     required this.id,
     required this.cells,
     required this.photos,
+    this.reviewState = 'sin_revision',
+    this.createdBy,
+    this.updatedBy,
+    this.approvedBy,
+    this.approvedAt,
+    this.observedAt,
+    this.correctedAt,
     this.gpsLat,
     this.gpsLng,
     this.gpsAccuracyM,
@@ -383,6 +390,13 @@ class _RowModel {
   final String id;
   final List<String> cells;
   final List<_RowPhoto> photos;
+  final String reviewState;
+  final String? createdBy;
+  final String? updatedBy;
+  final String? approvedBy;
+  final DateTime? approvedAt;
+  final DateTime? observedAt;
+  final DateTime? correctedAt;
   final double? gpsLat;
   final double? gpsLng;
   final double? gpsAccuracyM;
@@ -405,6 +419,13 @@ class _RowModel {
         id: id,
         cells: List<String>.from(cells),
         photos: photos.map((p) => p.copy()).toList(),
+        reviewState: reviewState,
+        createdBy: createdBy,
+        updatedBy: updatedBy,
+        approvedBy: approvedBy,
+        approvedAt: approvedAt,
+        observedAt: observedAt,
+        correctedAt: correctedAt,
         gpsLat: gpsLat,
         gpsLng: gpsLng,
         gpsAccuracyM: gpsAccuracyM,
@@ -420,6 +441,13 @@ class _RowModel {
         id: id,
         cells: List<String>.from(cells),
         photos: photos.map((p) => p.copyWithoutThumb()).toList(growable: false),
+        reviewState: reviewState,
+        createdBy: createdBy,
+        updatedBy: updatedBy,
+        approvedBy: approvedBy,
+        approvedAt: approvedAt,
+        observedAt: observedAt,
+        correctedAt: correctedAt,
         gpsLat: gpsLat,
         gpsLng: gpsLng,
         gpsAccuracyM: gpsAccuracyM,
@@ -434,6 +462,13 @@ class _RowModel {
         id: id,
         cells: List<String>.from(newCells),
         photos: photos.map((p) => p.copy()).toList(),
+        reviewState: reviewState,
+        createdBy: createdBy,
+        updatedBy: updatedBy,
+        approvedBy: approvedBy,
+        approvedAt: approvedAt,
+        observedAt: observedAt,
+        correctedAt: correctedAt,
         gpsLat: gpsLat,
         gpsLng: gpsLng,
         gpsAccuracyM: gpsAccuracyM,
@@ -455,6 +490,13 @@ class _RowModel {
         id: id,
         cells: List<String>.from(cells),
         photos: photos.map((p) => p.copy()).toList(),
+        reviewState: reviewState,
+        createdBy: createdBy,
+        updatedBy: updatedBy,
+        approvedBy: approvedBy,
+        approvedAt: approvedAt,
+        observedAt: observedAt,
+        correctedAt: correctedAt,
         gpsLat: lat,
         gpsLng: lng,
         gpsAccuracyM: accuracyM,
@@ -466,23 +508,54 @@ class _RowModel {
       );
 
   _RowModel copyWithReview({
-    required bool reviewed,
-    String? reviewedBy,
+    required String reviewState,
+    String? actorId,
     DateTime? reviewedAt,
-  }) =>
-      _RowModel(
-        id: id,
-        cells: List<String>.from(cells),
-        photos: photos.map((p) => p.copy()).toList(),
-        gpsLat: gpsLat,
-        gpsLng: gpsLng,
-        gpsAccuracyM: gpsAccuracyM,
-        gpsTs: gpsTs,
-        gpsIsLastKnown: gpsIsLastKnown,
-        reviewed: reviewed,
-        reviewedBy: reviewed ? reviewedBy : null,
-        reviewedAt: reviewed ? reviewedAt : null,
-      );
+  }) {
+    final normalized = _normalizeReviewState(reviewState);
+    final nowActor =
+        actorId?.trim().isNotEmpty == true ? actorId!.trim() : null;
+    final when = reviewedAt ?? DateTime.now();
+    String? approvedBy;
+    DateTime? approvedAt;
+    DateTime? observedAt;
+    DateTime? correctedAt;
+    switch (normalized) {
+      case 'aprobada':
+        approvedBy = nowActor;
+        approvedAt = when;
+        break;
+      case 'observada':
+        observedAt = when;
+        break;
+      case 'corregida':
+        correctedAt = when;
+        break;
+      case 'sin_revision':
+      default:
+        break;
+    }
+    return _RowModel(
+      id: id,
+      cells: List<String>.from(cells),
+      photos: photos.map((p) => p.copy()).toList(),
+      reviewState: normalized,
+      createdBy: createdBy ?? nowActor,
+      updatedBy: nowActor ?? updatedBy,
+      approvedBy: approvedBy,
+      approvedAt: approvedAt,
+      observedAt: observedAt,
+      correctedAt: correctedAt,
+      gpsLat: gpsLat,
+      gpsLng: gpsLng,
+      gpsAccuracyM: gpsAccuracyM,
+      gpsTs: gpsTs,
+      gpsIsLastKnown: gpsIsLastKnown,
+      reviewed: normalized == 'aprobada',
+      reviewedBy: normalized == 'aprobada' ? approvedBy : null,
+      reviewedAt: normalized == 'aprobada' ? approvedAt : null,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -491,6 +564,19 @@ class _RowModel {
         'photos': photos
             .map((p) => p.toJson(persistThumb: _kPersistPhotoThumbs))
             .toList(),
+        'review': {
+          'state': reviewState,
+          'done': reviewState == 'aprobada' || reviewed,
+          if (createdBy?.trim().isNotEmpty ?? false) 'createdBy': createdBy,
+          if (updatedBy?.trim().isNotEmpty ?? false) 'updatedBy': updatedBy,
+          if (approvedBy?.trim().isNotEmpty ?? false) 'approvedBy': approvedBy,
+          if (approvedAt != null) 'approvedAt': approvedAt!.toIso8601String(),
+          if (observedAt != null) 'observedAt': observedAt!.toIso8601String(),
+          if (correctedAt != null)
+            'correctedAt': correctedAt!.toIso8601String(),
+          if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
+          if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
+        },
         if (gpsLat != null && gpsLng != null)
           'gps': {
             'lat': gpsLat,
@@ -521,20 +607,44 @@ class _RowModel {
     }
     final gps = map['gps'];
     final review = map['review'];
-    final reviewed = review is Map ? (review['done'] as bool? ?? false) : false;
+    final reviewState = review is Map
+        ? _normalizeReviewState((review['state'] ?? '').toString().trim())
+        : 'sin_revision';
+    final reviewed = review is Map
+        ? (review['done'] as bool? ?? reviewState == 'aprobada')
+        : false;
     final reviewedBy = review is Map
-        ? (review['by'] ?? '').toString().trim().isEmpty
-            ? null
-            : (review['by'] ?? '').toString().trim()
+        ? _nullableTrim(review['approvedBy'] ?? review['by'])
         : null;
     final reviewedAt = review is Map
-        ? DateTime.tryParse((review['at'] ?? '').toString())
+        ? DateTime.tryParse(
+            (review['approvedAt'] ?? review['at'] ?? '').toString())
+        : null;
+    final createdBy = review is Map ? _nullableTrim(review['createdBy']) : null;
+    final updatedBy = review is Map ? _nullableTrim(review['updatedBy']) : null;
+    final approvedBy =
+        review is Map ? _nullableTrim(review['approvedBy']) : null;
+    final approvedAt = review is Map
+        ? DateTime.tryParse((review['approvedAt'] ?? '').toString())
+        : null;
+    final observedAt = review is Map
+        ? DateTime.tryParse((review['observedAt'] ?? '').toString())
+        : null;
+    final correctedAt = review is Map
+        ? DateTime.tryParse((review['correctedAt'] ?? '').toString())
         : null;
     if (gps is Map) {
       return _RowModel(
         id: id,
         cells: cells,
         photos: photos,
+        reviewState: reviewState,
+        createdBy: createdBy,
+        updatedBy: updatedBy,
+        approvedBy: approvedBy,
+        approvedAt: approvedAt,
+        observedAt: observedAt,
+        correctedAt: correctedAt,
         gpsLat: (gps['lat'] as num?)?.toDouble(),
         gpsLng: (gps['lng'] as num?)?.toDouble(),
         gpsAccuracyM: (gps['accuracyM'] as num?)?.toDouble(),
@@ -549,11 +659,42 @@ class _RowModel {
       id: id,
       cells: cells,
       photos: photos,
+      reviewState: reviewState,
+      createdBy: createdBy,
+      updatedBy: updatedBy,
+      approvedBy: approvedBy,
+      approvedAt: approvedAt,
+      observedAt: observedAt,
+      correctedAt: correctedAt,
       reviewed: reviewed,
       reviewedBy: reviewedBy,
       reviewedAt: reviewedAt,
     );
   }
+}
+
+String _normalizeReviewState(String raw) {
+  final normalized = raw.trim().toLowerCase();
+  switch (normalized) {
+    case 'sin_revision':
+    case 'observada':
+    case 'corregida':
+    case 'aprobada':
+      return normalized;
+    case 'pending':
+    case 'pendiente':
+      return 'sin_revision';
+    case 'reviewed':
+    case 'approved':
+      return 'aprobada';
+    default:
+      return normalized.isEmpty ? 'sin_revision' : normalized;
+  }
+}
+
+String? _nullableTrim(Object? value) {
+  final raw = (value ?? '').toString().trim();
+  return raw.isEmpty ? null : raw;
 }
 
 class _RowPhoto {

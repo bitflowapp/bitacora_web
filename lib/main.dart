@@ -437,6 +437,7 @@ class _AppState extends State<App> {
               onToggleTheme: _toggleTheme,
               firebaseOk: status.firebaseOk,
               initialSheetId: state.uri.queryParameters['sheetId'],
+              initialProjectId: state.uri.queryParameters['projectId'],
             );
           },
         ),
@@ -543,6 +544,7 @@ class _AppHome extends StatelessWidget {
     required this.firebaseOk,
     this.initialTemplate,
     this.initialSheetId,
+    this.initialProjectId,
   });
 
   final bool isLight;
@@ -550,6 +552,7 @@ class _AppHome extends StatelessWidget {
   final bool firebaseOk;
   final DemoTemplateSpec? initialTemplate;
   final String? initialSheetId;
+  final String? initialProjectId;
 
   @override
   Widget build(BuildContext context) {
@@ -561,6 +564,7 @@ class _AppHome extends StatelessWidget {
             isLight: isLight,
             onToggleTheme: onToggleTheme,
             sheetId: sheetId,
+            initialProjectId: initialProjectId,
           ),
         );
       }
@@ -575,6 +579,7 @@ class _AppHome extends StatelessWidget {
             initialName: template.sheetName,
             initialHeaders: template.headers,
             initialRows: template.rows,
+            initialProjectId: initialProjectId,
           ),
         );
       }

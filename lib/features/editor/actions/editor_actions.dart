@@ -235,10 +235,24 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'mark_reviewed',
-          label: 'Marcar revisado',
+          label: 'Aprobar fila',
           subtitle: 'Workflow de revision para seleccion',
           icon: Icons.verified_rounded,
           onSelected: () => unawaited(_markSelectedRowsReviewed()),
+        ),
+        CommandAction(
+          id: 'mark_observed',
+          label: 'Observar fila',
+          subtitle: 'Marca filas seleccionadas como observadas',
+          icon: Icons.flag_outlined,
+          onSelected: () => unawaited(_markSelectedRowsObserved()),
+        ),
+        CommandAction(
+          id: 'mark_corrected',
+          label: 'Marcar corregida',
+          subtitle: 'Marca filas seleccionadas como corregidas',
+          icon: Icons.edit_note_rounded,
+          onSelected: () => unawaited(_markSelectedRowsCorrected()),
         ),
         CommandAction(
           id: 'goto_errors',
@@ -257,7 +271,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'pending_review',
           label: 'Pendientes de revision',
-          subtitle: 'Filtrar filas no revisadas',
+          subtitle: 'Filtrar filas sin revision',
           icon: Icons.pending_actions_rounded,
           onSelected: _togglePendingReviewView,
         ),
@@ -360,9 +374,8 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'trace_mode',
-          label: _traceModeActive
-              ? 'Salir del modo trazo'
-              : 'Activar modo trazo',
+          label:
+              _traceModeActive ? 'Salir del modo trazo' : 'Activar modo trazo',
           subtitle: 'Lazo sobre la grilla con sumar / promediar / contar',
           icon: Icons.gesture_rounded,
           onSelected: _toggleTraceMode,

@@ -271,6 +271,7 @@ class _GridView extends StatelessWidget {
                                                 metrics: metrics,
                                                 width: indexW,
                                                 index: r + 1,
+                                                reviewState: row.reviewState,
                                                 selected:
                                                     rowSelected || r == selRow,
                                                 onTap: () => onRowIndexTap(r),
@@ -567,6 +568,7 @@ class _RowIndexCell extends StatelessWidget {
     required this.metrics,
     required this.width,
     required this.index,
+    required this.reviewState,
     required this.selected,
     required this.onTap,
     required this.onSecondaryTapDown,
@@ -576,6 +578,7 @@ class _RowIndexCell extends StatelessWidget {
   final _GridMetrics metrics;
   final double width;
   final int index;
+  final String reviewState;
   final bool selected;
   final VoidCallback onTap;
   final ValueChanged<TapDownDetails> onSecondaryTapDown;
@@ -586,6 +589,9 @@ class _RowIndexCell extends StatelessWidget {
     final bg = selected ? palette.selectionFill : palette.indexBg;
     final radius = BorderRadius.zero;
     final lineWidth = math.max(palette.hairline, 0.55).toDouble();
+    final normalizedState = _normalizeReviewState(reviewState);
+    final stateLabel = _reviewStateShortLabel(normalizedState);
+    final stateColors = _reviewStateColors(normalizedState, palette);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -619,20 +625,98 @@ class _RowIndexCell extends StatelessWidget {
                       ),
                     )
                   : null,
-              child: Text(
-                index.toString(),
-                style: TextStyle(
-                  color: selected ? palette.accent : palette.cellTextMuted,
-                  fontWeight: FontWeight.w500,
-                  fontSize: metrics.indexFontSize,
-                  height: 1.05,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    index.toString(),
+                    style: TextStyle(
+                      color: selected ? palette.accent : palette.cellTextMuted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: metrics.indexFontSize,
+                      height: 1.05,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: stateColors.$1,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: stateColors.$2,
+                        width: math.max(palette.hairline, 0.75).toDouble(),
+                      ),
+                    ),
+                    child: Text(
+                      stateLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: stateColors.$3,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 8.8,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+(Color, Color, Color) _reviewStateColors(
+  String reviewState,
+  _SheetPalette palette,
+) {
+  switch (_normalizeReviewState(reviewState)) {
+    case 'observada':
+      return (
+        palette.accent.withValues(alpha: palette.isLight ? 0.12 : 0.18),
+        palette.accent.withValues(alpha: 0.26),
+        palette.accent,
+      );
+    case 'corregida':
+      return (
+        palette.chipBg,
+        palette.chipBorder,
+        palette.chipText,
+      );
+    case 'aprobada':
+      return (
+        palette.accent.withValues(alpha: palette.isLight ? 0.10 : 0.16),
+        palette.accent.withValues(alpha: 0.24),
+        palette.accent,
+      );
+    case 'sin_revision':
+    default:
+      return (
+        palette.hintBg,
+        palette.border,
+        palette.fgMuted,
+      );
+  }
+}
+
+String _reviewStateShortLabel(String reviewState) {
+  switch (_normalizeReviewState(reviewState)) {
+    case 'observada':
+      return 'Obs.';
+    case 'corregida':
+      return 'Corr.';
+    case 'aprobada':
+      return 'Apr.';
+    case 'sin_revision':
+    default:
+      return 'Sin rev.';
   }
 }
 

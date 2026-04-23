@@ -503,7 +503,10 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
   String _sheetRoute(String sheetId) {
     return Uri(
       path: '/sheets',
-      queryParameters: <String, String>{'sheetId': sheetId},
+      queryParameters: <String, String>{
+        'sheetId': sheetId,
+        'projectId': widget.projectId,
+      },
     ).toString();
   }
 
