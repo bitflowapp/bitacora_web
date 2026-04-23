@@ -43,4 +43,52 @@ void main() {
       completes,
     );
   });
+
+  test('local repository row review methods stay empty and safe', () async {
+    const repository = LocalCorporateRepository();
+
+    final review = await repository.getRowReview(
+      'local_project_pc_gasoducto',
+      'local_sheet_default',
+      'row-1',
+    );
+    expect(review, isNull);
+
+    final reviews = await repository.listSheetRowReviews(
+      'local_project_pc_gasoducto',
+      'local_sheet_default',
+    );
+    expect(reviews, isEmpty);
+
+    final evidenceLinks = await repository.listRowEvidenceLinks(
+      'local_project_pc_gasoducto',
+      'local_sheet_default',
+      rowId: 'row-1',
+    );
+    expect(evidenceLinks, isEmpty);
+
+    await expectLater(
+      repository.upsertRowReview(
+        const RowReview(
+          projectId: 'local_project_pc_gasoducto',
+          sheetLocalId: 'local_sheet_default',
+          rowId: 'row-1',
+          status: 'observada',
+        ),
+      ),
+      completes,
+    );
+
+    await expectLater(
+      repository.linkRowEvidence(
+        const RowEvidenceLink(
+          projectId: 'local_project_pc_gasoducto',
+          sheetLocalId: 'local_sheet_default',
+          rowId: 'row-1',
+          evidenceRef: 'mem:row-1-photo-1',
+        ),
+      ),
+      completes,
+    );
+  });
 }

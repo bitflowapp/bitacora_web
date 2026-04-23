@@ -516,44 +516,93 @@ class _RowModel {
     final nowActor =
         actorId?.trim().isNotEmpty == true ? actorId!.trim() : null;
     final when = reviewedAt ?? DateTime.now();
-    String? approvedBy;
-    DateTime? approvedAt;
-    DateTime? observedAt;
-    DateTime? correctedAt;
+    final nextCreatedBy = createdBy ?? nowActor;
+    final nextUpdatedBy = nowActor ?? updatedBy;
+    final nextApprovedBy =
+        normalized == 'aprobada' ? (nowActor ?? approvedBy) : null;
+    final nextApprovedAt =
+        normalized == 'aprobada' ? (approvedAt ?? when) : null;
+    final nextObservedAt =
+        normalized == 'observada' ? (observedAt ?? when) : observedAt;
+    final nextCorrectedAt =
+        normalized == 'corregida' ? (correctedAt ?? when) : correctedAt;
     switch (normalized) {
-      case 'aprobada':
-        approvedBy = nowActor;
-        approvedAt = when;
-        break;
-      case 'observada':
-        observedAt = when;
-        break;
-      case 'corregida':
-        correctedAt = when;
-        break;
       case 'sin_revision':
+        return _RowModel(
+          id: id,
+          cells: List<String>.from(cells),
+          photos: photos.map((p) => p.copy()).toList(),
+          reviewState: normalized,
+          createdBy: nextCreatedBy,
+          updatedBy: nextUpdatedBy,
+          approvedBy: null,
+          approvedAt: null,
+          observedAt: nextObservedAt,
+          correctedAt: nextCorrectedAt,
+          gpsLat: gpsLat,
+          gpsLng: gpsLng,
+          gpsAccuracyM: gpsAccuracyM,
+          gpsTs: gpsTs,
+          gpsIsLastKnown: gpsIsLastKnown,
+          reviewed: false,
+          reviewedBy: null,
+          reviewedAt: null,
+        );
       default:
-        break;
+        return _RowModel(
+          id: id,
+          cells: List<String>.from(cells),
+          photos: photos.map((p) => p.copy()).toList(),
+          reviewState: normalized,
+          createdBy: nextCreatedBy,
+          updatedBy: nextUpdatedBy,
+          approvedBy: nextApprovedBy,
+          approvedAt: nextApprovedAt,
+          observedAt: nextObservedAt,
+          correctedAt: nextCorrectedAt,
+          gpsLat: gpsLat,
+          gpsLng: gpsLng,
+          gpsAccuracyM: gpsAccuracyM,
+          gpsTs: gpsTs,
+          gpsIsLastKnown: gpsIsLastKnown,
+          reviewed: normalized == 'aprobada',
+          reviewedBy: normalized == 'aprobada' ? nextApprovedBy : null,
+          reviewedAt: normalized == 'aprobada' ? nextApprovedAt : null,
+        );
     }
+  }
+
+  _RowModel copyWithReviewData({
+    String? reviewState,
+    String? createdBy,
+    String? updatedBy,
+    String? approvedBy,
+    DateTime? approvedAt,
+    DateTime? observedAt,
+    DateTime? correctedAt,
+  }) {
+    final normalized = _normalizeReviewState(reviewState ?? this.reviewState);
     return _RowModel(
       id: id,
       cells: List<String>.from(cells),
       photos: photos.map((p) => p.copy()).toList(),
       reviewState: normalized,
-      createdBy: createdBy ?? nowActor,
-      updatedBy: nowActor ?? updatedBy,
-      approvedBy: approvedBy,
-      approvedAt: approvedAt,
-      observedAt: observedAt,
-      correctedAt: correctedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      approvedBy: approvedBy ?? this.approvedBy,
+      approvedAt: approvedAt ?? this.approvedAt,
+      observedAt: observedAt ?? this.observedAt,
+      correctedAt: correctedAt ?? this.correctedAt,
       gpsLat: gpsLat,
       gpsLng: gpsLng,
       gpsAccuracyM: gpsAccuracyM,
       gpsTs: gpsTs,
       gpsIsLastKnown: gpsIsLastKnown,
       reviewed: normalized == 'aprobada',
-      reviewedBy: normalized == 'aprobada' ? approvedBy : null,
-      reviewedAt: normalized == 'aprobada' ? approvedAt : null,
+      reviewedBy:
+          normalized == 'aprobada' ? (approvedBy ?? this.approvedBy) : null,
+      reviewedAt:
+          normalized == 'aprobada' ? (approvedAt ?? this.approvedAt) : null,
     );
   }
 
@@ -584,14 +633,6 @@ class _RowModel {
             'accuracyM': gpsAccuracyM,
             'ts': gpsTs?.toIso8601String(),
             'lastKnown': gpsIsLastKnown,
-          },
-        if (reviewed ||
-            (reviewedBy?.trim().isNotEmpty ?? false) ||
-            reviewedAt != null)
-          'review': {
-            'done': reviewed,
-            if (reviewedBy?.trim().isNotEmpty ?? false) 'by': reviewedBy,
-            if (reviewedAt != null) 'at': reviewedAt!.toIso8601String(),
           },
       };
 

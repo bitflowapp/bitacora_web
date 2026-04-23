@@ -172,6 +172,107 @@ class SupabaseCorporateRepository implements CorporateRepository {
         .eq('sheet_local_id', sheetLocalId.trim());
   }
 
+  @override
+  Future<RowReview?> getRowReview(
+    String projectId,
+    String sheetLocalId,
+    String rowId,
+  ) async {
+    if (projectId.trim().isEmpty ||
+        sheetLocalId.trim().isEmpty ||
+        rowId.trim().isEmpty) {
+      return null;
+    }
+    final row = _asNullableRow(
+      await _client
+          .from('sheet_row_reviews')
+          .select(
+            'project_id, sheet_local_id, row_id, status, created_by, updated_by, '
+            'approved_by, approved_at, observed_at, corrected_at, created_at, '
+            'updated_at',
+          )
+          .eq('project_id', projectId)
+          .eq('sheet_local_id', sheetLocalId)
+          .eq('row_id', rowId)
+          .maybeSingle(),
+    );
+    return row == null ? null : RowReview.fromJson(row);
+  }
+
+  @override
+  Future<List<RowReview>> listSheetRowReviews(
+    String projectId,
+    String sheetLocalId,
+  ) async {
+    if (projectId.trim().isEmpty || sheetLocalId.trim().isEmpty) {
+      return const <RowReview>[];
+    }
+    final rows = _asRows(
+      await _client
+          .from('sheet_row_reviews')
+          .select(
+            'project_id, sheet_local_id, row_id, status, created_by, updated_by, '
+            'approved_by, approved_at, observed_at, corrected_at, created_at, '
+            'updated_at',
+          )
+          .eq('project_id', projectId)
+          .eq('sheet_local_id', sheetLocalId)
+          .order('updated_at', ascending: false),
+    );
+    return rows.map(RowReview.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<void> upsertRowReview(RowReview review) async {
+    if (review.projectId.trim().isEmpty ||
+        review.sheetLocalId.trim().isEmpty ||
+        review.rowId.trim().isEmpty) {
+      return;
+    }
+    await _client.from('sheet_row_reviews').upsert(
+          review.toJson(),
+          onConflict: 'project_id,sheet_local_id,row_id',
+        );
+  }
+
+  @override
+  Future<List<RowEvidenceLink>> listRowEvidenceLinks(
+    String projectId,
+    String sheetLocalId, {
+    String? rowId,
+  }) async {
+    if (projectId.trim().isEmpty || sheetLocalId.trim().isEmpty) {
+      return const <RowEvidenceLink>[];
+    }
+    var query = _client
+        .from('sheet_row_evidence_links')
+        .select(
+          'project_id, sheet_local_id, row_id, evidence_ref, evidence_kind, '
+          'evidence_label, evidence_mime, source_cell_key, created_by, created_at',
+        )
+        .eq('project_id', projectId)
+        .eq('sheet_local_id', sheetLocalId);
+    if (rowId != null && rowId.trim().isNotEmpty) {
+      query = query.eq('row_id', rowId.trim());
+    }
+    final rows = _asRows(await query.order('created_at', ascending: false));
+    return rows.map(RowEvidenceLink.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<void> linkRowEvidence(RowEvidenceLink link) async {
+    if (link.projectId.trim().isEmpty ||
+        link.sheetLocalId.trim().isEmpty ||
+        link.rowId.trim().isEmpty ||
+        link.evidenceRef.trim().isEmpty) {
+      return;
+    }
+    await _client.from('sheet_row_evidence_links').upsert(
+          link.toJson(),
+          onConflict: 'project_id,sheet_local_id,row_id,evidence_ref',
+        );
+  }
+
   List<Map<String, dynamic>> _asRows(Object? value) {
     if (value is! List) return const <Map<String, dynamic>>[];
     return value

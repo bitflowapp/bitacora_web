@@ -420,6 +420,9 @@ class _EditorScreenState extends State<EditorScreen>
   String? _projectId;
   CorporateRole? _projectRole;
   bool _reviewContextLoading = false;
+  Map<String, List<_RowEvidenceItem>> _projectRowEvidence =
+      <String, List<_RowEvidenceItem>>{};
+  bool _reviewSyncInProgress = false;
 
   // ------------------------------ Init/Dispose ----------------------------
 
@@ -600,6 +603,8 @@ class _EditorScreenState extends State<EditorScreen>
       _projectRole = role;
       _reviewContextLoading = false;
     });
+
+    unawaited(_syncCorporateReviewDataFromBackend());
   }
 
   String? _currentActorId() {
@@ -632,7 +637,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   List<_RowEvidenceItem> _rowEvidenceForRow(String rowId) {
-    final out = <_RowEvidenceItem>[];
+    final out = <_RowEvidenceItem>[
+      ...(_projectRowEvidence[rowId] ?? const <_RowEvidenceItem>[]),
+    ];
     for (final entry in _cellMeta.entries) {
       final ref = CellRef.fromKey(entry.key, defaultSheetId: widget.sheetId);
       if (ref == null || ref.rowId != rowId) continue;
@@ -672,8 +679,18 @@ class _EditorScreenState extends State<EditorScreen>
         );
       }
     }
-    out.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    return out;
+    final deduped = <String, _RowEvidenceItem>{};
+    for (final item in out) {
+      final key = item.storedRef.trim().isNotEmpty
+          ? item.storedRef.trim()
+          : item.refKey.trim().isNotEmpty
+              ? item.refKey.trim()
+              : '${item.kind}:${item.title}:${item.timestamp.millisecondsSinceEpoch}';
+      deduped[key] = item;
+    }
+    final merged = deduped.values.toList(growable: false)
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return merged;
   }
 
   String _attachmentKindLabel(String mime, String filename) {
@@ -694,6 +711,144 @@ class _EditorScreenState extends State<EditorScreen>
       return 'Foto';
     }
     return 'Archivo';
+  }
+
+  String? _currentProjectId() {
+    final raw = _projectId?.trim() ?? widget.initialProjectId?.trim() ?? '';
+    return raw.isEmpty ? null : raw;
+  }
+
+  _RowEvidenceItem _rowEvidenceItemFromLink(RowEvidenceLink link) {
+    final refKey = link.sourceCellKey.trim();
+    final cellLabel = refKey.trim().isEmpty
+        ? 'Fila ${link.rowId}'
+        : (() {
+            final ref = CellRef.fromKey(refKey, defaultSheetId: widget.sheetId);
+            if (ref == null) return 'Fila ${link.rowId}';
+            return _cellLabelForRef(ref);
+          })();
+    final title = link.evidenceLabel.trim().isNotEmpty
+        ? link.evidenceLabel.trim()
+        : link.evidenceRef.trim().isNotEmpty
+            ? link.evidenceRef.trim()
+            : 'Adjunto';
+    return _RowEvidenceItem(
+      refKey: refKey.isNotEmpty ? refKey : link.evidenceRef,
+      cellLabel: cellLabel,
+      kind: link.evidenceKind.trim().isNotEmpty
+          ? link.evidenceKind.trim()
+          : _attachmentKindLabel(link.evidenceMime, title),
+      title: title,
+      timestamp: link.createdAt ?? DateTime.now(),
+      storedRef: link.evidenceRef,
+    );
+  }
+
+  RowReview _buildRowReviewRecord(_RowModel row, {DateTime? updatedAt}) {
+    final projectId = _currentProjectId() ?? '';
+    final actorId = _currentActorId();
+    return RowReview(
+      projectId: projectId,
+      sheetLocalId: widget.sheetId,
+      rowId: row.id,
+      status: _normalizeReviewState(row.reviewState),
+      createdBy: row.createdBy,
+      updatedBy: row.updatedBy ?? actorId,
+      approvedBy: row.approvedBy,
+      approvedAt: row.approvedAt,
+      observedAt: row.observedAt,
+      correctedAt: row.correctedAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+    );
+  }
+
+  List<RowEvidenceLink> _buildRowEvidenceLinksForRow(_RowModel row) {
+    final projectId = _currentProjectId() ?? '';
+    final actorId = _currentActorId();
+    final items = _rowEvidenceForRow(row.id);
+    return [
+      for (final item in items)
+        RowEvidenceLink(
+          projectId: projectId,
+          sheetLocalId: widget.sheetId,
+          rowId: row.id,
+          evidenceRef: item.storedRef.trim().isNotEmpty
+              ? item.storedRef.trim()
+              : item.refKey.trim(),
+          evidenceKind: item.kind,
+          evidenceLabel: item.title,
+          sourceCellKey: item.refKey,
+          createdBy: actorId,
+          createdAt: item.timestamp,
+        ),
+    ];
+  }
+
+  Future<void> _persistCorporateReviewForRows(List<String> rowIds) async {
+    final projectId = _currentProjectId();
+    if (projectId == null || rowIds.isEmpty) return;
+    try {
+      final repo = createCorporateRepository();
+      for (final rowId in rowIds) {
+        _RowModel? row;
+        for (final candidate in _rows) {
+          if (candidate.id == rowId) {
+            row = candidate;
+            break;
+          }
+        }
+        if (row == null) continue;
+        await repo.upsertRowReview(
+          _buildRowReviewRecord(row, updatedAt: DateTime.now()),
+        );
+        for (final link in _buildRowEvidenceLinksForRow(row)) {
+          await repo.linkRowEvidence(link);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _syncCorporateReviewDataFromBackend() async {
+    final projectId = _currentProjectId();
+    if (projectId == null || _reviewSyncInProgress) return;
+    _reviewSyncInProgress = true;
+    try {
+      final repo = createCorporateRepository();
+      final reviews = await repo.listSheetRowReviews(projectId, widget.sheetId);
+      final evidenceLinks =
+          await repo.listRowEvidenceLinks(projectId, widget.sheetId);
+      final reviewByRow = <String, RowReview>{
+        for (final review in reviews) review.rowId: review,
+      };
+      final evidenceByRow = <String, List<_RowEvidenceItem>>{};
+      for (final link in evidenceLinks) {
+        final item = _rowEvidenceItemFromLink(link);
+        (evidenceByRow[link.rowId] ??= <_RowEvidenceItem>[]).add(item);
+      }
+      if (!mounted) return;
+      setState(() {
+        _projectRowEvidence = evidenceByRow;
+        for (int i = 0; i < _rows.length; i++) {
+          final row = _rows[i];
+          final review = reviewByRow[row.id];
+          if (review == null) continue;
+          _rows[i] = row.copyWithReviewData(
+            reviewState: review.status,
+            createdBy: review.createdBy,
+            updatedBy: review.updatedBy,
+            approvedBy: review.approvedBy,
+            approvedAt: review.approvedAt,
+            observedAt: review.observedAt,
+            correctedAt: review.correctedAt,
+          );
+        }
+      });
+      _invalidateRowViewCache();
+    } catch (_) {
+      // Si no hay backend o falla la lectura, seguimos local sin ruido.
+    } finally {
+      _reviewSyncInProgress = false;
+    }
   }
 
   @override
@@ -1690,6 +1845,7 @@ class _EditorScreenState extends State<EditorScreen>
     _resetMobileRowCaches();
     _resetDraftsAndEditors();
     _scheduleValidationRecompute(immediate: true);
+    unawaited(_syncCorporateReviewDataFromBackend());
 
     if (!_nameFocus.hasFocus) {
       _nameEC.text = _sheetName;
@@ -4731,6 +4887,7 @@ class _EditorScreenState extends State<EditorScreen>
     _draftCells.remove(ref);
     _markDirty(snapshot: true);
     _bumpRowVersionById(rowId);
+    unawaited(_persistCorporateReviewForRows(<String>[rowId]));
   }
 
   void _clearDrafts() {
@@ -6662,6 +6819,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_reviewFilterMode != _ReviewFilterMode.all) {
       _bumpGridVersion();
     }
+    unawaited(_persistCorporateReviewForRows(changedRowIds));
     _showActionSnack(
       _reviewStateActionLabel(reviewState, changed),
       isError: false,

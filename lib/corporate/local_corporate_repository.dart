@@ -122,4 +122,40 @@ class LocalCorporateRepository implements CorporateRepository {
   ) async {
     return;
   }
+
+  @override
+  Future<RowReview?> getRowReview(
+    String projectId,
+    String sheetLocalId,
+    String rowId,
+  ) async {
+    return null;
+  }
+
+  @override
+  Future<List<RowReview>> listSheetRowReviews(
+    String projectId,
+    String sheetLocalId,
+  ) async {
+    return const <RowReview>[];
+  }
+
+  @override
+  Future<void> upsertRowReview(RowReview review) async {
+    return;
+  }
+
+  @override
+  Future<List<RowEvidenceLink>> listRowEvidenceLinks(
+    String projectId,
+    String sheetLocalId, {
+    String? rowId,
+  }) async {
+    return const <RowEvidenceLink>[];
+  }
+
+  @override
+  Future<void> linkRowEvidence(RowEvidenceLink link) async {
+    return;
+  }
 }
