@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/sheet_store.dart';
 import '../../services/supabase_service.dart';
 import '../../ui/ui.dart';
+import 'row_comments_sheet.dart';
 
 class WorkspaceListScreen extends StatefulWidget {
   const WorkspaceListScreen({
@@ -58,9 +59,16 @@ class _WorkspaceListScreenState extends State<WorkspaceListScreen> {
       usesRemoteBackend: _repository.usesRemoteBackend,
       actions: [
         AppButton(
+          label: 'Pendientes',
+          icon: Icons.task_alt_rounded,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => context.go('/pending'),
+        ),
+        _NotifBadge(onTap: () => context.go('/notifications')),
+        AppButton(
           label: 'Planillas',
           icon: Icons.table_chart_rounded,
-          variant: AppButtonVariant.secondary,
+          variant: AppButtonVariant.ghost,
           onPressed: () => context.go('/sheets'),
         ),
         AppButton(
@@ -1734,4 +1742,678 @@ class _ProjectSheetsData {
 
   final ProjectDetail? detail;
   final List<String> sheetIds;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PANEL DE PENDIENTES
+// ══════════════════════════════════════════════════════════════════════════════
+
+class PendingPanelScreen extends StatefulWidget {
+  const PendingPanelScreen({
+    super.key,
+    required this.isLight,
+    required this.onToggleTheme,
+  });
+
+  final bool isLight;
+  final VoidCallback onToggleTheme;
+
+  @override
+  State<PendingPanelScreen> createState() => _PendingPanelScreenState();
+}
+
+class _PendingPanelScreenState extends State<PendingPanelScreen> {
+  late CorporateRepository _repository;
+  late Future<List<PendingReviewItem>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _repository = createCorporateRepository();
+    _future = _repository.listPendingReviews();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _CorporateShell(
+      isLight: widget.isLight,
+      onToggleTheme: widget.onToggleTheme,
+      title: 'Pendientes',
+      subtitle: 'Filas que requieren tu atención ahora.',
+      backendLabel: _repository.backendLabel,
+      usesRemoteBackend: _repository.usesRemoteBackend,
+      actions: [
+        AppButton(
+          label: 'Empresa',
+          icon: Icons.business_rounded,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => context.go('/app'),
+        ),
+        AppButton(
+          label: 'Actualizar',
+          icon: Icons.refresh_rounded,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => setState(_reload),
+        ),
+      ],
+      child: FutureBuilder<List<PendingReviewItem>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const _CorporateLoading();
+          }
+          if (snapshot.hasError) {
+            return _CorporateError(
+              message: 'No se pudieron cargar los pendientes.',
+              detail: '${snapshot.error}',
+              onRetry: () => setState(_reload),
+            );
+          }
+          final items = snapshot.data ?? const <PendingReviewItem>[];
+          if (!_repository.usesRemoteBackend) {
+            return _CorporateEmpty(
+              icon: Icons.task_alt_rounded,
+              title: 'Panel de pendientes',
+              message:
+                  'Conectá Supabase e iniciá sesión para ver filas pendientes '
+                  'de todos tus proyectos.',
+            );
+          }
+          if (items.isEmpty) {
+            return _CorporateEmpty(
+              icon: Icons.task_alt_rounded,
+              title: '¡Al día!',
+              message:
+                  'No hay filas observadas ni corregidas pendientes de acción.',
+            );
+          }
+          return _PendingList(items: items);
+        },
+      ),
+    );
+  }
+}
+
+class _PendingList extends StatelessWidget {
+  const _PendingList({required this.items});
+
+  final List<PendingReviewItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    // Agrupar por proyecto.
+    final grouped = <String, List<PendingReviewItem>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(item.projectId, () => []).add(item);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in grouped.entries) ...[
+          _PendingGroupHeader(
+            projectName: entry.value.first.projectName,
+            projectCode: entry.value.first.projectCode,
+            count: entry.value.length,
+          ),
+          SizedBox(height: t.spacing.sm),
+          for (final item in entry.value) _PendingItemCard(item: item),
+          SizedBox(height: t.spacing.lg),
+        ],
+      ],
+    );
+  }
+}
+
+class _PendingGroupHeader extends StatelessWidget {
+  const _PendingGroupHeader({
+    required this.projectName,
+    required this.count,
+    this.projectCode,
+  });
+
+  final String projectName;
+  final String? projectCode;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Row(
+      children: [
+        if (projectCode != null)
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: t.spacing.sm,
+              vertical: 2,
+            ),
+            margin: EdgeInsets.only(right: t.spacing.sm),
+            decoration: BoxDecoration(
+              color: t.colors.accentMuted,
+              borderRadius: BorderRadius.circular(t.radii.pill),
+            ),
+            child: Text(
+              projectCode!,
+              style: t.text.labelSmall?.copyWith(
+                color: t.colors.accent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        Expanded(
+          child: Text(
+            projectName,
+            style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: t.spacing.sm,
+            vertical: 2,
+          ),
+          decoration: BoxDecoration(
+            color: t.colors.statusBg,
+            borderRadius: BorderRadius.circular(t.radii.pill),
+          ),
+          child: Text(
+            '$count',
+            style: t.text.labelSmall?.copyWith(
+              color: t.colors.statusFg,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PendingItemCard extends StatelessWidget {
+  const _PendingItemCard({required this.item});
+
+  final PendingReviewItem item;
+
+  Color _statusColor(BuildContext ctx) {
+    final t = ctx.tokens;
+    return switch (item.review.status) {
+      'observada' => t.colors.dangerFg,
+      'corregida' => t.colors.successFg,
+      _ => t.colors.textSecondary,
+    };
+  }
+
+  IconData _statusIcon() => switch (item.review.status) {
+        'observada' => Icons.flag_rounded,
+        'corregida' => Icons.build_circle_rounded,
+        _ => Icons.radio_button_unchecked_rounded,
+      };
+
+  String _lastActionLabel() {
+    final review = item.review;
+    if (review.status == 'observada' && review.observedAt != null) {
+      return 'Observada ${_relTime(review.observedAt)}';
+    }
+    if (review.status == 'corregida' && review.correctedAt != null) {
+      return 'Corregida ${_relTime(review.correctedAt)}';
+    }
+    if (review.updatedAt != null) {
+      return 'Actualizada ${_relTime(review.updatedAt)}';
+    }
+    return '';
+  }
+
+  String _relTime(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'ahora';
+    if (diff.inHours < 1) return 'hace ${diff.inMinutes}m';
+    if (diff.inDays < 1) return 'hace ${diff.inHours}h';
+    return 'hace ${diff.inDays}d';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final statusColor = _statusColor(context);
+
+    return AppCard(
+      onTap: () {
+        // Navegar a la planilla correspondiente con el sheetId.
+        final sheetId = item.review.sheetLocalId;
+        context.go('/sheets?sheetId=$sheetId');
+      },
+      color: t.colors.surfaceElevated,
+      radius: t.radii.lg,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(t.radii.md),
+            ),
+            child: Icon(_statusIcon(), color: statusColor, size: 20),
+          ),
+          SizedBox(width: t.spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: t.spacing.xs,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(t.radii.pill),
+                      ),
+                      child: Text(
+                        item.displayStatus,
+                        style: t.text.labelSmall?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: t.spacing.xs),
+                    Expanded(
+                      child: Text(
+                        'Fila ${_shortRowId(item.review.rowId)}',
+                        style: t.text.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 2),
+                Text(
+                  _lastActionLabel(),
+                  style: t.text.labelSmall?.copyWith(
+                    color: t.colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_ios_rounded,
+              size: 14, color: t.colors.textSecondary),
+        ],
+      ),
+    );
+  }
+
+  String _shortRowId(String rowId) {
+    if (rowId.length <= 10) return rowId;
+    return '…${rowId.substring(rowId.length - 8)}';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOTIFICACIONES
+// ══════════════════════════════════════════════════════════════════════════════
+
+class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({
+    super.key,
+    required this.isLight,
+    required this.onToggleTheme,
+  });
+
+  final bool isLight;
+  final VoidCallback onToggleTheme;
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  late CorporateRepository _repository;
+  late Future<List<UserNotification>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _repository = createCorporateRepository();
+    _future = _repository.listNotifications();
+  }
+
+  Future<void> _markRead(UserNotification notif) async {
+    if (notif.isRead) return;
+    try {
+      await _repository.markNotificationRead(notif.id);
+      setState(_reload);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _CorporateShell(
+      isLight: widget.isLight,
+      onToggleTheme: widget.onToggleTheme,
+      title: 'Notificaciones',
+      subtitle: 'Actividad relevante en tus proyectos.',
+      backendLabel: _repository.backendLabel,
+      usesRemoteBackend: _repository.usesRemoteBackend,
+      actions: [
+        AppButton(
+          label: 'Empresa',
+          icon: Icons.business_rounded,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => context.go('/app'),
+        ),
+        AppButton(
+          label: 'Actualizar',
+          icon: Icons.refresh_rounded,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => setState(_reload),
+        ),
+      ],
+      child: FutureBuilder<List<UserNotification>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const _CorporateLoading();
+          }
+          if (snapshot.hasError) {
+            return _CorporateError(
+              message: 'No se pudieron cargar las notificaciones.',
+              detail: '${snapshot.error}',
+              onRetry: () => setState(_reload),
+            );
+          }
+          final notifs = snapshot.data ?? const <UserNotification>[];
+          if (!_repository.usesRemoteBackend) {
+            return _CorporateEmpty(
+              icon: Icons.notifications_none_rounded,
+              title: 'Notificaciones corporativas',
+              message:
+                  'Conectá Supabase e iniciá sesión para recibir notificaciones '
+                  'sobre revisiones y comentarios de tus proyectos.',
+            );
+          }
+          if (notifs.isEmpty) {
+            return _CorporateEmpty(
+              icon: Icons.notifications_none_rounded,
+              title: 'Sin notificaciones',
+              message: 'Cuando alguien observe o apruebe una fila, '
+                  'aparecerá aquí.',
+            );
+          }
+          return _NotificationsList(
+            notifs: notifs,
+            onMarkRead: _markRead,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NotificationsList extends StatelessWidget {
+  const _NotificationsList({
+    required this.notifs,
+    required this.onMarkRead,
+  });
+
+  final List<UserNotification> notifs;
+  final Future<void> Function(UserNotification) onMarkRead;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final unread = notifs.where((n) => !n.isRead).length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (unread > 0)
+          AppCard(
+            color: t.colors.accentMuted,
+            radius: t.radii.lg,
+            shadows: const <BoxShadow>[],
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active_rounded,
+                    color: t.colors.accent, size: 18),
+                SizedBox(width: t.spacing.sm),
+                Text(
+                  '$unread notificación${unread == 1 ? '' : 'es'} sin leer',
+                  style: t.text.bodySmall?.copyWith(
+                    color: t.colors.accent,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (unread > 0) SizedBox(height: t.spacing.md),
+        for (final notif in notifs) _NotifCard(notif: notif, onTap: onMarkRead),
+      ],
+    );
+  }
+}
+
+class _NotifCard extends StatelessWidget {
+  const _NotifCard({required this.notif, required this.onTap});
+
+  final UserNotification notif;
+  final Future<void> Function(UserNotification) onTap;
+
+  IconData _icon() => switch (notif.notifType) {
+        NotifType.filaObservada => Icons.flag_rounded,
+        NotifType.filaCorregida => Icons.build_circle_rounded,
+        NotifType.filaAprobada => Icons.check_circle_rounded,
+        NotifType.comentarioNuevo => Icons.chat_bubble_rounded,
+      };
+
+  Color _color(BuildContext ctx) {
+    final t = ctx.tokens;
+    return switch (notif.notifType) {
+      NotifType.filaObservada => t.colors.dangerFg,
+      NotifType.filaAprobada => t.colors.successFg,
+      NotifType.filaCorregida => t.colors.accent,
+      NotifType.comentarioNuevo => t.colors.accent,
+    };
+  }
+
+  String _timeLabel() {
+    final dt = notif.createdAt;
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'ahora';
+    if (diff.inHours < 1) return 'hace ${diff.inMinutes}m';
+    if (diff.inDays < 1) return 'hace ${diff.inHours}h';
+    return 'hace ${diff.inDays}d';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final color = _color(context);
+
+    return AppCard(
+      onTap: () {
+        unawaited(onTap(notif));
+        if (notif.sheetLocalId?.isNotEmpty ?? false) {
+          context.go('/sheets?sheetId=${notif.sheetLocalId}');
+        }
+      },
+      radius: t.radii.lg,
+      color: notif.isRead
+          ? t.colors.surfaceElevated
+          : t.colors.accentMuted.withValues(alpha: 0.40),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            margin: EdgeInsets.only(right: t.spacing.md),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(t.radii.md),
+            ),
+            child: Icon(_icon(), color: color, size: 18),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        notif.notifType.label,
+                        style: t.text.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _timeLabel(),
+                      style: t.text.labelSmall?.copyWith(
+                        color: t.colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (notif.body.trim().isNotEmpty) ...[
+                  SizedBox(height: 2),
+                  Text(
+                    notif.body,
+                    style: t.text.bodySmall?.copyWith(
+                      color: t.colors.textSecondary,
+                      height: 1.35,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (notif.actorLabel?.trim().isNotEmpty ?? false) ...[
+                  SizedBox(height: 2),
+                  Text(
+                    'Por: ${notif.actorLabel}',
+                    style: t.text.labelSmall?.copyWith(
+                      color: t.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (!notif.isRead)
+            Container(
+              width: 8,
+              height: 8,
+              margin: EdgeInsets.only(left: t.spacing.sm, top: 4),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// Badge de notificaciones no leidas para el shell.
+class _NotifBadge extends StatefulWidget {
+  const _NotifBadge({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_NotifBadge> createState() => _NotifBadgeState();
+}
+
+class _NotifBadgeState extends State<_NotifBadge> {
+  int _unread = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refresh());
+    // Poll cada 90s sin tiempo real.
+    _timer = Timer.periodic(const Duration(seconds: 90), (_) {
+      if (mounted) unawaited(_refresh());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final repo = createCorporateRepository();
+      if (!repo.usesRemoteBackend) return;
+      final notifs = await repo.listNotifications(limit: 60);
+      final unread = notifs.where((n) => !n.isRead).length;
+      if (!mounted) return;
+      setState(() => _unread = unread);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AppButton(
+          icon: Icons.notifications_none_rounded,
+          label: 'Alertas',
+          variant: AppButtonVariant.ghost,
+          onPressed: widget.onTap,
+        ),
+        if (_unread > 0)
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: t.colors.dangerFg,
+                shape: BoxShape.circle,
+                border: Border.all(color: t.colors.surfaceElevated, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  _unread > 9 ? '9+' : '$_unread',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

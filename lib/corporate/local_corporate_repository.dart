@@ -158,4 +158,54 @@ class LocalCorporateRepository implements CorporateRepository {
   Future<void> linkRowEvidence(RowEvidenceLink link) async {
     return;
   }
+
+  // ── Comentarios (stub local) ─────────────────────────────────────────────
+  // Estado en memoria para la sesión. Permite probar el flujo sin Supabase.
+  static final List<RowComment> _localComments = <RowComment>[];
+
+  @override
+  Future<List<RowComment>> listRowComments(
+    String projectId,
+    String sheetLocalId,
+    String rowId,
+  ) async {
+    return _localComments
+        .where((c) =>
+            c.projectId == projectId &&
+            c.sheetLocalId == sheetLocalId &&
+            c.rowId == rowId)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> addRowComment(RowComment comment) async {
+    _localComments.add(comment);
+  }
+
+  // ── Notificaciones (stub local) ──────────────────────────────────────────
+  static final List<UserNotification> _localNotifs = <UserNotification>[];
+
+  @override
+  Future<List<UserNotification>> listNotifications({int limit = 60}) async {
+    final sorted = List<UserNotification>.from(_localNotifs)
+      ..sort((a, b) =>
+          (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    return sorted.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<void> markNotificationRead(String notificationId) async {
+    // stubs don't persist readAt; acceptable for local mode
+  }
+
+  @override
+  Future<void> createNotification(UserNotification notification) async {
+    _localNotifs.add(notification);
+  }
+
+  // ── Panel de pendientes (stub local) ─────────────────────────────────────
+  @override
+  Future<List<PendingReviewItem>> listPendingReviews() async {
+    return const <PendingReviewItem>[];
+  }
 }

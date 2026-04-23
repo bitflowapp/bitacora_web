@@ -808,6 +808,21 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (_) {}
   }
 
+  Future<void> _openRowCommentSheet(int rowIndex) async {
+    final projectId = _currentProjectId();
+    if (projectId == null || rowIndex < 0 || rowIndex >= _rows.length) return;
+    final row = _rows[rowIndex];
+    final rowLabel = 'Fila ${rowIndex + 1}';
+    await showRowCommentsSheet(
+      context,
+      projectId: projectId,
+      sheetLocalId: widget.sheetId,
+      rowId: row.id,
+      rowLabel: rowLabel,
+      canObserve: _canObserveRows(),
+    );
+  }
+
   Future<void> _syncCorporateReviewDataFromBackend() async {
     final projectId = _currentProjectId();
     if (projectId == null || _reviewSyncInProgress) return;
@@ -12350,6 +12365,15 @@ class _EditorScreenState extends State<EditorScreen>
                   onTap: () {
                     Navigator.pop(ctx);
                     _openAudiosSheetForCell(row, _mobileCol);
+                  },
+                ),
+              if (row >= 0 && _currentProjectId() != null)
+                ListTile(
+                  leading: const Icon(Icons.comment_outlined),
+                  title: const Text('Ver comentarios de esta fila'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(_openRowCommentSheet(row));
                   },
                 ),
               if (row >= 0)

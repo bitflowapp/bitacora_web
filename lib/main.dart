@@ -460,6 +460,24 @@ class _AppState extends State<App> {
           path: '/terms',
           builder: (context, state) => const LegalScreen.terms(),
         ),
+        GoRoute(
+          path: '/pending',
+          builder: (context, state) => _ProtectedRouteFrame(
+            child: PendingPanelScreen(
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (context, state) => _ProtectedRouteFrame(
+            child: NotificationsScreen(
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+            ),
+          ),
+        ),
       ],
     );
   }

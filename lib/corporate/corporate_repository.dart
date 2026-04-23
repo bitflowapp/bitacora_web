@@ -25,6 +25,24 @@ abstract class CorporateRepository {
   });
   Future<void> linkRowEvidence(RowEvidenceLink link);
 
+  // ── Comentarios por fila ─────────────────────────────────────────────────
+  Future<List<RowComment>> listRowComments(
+    String projectId,
+    String sheetLocalId,
+    String rowId,
+  );
+  Future<void> addRowComment(RowComment comment);
+
+  // ── Notificaciones internas ──────────────────────────────────────────────
+  Future<List<UserNotification>> listNotifications({int limit = 60});
+  Future<void> markNotificationRead(String notificationId);
+  Future<void> createNotification(UserNotification notification);
+
+  // ── Panel de pendientes ──────────────────────────────────────────────────
+  /// Retorna revisiones pendientes de acción para el usuario activo,
+  /// enriquecidas con nombre de proyecto.
+  Future<List<PendingReviewItem>> listPendingReviews();
+
   bool get usesRemoteBackend;
   String get backendLabel;
 }

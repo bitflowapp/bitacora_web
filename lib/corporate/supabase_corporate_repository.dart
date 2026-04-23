@@ -273,6 +273,161 @@ class SupabaseCorporateRepository implements CorporateRepository {
         );
   }
 
+  // ── Comentarios por fila ─────────────────────────────────────────────────
+
+  @override
+  Future<List<RowComment>> listRowComments(
+    String projectId,
+    String sheetLocalId,
+    String rowId,
+  ) async {
+    if (projectId.trim().isEmpty ||
+        sheetLocalId.trim().isEmpty ||
+        rowId.trim().isEmpty) {
+      return const <RowComment>[];
+    }
+    final rows = _asRows(
+      await _client
+          .from('row_comments')
+          .select(
+            'id, project_id, sheet_local_id, row_id, parent_id, '
+            'author_id, author_label, comment_type, body, created_at, updated_at',
+          )
+          .eq('project_id', projectId)
+          .eq('sheet_local_id', sheetLocalId)
+          .eq('row_id', rowId)
+          .order('created_at', ascending: true),
+    );
+    return rows.map(RowComment.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<void> addRowComment(RowComment comment) async {
+    if (comment.projectId.trim().isEmpty ||
+        comment.sheetLocalId.trim().isEmpty ||
+        comment.rowId.trim().isEmpty ||
+        comment.body.trim().isEmpty) {
+      return;
+    }
+    await _client.from('row_comments').insert(comment.toJson());
+  }
+
+  // ── Notificaciones ───────────────────────────────────────────────────────
+
+  @override
+  Future<List<UserNotification>> listNotifications({int limit = 60}) async {
+    final userId = _userId;
+    if (userId == null || userId.trim().isEmpty) {
+      return const <UserNotification>[];
+    }
+    final rows = _asRows(
+      await _client
+          .from('user_notifications')
+          .select(
+            'id, user_id, notif_type, project_id, sheet_local_id, row_id, '
+            'actor_id, actor_label, body, read_at, created_at',
+          )
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(limit),
+    );
+    return rows.map(UserNotification.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<void> markNotificationRead(String notificationId) async {
+    if (notificationId.trim().isEmpty) return;
+    await _client.from('user_notifications').update(<String, dynamic>{
+      'read_at': DateTime.now().toIso8601String(),
+    }).eq('id', notificationId).eq('user_id', _userId ?? '');
+  }
+
+  @override
+  Future<void> createNotification(UserNotification notification) async {
+    if (notification.userId.trim().isEmpty) return;
+    try {
+      await _client.from('user_notifications').insert(notification.toJson());
+    } catch (_) {
+      // Notificación es fire-and-forget; no propagar errores.
+    }
+  }
+
+  // ── Panel de pendientes ──────────────────────────────────────────────────
+
+  @override
+  Future<List<PendingReviewItem>> listPendingReviews() async {
+    final userId = _userId;
+    if (userId == null || userId.trim().isEmpty) {
+      return const <PendingReviewItem>[];
+    }
+
+    // 1. Proyectos del usuario.
+    final memberRows = _asRows(
+      await _client
+          .from('workspace_memberships')
+          .select('workspace_id, role')
+          .eq('user_id', userId)
+          .eq('status', 'active'),
+    );
+    if (memberRows.isEmpty) return const <PendingReviewItem>[];
+
+    final workspaceIds =
+        memberRows.map((r) => r['workspace_id']?.toString() ?? '').toList();
+
+    final projectRows = _asRows(
+      await _client
+          .from('projects')
+          .select('id, name, code, workspace_id, status')
+          .inFilter('workspace_id', workspaceIds)
+          .neq('status', 'closed'),
+    );
+    if (projectRows.isEmpty) return const <PendingReviewItem>[];
+
+    final projectById = <String, Map<String, dynamic>>{
+      for (final p in projectRows) _str(p['id']): p,
+    };
+    final projectIds = projectById.keys.toList(growable: false);
+
+    // 2. Revisiones pendientes (excluye aprobadas y sin_revision).
+    final reviewRows = _asRows(
+      await _client
+          .from('sheet_row_reviews')
+          .select(
+            'project_id, sheet_local_id, row_id, status, '
+            'created_by, updated_by, approved_by, '
+            'approved_at, observed_at, corrected_at, created_at, updated_at',
+          )
+          .inFilter('project_id', projectIds)
+          .inFilter('status', const <String>['observada', 'corregida'])
+          .order('updated_at', ascending: false)
+          .limit(200),
+    );
+
+    final result = <PendingReviewItem>[];
+    for (final row in reviewRows) {
+      final pId = _str(row['project_id']);
+      final proj = projectById[pId];
+      if (proj == null) continue;
+      result.add(PendingReviewItem(
+        review: RowReview.fromJson(row),
+        projectName: _str(proj['name'], fallback: 'Proyecto'),
+        projectCode: _strOrNull(proj['code']),
+        projectId: pId,
+      ));
+    }
+    return result;
+  }
+
+  static String _str(Object? v, {String fallback = ''}) {
+    final raw = v?.toString().trim() ?? '';
+    return raw.isEmpty ? fallback : raw;
+  }
+
+  static String? _strOrNull(Object? v) {
+    final raw = v?.toString().trim() ?? '';
+    return raw.isEmpty ? null : raw;
+  }
+
   List<Map<String, dynamic>> _asRows(Object? value) {
     if (value is! List) return const <Map<String, dynamic>>[];
     return value
