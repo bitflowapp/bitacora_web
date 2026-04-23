@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../theme/app_theme.dart';
+
 class LandingScreen extends StatefulWidget {
   const LandingScreen({
     super.key,
@@ -117,7 +119,7 @@ class _LandingScreenState extends State<LandingScreen>
     final width = media.size.width;
     final isWide = width >= 980;
     final isCompact = width < 640;
-    final palette = _LandingPalette.from(widget.isLight);
+    final palette = _LandingPalette.from(AppTheme.of(context));
     final salesChannelLabel = _hasWhatsApp ? 'WhatsApp ventas' : 'Email ventas';
     void openPcDemo() => context.go('/?template=proteccion-catodica');
 
@@ -216,14 +218,25 @@ class _LandingPalette {
     required this.pageBg,
     required this.cardBg,
     required this.elevatedBg,
+    required this.chromeBg,
+    required this.ghostButtonBg,
     required this.cardBorder,
+    required this.cardBorderStrong,
     required this.textPrimary,
     required this.textSecondary,
+    required this.textMuted,
     required this.accent,
     required this.accentSoft,
+    required this.accentOutline,
     required this.success,
+    required this.successSoft,
     required this.warning,
+    required this.warningSoft,
     required this.accentContrast,
+    required this.featureBg,
+    required this.featureFg,
+    required this.featureFgMuted,
+    required this.featureIconBg,
     required this.divider,
     required this.shadow,
   });
@@ -231,56 +244,65 @@ class _LandingPalette {
   final Color pageBg;
   final Color cardBg;
   final Color elevatedBg;
+  final Color chromeBg;
+  final Color ghostButtonBg;
   final Color cardBorder;
+  final Color cardBorderStrong;
   final Color textPrimary;
   final Color textSecondary;
+  final Color textMuted;
   final Color accent;
   final Color accentSoft;
+  final Color accentOutline;
   final Color success;
+  final Color successSoft;
   final Color warning;
+  final Color warningSoft;
   final Color accentContrast;
+  final Color featureBg;
+  final Color featureFg;
+  final Color featureFgMuted;
+  final Color featureIconBg;
   final Color divider;
   final Color shadow;
 
-  factory _LandingPalette.from(bool isLight) {
-    if (isLight) {
-      return const _LandingPalette(
-        pageBg: Color(0xFFF5F5F7),
-        cardBg: Colors.white,
-        elevatedBg: Color(0xFFFBFBFD),
-        cardBorder: Color(0xFFE5E5EA),
-        textPrimary: Color(0xFF1D1D1F),
-        textSecondary: Color(0xFF6E6E73),
-        accent: Color(0xFF0066CC),
-        accentSoft: Color(0x140066CC),
-        success: Color(0xFF157F3E),
-        warning: Color(0xFF9A6A00),
-        accentContrast: Colors.white,
-        divider: Color(0xFFE5E5EA),
-        shadow: Color(0x14000000),
-      );
-    }
-    return const _LandingPalette(
-      pageBg: Color(0xFF050506),
-      cardBg: Color(0xFF101114),
-      elevatedBg: Color(0xFF17181C),
-      cardBorder: Color(0x22FFFFFF),
-      textPrimary: Color(0xFFF5F5F7),
-      textSecondary: Color(0xFFA1A1AA),
-      accent: Color(0xFF5E9BFF),
-      accentSoft: Color(0x245E9BFF),
-      success: Color(0xFF5ED685),
-      warning: Color(0xFFFFC557),
-      accentContrast: Colors.white,
-      divider: Color(0x22FFFFFF),
-      shadow: Color(0x66000000),
+  factory _LandingPalette.from(AppThemeData theme) {
+    final colors = theme.colors;
+    final onAccent = theme.material.colorScheme.onPrimary;
+    return _LandingPalette(
+      pageBg: colors.surfaceMuted,
+      cardBg: colors.surface,
+      elevatedBg: colors.surfaceElevated,
+      chromeBg: colors.surface.withValues(alpha: colors.isLight ? 0.82 : 0.76),
+      ghostButtonBg: colors.surfaceElevated
+          .withValues(alpha: colors.isLight ? 0.88 : 0.82),
+      cardBorder: colors.border,
+      cardBorderStrong: colors.borderStrong.withValues(
+        alpha: colors.isLight ? 0.72 : 0.66,
+      ),
+      textPrimary: colors.textPrimary,
+      textSecondary: colors.textSecondary,
+      textMuted: colors.textSecondary.withValues(
+        alpha: colors.isLight ? 0.58 : 0.74,
+      ),
+      accent: colors.accent,
+      accentSoft: colors.accentMuted,
+      accentOutline: colors.accent.withValues(
+        alpha: colors.isLight ? 0.16 : 0.28,
+      ),
+      success: colors.successFg,
+      successSoft: colors.successBg,
+      warning: colors.warningFg,
+      warningSoft: colors.warningBg,
+      accentContrast: onAccent,
+      featureBg: colors.accent,
+      featureFg: onAccent,
+      featureFgMuted: onAccent.withValues(alpha: 0.82),
+      featureIconBg: onAccent.withValues(alpha: colors.isLight ? 0.16 : 0.20),
+      divider: colors.border,
+      shadow: theme.shadows.floating.first.color,
     );
   }
-}
-
-Color _onTextPrimary(_LandingPalette palette) {
-  final primaryIsLight = palette.textPrimary.computeLuminance() > 0.5;
-  return primaryIsLight ? palette.pageBg : palette.accentContrast;
 }
 
 class _TopBar extends StatelessWidget {
@@ -357,9 +379,9 @@ class _TopBarShell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: palette.cardBg.withValues(alpha: 0.78),
+        color: palette.chromeBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: palette.cardBorder),
+        border: Border.all(color: palette.cardBorderStrong),
         boxShadow: [
           BoxShadow(
             color: palette.shadow,
@@ -387,7 +409,7 @@ class _BrandMark extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: palette.textPrimary,
+            color: palette.accent,
             borderRadius: BorderRadius.circular(13),
             boxShadow: [
               BoxShadow(
@@ -399,7 +421,7 @@ class _BrandMark extends StatelessWidget {
           ),
           child: Icon(
             Icons.grid_view_rounded,
-            color: palette.pageBg,
+            color: palette.accentContrast,
             size: 22,
           ),
         ),
@@ -585,7 +607,7 @@ class _TrustChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.accentSoft,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: palette.accent.withValues(alpha: 0.16)),
+        border: Border.all(color: palette.accentOutline),
       ),
       child: Text(
         label,
@@ -630,12 +652,12 @@ class _HeroPreview extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: palette.textPrimary,
+                    color: palette.accentSoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     Icons.bolt_rounded,
-                    color: palette.pageBg,
+                    color: palette.accent,
                     size: 20,
                   ),
                 ),
@@ -669,7 +691,7 @@ class _HeroPreview extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: palette.success.withValues(alpha: 0.12),
+                    color: palette.successSoft,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -885,9 +907,8 @@ class _PreviewRow extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: isObs
-                            ? palette.warning.withValues(alpha: 0.14)
-                            : palette.success.withValues(alpha: 0.12),
+                        color:
+                            isObs ? palette.warningSoft : palette.successSoft,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -1088,11 +1109,10 @@ class _QuickStartCardState extends State<_QuickStartCard> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final action = widget.action;
-    final featuredFg = _onTextPrimary(palette);
+    final featuredFg = palette.featureFg;
     final fg = action.featured ? featuredFg : palette.textPrimary;
-    final secondary = action.featured
-        ? featuredFg.withValues(alpha: 0.78)
-        : palette.textSecondary;
+    final secondary =
+        action.featured ? palette.featureFgMuted : palette.textSecondary;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1115,7 +1135,7 @@ class _QuickStartCardState extends State<_QuickStartCard> {
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: action.featured ? palette.textPrimary : palette.elevatedBg,
+              color: action.featured ? palette.featureBg : palette.elevatedBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: action.featured
@@ -1141,7 +1161,7 @@ class _QuickStartCardState extends State<_QuickStartCard> {
                       height: 36,
                       decoration: BoxDecoration(
                         color: action.featured
-                            ? featuredFg.withValues(alpha: 0.14)
+                            ? palette.featureIconBg
                             : palette.accentSoft,
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1303,7 +1323,7 @@ class _VerticalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final featuredFg = _onTextPrimary(palette);
+    final featuredFg = palette.featureFg;
 
     return Material(
       color: Colors.transparent,
@@ -1313,7 +1333,7 @@ class _VerticalCard extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: item.featured ? palette.textPrimary : palette.cardBg,
+            color: item.featured ? palette.featureBg : palette.cardBg,
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: item.featured ? Colors.transparent : palette.cardBorder,
@@ -1333,7 +1353,7 @@ class _VerticalCard extends StatelessWidget {
                 padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   color: item.featured
-                      ? featuredFg.withValues(alpha: 0.14)
+                      ? palette.featureIconBg
                       : palette.accentSoft,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1357,7 +1377,7 @@ class _VerticalCard extends StatelessWidget {
                 item.subtitle,
                 style: TextStyle(
                   color: item.featured
-                      ? featuredFg.withValues(alpha: 0.74)
+                      ? palette.featureFgMuted
                       : palette.textSecondary,
                   fontSize: 13,
                   height: 1.42,
@@ -1776,8 +1796,14 @@ class _CompareRow extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(flex: 2, child: Center(child: _CheckMark(on: excel))),
-          Expanded(flex: 2, child: Center(child: _CheckMark(on: forms))),
+          Expanded(
+            flex: 2,
+            child: Center(child: _CheckMark(on: excel, palette: palette)),
+          ),
+          Expanded(
+            flex: 2,
+            child: Center(child: _CheckMark(on: forms, palette: palette)),
+          ),
           Expanded(
             flex: 2,
             child: Center(
@@ -1793,29 +1819,27 @@ class _CompareRow extends StatelessWidget {
 class _CheckMark extends StatelessWidget {
   const _CheckMark({
     required this.on,
+    required this.palette,
     this.strong = false,
-    this.palette,
   });
 
   final bool on;
   final bool strong;
-  final _LandingPalette? palette;
+  final _LandingPalette palette;
 
   @override
   Widget build(BuildContext context) {
     if (!on) {
-      return const Text(
+      return Text(
         '-',
         style: TextStyle(
-          color: Color(0xFFB0B7C3),
+          color: palette.textMuted,
           fontSize: 16,
           fontWeight: FontWeight.w700,
         ),
       );
     }
-    final c = strong
-        ? (palette?.accent ?? const Color(0xFF0B63CE))
-        : const Color(0xFF137D3B);
+    final c = strong ? palette.accent : palette.success;
     return Icon(Icons.check_rounded, color: c, size: 20);
   }
 }
@@ -1948,7 +1972,7 @@ class _PricingCard extends StatelessWidget {
         boxShadow: highlight
             ? [
                 BoxShadow(
-                  color: palette.accent.withValues(alpha: 0.18),
+                  color: palette.accentOutline,
                   blurRadius: 22,
                   offset: const Offset(0, 12),
                 ),
@@ -2098,7 +2122,7 @@ class _FooterCTA extends StatelessWidget {
           ),
           label: Text(salesChannelLabel),
           style: TextButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: palette.accentContrast,
             foregroundColor: palette.accent,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -2112,7 +2136,7 @@ class _FooterCTA extends StatelessWidget {
           icon: const Icon(Icons.copy_rounded),
           label: const Text('Copiar email'),
           style: TextButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            backgroundColor: palette.accentContrast.withValues(alpha: 0.18),
             foregroundColor: palette.accentContrast,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -2257,9 +2281,9 @@ class _SolidButton extends StatelessWidget {
           : Icon(icon, size: large ? 20 : 18),
       label: Text(label),
       style: ElevatedButton.styleFrom(
-        backgroundColor: palette.textPrimary,
-        foregroundColor: _onTextPrimary(palette),
-        disabledBackgroundColor: palette.textSecondary,
+        backgroundColor: palette.accent,
+        foregroundColor: palette.accentContrast,
+        disabledBackgroundColor: palette.textMuted,
         padding: EdgeInsets.symmetric(
           horizontal: large ? 24 : 17,
           vertical: large ? 17 : 13,
@@ -2268,7 +2292,7 @@ class _SolidButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
         ),
         elevation: 0,
-        shadowColor: Colors.transparent,
+        shadowColor: palette.shadow,
         textStyle: TextStyle(
           fontSize: large ? 15 : 14,
           fontWeight: FontWeight.w800,
@@ -2305,8 +2329,8 @@ class _GhostButton extends StatelessWidget {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: palette.textPrimary,
-        side: BorderSide(color: palette.cardBorder),
-        backgroundColor: palette.cardBg.withValues(alpha: 0.66),
+        side: BorderSide(color: palette.cardBorderStrong),
+        backgroundColor: palette.ghostButtonBg,
         padding: EdgeInsets.symmetric(
           horizontal: large ? 20 : 14,
           vertical: large ? 16 : 12,
