@@ -494,6 +494,8 @@ class _DesktopBottomToolbar extends StatelessWidget {
     required this.onGps,
     required this.onExport,
     required this.onPalette,
+    required this.onToggleTrace,
+    required this.traceModeActive,
   });
 
   final _SheetPalette palette;
@@ -509,6 +511,8 @@ class _DesktopBottomToolbar extends StatelessWidget {
   final VoidCallback onGps;
   final VoidCallback onExport;
   final VoidCallback onPalette;
+  final VoidCallback onToggleTrace;
+  final bool traceModeActive;
 
   String _savedText() {
     final value = lastLocalSavedAt;
@@ -600,6 +604,13 @@ class _DesktopBottomToolbar extends StatelessWidget {
                           icon: Icons.search_rounded,
                           label: 'Buscar',
                           onTap: onSearch,
+                        ),
+                        _DesktopToolbarButton(
+                          palette: palette,
+                          icon: Icons.gesture_rounded,
+                          label: traceModeActive ? 'Trazo on' : 'Trazo',
+                          onTap: onToggleTrace,
+                          isPrimary: traceModeActive,
                         ),
                         _DesktopToolbarButton(
                           palette: palette,

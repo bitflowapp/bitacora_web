@@ -352,6 +352,22 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_runAudioForSelection()),
         ),
         CommandAction(
+          id: 'dictate',
+          label: 'Dictar en celda',
+          subtitle: 'Insertar texto reconocido por voz',
+          icon: Icons.record_voice_over_rounded,
+          onSelected: () => unawaited(_dictateIntoActiveCell()),
+        ),
+        CommandAction(
+          id: 'trace_mode',
+          label: _traceModeActive
+              ? 'Salir del modo trazo'
+              : 'Activar modo trazo',
+          subtitle: 'Lazo sobre la grilla con sumar / promediar / contar',
+          icon: Icons.gesture_rounded,
+          onSelected: _toggleTraceMode,
+        ),
+        CommandAction(
           id: 'open_queue',
           label: 'Abrir cola offline',
           subtitle: 'Ver pendientes y reintentar sync',

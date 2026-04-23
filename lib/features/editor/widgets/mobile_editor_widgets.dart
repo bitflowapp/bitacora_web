@@ -995,6 +995,9 @@ class _MobileInlineEditorBar extends StatelessWidget {
     required this.onOverflow,
     required this.onCancel,
     required this.onDone,
+    required this.onDictate,
+    required this.dictationActive,
+    required this.dictationStatus,
   });
 
   final _SheetPalette palette;
@@ -1022,6 +1025,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
 
   final VoidCallback onCancel;
   final VoidCallback onDone;
+
+  /// Toggle de dictado en la celda activa.
+  final VoidCallback onDictate;
+  final bool dictationActive;
+  final String? dictationStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1122,6 +1130,11 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 splashRadius: 16,
                                 padding: const EdgeInsets.all(4),
                               ),
+                              _MobileDictateButton(
+                                palette: palette,
+                                active: dictationActive,
+                                onTap: onDictate,
+                              ),
                               _MobilePanelIconButton(
                                 icon: Icons.chevron_left_rounded,
                                 tooltip: 'Anterior',
@@ -1176,6 +1189,16 @@ class _MobileInlineEditorBar extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (dictationActive ||
+                              (dictationStatus != null &&
+                                  dictationStatus!.trim().isNotEmpty)) ...[
+                            const SizedBox(height: 6),
+                            _MobileDictationStatus(
+                              palette: palette,
+                              active: dictationActive,
+                              status: dictationStatus,
+                            ),
+                          ],
                           if (validationHint != null &&
                               validationHint!.trim().isNotEmpty) ...[
                             const SizedBox(height: 6),
@@ -1326,6 +1349,167 @@ class _MobileEditorField extends StatelessWidget {
         border: InputBorder.none,
       ),
       onSubmitted: (_) => onNext == null ? onDone() : onNext!(),
+    );
+  }
+}
+
+class _MobileDictateButton extends StatefulWidget {
+  const _MobileDictateButton({
+    required this.palette,
+    required this.active,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  State<_MobileDictateButton> createState() => _MobileDictateButtonState();
+}
+
+class _MobileDictateButtonState extends State<_MobileDictateButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _pulse.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_MobileDictateButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      _pulse.repeat(reverse: true);
+    } else if (!widget.active && oldWidget.active) {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.palette;
+    return Tooltip(
+      message: widget.active ? 'Detener dictado' : 'Dictar',
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: AnimatedBuilder(
+          animation: _pulse,
+          builder: (context, _) {
+            final t = Curves.easeInOut.transform(_pulse.value);
+            return InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: widget.onTap,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  width: 30 + (widget.active ? 4 * t : 0),
+                  height: 30 + (widget.active ? 4 * t : 0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.active
+                        ? pal.accent
+                        : pal.accent.withValues(alpha: 0.10),
+                    boxShadow: widget.active
+                        ? [
+                            BoxShadow(
+                              color:
+                                  pal.accent.withValues(alpha: 0.35 + 0.20 * t),
+                              blurRadius: 14 + 6 * t,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : const [],
+                  ),
+                  child: Icon(
+                    widget.active
+                        ? Icons.mic_rounded
+                        : Icons.record_voice_over_rounded,
+                    size: 16,
+                    color: widget.active
+                        ? (pal.isLight ? Colors.white : Colors.black)
+                        : pal.accent,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDictationStatus extends StatelessWidget {
+  const _MobileDictationStatus({
+    required this.palette,
+    required this.active,
+    required this.status,
+  });
+
+  final _SheetPalette palette;
+  final bool active;
+  final String? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = palette;
+    final hasStatus = status != null && status!.trim().isNotEmpty;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: Container(
+        key: ValueKey<String>('${active ? 1 : 0}|${status ?? ''}'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: pal.accent.withValues(alpha: pal.isLight ? 0.08 : 0.18),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: pal.accent.withValues(alpha: 0.30),
+            width: pal.hairline,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              active ? Icons.graphic_eq_rounded : Icons.check_rounded,
+              size: 13,
+              color: pal.accent,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                hasStatus
+                    ? status!
+                    : (active ? 'Escuchando…' : 'Dictado finalizado'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: pal.fg,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.15,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -366,6 +366,13 @@ class _EditorScreenState extends State<EditorScreen>
   String _flowBotLastScope = 'seleccion';
   String _lastFlowBotValidCommand = '';
   bool _fieldModeEnabled = false;
+
+  // ── Modo trazo (lazo inteligente sobre la grilla) ────────────────────────
+  bool _traceModeActive = false;
+  bool _dictationActive = false;
+  String? _dictationStatus;
+  Timer? _dictationStatusClearT;
+
   final RuleBasedFlowBot _flowBotRuleEngine = const RuleBasedFlowBot();
   final FlowBotLocalLlmEngine _flowBotLocalLlmEngine = FlowBotLocalLlmEngine();
   final FlowBotLocalModelManager _flowBotLocalModelManager =
@@ -630,6 +637,7 @@ class _EditorScreenState extends State<EditorScreen>
     _engineApi.dispose();
     _backupTimer?.cancel();
     unawaited(SpeechService.I.cancel());
+    _dictationStatusClearT?.cancel();
     unawaited(_audioService.dispose());
     _audioCompleteSub?.cancel();
     _audioPlayer.dispose();
@@ -703,6 +711,197 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _toggleZenMode() => _setZenMode(!_zenModeEnabled);
+
+  // ── Modo trazo ──────────────────────────────────────────────────────────
+  void _setTraceMode(bool active) {
+    if (_traceModeActive == active) return;
+    _commitActiveEditors();
+    if (active && _mobileEditorOpen) {
+      _cancelMobileEdit();
+    }
+    setState(() => _traceModeActive = active);
+    if (active) {
+      _showActionSnack(
+        'Modo trazo activo. Dibuja sobre la grilla.',
+        isError: false,
+        icon: Icons.gesture_rounded,
+      );
+    }
+  }
+
+  void _toggleTraceMode() => _setTraceMode(!_traceModeActive);
+
+  double _traceColumnWidthForContext(BuildContext ctx) {
+    final w = MediaQuery.of(ctx).size.width;
+    if (w < 420) return 126;
+    if (w < 760) return 150;
+    return 178;
+  }
+
+  TraceGridGeometry _buildTraceGeometry(BuildContext ctx) {
+    final metrics = _gridMetricsFor(_gridDensity);
+    final colW = _traceColumnWidthForContext(ctx);
+    final hOffset = _hScroll.hasClients ? _hScroll.offset : 0.0;
+    final vOffset = _vScroll.hasClients ? _vScroll.offset : 0.0;
+    final dataCols = math.max(0, _headers.length - 1);
+    return TraceGridGeometry(
+      rowCount: _rows.length,
+      dataColumnCount: dataCols,
+      indexWidth: 54,
+      headerHeight: metrics.headerH,
+      rowHeight: metrics.rowH,
+      dataColumnWidth: colW,
+      lastColumnWidth: 140,
+      horizontalScrollOffset: hOffset,
+      verticalScrollOffset: vOffset,
+    );
+  }
+
+  TraceOverlayTheme _buildTraceTheme(_SheetPalette pal) {
+    return TraceOverlayTheme(
+      accent: pal.accent,
+      background: pal.bg,
+      surface: pal.menuBg,
+      onSurface: pal.fg,
+      onSurfaceMuted: pal.fgMuted,
+      divider: pal.border,
+      invalid: const Color(0xFFFF3B30),
+      isLight: pal.isLight,
+    );
+  }
+
+  void _onTraceInsert(int row, int col, String value) {
+    if (row < 0 || row >= _rows.length) return;
+    if (col < 0 || col >= _headers.length - 1) return;
+    _setDraftCell(row, col, value);
+    _commitDraftCell(row, col);
+    _setSelectionAndRefreshGrid(row, col, blink: true);
+    _showActionSnack(
+      'Resultado insertado en celda ${String.fromCharCode(65 + col)}${row + 1}.',
+      isError: false,
+      icon: Icons.south_west_rounded,
+    );
+  }
+
+  // ── Dictado en celda (independiente de la grabacion de audio) ────────────
+  void _setDictationStatus(String? msg, {Duration? autoClear}) {
+    if (!mounted) return;
+    setState(() => _dictationStatus = msg);
+    _dictationStatusClearT?.cancel();
+    if (msg != null && autoClear != null) {
+      _dictationStatusClearT = Timer(autoClear, () {
+        if (!mounted) return;
+        if (_dictationStatus == msg) {
+          setState(() => _dictationStatus = null);
+        }
+      });
+    }
+  }
+
+  Future<void> _dictateIntoActiveCell() async {
+    if (_dictationActive) {
+      try {
+        await SpeechService.I.cancel();
+      } catch (_) {}
+      setState(() => _dictationActive = false);
+      _setDictationStatus('Dictado cancelado.',
+          autoClear: const Duration(seconds: 2));
+      return;
+    }
+
+    // Solo permitido cuando hay un editor de celda abierto.
+    final usingMobile = _mobileEditorOpen && !_mobileEditingHeader;
+    final usingDesktop = _cellEditorEntry != null && _editingCellRef != null;
+    if (!usingMobile && !usingDesktop) {
+      _showActionSnack(
+        'Abrí una celda para dictar.',
+        isError: true,
+        icon: Icons.mic_off_rounded,
+      );
+      return;
+    }
+
+    final controller = usingMobile ? _mobileEC : _cellEC;
+    final focusNode = usingMobile ? _mobileFocus : _cellFocus;
+    final originalText = controller.text;
+
+    bool init = false;
+    try {
+      init = await SpeechService.I.init(preferredLocale: 'es_AR');
+    } catch (e) {
+      init = false;
+    }
+    if (!init) {
+      _showActionSnack(
+        'Dictado no disponible en este dispositivo o navegador.',
+        isError: true,
+        icon: Icons.mic_off_rounded,
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    setState(() => _dictationActive = true);
+    _setDictationStatus('Escuchando…');
+    // Mantenemos el foco para que no se cierre el teclado en mobile.
+    focusNode.requestFocus();
+
+    try {
+      final text = await SpeechService.I.listenOnce(
+        autoTimeout: const Duration(seconds: 30),
+        partial: (partial) {
+          if (!mounted || !_dictationActive) return;
+          final clean = partial.trim();
+          if (clean.isEmpty) return;
+          final separator = originalText.trim().isEmpty ? '' : ' ';
+          final next = '$originalText$separator$clean';
+          controller.value = TextEditingValue(
+            text: next,
+            selection: TextSelection.collapsed(offset: next.length),
+          );
+          _setDictationStatus('Escuchando: "$clean"');
+        },
+      );
+      if (!mounted) return;
+      setState(() => _dictationActive = false);
+
+      final clean = text?.trim() ?? '';
+      if (clean.isEmpty) {
+        _setDictationStatus(
+          'Sin reconocimiento. Probá hablar más cerca o más fuerte.',
+          autoClear: const Duration(seconds: 3),
+        );
+        // Restaurar el texto original (los partials pueden haber dejado basura).
+        controller.value = TextEditingValue(
+          text: originalText,
+          selection: TextSelection.collapsed(offset: originalText.length),
+        );
+        return;
+      }
+
+      final separator = originalText.trim().isEmpty ? '' : ' ';
+      final next = '$originalText$separator$clean';
+      controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+
+      // Mantener foco en la celda activa.
+      focusNode.requestFocus();
+
+      _setDictationStatus(
+        'Listo: "$clean"',
+        autoClear: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dictationActive = false);
+      _setDictationStatus(
+        'Error en dictado.',
+        autoClear: const Duration(seconds: 3),
+      );
+    }
+  }
 
   Future<void> _initPerfHarness() async {
     try {
@@ -9614,7 +9813,9 @@ class _EditorScreenState extends State<EditorScreen>
                                             ),
                                             container: true,
                                             label: 'Grilla de planilla',
-                                            child: RepaintBoundary(
+                                            child: Stack(
+                                              children: [
+                                                RepaintBoundary(
                                               child:
                                                   ValueListenableBuilder<int>(
                                                 valueListenable: _gridVersion,
@@ -9953,6 +10154,40 @@ class _EditorScreenState extends State<EditorScreen>
                                                 },
                                               ),
                                             ),
+                                                TraceModeOverlay(
+                                                  active: _traceModeActive,
+                                                  geometryBuilder: () =>
+                                                      _buildTraceGeometry(
+                                                          context),
+                                                  theme: _buildTraceTheme(pal),
+                                                  cellText: (r, c) =>
+                                                      _effectiveCell(r, c),
+                                                  scrollListenables: <Listenable>[
+                                                    _hScroll,
+                                                    _vScroll,
+                                                  ],
+                                                  preferredTargetRow:
+                                                      _selRow >= 0 &&
+                                                              _selRow <
+                                                                  _rows.length
+                                                          ? _selRow
+                                                          : null,
+                                                  preferredTargetCol: _selCol >=
+                                                              0 &&
+                                                          _selCol <
+                                                              math.max(
+                                                                  0,
+                                                                  _headers.length -
+                                                                      1)
+                                                      ? _selCol
+                                                      : null,
+                                                  onInsertResult:
+                                                      _onTraceInsert,
+                                                  onClose: () =>
+                                                      _setTraceMode(false),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       )
@@ -10249,6 +10484,8 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                               onExport: () => unawaited(_openExportMenu()),
                               onPalette: () => unawaited(_openCommandPalette()),
+                              onToggleTrace: _toggleTraceMode,
+                              traceModeActive: _traceModeActive,
                             ),
                         ],
                       ),
@@ -10281,6 +10518,10 @@ class _EditorScreenState extends State<EditorScreen>
                         onOverflow: _openMobileOverflowSheet,
                         onCancel: _cancelMobileEdit,
                         onDone: _commitMobileEdit,
+                        onDictate: () =>
+                            unawaited(_dictateIntoActiveCell()),
+                        dictationActive: _dictationActive,
+                        dictationStatus: _dictationStatus,
                       ),
                     if (!isDesktop)
                       _MobileExpandableFabMenu(
@@ -10335,6 +10576,15 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
+                                      'mobile-fab-action-trace'),
+                                  icon: Icons.gesture_rounded,
+                                  label: _traceModeActive
+                                      ? 'Trazo activo'
+                                      : 'Modo trazo',
+                                  onTap: _toggleTraceMode,
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
                                       'mobile-fab-action-field-mode'),
                                   icon: Icons.terrain_rounded,
                                   label: 'Salir modo campo',
@@ -10385,6 +10635,15 @@ class _EditorScreenState extends State<EditorScreen>
                                   icon: Icons.undo_rounded,
                                   label: 'Undo',
                                   onTap: _undoOnce,
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                      'mobile-fab-action-trace'),
+                                  icon: Icons.gesture_rounded,
+                                  label: _traceModeActive
+                                      ? 'Trazo activo'
+                                      : 'Modo trazo',
+                                  onTap: _toggleTraceMode,
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
@@ -11641,6 +11900,26 @@ class _EditorScreenState extends State<EditorScreen>
                     } else {
                       unawaited(_startAudioRecordingForCell(row, _mobileCol));
                     }
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: Icon(
+                    _dictationActive
+                        ? Icons.stop_circle_outlined
+                        : Icons.record_voice_over_rounded,
+                  ),
+                  title: Text(
+                    _dictationActive
+                        ? 'Detener dictado'
+                        : 'Dictar en esta celda',
+                  ),
+                  subtitle: const Text(
+                    'Convierte voz a texto e inserta en la celda activa',
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(_dictateIntoActiveCell());
                   },
                 ),
               if (row >= 0 && _cellHasAudios(row, _mobileCol))

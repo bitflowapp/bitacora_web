@@ -97,10 +97,19 @@ Bitacora_Release_*.zip
 .env
 .env.*
 !.env.example
+!.env.clawbot.example
 
 # Logs
 *.log
 error.log
+
+# Local ClawBot WhatsApp Web session / generated QR
+tools/clawbot-whatsapp/node_modules/
+tools/clawbot-whatsapp/package-lock.json
+tools/clawbot-whatsapp/.wwebjs_auth/
+tools/clawbot-whatsapp/.wwebjs_cache/
+.clawbot-whatsapp-session/
+clawbot-whatsapp-qr.png
 
 # Generated web bundles
 build_web/
