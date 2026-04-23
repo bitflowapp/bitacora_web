@@ -10,6 +10,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'supabase_service.dart';
 
 class AuthUser {
   final String id;
@@ -57,9 +60,12 @@ class AuthService {
 
   final StreamController<AuthUser?> _userCtrl =
       StreamController<AuthUser?>.broadcast();
+  StreamSubscription<AuthState>? _remoteAuthSub;
 
   Stream<AuthUser?> get userChanges => _userCtrl.stream;
   AuthUser? get currentUser => user.value;
+  bool get isRemoteBackendConfigured => SupabaseService.I.isConfigured;
+  bool get isRemoteAuthenticated => SupabaseService.I.currentUser != null;
 
   Future<void>? _initFuture;
 
@@ -72,11 +78,32 @@ class AuthService {
   Future<void> _initImpl() async {
     lastError.value = '';
     try {
+      await SupabaseService.I.init();
       await _restore();
+      _restoreSupabaseSession();
+      _listenToSupabaseAuth();
       // Si no hay nada persistido, AuthGate crea una sesion local.
     } catch (e) {
       lastError.value = 'Auth init error: $e';
     }
+  }
+
+  void _restoreSupabaseSession() {
+    final remoteUser = SupabaseService.I.currentUser;
+    if (remoteUser == null) return;
+    user.value = _fromSupabaseUser(remoteUser);
+    unawaited(_persist());
+  }
+
+  void _listenToSupabaseAuth() {
+    final client = SupabaseService.I.client;
+    if (client == null || _remoteAuthSub != null) return;
+    _remoteAuthSub = client.auth.onAuthStateChange.listen((event) {
+      final remoteUser = event.session?.user;
+      if (remoteUser == null) return;
+      user.value = _fromSupabaseUser(remoteUser);
+      unawaited(_persist());
+    });
   }
 
   Future<void> _restore() async {
@@ -115,17 +142,55 @@ class AuthService {
     await _persist();
   }
 
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    lastError.value = '';
+    await SupabaseService.I.init();
+    final client = SupabaseService.I.client;
+    if (client == null) {
+      throw StateError('Supabase no esta configurado.');
+    }
+    final response = await client.auth.signInWithPassword(
+      email: email.trim(),
+      password: password,
+    );
+    final remoteUser = response.user ?? response.session?.user;
+    if (remoteUser == null) {
+      throw StateError('Supabase no devolvio usuario autenticado.');
+    }
+    user.value = _fromSupabaseUser(remoteUser);
+    await _persist();
+  }
+
   Future<void> signOut() async {
     lastError.value = '';
+    final client = SupabaseService.I.client;
+    if (client != null) {
+      await client.auth.signOut();
+    }
     user.value = null;
     await _persist();
   }
 
   Future<void> dispose() async {
+    await _remoteAuthSub?.cancel();
     if (!_userCtrl.isClosed) {
       await _userCtrl.close();
     }
     user.dispose();
     lastError.dispose();
+  }
+
+  AuthUser _fromSupabaseUser(User remoteUser) {
+    final metadata = remoteUser.userMetadata ?? const <String, dynamic>{};
+    final rawName = metadata['full_name'] ?? metadata['name'];
+    return AuthUser(
+      id: remoteUser.id,
+      email: remoteUser.email,
+      name: rawName?.toString(),
+      photoUrl: metadata['avatar_url']?.toString(),
+    );
   }
 }

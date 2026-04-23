@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'screens/corporate/corporate_screens.dart';
 import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
@@ -17,6 +18,7 @@ import 'screens/xlsx_demo_screen.dart';
 import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
+import 'services/supabase_service.dart';
 import 'services/engine_math_client.dart'; // si lo seguís usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
@@ -245,6 +247,14 @@ class _AppState extends State<App> {
     }
 
     try {
+      await SupabaseService.I.init().timeout(const Duration(seconds: 6));
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[boot] Supabase init failed: $e');
+      }
+    }
+
+    try {
       await AppErrorReporter.I.init().timeout(const Duration(seconds: 2));
     } catch (_) {}
     // EngineConfig en background: no bloquea primera pintura.
@@ -334,8 +344,8 @@ class _AppState extends State<App> {
 
         final status =
             snap.data ?? const _BootStatus(firebaseOk: false, storeOk: false);
-        final isPublicLanding = _isPublicLandingUri(Uri.base);
-        if (!status.storeOk && !isPublicLanding) {
+        final needsSheetStore = _needsSheetStore(Uri.base);
+        if (!status.storeOk && needsSheetStore) {
           return buildBoot(
             _storageBootSplash(status),
           );
@@ -378,10 +388,37 @@ class _AppState extends State<App> {
         ),
         GoRoute(
           path: '/app',
+          builder: (context, state) => _ProtectedRouteFrame(
+            child: WorkspaceListScreen(
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/workspaces/:workspaceId/projects',
+          builder: (context, state) => _ProtectedRouteFrame(
+            child: ProjectListScreen(
+              workspaceId: state.pathParameters['workspaceId'] ?? '',
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/projects/:projectId',
+          builder: (context, state) => _ProtectedRouteFrame(
+            child: ProjectDetailScreen(
+              projectId: state.pathParameters['projectId'] ?? '',
+              isLight: _isLight,
+              onToggleTheme: _toggleTheme,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/sheets',
           builder: (context, state) {
-            if (!status.storeOk) {
-              return _storageBootScreen(status);
-            }
+            if (!status.storeOk) return _storageBootScreen(status);
             return _AppHome(
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
@@ -454,11 +491,12 @@ class _AppState extends State<App> {
   }
 }
 
-bool _isPublicLandingUri(Uri uri) {
+bool _needsSheetStore(Uri uri) {
   final isRoot = uri.path.isEmpty || uri.path == '/';
   final hasDemoTemplate =
       resolveDemoTemplateFromSlug(uri.queryParameters['template']) != null;
-  return isRoot && !hasDemoTemplate;
+  if (isRoot && !hasDemoTemplate) return false;
+  return hasDemoTemplate || uri.path == '/sheets';
 }
 
 Widget buildRootPageForUri({
@@ -530,6 +568,19 @@ class _AppHome extends StatelessWidget {
     // Demo mode: do not surface Firebase/offline notices to managers.
     // The offline indicator in the editor header is the canonical signal.
     return body;
+  }
+}
+
+class _ProtectedRouteFrame extends StatelessWidget {
+  const _ProtectedRouteFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedVideoBackground(
+      child: AuthGate(child: child),
+    );
   }
 }
 

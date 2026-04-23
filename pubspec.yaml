@@ -1,4 +1,4 @@
-﻿name: bitacora_web
+name: bitacora_web
 description: "Bit Flow — Planillas dinámicas para ingenieros en campo. GPS, fotos, export Excel/PDF. Offline-first."
 publish_to: "none"
 version: 1.2.5+3
@@ -79,6 +79,7 @@ dependencies:
   cloud_firestore: ^6.1.0
   image_picker: ^1.2.1
   google_sign_in: ^7.2.0
+  supabase_flutter: ^2.12.4
 
 dev_dependencies:
   flutter_test:
