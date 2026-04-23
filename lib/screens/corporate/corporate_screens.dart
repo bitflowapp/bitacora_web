@@ -7,6 +7,7 @@ import '../../corporate/corporate_models.dart';
 import '../../corporate/corporate_repository.dart';
 import '../../corporate/corporate_repository_factory.dart';
 import '../../services/auth_service.dart';
+import '../../services/sheet_store.dart';
 import '../../services/supabase_service.dart';
 import '../../ui/ui.dart';
 
@@ -413,14 +414,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         AppButton(
                           label: 'Abrir planillas tecnicas',
                           icon: Icons.table_chart_rounded,
-                          onPressed: () => context.go('/sheets'),
-                        ),
-                        AppButton(
-                          label: 'Demo proteccion catodica',
-                          icon: Icons.bolt_rounded,
-                          variant: AppButtonVariant.secondary,
                           onPressed: () =>
-                              context.go('/?template=proteccion-catodica'),
+                              context.go('/projects/${project.id}/sheets'),
                         ),
                       ],
                     ),
@@ -433,6 +428,440 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class ProjectSheetsScreen extends StatefulWidget {
+  const ProjectSheetsScreen({
+    super.key,
+    required this.projectId,
+    required this.isLight,
+    required this.onToggleTheme,
+  });
+
+  final String projectId;
+  final bool isLight;
+  final VoidCallback onToggleTheme;
+
+  @override
+  State<ProjectSheetsScreen> createState() => _ProjectSheetsScreenState();
+}
+
+class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
+  late CorporateRepository _repository;
+  late Future<_ProjectSheetsData> _future;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  @override
+  void didUpdateWidget(ProjectSheetsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.projectId != widget.projectId) {
+      _reload();
+    }
+  }
+
+  void _reload() {
+    _repository = createCorporateRepository();
+    _future = _load();
+  }
+
+  Future<_ProjectSheetsData> _load() async {
+    final results = await Future.wait<Object?>([
+      _repository.getProjectDetail(widget.projectId),
+      _repository.listProjectSheetIds(widget.projectId),
+    ]);
+    return _ProjectSheetsData(
+      detail: results[0] as ProjectDetail?,
+      sheetIds: (results[1] as List<String>? ?? const <String>[]),
+    );
+  }
+
+  bool _canManage(ProjectDetail detail) {
+    final userId = AuthService.I.currentUser?.id;
+    if (userId == null || userId.trim().isEmpty) return false;
+    return detail.members.any((member) {
+      if (member.userId != userId) return false;
+      return member.role == CorporateRole.coordinador ||
+          member.role == CorporateRole.admin;
+    });
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  String _sheetRoute(String sheetId) {
+    return Uri(
+      path: '/sheets',
+      queryParameters: <String, String>{'sheetId': sheetId},
+    ).toString();
+  }
+
+  Future<void> _createAndLink(ProjectDetail detail) async {
+    if (_busy) return;
+    if (!_canManage(detail)) {
+      _showMessage('Solo coordinadores o admins pueden vincular planillas.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final sheetId = SheetStore.createNew();
+      await _repository.linkSheetToProject(detail.project.id, sheetId);
+      if (!mounted) return;
+      context.go(_sheetRoute(sheetId));
+    } catch (e) {
+      _showMessage('No se pudo crear y vincular la planilla: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _linkExisting(
+    ProjectDetail detail,
+    List<String> linkedSheetIds,
+  ) async {
+    if (_busy) return;
+    if (!_canManage(detail)) {
+      _showMessage('Solo coordinadores o admins pueden vincular planillas.');
+      return;
+    }
+
+    final linked = linkedSheetIds.toSet();
+    final sheets = SheetStore.list()
+        .where((sheet) => !linked.contains(sheet.id))
+        .toList(growable: false);
+    if (sheets.isEmpty) {
+      _showMessage('No hay planillas locales disponibles para vincular.');
+      return;
+    }
+
+    final selected = await showDialog<SheetMeta>(
+      context: context,
+      builder: (context) => _ExistingSheetDialog(sheets: sheets),
+    );
+    if (selected == null || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await _repository.linkSheetToProject(detail.project.id, selected.id);
+      if (!mounted) return;
+      setState(_reload);
+      _showMessage('Planilla vinculada al proyecto.');
+    } catch (e) {
+      _showMessage('No se pudo vincular la planilla: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _unlink(
+    ProjectDetail detail,
+    String sheetId,
+  ) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await _repository.unlinkSheetFromProject(detail.project.id, sheetId);
+      if (!mounted) return;
+      setState(_reload);
+      _showMessage('Planilla desvinculada.');
+    } catch (e) {
+      _showMessage('No se pudo desvincular la planilla: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_ProjectSheetsData>(
+      future: _future,
+      builder: (context, snapshot) {
+        final detail = snapshot.data?.detail;
+        final canManage = detail != null && _canManage(detail);
+        return _CorporateShell(
+          isLight: widget.isLight,
+          onToggleTheme: widget.onToggleTheme,
+          title: 'Planillas del proyecto',
+          subtitle: detail?.project.name ??
+              'Planillas locales vinculadas a un proyecto corporativo.',
+          backendLabel: _repository.backendLabel,
+          usesRemoteBackend: _repository.usesRemoteBackend,
+          actions: [
+            AppButton(
+              label: 'Proyecto',
+              icon: Icons.folder_rounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => context.go('/projects/${widget.projectId}'),
+            ),
+            AppButton(
+              label: 'Nueva planilla',
+              icon: Icons.add_rounded,
+              loading: _busy,
+              onPressed: detail == null
+                  ? null
+                  : () => unawaited(_createAndLink(detail)),
+            ),
+          ],
+          child: _buildBody(context, snapshot, canManage),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    AsyncSnapshot<_ProjectSheetsData> snapshot,
+    bool canManage,
+  ) {
+    final t = context.tokens;
+    if (snapshot.connectionState != ConnectionState.done) {
+      return const _CorporateLoading();
+    }
+    if (snapshot.hasError) {
+      return _CorporateError(
+        message: 'No se pudieron cargar las planillas del proyecto.',
+        detail: '${snapshot.error}',
+        onRetry: () => setState(_reload),
+      );
+    }
+
+    final data = snapshot.data;
+    final detail = data?.detail;
+    if (data == null || detail == null) {
+      return _CorporateEmpty(
+        icon: Icons.folder_off_rounded,
+        title: 'Proyecto no disponible',
+        message: 'La sesion actual no tiene acceso a este proyecto.',
+        action: AppButton(
+          label: 'Volver a empresa',
+          icon: Icons.arrow_back_rounded,
+          onPressed: () => context.go('/app'),
+        ),
+      );
+    }
+
+    final project = detail.project;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppCard(
+          padding: EdgeInsets.all(t.spacing.xl),
+          radius: t.radii.xl,
+          color: t.colors.surfaceElevated,
+          child: Row(
+            children: [
+              _IconTile(icon: Icons.folder_rounded),
+              SizedBox(width: t.spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: t.spacing.sm,
+                      runSpacing: t.spacing.xs,
+                      children: [
+                        _StatusChip(label: project.status),
+                        if ((project.code ?? '').isNotEmpty)
+                          _StatusChip(label: project.code!),
+                      ],
+                    ),
+                    SizedBox(height: t.spacing.sm),
+                    Text(
+                      project.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.text.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: t.spacing.lg),
+        if (data.sheetIds.isEmpty)
+          _CorporateEmpty(
+            icon: Icons.table_chart_rounded,
+            title: 'No hay planillas vinculadas a este proyecto.',
+            message:
+                'Crea una planilla nueva o vincula una existente para trabajar con contexto de proyecto.',
+            action: AppButton(
+              label: 'Vincular planilla existente',
+              icon: Icons.link_rounded,
+              variant: AppButtonVariant.secondary,
+              loading: _busy,
+              onPressed: () => unawaited(_linkExisting(detail, data.sheetIds)),
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (final sheetId in data.sheetIds) ...[
+                _ProjectSheetCard(
+                  sheetId: sheetId,
+                  canManage: canManage,
+                  onOpen: () => context.go(_sheetRoute(sheetId)),
+                  onUnlink: () => unawaited(_unlink(detail, sheetId)),
+                ),
+                SizedBox(height: t.spacing.md),
+              ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AppButton(
+                  label: 'Vincular planilla existente',
+                  icon: Icons.link_rounded,
+                  variant: AppButtonVariant.secondary,
+                  loading: _busy,
+                  onPressed: () =>
+                      unawaited(_linkExisting(detail, data.sheetIds)),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _ProjectSheetCard extends StatelessWidget {
+  const _ProjectSheetCard({
+    required this.sheetId,
+    required this.canManage,
+    required this.onOpen,
+    required this.onUnlink,
+  });
+
+  final String sheetId;
+  final bool canManage;
+  final VoidCallback onOpen;
+  final VoidCallback onUnlink;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return AppCard(
+      color: t.colors.surfaceElevated,
+      radius: t.radii.xl,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final title = Row(
+            children: [
+              _IconTile(icon: Icons.table_chart_rounded),
+              SizedBox(width: t.spacing.md),
+              Expanded(
+                child: Text(
+                  sheetId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: t.spacing.sm,
+            runSpacing: t.spacing.sm,
+            children: [
+              AppButton(
+                label: 'Abrir',
+                icon: Icons.open_in_new_rounded,
+                size: AppButtonSize.sm,
+                onPressed: onOpen,
+              ),
+              if (canManage)
+                AppButton(
+                  label: 'Desvincular',
+                  icon: Icons.link_off_rounded,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.ghost,
+                  onPressed: onUnlink,
+                ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                SizedBox(height: t.spacing.md),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: title),
+              SizedBox(width: t.spacing.md),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ExistingSheetDialog extends StatelessWidget {
+  const _ExistingSheetDialog({required this.sheets});
+
+  final List<SheetMeta> sheets;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return AlertDialog(
+      backgroundColor: t.colors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(t.radii.xl),
+      ),
+      title: const Text('Vincular planilla existente'),
+      content: SizedBox(
+        width: 460,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemBuilder: (context, index) {
+              final sheet = sheets[index];
+              final title = sheet.title.trim().isEmpty ? sheet.id : sheet.title;
+              return ListTile(
+                leading: const Icon(Icons.table_chart_rounded),
+                title: Text(title),
+                subtitle: Text(sheet.id),
+                onTap: () => Navigator.of(context).pop(sheet),
+              );
+            },
+            separatorBuilder: (_, __) => Divider(color: t.colors.border),
+            itemCount: sheets.length,
+          ),
+        ),
+      ),
+      actions: [
+        AppButton(
+          label: 'Cancelar',
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
   }
 }
@@ -1095,24 +1524,72 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final status = _resolveStatus(t, label);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: t.spacing.md,
         vertical: t.spacing.xs,
       ),
       decoration: BoxDecoration(
-        color: t.colors.statusBg,
+        color: status.background,
         borderRadius: BorderRadius.circular(t.radii.pill),
       ),
       child: Text(
-        label,
+        status.label,
         style: t.text.bodySmall?.copyWith(
-          color: t.colors.statusFg,
+          color: status.foreground,
           fontWeight: FontWeight.w800,
         ),
       ),
     );
   }
+
+  _ResolvedStatus _resolveStatus(AppTokens t, String rawLabel) {
+    switch (rawLabel.trim().toLowerCase()) {
+      case 'active':
+        return _ResolvedStatus(
+          label: 'Activo',
+          background: t.colors.successBg,
+          foreground: t.colors.successFg,
+        );
+      case 'planning':
+        return _ResolvedStatus(
+          label: 'Planificación',
+          background: t.colors.accentMuted,
+          foreground: t.colors.accent,
+        );
+      case 'paused':
+        return _ResolvedStatus(
+          label: 'Pausado',
+          background: t.colors.warningBg,
+          foreground: t.colors.warningFg,
+        );
+      case 'closed':
+        return _ResolvedStatus(
+          label: 'Cerrado',
+          background: t.colors.surfaceMuted,
+          foreground: t.colors.textSecondary,
+        );
+      default:
+        return _ResolvedStatus(
+          label: rawLabel,
+          background: t.colors.statusBg,
+          foreground: t.colors.statusFg,
+        );
+    }
+  }
+}
+
+class _ResolvedStatus {
+  const _ResolvedStatus({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
 }
 
 class _CorporateLoading extends StatelessWidget {
@@ -1244,4 +1721,14 @@ class _ProjectListData {
 
   final Workspace? workspace;
   final List<Project> projects;
+}
+
+class _ProjectSheetsData {
+  const _ProjectSheetsData({
+    required this.detail,
+    required this.sheetIds,
+  });
+
+  final ProjectDetail? detail;
+  final List<String> sheetIds;
 }

@@ -416,6 +416,19 @@ class _AppState extends State<App> {
           ),
         ),
         GoRoute(
+          path: '/projects/:projectId/sheets',
+          builder: (context, state) {
+            if (!status.storeOk) return _storageBootScreen(status);
+            return _ProtectedRouteFrame(
+              child: ProjectSheetsScreen(
+                projectId: state.pathParameters['projectId'] ?? '',
+                isLight: _isLight,
+                onToggleTheme: _toggleTheme,
+              ),
+            );
+          },
+        ),
+        GoRoute(
           path: '/sheets',
           builder: (context, state) {
             if (!status.storeOk) return _storageBootScreen(status);
@@ -423,6 +436,7 @@ class _AppState extends State<App> {
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
               firebaseOk: status.firebaseOk,
+              initialSheetId: state.uri.queryParameters['sheetId'],
             );
           },
         ),
@@ -496,7 +510,9 @@ bool _needsSheetStore(Uri uri) {
   final hasDemoTemplate =
       resolveDemoTemplateFromSlug(uri.queryParameters['template']) != null;
   if (isRoot && !hasDemoTemplate) return false;
-  return hasDemoTemplate || uri.path == '/sheets';
+  return hasDemoTemplate ||
+      uri.path == '/sheets' ||
+      (uri.path.startsWith('/projects/') && uri.path.endsWith('/sheets'));
 }
 
 Widget buildRootPageForUri({
@@ -526,16 +542,28 @@ class _AppHome extends StatelessWidget {
     required this.onToggleTheme,
     required this.firebaseOk,
     this.initialTemplate,
+    this.initialSheetId,
   });
 
   final bool isLight;
   final VoidCallback onToggleTheme;
   final bool firebaseOk;
   final DemoTemplateSpec? initialTemplate;
+  final String? initialSheetId;
 
   @override
   Widget build(BuildContext context) {
     final home = () {
+      final sheetId = initialSheetId?.trim() ?? '';
+      if (sheetId.isNotEmpty) {
+        return AuthGate(
+          child: EditorScreen(
+            isLight: isLight,
+            onToggleTheme: onToggleTheme,
+            sheetId: sheetId,
+          ),
+        );
+      }
       if (initialTemplate != null) {
         final template = initialTemplate!;
         return AuthGate(

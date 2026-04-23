@@ -101,4 +101,25 @@ class LocalCorporateRepository implements CorporateRepository {
           .toList(growable: false),
     );
   }
+
+  @override
+  Future<List<String>> listProjectSheetIds(String projectId) async {
+    if (projectId == 'local_project_pc_gasoducto') {
+      return const <String>['local_sheet_default'];
+    }
+    return const <String>[];
+  }
+
+  @override
+  Future<void> linkSheetToProject(String projectId, String sheetLocalId) async {
+    return;
+  }
+
+  @override
+  Future<void> unlinkSheetFromProject(
+    String projectId,
+    String sheetLocalId,
+  ) async {
+    return;
+  }
 }

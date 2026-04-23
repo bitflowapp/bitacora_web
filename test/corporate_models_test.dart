@@ -24,4 +24,23 @@ void main() {
       contains('Proteccion catodica'),
     );
   });
+
+  test('local repository exposes linked sheet ids for PC project', () async {
+    const repository = LocalCorporateRepository();
+
+    final sheetIds =
+        await repository.listProjectSheetIds('local_project_pc_gasoducto');
+
+    expect(sheetIds, isNotEmpty);
+    expect(sheetIds, contains('local_sheet_default'));
+  });
+
+  test('local repository linkSheetToProject is a safe no-op', () async {
+    const repository = LocalCorporateRepository();
+
+    await expectLater(
+      repository.linkSheetToProject('local_project_pc_gasoducto', 'sheet-1'),
+      completes,
+    );
+  });
 }
