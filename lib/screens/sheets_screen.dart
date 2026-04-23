@@ -145,7 +145,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
     list.sort(
-        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // más reciente arriba
+      (a, b) => b.updatedAt.compareTo(a.updatedAt),
+    ); // más reciente arriba
     setState(() {
       _items = list;
       _loading = false;
@@ -229,44 +230,60 @@ class _SheetsScreenState extends State<SheetsScreen> {
   }
 
   Future<void> _openStaticPage(Widget page) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   Future<void> _openInfoMenu() async {
+    final t = context.tokens;
     final action = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(
+        alpha: t.colors.isLight ? 0.16 : 0.42,
+      ),
       useSafeArea: true,
       builder: (ctx) {
-        return SafeArea(
+        return _OverlaySheetFrame(
+          title: 'BitFlow',
+          subtitle: 'Informacion, soporte y detalles legales',
+          maxHeightFactor: 0.64,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.info_outline_rounded),
-                title: const Text('Acerca de'),
+              _OverlayActionTile(
+                icon: Icons.info_outline_rounded,
+                label: 'Acerca de',
+                subtitle: 'Producto, version y enfoque general',
                 onTap: () => Navigator.of(ctx).pop('about'),
               ),
-              ListTile(
-                leading: const Icon(Icons.privacy_tip_outlined),
-                title: const Text('Privacidad'),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.privacy_tip_outlined,
+                label: 'Privacidad',
+                subtitle: 'Uso de datos y resguardos',
                 onTap: () => Navigator.of(ctx).pop('privacy'),
               ),
-              ListTile(
-                leading: const Icon(Icons.gavel_rounded),
-                title: const Text('Terminos'),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.gavel_rounded,
+                label: 'Terminos',
+                subtitle: 'Condiciones y alcance del servicio',
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
-              ListTile(
-                leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('Diagnóstico / Soporte'),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.support_agent_rounded,
+                label: 'Diagnóstico / Soporte',
+                subtitle: 'Estado, logs y ayuda operativa',
                 onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
-              ListTile(
-                leading: const Icon(Icons.article_outlined),
-                title: const Text('Licencias'),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.article_outlined,
+                label: 'Licencias',
+                subtitle: 'Paquetes y atribuciones',
                 onTap: () => Navigator.of(ctx).pop('licenses'),
               ),
             ],
@@ -321,108 +338,61 @@ class _SheetsScreenState extends State<SheetsScreen> {
   }
 
   Future<void> _pickTemplate() async {
+    final t = context.tokens;
     final kind = await showModalBottomSheet<TemplateKind>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(
+        alpha: t.colors.isLight ? 0.16 : 0.42,
+      ),
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (ctx) {
-        final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withValues(alpha: 0.65);
-        final cardBg = theme.cardColor;
-
-        Widget tile({
-          required IconData icon,
-          required String title,
-          required String subtitle,
-          required TemplateKind value,
-        }) {
-          return InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.of(ctx).pop(value),
-            child: Ink(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: divider, width: 0.8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        return _OverlaySheetFrame(
+          title: 'Galeria de templates',
+          subtitle: 'Base, relevamientos y checklists listos para usar',
+          maxHeightFactor: 0.78,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount =
+                  MediaQuery.sizeOf(context).width >= 760 ? 2 : 1;
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: t.spacing.sm,
+                mainAxisSpacing: t.spacing.sm,
+                childAspectRatio: crossAxisCount == 2 ? 1.18 : 1.45,
                 children: [
-                  _PillIcon(icon: icon),
-                  const SizedBox(height: 10),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  _TemplateTile(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Plantilla base',
+                    subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                    onTap: () => Navigator.of(ctx).pop(TemplateKind.plantilla),
                   ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: Text(
-                      subtitle,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  _TemplateTile(
+                    icon: Icons.table_rows_rounded,
+                    title: 'Relevamiento resistividades',
+                    subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                    onTap: () =>
+                        Navigator.of(ctx).pop(TemplateKind.resistividades),
+                  ),
+                  _TemplateTile(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Inventario simple',
+                    subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                    onTap: () => Navigator.of(ctx).pop(TemplateKind.inventario),
+                  ),
+                  _TemplateTile(
+                    icon: Icons.check_circle_outline_rounded,
+                    title: 'Checklist diario',
+                    subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
+                    onTap: () => Navigator.of(ctx).pop(TemplateKind.checklist),
                   ),
                 ],
-              ),
-            ),
-          );
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Row(
-                children: [
-                  Text(
-                    'Galeria de templates',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.18,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-              children: [
-                tile(
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'Plantilla base',
-                  subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
-                  value: TemplateKind.plantilla,
-                ),
-                tile(
-                  icon: Icons.table_rows,
-                  title: 'Relevamiento resistividades',
-                  subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
-                  value: TemplateKind.resistividades,
-                ),
-                tile(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Inventario simple',
-                  subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
-                  value: TemplateKind.inventario,
-                ),
-                tile(
-                  icon: Icons.check_circle_outline,
-                  title: 'Checklist diario',
-                  subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
-                  value: TemplateKind.checklist,
-                ),
-              ],
-            ),
-          ],
+              );
+            },
+          ),
         );
       },
     );
@@ -514,60 +484,56 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   Future<void> _showSheetActions(SheetMeta it) async {
     final pinned = _pinnedIds.contains(it.id);
+    final t = context.tokens;
     final action = await showModalBottomSheet<_SheetAction>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(
+        alpha: t.colors.isLight ? 0.16 : 0.42,
+      ),
       useSafeArea: true,
       builder: (ctx) {
-        final theme = Theme.of(ctx);
-        final divider = theme.dividerColor.withValues(alpha: 0.55);
         final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
-
-        Widget actionTile({
-          required IconData icon,
-          required String label,
-          required _SheetAction value,
-          Color? iconColor,
-        }) {
-          return ListTile(
-            leading: _PillIcon(icon: icon, color: iconColor),
-            title: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            onTap: () => Navigator.of(ctx).pop(value),
-          );
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 4),
-            actionTile(
-              icon: Icons.open_in_new,
-              label: AppStrings.open,
-              value: _SheetAction.open,
-            ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            actionTile(
-              icon: pinned ? Icons.star_rounded : Icons.star_outline_rounded,
-              label: pinned ? 'Desfijar' : 'Fijar',
-              value: _SheetAction.pinToggle,
-            ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            actionTile(
-              icon: Icons.edit_outlined,
-              label: AppStrings.rename,
-              value: _SheetAction.rename,
-            ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            actionTile(
-              icon: Icons.delete_outline,
-              label: AppStrings.delete,
-              value: _SheetAction.delete,
-              iconColor: theme.colorScheme.error,
-            ),
-            const SizedBox(height: 10),
-          ],
+        return _OverlaySheetFrame(
+          title: title,
+          subtitle: 'Acciones rapidas para esta planilla',
+          maxHeightFactor: 0.58,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _OverlayActionTile(
+                icon: Icons.open_in_new_rounded,
+                label: AppStrings.open,
+                subtitle: 'Entrar al editor y continuar',
+                onTap: () => Navigator.of(ctx).pop(_SheetAction.open),
+              ),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                label: pinned ? 'Desfijar' : 'Fijar',
+                subtitle: pinned
+                    ? 'Quitar acceso rapido de la lista fijada'
+                    : 'Mantener visible arriba de la lista',
+                tone: _OverlayTone.accent,
+                onTap: () => Navigator.of(ctx).pop(_SheetAction.pinToggle),
+              ),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.edit_outlined,
+                label: AppStrings.rename,
+                subtitle: 'Actualizar el nombre visible',
+                onTap: () => Navigator.of(ctx).pop(_SheetAction.rename),
+              ),
+              SizedBox(height: t.spacing.sm),
+              _OverlayActionTile(
+                icon: Icons.delete_outline_rounded,
+                label: AppStrings.delete,
+                subtitle: 'Eliminar esta planilla local',
+                tone: _OverlayTone.danger,
+                onTap: () => Navigator.of(ctx).pop(_SheetAction.delete),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -578,6 +544,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   Future<void> _showContextMenu(SheetMeta it, Offset globalPos) async {
     final pinned = _pinnedIds.contains(it.id);
+    final t = context.tokens;
 
     final overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
@@ -591,18 +558,43 @@ class _SheetsScreenState extends State<SheetsScreen> {
     final action = await showMenu<_SheetAction>(
       context: context,
       position: rect,
+      color: t.colors.surfaceElevated,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(t.radii.md),
+        side: BorderSide(color: t.colors.border),
+      ),
       items: [
         const PopupMenuItem(
-            value: _SheetAction.open, child: Text(AppStrings.open)),
+          value: _SheetAction.open,
+          child: _PopupMenuRow(
+            icon: Icons.open_in_new_rounded,
+            label: AppStrings.open,
+          ),
+        ),
         PopupMenuItem(
           value: _SheetAction.pinToggle,
-          child: Text(pinned ? 'Desfijar' : 'Fijar'),
+          child: _PopupMenuRow(
+            icon: pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+            label: pinned ? 'Desfijar' : 'Fijar',
+          ),
         ),
         const PopupMenuItem(
-            value: _SheetAction.rename, child: Text(AppStrings.rename)),
+          value: _SheetAction.rename,
+          child: _PopupMenuRow(
+            icon: Icons.edit_outlined,
+            label: AppStrings.rename,
+          ),
+        ),
         const PopupMenuDivider(),
         const PopupMenuItem(
-            value: _SheetAction.delete, child: Text(AppStrings.delete)),
+          value: _SheetAction.delete,
+          child: _PopupMenuRow(
+            icon: Icons.delete_outline_rounded,
+            label: AppStrings.delete,
+            tone: _OverlayTone.danger,
+          ),
+        ),
       ],
     );
 
@@ -662,14 +654,16 @@ class _SheetsScreenState extends State<SheetsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = context.tokens;
 
     if (_loading) {
       return Scaffold(
+        backgroundColor: t.colors.bg,
         body: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 420),
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: t.spacing.xl),
               child: const LoadingState(message: 'Cargando planillas...'),
             ),
           ),
@@ -725,27 +719,40 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     final appearanceKey = Object.hash(
       theme.brightness,
-      theme.scaffoldBackgroundColor.toARGB32(),
-      theme.dividerColor.toARGB32(),
-      theme.colorScheme.surfaceContainerHighest.toARGB32(),
+      t.colors.bg.toARGB32(),
+      t.colors.surface.toARGB32(),
+      t.colors.border.toARGB32(),
+      t.colors.accent.toARGB32(),
     );
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
-      final t = Theme.of(context);
-      final text = count == null ? label : '$label · $count';
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: _kMaxWidth),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-              child: Text(
-                text,
-                style: t.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.2,
-                  color: t.colorScheme.onSurface.withValues(alpha: 0.70),
-                ),
+              padding: EdgeInsets.fromLTRB(
+                t.spacing.lg,
+                t.spacing.lg,
+                t.spacing.lg,
+                t.spacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    label,
+                    style: t.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: t.colors.textPrimary,
+                    ),
+                  ),
+                  if (count != null) ...[
+                    SizedBox(width: t.spacing.sm),
+                    _CountBadge(count: count),
+                  ],
+                  SizedBox(width: t.spacing.md),
+                  Expanded(child: Container(height: 1, color: t.colors.border)),
+                ],
               ),
             ),
           ),
@@ -757,32 +764,45 @@ class _SheetsScreenState extends State<SheetsScreen> {
       shortcuts: shortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
-          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(onInvoke: (_) {
-            _focusSearch();
-            return null;
-          }),
-          _NewSheetIntent: CallbackAction<_NewSheetIntent>(onInvoke: (_) {
-            _newBlank();
-            return null;
-          }),
-          _TemplatesIntent: CallbackAction<_TemplatesIntent>(onInvoke: (_) {
-            _pickTemplate();
-            return null;
-          }),
-          _OpenLastIntent: CallbackAction<_OpenLastIntent>(onInvoke: (_) {
-            if (canOpenLast) _openLastSheet();
-            return null;
-          }),
-          _ClearSearchIntent: CallbackAction<_ClearSearchIntent>(onInvoke: (_) {
-            _clearSearch();
-            FocusManager.instance.primaryFocus?.unfocus();
-            return null;
-          }),
+          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+            onInvoke: (_) {
+              _focusSearch();
+              return null;
+            },
+          ),
+          _NewSheetIntent: CallbackAction<_NewSheetIntent>(
+            onInvoke: (_) {
+              _newBlank();
+              return null;
+            },
+          ),
+          _TemplatesIntent: CallbackAction<_TemplatesIntent>(
+            onInvoke: (_) {
+              _pickTemplate();
+              return null;
+            },
+          ),
+          _OpenLastIntent: CallbackAction<_OpenLastIntent>(
+            onInvoke: (_) {
+              if (canOpenLast) _openLastSheet();
+              return null;
+            },
+          ),
+          _ClearSearchIntent: CallbackAction<_ClearSearchIntent>(
+            onInvoke: (_) {
+              _clearSearch();
+              FocusManager.instance.primaryFocus?.unfocus();
+              return null;
+            },
+          ),
         },
         child: Focus(
           autofocus: true,
           child: Scaffold(
+            backgroundColor: t.colors.bg,
             body: RefreshIndicator(
+              color: t.colors.accent,
+              backgroundColor: t.colors.surfaceElevated,
               onRefresh: _handleRefresh,
               child: CustomScrollView(
                 keyboardDismissBehavior:
@@ -802,7 +822,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _SearchHeaderDelegate(
-                      height: 126,
+                      height: 160,
                       controller: _searchEC,
                       focusNode: _searchFN,
                       onNew: _newBlank,
@@ -823,10 +843,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   else if (noResults)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _NoResults(
-                        query: _query,
-                        onClear: _clearSearch,
-                      ),
+                      child: _NoResults(query: _query, onClear: _clearSearch),
                     )
                   else ...[
                     if (pinned.isNotEmpty) ...[
@@ -844,8 +861,9 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     ],
                     if (others.isNotEmpty) ...[
                       sectionHeader(
-                          pinned.isNotEmpty ? 'Recientes' : 'Planillas',
-                          count: others.length),
+                        pinned.isNotEmpty ? 'Recientes' : 'Planillas',
+                        count: others.length,
+                      ),
                       _SheetsSliverList(
                         items: others,
                         formatUpdatedAt: _formatUpdatedAt,
@@ -894,37 +912,39 @@ class _SheetsSliverList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
 
     return SliverPadding(
-      padding: EdgeInsets.fromLTRB(12, 6, 12, bottomPadding),
+      padding: EdgeInsets.fromLTRB(
+        t.spacing.md,
+        t.spacing.xs,
+        t.spacing.md,
+        bottomPadding,
+      ),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (ctx, i) {
-            final it = items[i];
-            final updated = formatUpdatedAt(it.updatedAt);
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 940),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _SheetCard(
-                    meta: it,
-                    updatedLabel: updated,
-                    accent: theme.colorScheme.primary,
-                    pinned: isPinned(it.id),
-                    onTogglePinned: () => onTogglePinned(it.id),
-                    onOpen: () => onOpen(it.id),
-                    onActions: () => onActions(it),
-                    onContextMenu: (pos) => onContextMenu(it, pos),
-                    hapticSelect: hapticSelect,
-                  ),
+        delegate: SliverChildBuilderDelegate((ctx, i) {
+          final it = items[i];
+          final updated = formatUpdatedAt(it.updatedAt);
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 940),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: t.spacing.sm),
+                child: _SheetCard(
+                  meta: it,
+                  updatedLabel: updated,
+                  accent: t.colors.accent,
+                  pinned: isPinned(it.id),
+                  onTogglePinned: () => onTogglePinned(it.id),
+                  onOpen: () => onOpen(it.id),
+                  onActions: () => onActions(it),
+                  onContextMenu: (pos) => onContextMenu(it, pos),
+                  hapticSelect: hapticSelect,
                 ),
               ),
-            );
-          },
-          childCount: items.length,
-        ),
+            ),
+          );
+        }, childCount: items.length),
       ),
     );
   }
@@ -953,12 +973,18 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return SliverToBoxAdapter(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 940),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            padding: EdgeInsets.fromLTRB(
+              t.spacing.lg,
+              t.spacing.lg,
+              t.spacing.lg,
+              t.spacing.sm,
+            ),
             child: AppTopBar(
               title: title,
               subtitle: subtitle,
@@ -966,7 +992,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                 AppButton(
                   label: AppStrings.newSheet,
                   icon: Icons.add,
-                  variant: AppButtonVariant.secondary,
+                  variant: AppButtonVariant.primary,
                   size: AppButtonSize.sm,
                   onPressed: () {
                     hapticSelect();
@@ -984,7 +1010,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'Día',
+                  label: isLight ? 'Noche' : 'Dia',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,
@@ -1043,74 +1069,102 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final theme = Theme.of(context);
-    final bg = theme.scaffoldBackgroundColor.withValues(alpha: 0.92);
-    final divider = theme.dividerColor.withValues(alpha: 0.55);
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final t = context.tokens;
+    final bg = t.colors.bg.withValues(alpha: 0.94);
+    final divider = t.colors.border.withValues(alpha: 0.9);
     final canOpenLast = onOpenLast != null;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bg,
-        border: Border(bottom: BorderSide(color: divider, width: 0.8)),
+        border: Border(bottom: BorderSide(color: divider, width: 1)),
       ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 940),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Column(
-              children: [
-                _SearchBar(
-                  controller: controller,
-                  focusNode: focusNode,
-                  hint: AppStrings.sheetsSearchHint,
-                  onClearHaptic: hapticSelect,
+            padding: EdgeInsets.fromLTRB(
+              t.spacing.md,
+              t.spacing.sm,
+              t.spacing.md,
+              t.spacing.md,
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: t.colors.surface,
+                borderRadius: BorderRadius.circular(t.radii.xl),
+                border: Border.all(
+                  color:
+                      overlapsContent ? t.colors.borderStrong : t.colors.border,
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 44,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        Semantics(
-                          button: true,
-                          label: AppStrings.semAddSheet,
-                          child: FilledButton.icon(
-                            onPressed: onNew,
-                            icon: const Icon(Icons.add),
-                            label: const Text(AppStrings.newSheet),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Semantics(
-                          button: true,
-                          label: AppStrings.semTemplates,
-                          child: OutlinedButton.icon(
-                            onPressed: onTemplates,
-                            icon: const Icon(Icons.view_quilt_outlined),
-                            label: const Text(AppStrings.templates),
-                          ),
-                        ),
-                        if (canOpenLast) ...[
-                          const SizedBox(width: 10),
-                          Semantics(
-                            button: true,
-                            label: AppStrings.semOpenLastSheet,
-                            child: OutlinedButton.icon(
-                              onPressed: onOpenLast,
-                              icon: const Icon(Icons.history_toggle_off),
-                              label: const Text(AppStrings.openLast),
-                            ),
-                          ),
-                        ],
-                      ],
+                boxShadow: t.shadows.soft,
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(t.spacing.md),
+                child: Column(
+                  children: [
+                    _SearchBar(
+                      controller: controller,
+                      focusNode: focusNode,
+                      hint: AppStrings.sheetsSearchHint,
+                      onClearHaptic: hapticSelect,
                     ),
-                  ),
+                    SizedBox(height: t.spacing.sm),
+                    SizedBox(
+                      height: 36,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            Semantics(
+                              button: true,
+                              label: AppStrings.semAddSheet,
+                              child: AppButton(
+                                label: AppStrings.newSheet,
+                                icon: Icons.add,
+                                variant: AppButtonVariant.primary,
+                                size: AppButtonSize.sm,
+                                onPressed: onNew,
+                              ),
+                            ),
+                            SizedBox(width: t.spacing.sm),
+                            Semantics(
+                              button: true,
+                              label: AppStrings.semTemplates,
+                              child: AppButton(
+                                label: AppStrings.templates,
+                                icon: Icons.view_quilt_outlined,
+                                variant: AppButtonVariant.secondary,
+                                size: AppButtonSize.sm,
+                                onPressed: onTemplates,
+                              ),
+                            ),
+                            if (canOpenLast) ...[
+                              SizedBox(width: t.spacing.sm),
+                              Semantics(
+                                button: true,
+                                label: AppStrings.semOpenLastSheet,
+                                child: AppButton(
+                                  label: AppStrings.openLast,
+                                  icon: Icons.history_toggle_off,
+                                  variant: AppButtonVariant.ghost,
+                                  size: AppButtonSize.sm,
+                                  onPressed: onOpenLast,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1128,7 +1182,7 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _SearchBar extends StatelessWidget {
+class _SearchBar extends StatefulWidget {
   const _SearchBar({
     required this.controller,
     required this.focusNode,
@@ -1142,35 +1196,105 @@ class _SearchBar extends StatelessWidget {
   final VoidCallback onClearHaptic;
 
   @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focused = widget.focusNode.hasFocus;
+    widget.focusNode.addListener(_handleFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode == widget.focusNode) return;
+    oldWidget.focusNode.removeListener(_handleFocusChanged);
+    _focused = widget.focusNode.hasFocus;
+    widget.focusNode.addListener(_handleFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_handleFocusChanged);
+    super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    if (_focused == widget.focusNode.hasFocus) return;
+    setState(() => _focused = widget.focusNode.hasFocus);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
 
     return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
+      valueListenable: widget.controller,
       builder: (context, value, _) {
+        final highlighted = _focused || value.text.isNotEmpty;
         return Semantics(
           textField: true,
           label: 'Buscar planillas',
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: hint,
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: value.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: AppStrings.clearSearch,
-                      onPressed: () {
-                        controller.clear();
-                        onClearHaptic();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: _focused ? t.colors.surface : t.colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(t.radii.lg),
+              border: Border.all(
+                color: _focused ? t.colors.accent : t.colors.border,
+                width: _focused ? 1.2 : 1,
+              ),
+              boxShadow: _focused ? t.shadows.soft : const <BoxShadow>[],
             ),
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            child: TextField(
+              controller: widget.controller,
+              focusNode: widget.focusNode,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: t.spacing.md),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: highlighted ? t.colors.accent : t.colors.textSecondary,
+                  size: 20,
+                ),
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                suffixIcon: value.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: AppStrings.clearSearch,
+                        onPressed: () {
+                          widget.controller.clear();
+                          widget.onClearHaptic();
+                        },
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: t.colors.textSecondary,
+                          size: 18,
+                        ),
+                      ),
+              ),
+              style: context.appText.bodyStrong.copyWith(
+                color: t.colors.textPrimary,
+              ),
+            ),
           ),
         );
       },
@@ -1207,164 +1331,195 @@ class _SheetCard extends StatefulWidget {
 
 class _SheetCardState extends State<_SheetCard> {
   bool _pressed = false;
+  bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.tokens;
+    final isEmphasized = _hovered || _focused;
 
     final title = widget.meta.title.isNotEmpty
         ? widget.meta.title
         : 'Planilla ${widget.meta.id}';
-    final details =
-        'Actualizada: ${widget.updatedLabel} · Filas: ${widget.meta.rows}';
+    final borderColor = _focused
+        ? t.colors.accent
+        : isEmphasized
+            ? t.colors.borderStrong
+            : t.colors.border;
+    final cardColor = _focused ? t.colors.surfaceElevated : t.colors.surface;
+    final shadow = isEmphasized ? t.shadows.card : t.shadows.soft;
 
     return AnimatedScale(
       scale: _pressed ? 0.988 : 1.0,
       duration: const Duration(milliseconds: 130),
       curve: Curves.easeOut,
-      child: Material(
-        color: theme.cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(
-            color: theme.dividerColor.withValues(alpha: 0.60),
-            width: 0.8,
-          ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(t.radii.lg),
+          border: Border.all(color: borderColor, width: _focused ? 1.2 : 1),
+          boxShadow: shadow,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Semantics(
-          button: true,
-          label: 'Abrir planilla $title',
-          child: InkWell(
-            onTap: widget.onOpen,
-            onLongPress: widget.onActions,
-            onHighlightChanged: (v) => setState(() => _pressed = v),
-            onSecondaryTapDown: (d) => widget.onContextMenu(d.globalPosition),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-              child: Row(
-                children: [
-                  _PillIcon(
-                    icon: Icons.table_chart,
-                    color: widget.accent,
-                    filled: true,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(t.radii.lg),
+          clipBehavior: Clip.antiAlias,
+          child: Semantics(
+            button: true,
+            label: 'Abrir planilla $title',
+            child: InkWell(
+              onTap: widget.onOpen,
+              onLongPress: widget.onActions,
+              onHighlightChanged: (v) => setState(() => _pressed = v),
+              onHover: (v) {
+                if (_hovered == v) return;
+                setState(() => _hovered = v);
+              },
+              onFocusChange: (v) {
+                if (_focused == v) return;
+                setState(() => _focused = v);
+              },
+              onSecondaryTapDown: (d) => widget.onContextMenu(d.globalPosition),
+              hoverColor: t.colors.hover,
+              splashColor: t.colors.pressed,
+              child: Padding(
+                padding: EdgeInsets.all(t.spacing.lg),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 760;
+                    final actionStrip = ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: compact ? constraints.maxWidth : 290,
+                      ),
+                      child: Wrap(
+                        spacing: t.spacing.sm,
+                        runSpacing: t.spacing.sm,
+                        alignment:
+                            compact ? WrapAlignment.start : WrapAlignment.end,
+                        children: [
+                          AppButton(
+                            label: AppStrings.open,
+                            icon: Icons.open_in_new_rounded,
+                            variant: AppButtonVariant.primary,
+                            size: AppButtonSize.sm,
+                            onPressed: () {
+                              widget.hapticSelect();
+                              widget.onOpen();
+                            },
+                          ),
+                          AppButton(
+                            label: widget.pinned ? 'Fijada' : 'Fijar',
+                            icon: widget.pinned
+                                ? Icons.push_pin_rounded
+                                : Icons.push_pin_outlined,
+                            variant: widget.pinned
+                                ? AppButtonVariant.primary
+                                : AppButtonVariant.secondary,
+                            size: AppButtonSize.sm,
+                            onPressed: () {
+                              widget.hapticSelect();
+                              widget.onTogglePinned();
+                            },
+                          ),
+                          AppButton(
+                            label: AppStrings.actions,
+                            icon: Icons.more_horiz_rounded,
+                            variant: AppButtonVariant.ghost,
+                            size: AppButtonSize.sm,
+                            onPressed: () {
+                              widget.hapticSelect();
+                              widget.onActions();
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+
+                    final sheetInfo = Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
+                        _PillIcon(
+                          icon: Icons.table_chart_rounded,
+                          color: widget.accent,
+                          filled: true,
+                        ),
+                        SizedBox(width: t.spacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
                                 title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: context.appText.titleMedium,
+                                style: context.appText.titleMedium.copyWith(
+                                  color: t.colors.textPrimary,
+                                ),
                               ),
-                            ),
-                            if (widget.pinned) ...[
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.star_rounded,
-                                size: 18,
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.65),
+                              SizedBox(height: t.spacing.xs),
+                              Text(
+                                'ID ${widget.meta.id}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.text.bodySmall?.copyWith(
+                                  color: t.colors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: t.spacing.sm),
+                              Wrap(
+                                spacing: t.spacing.sm,
+                                runSpacing: t.spacing.sm,
+                                children: [
+                                  _FactBadge(
+                                    icon: Icons.schedule_rounded,
+                                    label: 'Ultima',
+                                    value: widget.updatedLabel,
+                                  ),
+                                  _FactBadge(
+                                    icon: Icons.view_headline_rounded,
+                                    label: 'Filas',
+                                    value: '${widget.meta.rows}',
+                                  ),
+                                  if (widget.pinned)
+                                    const _FactBadge(
+                                      icon: Icons.push_pin_rounded,
+                                      label: 'Estado',
+                                      value: 'Fijada',
+                                      tone: _BadgeTone.accent,
+                                    ),
+                                ],
                               ),
                             ],
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          details,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: context.appText.bodyMuted,
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _PillButton(
-                    tooltip: widget.pinned ? 'Desfijar' : 'Fijar',
-                    semanticsLabel: AppStrings.semTogglePin,
-                    icon: widget.pinned
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    onTap: () {
-                      widget.hapticSelect();
-                      widget.onTogglePinned();
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _PillButton(
-                    tooltip: AppStrings.actions,
-                    semanticsLabel: AppStrings.semOpenSheetActions,
-                    icon: Icons.more_horiz,
-                    onTap: () {
-                      widget.hapticSelect();
-                      widget.onActions();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+                    );
 
-class _PillButton extends StatefulWidget {
-  const _PillButton({
-    required this.tooltip,
-    required this.semanticsLabel,
-    required this.icon,
-    required this.onTap,
-  });
+                    if (compact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          sheetInfo,
+                          SizedBox(height: t.spacing.md),
+                          actionStrip,
+                        ],
+                      );
+                    }
 
-  final String tooltip;
-  final String semanticsLabel;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  State<_PillButton> createState() => _PillButtonState();
-}
-
-class _PillButtonState extends State<_PillButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final bg = theme.colorScheme.surfaceContainerHighest.withValues(
-      alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
-    );
-
-    return AnimatedScale(
-      scale: _pressed ? 0.985 : 1.0,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      child: Material(
-        color: bg,
-        shape: const StadiumBorder(),
-        child: InkWell(
-          onTap: widget.onTap,
-          customBorder: const StadiumBorder(),
-          onHighlightChanged: (v) => setState(() => _pressed = v),
-          child: Semantics(
-            button: true,
-            label: widget.semanticsLabel,
-            child: Tooltip(
-              message: widget.tooltip,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Icon(widget.icon, size: 20),
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: sheetInfo),
+                        SizedBox(width: t.spacing.lg),
+                        actionStrip,
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -1375,11 +1530,7 @@ class _PillButtonState extends State<_PillButton> {
 }
 
 class _PillIcon extends StatelessWidget {
-  const _PillIcon({
-    required this.icon,
-    this.color,
-    this.filled = false,
-  });
+  const _PillIcon({required this.icon, this.color, this.filled = false});
 
   final IconData icon;
   final Color? color;
@@ -1387,79 +1538,316 @@ class _PillIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final c = color ?? theme.colorScheme.primary;
+    final t = context.tokens;
+    final c = color ?? t.colors.accent;
 
     final bg = filled
-        ? c.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14)
-        : theme.colorScheme.surfaceContainerHighest.withValues(
-            alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
-          );
+        ? c.withValues(alpha: t.colors.isLight ? 0.14 : 0.22)
+        : t.colors.surfaceMuted;
 
     return Container(
       width: 42,
       height: 42,
       decoration: ShapeDecoration(
-        shape: const StadiumBorder(),
         color: bg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(t.radii.md),
+          side: BorderSide(
+            color: filled ? c.withValues(alpha: 0.18) : t.colors.border,
+          ),
+        ),
       ),
       child: Icon(icon, color: c, size: 20),
     );
   }
 }
 
-class _Empty extends StatelessWidget {
-  const _Empty({
-    required this.onNew,
-    required this.onTemplates,
+enum _BadgeTone { neutral, accent, danger }
+
+class _FactBadge extends StatelessWidget {
+  const _FactBadge({
+    required this.label,
+    required this.value,
+    this.icon,
+    this.tone = _BadgeTone.neutral,
   });
 
-  final VoidCallback onNew;
-  final VoidCallback onTemplates;
+  final String label;
+  final String value;
+  final IconData? icon;
+  final _BadgeTone tone;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
+    final t = context.tokens;
+    late final Color bg;
+    late final Color border;
+    late final Color valueColor;
+
+    switch (tone) {
+      case _BadgeTone.accent:
+        bg = t.colors.accentMuted;
+        border = t.colors.accent.withValues(alpha: 0.18);
+        valueColor = t.colors.accent;
+        break;
+      case _BadgeTone.danger:
+        bg = t.colors.dangerBg;
+        border = t.colors.dangerFg.withValues(alpha: 0.18);
+        valueColor = t.colors.dangerFg;
+        break;
+      case _BadgeTone.neutral:
+        bg = t.colors.surfaceMuted;
+        border = t.colors.border;
+        valueColor = t.colors.textPrimary;
+        break;
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: t.spacing.sm,
+        vertical: t.spacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(t.radii.pill),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: valueColor),
+            SizedBox(width: t.spacing.xs),
+          ],
+          Text(
+            label,
+            style: t.text.bodySmall?.copyWith(
+              color: t.colors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(width: t.spacing.xs),
+          Text(
+            value,
+            style: t.text.bodySmall?.copyWith(
+              color: valueColor,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: t.spacing.sm,
+        vertical: t.spacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: t.colors.accentMuted,
+        borderRadius: BorderRadius.circular(t.radii.pill),
+        border: Border.all(color: t.colors.accent.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        '$count',
+        style: t.text.bodySmall?.copyWith(
+          color: t.colors.accent,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+enum _OverlayTone { neutral, accent, danger }
+
+class _OverlaySheetFrame extends StatelessWidget {
+  const _OverlaySheetFrame({
+    required this.child,
+    this.title,
+    this.subtitle,
+    this.maxHeightFactor = 0.72,
+  });
+
+  final Widget child;
+  final String? title;
+  final String? subtitle;
+  final double maxHeightFactor;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return SafeArea(
+      top: false,
+      child: Align(
+        alignment: Alignment.bottomCenter,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: EdgeInsets.fromLTRB(
+            t.spacing.sm,
+            0,
+            t.spacing.sm,
+            t.spacing.sm,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 760,
+              maxHeight: MediaQuery.sizeOf(context).height * maxHeightFactor,
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: t.colors.surfaceElevated,
+                borderRadius: BorderRadius.circular(t.radii.xl),
+                border: Border.all(color: t.colors.border),
+                boxShadow: t.shadows.floating,
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  t.spacing.lg,
+                  t.spacing.sm,
+                  t.spacing.lg,
+                  t.spacing.lg,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: t.colors.borderStrong,
+                          borderRadius: BorderRadius.circular(t.radii.pill),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: t.spacing.md),
+                    if (title != null && title!.trim().isNotEmpty) ...[
+                      Text(
+                        title!,
+                        style: context.appText.titleMedium.copyWith(
+                          color: t.colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                    if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+                      SizedBox(height: t.spacing.xs),
+                      Text(
+                        subtitle!,
+                        style: t.text.bodyMedium?.copyWith(
+                          color: t.colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: t.spacing.md),
+                    child,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OverlayActionTile extends StatelessWidget {
+  const _OverlayActionTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+    this.tone = _OverlayTone.neutral,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  final _OverlayTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    late final Color bg;
+    late final Color border;
+    late final Color iconColor;
+
+    switch (tone) {
+      case _OverlayTone.accent:
+        bg = t.colors.accentMuted;
+        border = t.colors.accent.withValues(alpha: 0.18);
+        iconColor = t.colors.accent;
+        break;
+      case _OverlayTone.danger:
+        bg = t.colors.dangerBg;
+        border = t.colors.dangerFg.withValues(alpha: 0.18);
+        iconColor = t.colors.dangerFg;
+        break;
+      case _OverlayTone.neutral:
+        bg = t.colors.surface;
+        border = t.colors.border;
+        iconColor = t.colors.accent;
+        break;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(t.radii.md),
+        onTap: onTap,
+        child: Ink(
+          padding: EdgeInsets.all(t.spacing.md),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(t.radii.md),
+            border: Border.all(color: border),
+          ),
+          child: Row(
             children: [
-              const EmptyState(
-                title: AppStrings.emptySheetsTitle,
-                message: AppStrings.emptySheetsBody,
-                icon: Icons.table_chart_outlined,
+              _PillIcon(
+                icon: icon,
+                color: iconColor,
+                filled: tone != _OverlayTone.neutral,
               ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  Semantics(
-                    button: true,
-                    label: AppStrings.semAddSheet,
-                    child: AppButton(
-                      label: AppStrings.newSheet,
-                      icon: Icons.add,
-                      variant: AppButtonVariant.primary,
-                      onPressed: onNew,
+              SizedBox(width: t.spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: context.appText.bodyStrong.copyWith(
+                        color: tone == _OverlayTone.danger
+                            ? t.colors.dangerFg
+                            : t.colors.textPrimary,
+                      ),
                     ),
-                  ),
-                  Semantics(
-                    button: true,
-                    label: AppStrings.semTemplates,
-                    child: AppButton(
-                      label: AppStrings.templates,
-                      icon: Icons.view_quilt_outlined,
-                      variant: AppButtonVariant.secondary,
-                      onPressed: onTemplates,
+                    SizedBox(height: t.spacing.xs),
+                    Text(
+                      subtitle,
+                      style: t.text.bodySmall?.copyWith(
+                        color: t.colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              SizedBox(width: t.spacing.sm),
+              Icon(Icons.chevron_right_rounded, color: t.colors.textSecondary),
             ],
           ),
         ),
@@ -1468,28 +1856,189 @@ class _Empty extends StatelessWidget {
   }
 }
 
-class _NoResults extends StatelessWidget {
-  const _NoResults({
-    required this.query,
-    required this.onClear,
+class _TemplateTile extends StatelessWidget {
+  const _TemplateTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
   });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return AppCard(
+      radius: t.radii.md,
+      padding: EdgeInsets.all(t.spacing.md),
+      color: t.colors.surface,
+      borderColor: t.colors.border,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PillIcon(icon: icon, color: t.colors.accent, filled: true),
+          SizedBox(height: t.spacing.md),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: context.appText.titleMedium.copyWith(
+              color: t.colors.textPrimary,
+            ),
+          ),
+          SizedBox(height: t.spacing.xs),
+          Expanded(
+            child: Text(
+              subtitle,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: t.text.bodyMedium?.copyWith(
+                color: t.colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SizedBox(height: t.spacing.sm),
+          const _FactBadge(
+            icon: Icons.auto_awesome_rounded,
+            label: 'Modo',
+            value: 'Template',
+            tone: _BadgeTone.accent,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PopupMenuRow extends StatelessWidget {
+  const _PopupMenuRow({
+    required this.icon,
+    required this.label,
+    this.tone = _OverlayTone.neutral,
+  });
+
+  final IconData icon;
+  final String label;
+  final _OverlayTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final color =
+        tone == _OverlayTone.danger ? t.colors.dangerFg : t.colors.textPrimary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: color),
+        SizedBox(width: t.spacing.sm),
+        Text(
+          label,
+          style: t.text.bodyMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.onNew, required this.onTemplates});
+
+  final VoidCallback onNew;
+  final VoidCallback onTemplates;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.spacing.xl),
+          child: AppCard(
+            radius: t.radii.xl,
+            padding: EdgeInsets.all(t.spacing.xl),
+            color: t.colors.surface,
+            borderColor: t.colors.border,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const EmptyState(
+                  title: AppStrings.emptySheetsTitle,
+                  message: AppStrings.emptySheetsBody,
+                  icon: Icons.table_chart_outlined,
+                ),
+                SizedBox(height: t.spacing.md),
+                Wrap(
+                  spacing: t.spacing.sm,
+                  runSpacing: t.spacing.sm,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    Semantics(
+                      button: true,
+                      label: AppStrings.semAddSheet,
+                      child: AppButton(
+                        label: AppStrings.newSheet,
+                        icon: Icons.add,
+                        variant: AppButtonVariant.primary,
+                        onPressed: onNew,
+                      ),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: AppStrings.semTemplates,
+                      child: AppButton(
+                        label: AppStrings.templates,
+                        icon: Icons.view_quilt_outlined,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: onTemplates,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoResults extends StatelessWidget {
+  const _NoResults({required this.query, required this.onClear});
 
   final String query;
   final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: EmptyState(
-            title: AppStrings.noResultsTitle,
-            message: AppStrings.noResultsBody(query),
-            icon: Icons.search_off_outlined,
-            actionLabel: AppStrings.clearSearch,
-            onAction: onClear,
+          padding: EdgeInsets.symmetric(horizontal: t.spacing.xl),
+          child: AppCard(
+            radius: t.radii.xl,
+            padding: EdgeInsets.all(t.spacing.xl),
+            color: t.colors.surface,
+            borderColor: t.colors.border,
+            child: EmptyState(
+              title: AppStrings.noResultsTitle,
+              message: AppStrings.noResultsBody(query),
+              icon: Icons.search_off_outlined,
+              actionLabel: AppStrings.clearSearch,
+              onAction: onClear,
+            ),
           ),
         ),
       ),
