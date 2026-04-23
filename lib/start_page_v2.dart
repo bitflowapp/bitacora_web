@@ -8,10 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'design_system/colors.dart';
 import 'design_system/motion.dart';
 import 'design_system/spacing.dart';
 import 'design_system/typography.dart';
+import 'ui/app_tokens.dart';
 import 'screens/about_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/editor_screen.dart';
@@ -282,12 +282,12 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _showTemplateChooser() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     final kind = await showModalBottomSheet<TemplateKind>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
+        final t = ctx.tokens;
         final items =
             <(TemplateKind kind, String title, String subtitle, IconData icon)>[
           (
@@ -323,7 +323,7 @@ class _StartPageV2State extends State<StartPageV2> {
         ];
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+            padding: EdgeInsets.fromLTRB(t.spacing.lg, 6, t.spacing.lg, t.spacing.lg),
             child: GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -334,30 +334,26 @@ class _StartPageV2State extends State<StartPageV2> {
                 for (final item in items)
                   _ActionSurface(
                     onTap: () => Navigator.of(ctx).pop(item.$1),
-                    backgroundColor: palette.card,
-                    borderColor: palette.border,
+                    backgroundColor: t.colors.surfaceMuted,
+                    borderColor: t.colors.border,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(item.$4, color: palette.accent),
+                        Icon(item.$4, color: t.colors.accent),
                         const SizedBox(height: 10),
                         Text(
                           item.$2,
-                          style: TextStyle(
-                            color: palette.textPrimary,
-                            fontSize: 15,
+                          style: AppTypography.subheadline.copyWith(
+                            color: t.colors.textPrimary,
                             fontWeight: FontWeight.w700,
-                            fontFamily: 'SF Pro Text',
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           item.$3,
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontSize: 12,
+                          style: AppTypography.caption1.copyWith(
+                            color: t.colors.textSecondary,
                             height: 1.3,
-                            fontFamily: 'SF Pro Text',
                           ),
                         ),
                       ],
@@ -458,18 +454,18 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _openAutomationSheet() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     final suggestions = _automationSuggestions;
 
     _trackUsage('automation_opened');
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
+        final t = ctx.tokens;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: EdgeInsets.fromLTRB(t.spacing.lg, 8, t.spacing.lg, t.spacing.lg),
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: suggestions.length,
@@ -481,18 +477,18 @@ class _StartPageV2State extends State<StartPageV2> {
                     Navigator.of(ctx).pop();
                     unawaited(suggestion.onTap());
                   },
-                  backgroundColor: palette.card,
-                  borderColor: palette.border,
+                  backgroundColor: t.colors.surfaceMuted,
+                  borderColor: t.colors.border,
                   child: Row(
                     children: [
                       Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: palette.accentSoft,
-                          borderRadius: BorderRadius.circular(10),
+                          color: t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18),
+                          borderRadius: BorderRadius.circular(t.radii.xs),
                         ),
-                        child: Icon(suggestion.icon, color: palette.accent),
+                        child: Icon(suggestion.icon, color: t.colors.accent),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -501,20 +497,16 @@ class _StartPageV2State extends State<StartPageV2> {
                           children: [
                             Text(
                               suggestion.title,
-                              style: TextStyle(
-                                color: palette.textPrimary,
+                              style: AppTypography.callout.copyWith(
+                                color: t.colors.textPrimary,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                fontFamily: 'SF Pro Text',
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               suggestion.subtitle,
-                              style: TextStyle(
-                                color: palette.textSecondary,
-                                fontSize: 12,
-                                fontFamily: 'SF Pro Text',
+                              style: AppTypography.caption1.copyWith(
+                                color: t.colors.textSecondary,
                               ),
                             ),
                           ],
@@ -608,12 +600,12 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _openSettingsSheet() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
+        final accent = ctx.tokens.colors.accent;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
@@ -625,7 +617,7 @@ class _StartPageV2State extends State<StartPageV2> {
                     widget.isLight
                         ? Icons.dark_mode_rounded
                         : Icons.light_mode_rounded,
-                    color: palette.accent,
+                    color: accent,
                   ),
                   title: const Text('Alternar tema'),
                   subtitle: const Text('Modo claro/oscuro'),
@@ -635,7 +627,7 @@ class _StartPageV2State extends State<StartPageV2> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.tune_rounded, color: palette.accent),
+                  leading: Icon(Icons.tune_rounded, color: accent),
                   title: const Text('Resetear sugerencias'),
                   subtitle: const Text('Limpia historial de automatizaciones'),
                   onTap: () {
@@ -654,11 +646,10 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _openInfoSheet() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
         return SafeArea(
           child: Column(
@@ -706,11 +697,10 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _openImportExportSheet() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
         return SafeArea(
           child: Column(
@@ -742,11 +732,10 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   Future<void> _openMoreSheet() async {
-    final palette = _StartPalette(isLight: widget.isLight);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: palette.sheetBg,
+      backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
         return SafeArea(
           child: Column(
@@ -1001,11 +990,11 @@ class _StartPageV2State extends State<StartPageV2> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _StartPalette(isLight: widget.isLight);
+    final t = context.tokens;
 
     if (_loading) {
       return ColoredBox(
-        color: palette.background,
+        color: t.colors.bg,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -1033,7 +1022,7 @@ class _StartPageV2State extends State<StartPageV2> {
     };
 
     return ColoredBox(
-      color: palette.background,
+      color: t.colors.bg,
       child: Shortcuts(
         shortcuts: shortcuts,
         child: Actions(
@@ -1105,9 +1094,9 @@ class _StartPageV2State extends State<StartPageV2> {
                     children: [
                       SingleChildScrollView(
                         padding: EdgeInsets.fromLTRB(
-                          16,
-                          10,
-                          16,
+                          t.spacing.lg,
+                          t.spacing.sm,
+                          t.spacing.lg,
                           26 + MediaQuery.of(context).padding.bottom,
                         ),
                         child: Center(
@@ -1119,7 +1108,6 @@ class _StartPageV2State extends State<StartPageV2> {
                               duration: AppMotion.slow,
                               children: [
                                 _Header(
-                                  palette: palette,
                                   message: _contextMessage,
                                   subtitle:
                                       'Inicio rapido para relevamientos tecnicos de campo',
@@ -1129,7 +1117,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  palette: palette,
                                   title: 'Empezar ahora',
                                   subtitle:
                                       'Proteccion catodica, ultimos trabajos y templates sin friccion',
@@ -1145,7 +1132,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                   children: [
                                     for (final action in quickActions)
                                       _QuickActionTile(
-                                        palette: palette,
                                         data: action,
                                         disabled: _busy,
                                       ),
@@ -1153,7 +1139,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  palette: palette,
                                   title: 'Continuar trabajo',
                                   subtitle:
                                       'Lo operativo queda visible para retomar rapido',
@@ -1166,7 +1151,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                         children: [
                                           Expanded(
                                             child: _SheetGroupCard(
-                                              palette: palette,
                                               title: 'Recientes',
                                               emptyHint:
                                                   'Sin archivos recientes',
@@ -1182,7 +1166,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: _SheetGroupCard(
-                                              palette: palette,
                                               title: 'Favoritos',
                                               emptyHint:
                                                   'Marca archivos con estrella',
@@ -1198,7 +1181,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: _SheetGroupCard(
-                                              palette: palette,
                                               title: 'Fijados',
                                               emptyHint:
                                                   'Fija archivos para acceso inmediato',
@@ -1216,7 +1198,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                     : Column(
                                         children: [
                                           _SheetGroupCard(
-                                            palette: palette,
                                             title: 'Recientes',
                                             emptyHint: 'Sin archivos recientes',
                                             items: recent,
@@ -1229,7 +1210,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                           ),
                                           const SizedBox(height: 10),
                                           _SheetGroupCard(
-                                            palette: palette,
                                             title: 'Favoritos',
                                             emptyHint:
                                                 'Marca archivos con estrella',
@@ -1243,7 +1223,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                           ),
                                           const SizedBox(height: 10),
                                           _SheetGroupCard(
-                                            palette: palette,
                                             title: 'Fijados',
                                             emptyHint:
                                                 'Fija archivos para acceso inmediato',
@@ -1259,7 +1238,6 @@ class _StartPageV2State extends State<StartPageV2> {
                                       ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  palette: palette,
                                   title: 'Sugerencias y plantillas',
                                   subtitle:
                                       'Atajos para relevamientos repetitivos y respaldos',
@@ -1276,13 +1254,12 @@ class _StartPageV2State extends State<StartPageV2> {
                                     for (final suggestion
                                         in _automationSuggestions)
                                       _AutomationTile(
-                                        palette: palette,
                                         suggestion: suggestion,
                                       ),
                                   ],
                                 ),
                                 const SizedBox(height: 18),
-                                _ShortcutStrip(palette: palette),
+                                const _ShortcutStrip(),
                               ],
                             ),
                           ),
@@ -1294,14 +1271,14 @@ class _StartPageV2State extends State<StartPageV2> {
                             color: Colors.black.withValues(alpha: 0.22),
                             child: Center(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: t.spacing.lg,
+                                  vertical: t.spacing.md,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: palette.card,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: palette.border),
+                                  color: t.colors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(t.radii.sm),
+                                  border: Border.all(color: t.colors.border),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -1311,7 +1288,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                       height: 16,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: palette.accent,
+                                        color: t.colors.accent,
                                       ),
                                     ),
                                     const SizedBox(width: 10),
@@ -1319,10 +1296,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                       _busyLabel.trim().isEmpty
                                           ? 'Procesando...'
                                           : _busyLabel,
-                                      style: TextStyle(
-                                        color: palette.textPrimary,
+                                      style: AppTypography.callout.copyWith(
+                                        color: t.colors.textPrimary,
                                         fontWeight: FontWeight.w600,
-                                        fontFamily: 'SF Pro Text',
                                       ),
                                     ),
                                   ],
@@ -1343,26 +1319,9 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 }
 
-class _StartPalette {
-  const _StartPalette({required this.isLight});
-
-  final bool isLight;
-
-  Color get background => isLight ? AppColors.lightBg : AppColors.darkBg;
-  Color get card =>
-      isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
-  Color get sheetBg => isLight ? AppColors.lightBg : AppColors.darkSecondaryBg;
-  Color get border => isLight ? AppColors.lightDivider : AppColors.darkDivider;
-  Color get textPrimary => isLight ? AppColors.lightLabel : AppColors.darkLabel;
-  Color get textSecondary =>
-      isLight ? AppColors.lightSecondaryLabel : AppColors.darkSecondaryLabel;
-  Color get accent => isLight ? AppColors.accentBlue : AppColors.accentBlueDark;
-  Color get accentSoft => accent.withValues(alpha: isLight ? 0.12 : 0.18);
-}
 
 class _Header extends StatelessWidget {
   const _Header({
-    required this.palette,
     required this.message,
     required this.subtitle,
     required this.onMore,
@@ -1370,7 +1329,6 @@ class _Header extends StatelessWidget {
     required this.isLight,
   });
 
-  final _StartPalette palette;
   final String message;
   final String subtitle;
   final VoidCallback onMore;
@@ -1379,16 +1337,16 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.border),
+        color: t.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(t.radii.xl),
+        border: Border.all(color: t.colors.border),
         boxShadow: [
           BoxShadow(
-            color:
-                Colors.black.withValues(alpha: palette.isLight ? 0.06 : 0.22),
+            color: Colors.black.withValues(alpha: t.colors.isLight ? 0.06 : 0.22),
             blurRadius: 28,
             offset: const Offset(0, 18),
           ),
@@ -1403,14 +1361,14 @@ class _Header extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: palette.textPrimary,
-                  borderRadius: BorderRadius.circular(14),
+                  color: t.colors.textPrimary,
+                  borderRadius: BorderRadius.circular(t.radii.sm),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'BF',
-                  style: TextStyle(
-                    color: palette.background,
+                  style: AppTypography.headline.copyWith(
+                    color: t.colors.bg,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                   ),
@@ -1424,7 +1382,7 @@ class _Header extends StatelessWidget {
                     Text(
                       'Bit Flow',
                       style: AppTypography.headline.copyWith(
-                        color: palette.textPrimary,
+                        color: t.colors.textPrimary,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
                       ),
@@ -1436,7 +1394,7 @@ class _Header extends StatelessWidget {
                         message,
                         key: ValueKey<String>(message),
                         style: AppTypography.subheadline.copyWith(
-                          color: palette.textPrimary,
+                          color: t.colors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1444,7 +1402,7 @@ class _Header extends StatelessWidget {
                     Text(
                       subtitle,
                       style: AppTypography.caption1.copyWith(
-                        color: palette.textSecondary,
+                        color: t.colors.textSecondary,
                       ),
                     ),
                   ],
@@ -1460,10 +1418,10 @@ class _Header extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onThemeToggle,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: palette.textPrimary,
-                  side: BorderSide(color: palette.border),
+                  foregroundColor: t.colors.textPrimary,
+                  side: BorderSide(color: t.colors.border),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(t.radii.xs),
                   ),
                 ),
                 icon: Icon(
@@ -1475,10 +1433,10 @@ class _Header extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onMore,
                 style: FilledButton.styleFrom(
-                  backgroundColor: palette.textPrimary,
-                  foregroundColor: palette.background,
+                  backgroundColor: t.colors.textPrimary,
+                  foregroundColor: t.colors.bg,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(t.radii.xs),
                   ),
                 ),
                 icon: const Icon(Icons.more_horiz_rounded, size: 18),
@@ -1492,7 +1450,7 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 brand,
-                const SizedBox(height: 14),
+                SizedBox(height: t.spacing.md),
                 actions,
               ],
             );
@@ -1513,37 +1471,32 @@ class _Header extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({
-    required this.palette,
     required this.title,
     required this.subtitle,
   });
 
-  final _StartPalette palette;
   final String title;
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontSize: 18,
+          style: AppTypography.title3.copyWith(
+            color: t.colors.textPrimary,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.2,
-            fontFamily: 'SF Pro Text',
           ),
         ),
         const SizedBox(height: 2),
         Text(
           subtitle,
-          style: TextStyle(
-            color: palette.textSecondary,
-            fontSize: 12,
-            fontFamily: 'SF Pro Text',
+          style: AppTypography.caption1.copyWith(
+            color: t.colors.textSecondary,
           ),
         ),
       ],
@@ -1569,32 +1522,30 @@ class _QuickActionData {
   final bool featured;
 }
 
-Color _onFeaturedSurface(_StartPalette palette) {
-  final featuredIsLight = palette.textPrimary.computeLuminance() > 0.5;
-  return featuredIsLight ? palette.background : Colors.white;
-}
 
 class _QuickActionTile extends StatelessWidget {
   const _QuickActionTile({
-    required this.palette,
     required this.data,
     required this.disabled,
   });
 
-  final _StartPalette palette;
   final _QuickActionData data;
   final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    final featuredFg = _onFeaturedSurface(palette);
-    final foreground = data.featured ? featuredFg : palette.textPrimary;
+    final t = context.tokens;
+    final featuredFg = t.colors.textPrimary.computeLuminance() > 0.5
+        ? t.colors.bg
+        : Colors.white;
+    final foreground = data.featured ? featuredFg : t.colors.textPrimary;
     final secondary = data.featured
         ? featuredFg.withValues(alpha: 0.74)
-        : palette.textSecondary;
+        : t.colors.textSecondary;
+    final accentSoft = t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
     return _ActionSurface(
-      backgroundColor: data.featured ? palette.textPrimary : palette.card,
-      borderColor: data.featured ? Colors.transparent : palette.border,
+      backgroundColor: data.featured ? t.colors.textPrimary : t.colors.surfaceMuted,
+      borderColor: data.featured ? Colors.transparent : t.colors.border,
       disabled: disabled,
       onTap: () => unawaited(data.onTap()),
       child: Column(
@@ -1608,17 +1559,16 @@ class _QuickActionTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: data.featured
                       ? featuredFg.withValues(alpha: 0.14)
-                      : palette.accentSoft,
-                  borderRadius: BorderRadius.circular(10),
+                      : accentSoft,
+                  borderRadius: BorderRadius.circular(t.radii.xs),
                 ),
                 child: Icon(
                   data.icon,
-                  color: data.featured ? featuredFg : palette.accent,
+                  color: data.featured ? featuredFg : t.colors.accent,
                 ),
               ),
               const Spacer(),
               _ShortcutBadge(
-                palette: palette,
                 label: data.shortcut,
                 inverted: data.featured,
                 invertedColor: featuredFg,
@@ -1628,21 +1578,15 @@ class _QuickActionTile extends StatelessWidget {
           const Spacer(),
           Text(
             data.title,
-            style: TextStyle(
+            style: AppTypography.callout.copyWith(
               color: foreground,
               fontWeight: FontWeight.w800,
-              fontSize: 14,
-              fontFamily: 'SF Pro Text',
             ),
           ),
           const SizedBox(height: 4),
           Text(
             data.subtitle,
-            style: TextStyle(
-              color: secondary,
-              fontSize: 12,
-              fontFamily: 'SF Pro Text',
-            ),
+            style: AppTypography.caption1.copyWith(color: secondary),
           ),
         ],
       ),
@@ -1652,7 +1596,6 @@ class _QuickActionTile extends StatelessWidget {
 
 class _SheetGroupCard extends StatelessWidget {
   const _SheetGroupCard({
-    required this.palette,
     required this.title,
     required this.emptyHint,
     required this.items,
@@ -1664,7 +1607,6 @@ class _SheetGroupCard extends StatelessWidget {
     required this.formatter,
   });
 
-  final _StartPalette palette;
   final String title;
   final String emptyHint;
   final List<SheetMeta> items;
@@ -1677,33 +1619,30 @@ class _SheetGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(t.spacing.sm),
       decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border),
+        color: t.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(t.radii.md),
+        border: Border.all(color: t.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '$title (${items.length})',
-            style: TextStyle(
-              color: palette.textPrimary,
+            style: AppTypography.footnote.copyWith(
+              color: t.colors.textPrimary,
               fontWeight: FontWeight.w700,
-              fontSize: 13,
-              fontFamily: 'SF Pro Text',
             ),
           ),
           const SizedBox(height: 8),
           if (items.isEmpty)
             Text(
               emptyHint,
-              style: TextStyle(
-                color: palette.textSecondary,
-                fontSize: 12,
-                fontFamily: 'SF Pro Text',
+              style: AppTypography.caption1.copyWith(
+                color: t.colors.textSecondary,
               ),
             )
           else
@@ -1713,7 +1652,6 @@ class _SheetGroupCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: _SheetMiniRow(
-                      palette: palette,
                       meta: item,
                       isFavorite: favoriteIds.contains(item.id),
                       isPinned: pinnedIds.contains(item.id),
@@ -1733,7 +1671,6 @@ class _SheetGroupCard extends StatelessWidget {
 
 class _SheetMiniRow extends StatelessWidget {
   const _SheetMiniRow({
-    required this.palette,
     required this.meta,
     required this.isFavorite,
     required this.isPinned,
@@ -1743,7 +1680,6 @@ class _SheetMiniRow extends StatelessWidget {
     required this.onPinnedToggle,
   });
 
-  final _StartPalette palette;
   final SheetMeta meta;
   final bool isFavorite;
   final bool isPinned;
@@ -1754,18 +1690,20 @@ class _SheetMiniRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final title =
         meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+    final rowBg = t.colors.accent.withValues(alpha: t.colors.isLight ? 0.055 : 0.08);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(t.radii.xs),
         onTap: onOpen,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: palette.accentSoft.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(t.radii.xs),
+            color: rowBg,
           ),
           child: Row(
             children: [
@@ -1777,19 +1715,15 @@ class _SheetMiniRow extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.textPrimary,
-                        fontSize: 13,
+                      style: AppTypography.footnote.copyWith(
+                        color: t.colors.textPrimary,
                         fontWeight: FontWeight.w600,
-                        fontFamily: 'SF Pro Text',
                       ),
                     ),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: 11,
-                        fontFamily: 'SF Pro Text',
+                      style: AppTypography.caption2.copyWith(
+                        color: t.colors.textSecondary,
                       ),
                     ),
                   ],
@@ -1803,7 +1737,7 @@ class _SheetMiniRow extends StatelessWidget {
                 ),
                 color: isFavorite
                     ? const Color(0xFFCC9A2A)
-                    : palette.textSecondary,
+                    : t.colors.textSecondary,
                 onPressed: onFavoriteToggle,
               ),
               IconButton(
@@ -1812,7 +1746,7 @@ class _SheetMiniRow extends StatelessWidget {
                   isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
                   size: 18,
                 ),
-                color: isPinned ? palette.accent : palette.textSecondary,
+                color: isPinned ? t.colors.accent : t.colors.textSecondary,
                 onPressed: onPinnedToggle,
               ),
             ],
@@ -1824,23 +1758,22 @@ class _SheetMiniRow extends StatelessWidget {
 }
 
 class _ShortcutStrip extends StatelessWidget {
-  const _ShortcutStrip({required this.palette});
-
-  final _StartPalette palette;
+  const _ShortcutStrip();
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(t.spacing.sm),
       decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.border),
+        color: t.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(t.radii.sm),
+        border: Border.all(color: t.colors.border),
       ),
-      child: Wrap(
+      child: const Wrap(
         spacing: 10,
         runSpacing: 10,
-        children: const [
+        children: [
           _ShortcutItem(combo: 'Ctrl/Cmd + K', label: 'Quick Search'),
           _ShortcutItem(combo: 'Ctrl/Cmd + N', label: 'Nueva planilla'),
           _ShortcutItem(combo: 'Ctrl/Cmd + O', label: 'Abrir reciente'),
@@ -1907,30 +1840,28 @@ class _AutomationSuggestion {
 }
 
 class _AutomationTile extends StatelessWidget {
-  const _AutomationTile({
-    required this.palette,
-    required this.suggestion,
-  });
+  const _AutomationTile({required this.suggestion});
 
-  final _StartPalette palette;
   final _AutomationSuggestion suggestion;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
+    final accentSoft = t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
     return _ActionSurface(
       onTap: () => unawaited(suggestion.onTap()),
-      backgroundColor: palette.card,
-      borderColor: palette.border,
+      backgroundColor: t.colors.surfaceMuted,
+      borderColor: t.colors.border,
       child: Row(
         children: [
           Container(
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: palette.accentSoft,
+              borderRadius: BorderRadius.circular(t.radii.xs),
+              color: accentSoft,
             ),
-            child: Icon(suggestion.icon, color: palette.accent),
+            child: Icon(suggestion.icon, color: t.colors.accent),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1940,11 +1871,9 @@ class _AutomationTile extends StatelessWidget {
               children: [
                 Text(
                   suggestion.title,
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontSize: 14,
+                  style: AppTypography.callout.copyWith(
+                    color: t.colors.textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontFamily: 'SF Pro Text',
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -1952,10 +1881,8 @@ class _AutomationTile extends StatelessWidget {
                   suggestion.subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 12,
-                    fontFamily: 'SF Pro Text',
+                  style: AppTypography.caption1.copyWith(
+                    color: t.colors.textSecondary,
                   ),
                 ),
               ],
@@ -1969,39 +1896,36 @@ class _AutomationTile extends StatelessWidget {
 
 class _ShortcutBadge extends StatelessWidget {
   const _ShortcutBadge({
-    required this.palette,
     required this.label,
     this.inverted = false,
     this.invertedColor,
   });
 
-  final _StartPalette palette;
   final String label;
   final bool inverted;
   final Color? invertedColor;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final invertedFg = invertedColor ?? Colors.white;
+    final accentSoft = t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color:
-            inverted ? invertedFg.withValues(alpha: 0.14) : palette.accentSoft,
+        color: inverted ? invertedFg.withValues(alpha: 0.14) : accentSoft,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: inverted ? invertedFg.withValues(alpha: 0.18) : palette.border,
+          color: inverted ? invertedFg.withValues(alpha: 0.18) : t.colors.border,
         ),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: AppTypography.caption2.copyWith(
           color: inverted
               ? invertedFg.withValues(alpha: 0.82)
-              : palette.textSecondary,
-          fontSize: 10,
+              : t.colors.textSecondary,
           fontWeight: FontWeight.w700,
-          fontFamily: 'SF Pro Text',
         ),
       ),
     );
