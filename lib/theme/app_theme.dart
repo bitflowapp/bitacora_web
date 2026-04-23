@@ -24,8 +24,8 @@ class AppRadii {
 }
 
 @immutable
-class AppSpacing {
-  const AppSpacing({
+class AppLayout {
+  const AppLayout({
     this.xs = 6,
     this.sm = 10,
     this.md = 14,
@@ -56,6 +56,11 @@ class AppShadows {
 }
 
 @immutable
+
+/// Semantic runtime color facade built from `design_system/AppColors`.
+///
+/// `lib/design_system/colors.dart` remains the canonical token source; this
+/// wrapper only adapts those tokens into the app theme API.
 class AppColors {
   const AppColors({
     required this.isLight,
@@ -120,7 +125,7 @@ class AppThemeData {
   final ThemeData material;
   final AppColors colors;
   final AppRadii radii;
-  final AppSpacing spacing;
+  final AppLayout spacing;
   final AppShadows shadows;
   final TextTheme text;
 }
@@ -205,7 +210,7 @@ class AppTheme {
     );
 
     final radii = const AppRadii();
-    final spacing = const AppSpacing();
+    final spacing = const AppLayout();
 
     final shadowColor = Colors.black.withValues(alpha: isLight ? 0.10 : 0.48);
     final softShadow = Colors.black.withValues(alpha: isLight ? 0.05 : 0.34);

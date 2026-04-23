@@ -13,7 +13,7 @@ class AppTokens {
 
   AppColors get colors => _theme.colors;
   AppRadii get radii => _theme.radii;
-  AppSpacing get spacing => _theme.spacing;
+  AppLayout get spacing => _theme.spacing;
   AppShadows get shadows => _theme.shadows;
   TextTheme get text => _theme.text;
   AppTextStyles get textStyles => AppTextStyles(_theme);
