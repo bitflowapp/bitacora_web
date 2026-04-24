@@ -1,17 +1,16 @@
 part of '../features/editor/editor_screen.dart';
 
-const double _kMobileCardMinW = 120.0;
-const double _kMobileCardMaxW = 170.0;
+const double _kMobileCardMinW = 132.0;
+const double _kMobileCardMaxW = 188.0;
 
 double _mobileCardH(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 34.0;
-    case _GridDensity.roomy:
-      return 45.0;
-    case _GridDensity.normal:
-    default:
       return 38.0;
+    case _GridDensity.roomy:
+      return 50.0;
+    case _GridDensity.normal:
+      return 44.0;
   }
 }
 
@@ -22,7 +21,6 @@ double _mobileRowPadH(_GridDensity density) {
     case _GridDensity.roomy:
       return 14.0;
     case _GridDensity.normal:
-    default:
       return 13.0;
   }
 }
@@ -34,7 +32,6 @@ double _mobileRowPadV(_GridDensity density) {
     case _GridDensity.roomy:
       return 7.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -42,24 +39,22 @@ double _mobileRowPadV(_GridDensity density) {
 double _mobileRowSpacing(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 7.0;
+      return 6.0;
     case _GridDensity.roomy:
-      return 10.0;
+      return 8.0;
     case _GridDensity.normal:
-    default:
-      return 9.0;
+      return 7.0;
   }
 }
 
 double _mobileCardGap(_GridDensity density) {
   switch (density) {
     case _GridDensity.compact:
-      return 7.0;
+      return 6.0;
     case _GridDensity.roomy:
-      return 10.0;
+      return 8.0;
     case _GridDensity.normal:
-    default:
-      return 9.0;
+      return 7.0;
   }
 }
 
@@ -70,7 +65,6 @@ double _mobileCardPadH(_GridDensity density) {
     case _GridDensity.roomy:
       return 12.0;
     case _GridDensity.normal:
-    default:
       return 11.0;
   }
 }
@@ -82,7 +76,6 @@ double _mobileCardPadV(_GridDensity density) {
     case _GridDensity.roomy:
       return 7.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -99,7 +92,6 @@ double _mobileListPadTop(_GridDensity density) {
     case _GridDensity.roomy:
       return 8.0;
     case _GridDensity.normal:
-    default:
       return 7.0;
   }
 }
@@ -111,7 +103,6 @@ double _mobileListPadBottom(_GridDensity density) {
     case _GridDensity.roomy:
       return 14.0;
     case _GridDensity.normal:
-    default:
       return 12.0;
   }
 }
@@ -119,12 +110,11 @@ double _mobileListPadBottom(_GridDensity density) {
 double _mobileTextSize(_GridDensity density, {required bool isHeader}) {
   switch (density) {
     case _GridDensity.compact:
-      return isHeader ? 12.0 : 12.0;
+      return isHeader ? 12.4 : 13.4;
     case _GridDensity.roomy:
-      return isHeader ? 14.0 : 14.0;
+      return isHeader ? 14.2 : 15.0;
     case _GridDensity.normal:
-    default:
-      return isHeader ? 13.0 : 13.0;
+      return isHeader ? 13.2 : 14.2;
   }
 }
 
@@ -216,13 +206,13 @@ class _MobileNotesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shellRadius = BorderRadius.circular(22);
+    final shellRadius = BorderRadius.circular(16);
     final shellShadow = palette.cellText.withValues(
-      alpha: palette.isLight ? 0.06 : 0.24,
+      alpha: palette.isLight ? 0.035 : 0.18,
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: palette.gridBg,
@@ -234,8 +224,8 @@ class _MobileNotesGrid extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: shellShadow,
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -249,8 +239,9 @@ class _MobileNotesGrid extends StatelessWidget {
               return false;
             },
             child: ListView.separated(
+              key: const ValueKey('mobile-grid-vertical-list'),
               controller: verticalController,
-              physics: const BouncingScrollPhysics(),
+              physics: const ClampingScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 0,
                 _mobileListPadTop(density),
@@ -292,7 +283,7 @@ class _MobileNotesGrid extends StatelessWidget {
         child: ListView.separated(
           controller: headerScrollController,
           scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.symmetric(
             horizontal: _mobileRowPadH(density),
             vertical: _mobileRowPadV(density),
@@ -346,7 +337,7 @@ class _MobileNotesGrid extends StatelessWidget {
         child: ListView.separated(
           controller: rowController,
           scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.symmetric(
             horizontal: _mobileRowPadH(density),
             vertical: _mobileRowPadV(density),
@@ -404,11 +395,7 @@ class _MobileNotesGrid extends StatelessWidget {
               0.0,
               _mobileCardH(density),
             );
-            final lineHeight = _mobileTextSize(
-                  density,
-                  isHeader: false,
-                ) *
-                1.05;
+            final lineHeight = _mobileTextSize(density, isHeader: false) * 1.05;
             final linesByHeight = (availableTextHeight / lineHeight).floor();
             final wrapLines = math.max(
               1,

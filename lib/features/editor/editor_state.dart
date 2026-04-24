@@ -1007,7 +1007,9 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
     if (direction == ScrollDirection.forward) {
-      _setMobileTopBarCollapsed(false);
+      if (!_vScroll.hasClients || _vScroll.offset <= 12.0) {
+        _setMobileTopBarCollapsed(false);
+      }
     }
   }
 
@@ -9707,9 +9709,8 @@ class _EditorScreenState extends State<EditorScreen>
                     ? _mobileBarH
                     : desiredPanelH
                 : 0.0);
-        final quickBarH = isMobile && !_mobileEditorOpen
-            ? _kMobileQuickBarH + bottomSafe + 12
-            : 0.0;
+        final quickBarH =
+            isMobile && !_mobileEditorOpen ? bottomSafe + 10 : 0.0;
         final bodyBottomPad = isDesktop
             ? 0.0
             : (editorActive ? panelH + keyboardInset : quickBarH);
@@ -17863,6 +17864,19 @@ class _EditorScreenState extends State<EditorScreen>
   void debugSimulateMobileScrollDirection(ScrollDirection direction) {
     assert(() {
       _handleMobileGridScrollDirection(direction);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugJumpMobileVerticalScroll(double offset) {
+    assert(() {
+      if (!_vScroll.hasClients) return true;
+      final clamped = offset.clamp(
+        _vScroll.position.minScrollExtent,
+        _vScroll.position.maxScrollExtent,
+      );
+      _vScroll.jumpTo(clamped.toDouble());
       return true;
     }());
   }
