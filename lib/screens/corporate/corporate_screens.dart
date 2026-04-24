@@ -10,7 +10,6 @@ import '../../services/auth_service.dart';
 import '../../services/sheet_store.dart';
 import '../../services/supabase_service.dart';
 import '../../ui/ui.dart';
-import 'row_comments_sheet.dart';
 
 class WorkspaceListScreen extends StatefulWidget {
   const WorkspaceListScreen({
@@ -87,7 +86,8 @@ class _WorkspaceListScreenState extends State<WorkspaceListScreen> {
           if (snapshot.hasError) {
             return _CorporateError(
               message: 'No se pudieron cargar los workspaces.',
-              detail: '${snapshot.error}',
+              detail:
+                  'Revisa la conexion o intenta actualizar. Si el problema sigue, valida la sesion corporativa.',
               onRetry: () => setState(_reload),
             );
           }
@@ -99,10 +99,10 @@ class _WorkspaceListScreenState extends State<WorkspaceListScreen> {
               icon: Icons.business_rounded,
               title: remoteConfigured && !remoteSignedIn
                   ? 'Inicia sesion para ver tus workspaces'
-                  : 'No hay workspaces disponibles',
+                  : 'Configura el primer workspace',
               message: remoteConfigured && !remoteSignedIn
-                  ? 'Supabase esta configurado, pero todavia no hay una sesion corporativa activa.'
-                  : 'Cuando conectes Supabase o crees membresias, la empresa aparecera aca.',
+                  ? 'La base remota esta configurada, pero falta iniciar una sesion corporativa.'
+                  : 'Cuando exista una empresa o membresia, aparecera aca con sus proyectos y planillas.',
               action: remoteConfigured && !remoteSignedIn
                   ? AppButton(
                       label: 'Iniciar sesion',
@@ -227,7 +227,8 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           if (snapshot.hasError) {
             return _CorporateError(
               message: 'No se pudieron cargar los proyectos.',
-              detail: '${snapshot.error}',
+              detail:
+                  'Actualiza la vista. Si continua, revisa acceso al workspace o conectividad.',
               onRetry: () => setState(_reload),
             );
           }
@@ -249,7 +250,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
               icon: Icons.folder_open_rounded,
               title: 'No hay proyectos activos',
               message:
-                  'La base corporativa ya esta lista para mostrar proyectos cuando existan en Supabase.',
+                  'Crea o sincroniza un proyecto para agrupar planillas, responsables y revisiones.',
             );
           }
           return Column(
@@ -381,7 +382,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               AppCard(
                 padding: EdgeInsets.all(t.spacing.xl),
                 radius: t.radii.xl,
-                color: t.colors.surfaceElevated,
+                color: t.colors.surface,
+                borderColor: t.colors.borderStrong,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -642,7 +644,8 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
     if (snapshot.hasError) {
       return _CorporateError(
         message: 'No se pudieron cargar las planillas del proyecto.',
-        detail: '${snapshot.error}',
+        detail:
+            'Actualiza la vista. Si continua, revisa permisos del proyecto o conectividad.',
         onRetry: () => setState(_reload),
       );
     }
@@ -669,7 +672,8 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
         AppCard(
           padding: EdgeInsets.all(t.spacing.xl),
           radius: t.radii.xl,
-          color: t.colors.surfaceElevated,
+          color: t.colors.surface,
+          borderColor: t.colors.borderStrong,
           child: Row(
             children: [
               _IconTile(icon: Icons.folder_rounded),
@@ -707,9 +711,9 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
         if (data.sheetIds.isEmpty)
           _CorporateEmpty(
             icon: Icons.table_chart_rounded,
-            title: 'No hay planillas vinculadas a este proyecto.',
+            title: 'Este proyecto todavia no tiene planillas',
             message:
-                'Crea una planilla nueva o vincula una existente para trabajar con contexto de proyecto.',
+                'Vincula una existente o crea una nueva para mantener mediciones, evidencias y revisiones en contexto.',
             action: AppButton(
               label: 'Vincular planilla existente',
               icon: Icons.link_rounded,
@@ -765,7 +769,10 @@ class _ProjectSheetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong.withValues(
+        alpha: t.colors.isLight ? 0.50 : 0.70,
+      ),
       radius: t.radii.xl,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1022,23 +1029,19 @@ class _CorporateShell extends StatelessWidget {
                   AppCard(
                     padding: EdgeInsets.all(t.spacing.lg),
                     radius: t.radii.xl,
-                    color: t.colors.surfaceElevated.withValues(alpha: 0.92),
+                    color: t.colors.surface,
+                    borderColor: t.colors.borderStrong,
+                    shadows: t.shadows.card,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final compact = constraints.maxWidth < 760;
                         final header = Row(
                           children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: t.colors.textPrimary,
-                                borderRadius: BorderRadius.circular(t.radii.md),
-                              ),
-                              child: Icon(
-                                Icons.business_center_rounded,
-                                color: t.colors.bg,
-                              ),
+                            _IconTile(
+                              icon: Icons.business_center_rounded,
+                              size: 48,
+                              iconSize: 22,
+                              filled: true,
                             ),
                             SizedBox(width: t.spacing.md),
                             Expanded(
@@ -1056,7 +1059,7 @@ class _CorporateShell extends StatelessWidget {
                                     subtitle,
                                     style: t.text.bodyMedium?.copyWith(
                                       color: t.colors.textSecondary,
-                                      height: 1.3,
+                                      height: 1.35,
                                     ),
                                   ),
                                 ],
@@ -1134,7 +1137,10 @@ class _WorkspaceCard extends StatelessWidget {
     final t = context.tokens;
     return AppCard(
       onTap: () => context.go('/workspaces/${workspace.id}/projects'),
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong.withValues(
+        alpha: t.colors.isLight ? 0.52 : 0.72,
+      ),
       radius: t.radii.xl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1164,23 +1170,7 @@ class _WorkspaceCard extends StatelessWidget {
             style: t.text.bodyMedium?.copyWith(color: t.colors.textSecondary),
           ),
           SizedBox(height: t.spacing.md),
-          Row(
-            children: [
-              Text(
-                'Ver proyectos',
-                style: t.text.bodySmall?.copyWith(
-                  color: t.colors.accent,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(width: t.spacing.xs),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 16,
-                color: t.colors.accent,
-              ),
-            ],
-          ),
+          const _ActionHint(label: 'Ver proyectos'),
         ],
       ),
     );
@@ -1196,7 +1186,8 @@ class _WorkspaceSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong,
       radius: t.radii.xl,
       child: Row(
         children: [
@@ -1239,7 +1230,10 @@ class _ProjectCard extends StatelessWidget {
     return AppCard(
       onTap: () => context.go('/projects/${project.id}'),
       radius: t.radii.xl,
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong.withValues(
+        alpha: t.colors.isLight ? 0.52 : 0.72,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1279,23 +1273,7 @@ class _ProjectCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: t.spacing.md),
-          Row(
-            children: [
-              Text(
-                'Entrar al proyecto',
-                style: t.text.bodySmall?.copyWith(
-                  color: t.colors.accent,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(width: t.spacing.xs),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 16,
-                color: t.colors.accent,
-              ),
-            ],
-          ),
+          const _ActionHint(label: 'Entrar al proyecto'),
         ],
       ),
     );
@@ -1366,7 +1344,6 @@ class _RemoteStatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final configured = AuthService.I.isRemoteBackendConfigured;
     final signedIn = AuthService.I.isRemoteAuthenticated;
     final text = repository.usesRemoteBackend
         ? (signedIn
@@ -1374,16 +1351,33 @@ class _RemoteStatusBanner extends StatelessWidget {
             : 'Supabase configurado. Inicia sesion para aplicar RLS y ver datos reales.')
         : 'Modo local operativo. Configura Supabase para usar workspaces reales.';
     return AppCard(
-      color: t.colors.surfaceMuted,
+      color: t.colors.surface,
+      borderColor: repository.usesRemoteBackend
+          ? (signedIn
+              ? t.colors.successFg.withValues(alpha: 0.20)
+              : t.colors.accent.withValues(alpha: 0.18))
+          : t.colors.borderStrong.withValues(
+              alpha: t.colors.isLight ? 0.40 : 0.60,
+            ),
       radius: t.radii.lg,
       shadows: const <BoxShadow>[],
       child: Row(
         children: [
-          Icon(
-            repository.usesRemoteBackend
+          _IconTile(
+            icon: repository.usesRemoteBackend
                 ? Icons.cloud_done_rounded
                 : Icons.computer_rounded,
-            color: configured ? t.colors.successFg : t.colors.textSecondary,
+            backgroundColor: repository.usesRemoteBackend
+                ? (signedIn ? t.colors.successBg : t.colors.accentMuted)
+                : t.colors.surfaceMuted,
+            foregroundColor: repository.usesRemoteBackend
+                ? (signedIn ? t.colors.successFg : t.colors.accent)
+                : t.colors.textSecondary,
+            borderColor: repository.usesRemoteBackend
+                ? (signedIn
+                    ? t.colors.successFg.withValues(alpha: 0.18)
+                    : t.colors.accent.withValues(alpha: 0.16))
+                : t.colors.border,
           ),
           SizedBox(width: t.spacing.md),
           Expanded(
@@ -1419,19 +1413,13 @@ class _BackendBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Container(
+    return _PillFrame(
+      background: remote ? t.colors.successBg : t.colors.surfaceMuted,
+      borderColor:
+          remote ? t.colors.successFg.withValues(alpha: 0.22) : t.colors.border,
       padding: EdgeInsets.symmetric(
         horizontal: t.spacing.md,
         vertical: t.spacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: remote ? t.colors.successBg : t.colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(t.radii.pill),
-        border: Border.all(
-          color: remote
-              ? t.colors.successFg.withValues(alpha: 0.22)
-              : t.colors.border,
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1456,21 +1444,101 @@ class _BackendBadge extends StatelessWidget {
 }
 
 class _IconTile extends StatelessWidget {
-  const _IconTile({required this.icon});
+  const _IconTile({
+    required this.icon,
+    this.size = 42,
+    this.iconSize = 20,
+    this.filled = false,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
+  });
 
   final IconData icon;
+  final double size;
+  final double iconSize;
+  final bool filled;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+  final Color? borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final bg =
+        backgroundColor ?? (filled ? t.colors.accent : t.colors.accentMuted);
+    final fg = foregroundColor ?? (filled ? onPrimary : t.colors.accent);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(t.radii.md),
+        border: borderColor == null ? null : Border.all(color: borderColor!),
+      ),
+      child: Icon(icon, size: iconSize, color: fg),
+    );
+  }
+}
+
+class _PillFrame extends StatelessWidget {
+  const _PillFrame({
+    required this.child,
+    required this.background,
+    this.borderColor,
+    this.padding,
+  });
+
+  final Widget child;
+  final Color background;
+  final Color? borderColor;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Container(
-      width: 42,
-      height: 42,
+      padding: padding ??
+          EdgeInsets.symmetric(
+            horizontal: t.spacing.md,
+            vertical: t.spacing.xs,
+          ),
       decoration: BoxDecoration(
-        color: t.colors.accentMuted,
-        borderRadius: BorderRadius.circular(t.radii.md),
+        color: background,
+        borderRadius: BorderRadius.circular(t.radii.pill),
+        border: borderColor == null ? null : Border.all(color: borderColor!),
       ),
-      child: Icon(icon, color: t.colors.accent),
+      child: child,
+    );
+  }
+}
+
+class _ActionHint extends StatelessWidget {
+  const _ActionHint({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: t.text.bodySmall?.copyWith(
+            color: t.colors.accent,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        SizedBox(width: t.spacing.xs),
+        Icon(
+          Icons.arrow_forward_rounded,
+          size: 16,
+          color: t.colors.accent,
+        ),
+      ],
     );
   }
 }
@@ -1495,15 +1563,12 @@ class _MemberChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Container(
+    return _PillFrame(
+      background: t.colors.surfaceMuted,
+      borderColor: t.colors.border,
       padding: EdgeInsets.symmetric(
         horizontal: t.spacing.md,
         vertical: t.spacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: t.colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(t.radii.pill),
-        border: Border.all(color: t.colors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1536,15 +1601,9 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final status = _resolveStatus(t, label);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: t.spacing.md,
-        vertical: t.spacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: status.background,
-        borderRadius: BorderRadius.circular(t.radii.pill),
-      ),
+    return _PillFrame(
+      background: status.background,
+      borderColor: status.border,
       child: Text(
         status.label,
         style: t.text.bodySmall?.copyWith(
@@ -1562,30 +1621,35 @@ class _StatusChip extends StatelessWidget {
           label: 'Activo',
           background: t.colors.successBg,
           foreground: t.colors.successFg,
+          border: t.colors.successFg.withValues(alpha: 0.18),
         );
       case 'planning':
         return _ResolvedStatus(
           label: 'Planificación',
           background: t.colors.accentMuted,
           foreground: t.colors.accent,
+          border: t.colors.accent.withValues(alpha: 0.16),
         );
       case 'paused':
         return _ResolvedStatus(
           label: 'Pausado',
           background: t.colors.warningBg,
           foreground: t.colors.warningFg,
+          border: t.colors.warningFg.withValues(alpha: 0.16),
         );
       case 'closed':
         return _ResolvedStatus(
           label: 'Cerrado',
           background: t.colors.surfaceMuted,
           foreground: t.colors.textSecondary,
+          border: t.colors.border,
         );
       default:
         return _ResolvedStatus(
           label: rawLabel,
           background: t.colors.statusBg,
           foreground: t.colors.statusFg,
+          border: t.colors.statusFg.withValues(alpha: 0.14),
         );
     }
   }
@@ -1596,11 +1660,13 @@ class _ResolvedStatus {
     required this.label,
     required this.background,
     required this.foreground,
+    required this.border,
   });
 
   final String label;
   final Color background;
   final Color foreground;
+  final Color border;
 }
 
 class _CorporateLoading extends StatelessWidget {
@@ -1610,14 +1676,18 @@ class _CorporateLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong,
       radius: t.radii.xl,
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: t.colors.accent,
+            ),
           ),
           SizedBox(width: t.spacing.md),
           Text(
@@ -1647,12 +1717,18 @@ class _CorporateError extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.dangerFg.withValues(alpha: 0.18),
       radius: t.radii.xl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline_rounded, color: t.colors.dangerFg),
+          _IconTile(
+            icon: Icons.error_outline_rounded,
+            backgroundColor: t.colors.dangerBg,
+            foregroundColor: t.colors.dangerFg,
+            borderColor: t.colors.dangerFg.withValues(alpha: 0.18),
+          ),
           SizedBox(height: t.spacing.md),
           Text(
             message,
@@ -1695,7 +1771,8 @@ class _CorporateEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return AppCard(
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: t.colors.borderStrong,
       radius: t.radii.xl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1831,20 +1908,17 @@ class _PendingPanelScreenState extends State<PendingPanelScreen> {
                   'No hay filas observadas ni corregidas pendientes de acción.',
             );
           }
-          final projectCount =
-              items.map((i) => i.projectId).toSet().length;
-          final rowWord =
-              items.length == 1 ? 'fila' : 'filas';
-          final projWord =
-              projectCount == 1 ? 'proyecto' : 'proyectos';
+          final projectCount = items.map((i) => i.projectId).toSet().length;
+          final rowWord = items.length == 1 ? 'fila' : 'filas';
+          final projWord = projectCount == 1 ? 'proyecto' : 'proyectos';
           final t = context.tokens;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '${items.length} $rowWord en $projectCount $projWord',
-                style: t.text.labelSmall
-                    ?.copyWith(color: t.colors.textSecondary),
+                style:
+                    t.text.labelSmall?.copyWith(color: t.colors.textSecondary),
               ),
               SizedBox(height: t.spacing.md),
               _PendingList(items: items),
@@ -1976,15 +2050,12 @@ class _PendingGroupHeader extends StatelessWidget {
     return Row(
       children: [
         if (projectCode != null)
-          Container(
+          _PillFrame(
+            background: t.colors.accentMuted,
+            borderColor: t.colors.accent.withValues(alpha: 0.16),
             padding: EdgeInsets.symmetric(
               horizontal: t.spacing.sm,
               vertical: 2,
-            ),
-            margin: EdgeInsets.only(right: t.spacing.sm),
-            decoration: BoxDecoration(
-              color: t.colors.accentMuted,
-              borderRadius: BorderRadius.circular(t.radii.pill),
             ),
             child: Text(
               projectCode!,
@@ -1994,6 +2065,7 @@ class _PendingGroupHeader extends StatelessWidget {
               ),
             ),
           ),
+        if (projectCode != null) SizedBox(width: t.spacing.sm),
         Expanded(
           child: Text(
             projectName,
@@ -2002,14 +2074,12 @@ class _PendingGroupHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Container(
+        _PillFrame(
+          background: t.colors.statusBg,
+          borderColor: t.colors.statusFg.withValues(alpha: 0.14),
           padding: EdgeInsets.symmetric(
             horizontal: t.spacing.sm,
             vertical: 2,
-          ),
-          decoration: BoxDecoration(
-            color: t.colors.statusBg,
-            borderRadius: BorderRadius.circular(t.radii.pill),
           ),
           child: Text(
             '$count',
@@ -2078,7 +2148,8 @@ class _PendingItemCard extends StatelessWidget {
         final sheetId = item.review.sheetLocalId;
         context.go('/sheets?sheetId=$sheetId');
       },
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor: statusColor.withValues(alpha: 0.18),
       radius: t.radii.lg,
       child: Row(
         children: [
@@ -2098,14 +2169,12 @@ class _PendingItemCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
+                    _PillFrame(
+                      background: statusColor.withValues(alpha: 0.10),
+                      borderColor: statusColor.withValues(alpha: 0.18),
                       padding: EdgeInsets.symmetric(
                         horizontal: t.spacing.xs,
                         vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(t.radii.pill),
                       ),
                       child: Text(
                         item.displayStatus,
@@ -2274,11 +2343,19 @@ class _NotificationsList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (unread > 0) ...[
-          Text(
-            '$unread sin leer',
-            style: t.text.labelSmall?.copyWith(
-              color: t.colors.accent,
-              fontWeight: FontWeight.w700,
+          _PillFrame(
+            background: t.colors.accentMuted,
+            borderColor: t.colors.accent.withValues(alpha: 0.16),
+            padding: EdgeInsets.symmetric(
+              horizontal: t.spacing.sm,
+              vertical: t.spacing.xs,
+            ),
+            child: Text(
+              '$unread sin leer',
+              style: t.text.labelSmall?.copyWith(
+                color: t.colors.accent,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           SizedBox(height: t.spacing.sm),
@@ -2340,7 +2417,9 @@ class _NotifCard extends StatelessWidget {
         }
       },
       radius: t.radii.lg,
-      color: t.colors.surfaceElevated,
+      color: t.colors.surface,
+      borderColor:
+          notif.isRead ? t.colors.border : color.withValues(alpha: 0.18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2488,15 +2567,15 @@ class _NotifBadgeState extends State<_NotifBadge> {
               width: 16,
               height: 16,
               decoration: BoxDecoration(
-                color: t.colors.dangerFg,
+                color: t.colors.accent,
                 shape: BoxShape.circle,
-                border: Border.all(color: t.colors.surfaceElevated, width: 1.5),
+                border: Border.all(color: t.colors.surface, width: 1.5),
               ),
               child: Center(
                 child: Text(
                   _unread > 9 ? '9+' : '$_unread',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     fontSize: 8,
                     fontWeight: FontWeight.w900,
                     height: 1,

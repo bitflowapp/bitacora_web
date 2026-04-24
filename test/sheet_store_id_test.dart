@@ -68,6 +68,19 @@ void main() {
     expect(normalized['frozenColId'], 'c_status');
   });
 
+  test('technical templates create prefilled sellable rows', () {
+    final id = SheetStore.createFromTemplate(TemplateKind.proteccionCatodica);
+    final raw = SheetStore.loadRaw(id);
+    final decoded = jsonDecode(raw!) as Map<String, dynamic>;
+    final rows = decoded['rows'] as List<dynamic>;
+    final firstRow = rows.first as Map<String, dynamic>;
+    final cells = firstRow['cells'] as List<dynamic>;
+
+    expect(decoded['headers'], contains('Potencial OFF (V)'));
+    expect(decoded['headers'], contains('Responsable'));
+    expect(cells, contains('CMP-120'));
+  });
+
   test('list ignores backup metadata keys under bitflow:sheet prefix',
       () async {
     final now = DateTime(2026, 2, 11, 12, 0).toIso8601String();

@@ -2,6 +2,7 @@
 import 'dart:async' show Timer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:bitacora_web/design_system/colors.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:bitacora_web/theme/gridnote_theme.dart';
 import 'validators.dart';
@@ -9,12 +10,9 @@ import 'validators.dart';
 typedef CellChanged = void Function(int rowIndex, int colIndex, String value);
 typedef RowSelected = void Function(int rowIndex);
 
-const Color _kGridEvenRow = Color(0xFFFFFFFF);
-const Color _kGridOddRow = Color(0xFFF9FAFB);
-const Color _kGridSelectedRow = Color(0x14007AFF);
-const Color _kGridBodyText = Color(0xFF111827);
-const Color _kGridSecondaryText = Color(0xFF6B7280);
-const Color _kGridAccent = Color(0xFF007AFF);
+const Color _kGridEvenRow = AppColors.lightBg;
+const Color _kGridOddRow = AppColors.lightSecondaryBg;
+const Color _kGridBodyText = AppColors.lightLabel;
 
 class SmartDataSource extends DataGridSource {
   SmartDataSource({
@@ -174,18 +172,23 @@ class SmartDataSource extends DataGridSource {
     final oddRow = r.isOdd;
     final zebra = t?.zebra ?? true;
     final bg = selected
-        ? _kGridSelectedRow
+        ? (t?.selectionBg ?? AppColors.accentBlue.withValues(alpha: 0.08))
         : zebra && oddRow
             ? (t?.zebraColor ?? _kGridOddRow)
             : (t?.cellBg ?? _kGridEvenRow);
 
     return DataGridRowAdapter(color: bg, cells: <Widget>[
-      _indexCell(r, bg, selected: selected),
+      _indexCell(r, bg, t, selected: selected),
       for (int c = 0; c < _headers.length; c++) _editCell(r, c, bg, t),
     ]);
   }
 
-  Widget _indexCell(int r, Color bg, {required bool selected}) {
+  Widget _indexCell(
+    int r,
+    Color bg,
+    GridnoteTableStyle? t, {
+    required bool selected,
+  }) {
     return Container(
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -193,7 +196,10 @@ class SmartDataSource extends DataGridSource {
       child: Text(
         '${r + 1}',
         style: TextStyle(
-          color: selected ? _kGridAccent : _kGridSecondaryText,
+          color: selected
+              ? (t?.rowIndexSelectedText ?? AppColors.accentBlue)
+              : (t?.rowIndexText ??
+                  AppColors.lightSecondaryLabel.withValues(alpha: 0.6)),
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           fontSize: 13.5,
           letterSpacing: -0.05,
@@ -227,7 +233,7 @@ class SmartDataSource extends DataGridSource {
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : TextInputType.text,
         inputFormatters: inputFmt,
-        cursorColor: _kGridAccent,
+        cursorColor: t?.cursorColor ?? AppColors.accentBlue,
         decoration: const InputDecoration(
           isDense: true,
           border: InputBorder.none,

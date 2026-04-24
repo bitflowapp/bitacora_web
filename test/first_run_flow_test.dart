@@ -79,7 +79,7 @@ void main() {
     await tester.tap(find.text(AppStrings.templates).first);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Plantilla base'));
+    await tester.tap(find.text('Proteccion catodica'));
     await tester.pumpAndSettle();
 
     expect(find.byType(EditorScreen), findsOneWidget);

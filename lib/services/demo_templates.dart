@@ -17,8 +17,8 @@ class DemoTemplateSpec {
 const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   DemoTemplateSpec(
     slug: 'proteccion-catodica',
-    name: 'Proteccion Catodica',
-    sheetName: 'Demo Proteccion Catodica',
+    name: 'Proteccion catodica',
+    sheetName: 'Demo - Proteccion catodica Loma Norte',
     headers: <String>[
       'Fecha',
       'Progresiva',
@@ -29,7 +29,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
       'Cupon',
       'Estado',
       'Observaciones',
-      'Fotos'
+      'Responsable',
+      'Foto / Evidencia'
     ],
     rows: <List<String>>[
       <String>[
@@ -42,6 +43,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'Polarizado',
         'OK',
         'Caja limpia. Referencia Cu/CuSO4 estable.',
+        'M. Luna',
         ''
       ],
       <String>[
@@ -53,7 +55,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         '0.20',
         'Polarizado',
         'OK',
-        'Sin dano visible. Registrar foto de tapa.',
+        'Sin dano visible. Tapa identificada y accesible.',
+        'M. Luna',
         ''
       ],
       <String>[
@@ -66,6 +69,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'Despolarizado',
         'Obs',
         'Revisar continuidad y repetir medicion en contraprueba.',
+        'A. Rojas',
         ''
       ],
       <String>[
@@ -78,65 +82,252 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'N/A',
         'OK',
         'Lectura dentro de rango operativo del tramo.',
+        'A. Rojas',
+        ''
+      ],
+    ],
+  ),
+  DemoTemplateSpec(
+    slug: 'puesta-a-tierra',
+    name: 'Puesta a tierra',
+    sheetName: 'Demo - Puesta a tierra planta compresora',
+    headers: <String>[
+      'Fecha',
+      'Sector',
+      'Punto PAT',
+      'Resistencia (Ohm)',
+      'Continuidad',
+      'Estado',
+      'Observaciones',
+      'Responsable',
+      'Foto / Evidencia'
+    ],
+    rows: <List<String>>[
+      <String>[
+        '2026-04-21',
+        'Tablero bombas',
+        'PAT-TB-01',
+        '2.8',
+        'OK',
+        'OK',
+        'Bornes limpios. Se adjunta foto de jabalina.',
+        'L. Vega',
+        ''
+      ],
+      <String>[
+        '2026-04-21',
+        'Sala MCC',
+        'PAT-MCC-02',
+        '4.6',
+        'OK',
+        'Obs',
+        'Valor alto para criterio interno. Repetir con terreno humedo.',
+        'L. Vega',
+        ''
+      ],
+      <String>[
+        '2026-04-21',
+        'Skid medicion',
+        'PAT-SK-03',
+        '1.9',
+        'OK',
+        'OK',
+        'Cable identificado y continuidad verificada.',
+        'N. Ruiz',
+        ''
+      ],
+    ],
+  ),
+  DemoTemplateSpec(
+    slug: 'relevamiento-evidencias',
+    name: 'Relevamiento con evidencias',
+    sheetName: 'Demo - Relevamiento tecnico con evidencias',
+    headers: <String>[
+      'Fecha',
+      'Cliente',
+      'Sector',
+      'Hallazgo',
+      'Criticidad',
+      'Accion recomendada',
+      'Responsable',
+      'Foto / Evidencia'
+    ],
+    rows: <List<String>>[
+      <String>[
+        '2026-04-20',
+        'Operadora Norte',
+        'Manifold 3',
+        'Etiqueta ilegible en valvula bypass',
+        'Media',
+        'Reponer identificacion y fotografiar cierre.',
+        'S. Perez',
+        ''
+      ],
+      <String>[
+        '2026-04-20',
+        'Operadora Norte',
+        'Linea 6"',
+        'Soporte con corrosion superficial',
+        'Media',
+        'Lijar, pintar y registrar evidencia final.',
+        'S. Perez',
+        ''
+      ],
+      <String>[
+        '2026-04-20',
+        'Operadora Norte',
+        'Caseta RTU',
+        'Puerta cierra correctamente',
+        'Baja',
+        'Sin accion. Mantener control mensual.',
+        'N. Ruiz',
         ''
       ],
     ],
   ),
   DemoTemplateSpec(
     slug: 'campo',
-    name: 'Campo',
-    sheetName: 'Demo Campo',
+    name: 'Inspeccion de campo',
+    sheetName: 'Demo - Inspeccion operativa de campo',
     headers: <String>[
       'Fecha',
       'Frente',
       'Actividad',
       'Estado',
-      'Observaciones'
+      'Observaciones',
+      'Responsable',
+      'Foto / Evidencia'
     ],
     rows: <List<String>>[
-      <String>['2026-02-14', 'Norte', 'Replanteo', 'OK', 'Sin novedad'],
       <String>[
-        '2026-02-14',
+        '2026-04-19',
         'Norte',
-        'Hormigonado',
-        'Pendiente',
-        'Falta mixer'
+        'Replanteo de traza',
+        'OK',
+        'Puntos marcados y fotografiados.',
+        'J. Soto',
+        ''
       ],
-      <String>['2026-02-14', 'Sur', 'Excavacion', 'OK', 'Cota verificada'],
-      <String>['2026-02-14', 'Sur', 'Compactacion', 'Obs', 'Humedad alta'],
-      <String>['2026-02-14', 'Este', 'Canaleta', 'OK', ''],
+      <String>[
+        '2026-04-19',
+        'Norte',
+        'Cruce de camino',
+        'Obs',
+        'Permiso pendiente para ingreso de equipo.',
+        'J. Soto',
+        ''
+      ],
+      <String>[
+        '2026-04-19',
+        'Sur',
+        'Verificacion de tapada',
+        'OK',
+        'Cota verificada contra plano IFC.',
+        'A. Rojas',
+        ''
+      ],
+      <String>[
+        '2026-04-19',
+        'Sur',
+        'Orden y limpieza',
+        'Pendiente',
+        'Retirar sobrante de material al cierre del turno.',
+        'A. Rojas',
+        ''
+      ],
+    ],
+  ),
+  DemoTemplateSpec(
+    slug: 'control-operativo',
+    name: 'Control operativo simple',
+    sheetName: 'Demo - Control operativo diario',
+    headers: <String>[
+      'Fecha',
+      'Equipo / Area',
+      'Control',
+      'Valor',
+      'Estado',
+      'Accion',
+      'Responsable'
+    ],
+    rows: <List<String>>[
+      <String>[
+        '2026-04-18',
+        'Bomba P-101',
+        'Presion descarga',
+        '8.4 bar',
+        'OK',
+        'Sin accion',
+        'G. Molina'
+      ],
+      <String>[
+        '2026-04-18',
+        'Compresor C-02',
+        'Nivel aceite',
+        'Bajo',
+        'Obs',
+        'Completar nivel y registrar foto.',
+        'G. Molina'
+      ],
+      <String>[
+        '2026-04-18',
+        'Tablero TG-01',
+        'Temperatura',
+        '36 C',
+        'OK',
+        'Seguimiento normal',
+        'V. Castro'
+      ],
     ],
   ),
   DemoTemplateSpec(
     slug: 'inventario',
-    name: 'Inventario',
-    sheetName: 'Demo Inventario',
+    name: 'Inventario tecnico',
+    sheetName: 'Demo - Inventario de materiales de frente',
     headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicacion'],
     rows: <List<String>>[
-      <String>['MAT-001', 'Cemento', '35', 'bolsas', 'Deposito A'],
-      <String>['MAT-014', 'Hierro 8mm', '120', 'u', 'Deposito B'],
-      <String>['MAT-032', 'Arena', '18', 'm3', 'Patio'],
-      <String>['EPP-002', 'Guantes', '56', 'pares', 'Panuelo'],
-      <String>['EPP-010', 'Cascos', '24', 'u', 'Oficina'],
+      <String>['MAT-001', 'Cable Cu desnudo 35mm2', '120', 'm', 'Deposito A'],
+      <String>['MAT-014', 'Jabalina cobreada 5/8"', '18', 'u', 'Deposito B'],
+      <String>['MAT-032', 'Caja inspeccion PAT', '12', 'u', 'Patio'],
+      <String>['EPP-002', 'Guantes dielectricos', '8', 'pares', 'Panuelo'],
+      <String>['EPP-010', 'Cascos con barbijo', '24', 'u', 'Oficina'],
     ],
   ),
   DemoTemplateSpec(
     slug: 'rendicion',
-    name: 'Rendicion',
-    sheetName: 'Demo Rendicion',
+    name: 'Rendicion de campo',
+    sheetName: 'Demo - Rendicion de cuadrilla',
     headers: <String>['Fecha', 'Concepto', 'Categoria', 'Monto', 'Comprobante'],
     rows: <List<String>>[
-      <String>['2026-02-10', 'Combustible', 'Movilidad', '45200', 'TK-1001'],
-      <String>['2026-02-10', 'Peaje', 'Movilidad', '7800', 'TK-1002'],
       <String>[
-        '2026-02-11',
+        '2026-04-16',
+        'Combustible camioneta',
+        'Movilidad',
+        '45200',
+        'TK-1001'
+      ],
+      <String>['2026-04-16', 'Peaje Ruta 7', 'Movilidad', '7800', 'TK-1002'],
+      <String>[
+        '2026-04-17',
         'Almuerzo cuadrilla',
         'Viaticos',
         '23500',
         'TK-1003'
       ],
-      <String>['2026-02-12', 'Ferreteria', 'Materiales', '68400', 'TK-1004'],
-      <String>['2026-02-13', 'Taxi', 'Movilidad', '9800', 'TK-1005'],
+      <String>[
+        '2026-04-17',
+        'Terminales y precintos',
+        'Materiales',
+        '68400',
+        'TK-1004'
+      ],
+      <String>[
+        '2026-04-18',
+        'Lavado EPP contaminado',
+        'Servicios',
+        '9800',
+        'TK-1005'
+      ],
     ],
   ),
 ];
@@ -149,6 +340,12 @@ DemoTemplateSpec? resolveDemoTemplateFromSlug(String? slug) {
     'proteccion': 'proteccion-catodica',
     'proteccioncatodica': 'proteccion-catodica',
     'proteccion_catodica': 'proteccion-catodica',
+    'pat': 'puesta-a-tierra',
+    'puesta': 'puesta-a-tierra',
+    'puesta_tierra': 'puesta-a-tierra',
+    'evidencias': 'relevamiento-evidencias',
+    'inspeccion': 'campo',
+    'operativo': 'control-operativo',
   };
   final effective = aliases[normalized] ?? normalized;
   for (final spec in kDemoTemplateSpecs) {
