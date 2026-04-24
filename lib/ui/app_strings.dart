@@ -14,16 +14,17 @@ class AppStrings {
   static const actions = 'Acciones';
 
   // Sheets
-  static const sheetsTitle = 'BitFlow';
-  static const sheetsSearchHint = 'Buscar por nombre o ID... (Ctrl/Cmd+K o /)';
+  static const sheetsTitle = 'Bit Flow';
+  static const sheetsSearchHint =
+      'Buscar relevamiento, cliente, frente o ID...';
   static const newSheet = 'Crear planilla';
   static const templates = 'Plantillas';
   static const openLast = 'Abrir ultima';
   static const clearSearch = 'Limpiar busqueda';
-  static const emptySheetsTitle = 'Todavia no hay planillas';
+  static const emptySheetsTitle = 'Crea tu primer relevamiento';
   static const emptySheetsBody =
-      'Crea tu primera planilla o arranca desde una plantilla para tus relevamientos.';
-  static const noResultsTitle = 'Sin resultados';
+      'Empieza con una planilla tecnica o usa una plantilla con columnas reales para campo, evidencia y exportacion.';
+  static const noResultsTitle = 'No encontramos esa planilla';
   static const deletedSheetToast = 'Planilla eliminada';
   static const renameSheetTitle = 'Renombrar planilla';
   static const renameSheetNameLabel = 'Nombre';
@@ -35,7 +36,7 @@ class AppStrings {
   }
 
   static String noResultsBody(String query) {
-    return 'No encontramos planillas para "$query".';
+    return 'No hay resultados para "$query". Prueba con cliente, sector, punto de medicion o fecha.';
   }
 
   // Editor
