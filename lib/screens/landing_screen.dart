@@ -87,9 +87,9 @@ class _LandingScreenState extends State<LandingScreen>
       scheme: 'mailto',
       path: _contactEmail,
       queryParameters: const <String, String>{
-        'subject': 'Demo Bit Flow',
+        'subject': 'Demo Bit Flow para relevamientos tecnicos',
         'body':
-            'Hola! Quiero ver Bit Flow para relevamientos tecnicos de campo.',
+            'Hola! Quiero evaluar Bit Flow para relevamientos tecnicos, evidencias y exportaciones.',
       },
     );
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -465,11 +465,11 @@ class _Hero extends StatelessWidget {
         _Eyebrow(
           palette: palette,
           icon: Icons.engineering_rounded,
-          label: 'Software B2B para equipos tecnicos en campo',
+          label: 'Planillas inteligentes para equipos tecnicos B2B',
         ),
         const SizedBox(height: 18),
         Text(
-          'Relevamientos tecnicos listos para exportar.',
+          'Relevamientos tecnicos con evidencias, listos para entregar.',
           style: TextStyle(
             color: palette.textPrimary,
             fontSize: isWide ? 58 : 38,
@@ -480,10 +480,9 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Bit Flow ordena proteccion catodica, puesta a tierra e inspecciones '
-          'con evidencia. Carga mediciones, fotos, GPS y notas en una planilla '
-          'consistente; despues exporta XLSX, PDF o backup ZIP sin rehacer el '
-          'trabajo en la oficina.',
+          'Bit Flow convierte datos de campo y oficina en planillas tecnicas '
+          'claras. Registra mediciones, fotos, GPS, notas y responsables; '
+          'despues exporta XLSX, PDF o backup ZIP sin rehacer el trabajo.',
           style: TextStyle(
             color: palette.textSecondary,
             fontSize: isWide ? 18 : 15.5,
@@ -496,14 +495,14 @@ class _Hero extends StatelessWidget {
           runSpacing: 12,
           children: [
             _SolidButton(
-              label: 'Crear planilla tecnica',
+              label: 'Entrar a Bit Flow',
               palette: palette,
               onPressed: onOpenApp,
               icon: Icons.add_rounded,
               large: true,
             ),
             _GhostButton(
-              label: 'Abrir demo PC',
+              label: 'Probar demo tecnica',
               palette: palette,
               onPressed: onOpenDemo,
               icon: Icons.play_arrow_rounded,
@@ -525,8 +524,8 @@ class _Hero extends StatelessWidget {
           children: [
             _TrustChip(palette: palette, label: 'Proteccion catodica'),
             _TrustChip(palette: palette, label: 'Puesta a tierra'),
-            _TrustChip(palette: palette, label: 'Fotos + GPS + audio'),
-            _TrustChip(palette: palette, label: 'XLSX / PDF / ZIP'),
+            _TrustChip(palette: palette, label: 'Evidencias + GPS'),
+            _TrustChip(palette: palette, label: 'Exportacion profesional'),
           ],
         ),
       ],
@@ -1004,22 +1003,22 @@ class _QuickStart extends StatelessWidget {
       _QuickStartAction(
         icon: Icons.bolt_rounded,
         title: 'Proteccion catodica',
-        subtitle: 'Abrir template con ON/OFF, IR drop, cupon y evidencia.',
-        cta: 'Demo PC',
+        subtitle: 'Abrir una demo con ON/OFF, IR drop, cupon y evidencia.',
+        cta: 'Probar demo',
         onTap: onOpenDemo,
         featured: true,
       ),
       _QuickStartAction(
         icon: Icons.add_chart_rounded,
-        title: 'Crear planilla tecnica',
-        subtitle: 'Entrar al inicio y crear una hoja lista para trabajo real.',
-        cta: 'Abrir planillas',
+        title: 'Crear planilla',
+        subtitle: 'Entrar al inicio y cargar un relevamiento en blanco.',
+        cta: 'Empezar',
         onTap: onOpenApp,
       ),
       _QuickStartAction(
         icon: Icons.history_rounded,
         title: 'Continuar trabajo',
-        subtitle: 'Recientes, favoritos y fijados quedan a un click.',
+        subtitle: 'Recientes, favoritos y fijados quedan visibles.',
         cta: 'Ir a planillas',
         onTap: onOpenApp,
       ),
@@ -1028,7 +1027,7 @@ class _QuickStart extends StatelessWidget {
             ? Icons.chat_rounded
             : Icons.mail_outline_rounded,
         title: 'Caso B2B',
-        subtitle: 'Mostrar Bit Flow con tu flujo de relevamiento.',
+        subtitle: 'Ver si Bit Flow encaja con tu flujo tecnico real.',
         cta: salesChannelLabel,
         onTap: onContact,
       ),

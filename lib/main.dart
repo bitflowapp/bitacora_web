@@ -155,7 +155,7 @@ Future<void> main() async {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Bit Flow - Error',
+                                    'Bit Flow no pudo mostrar esta vista',
                                     style: AppTypography.title3.copyWith(
                                       color: titleColor,
                                       fontWeight: FontWeight.w700,
@@ -163,7 +163,7 @@ Future<void> main() async {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'No se pudo renderizar este bloque.',
+                                    'Reintenta la accion o vuelve al inicio. En modo demo, tus datos locales siguen en el navegador.',
                                     style: AppTypography.footnote.copyWith(
                                       color: bodyColor,
                                     ),
@@ -174,14 +174,24 @@ Future<void> main() async {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        Text(
-                          details.exceptionAsString(),
-                          style: AppTypography.footnote.copyWith(
-                            color: titleColor,
-                            height: 1.35,
-                            fontFamily: 'monospace',
+                        if (kDebugMode) ...[
+                          Text(
+                            details.exceptionAsString(),
+                            style: AppTypography.footnote.copyWith(
+                              color: titleColor,
+                              height: 1.35,
+                              fontFamily: 'monospace',
+                            ),
                           ),
-                        ),
+                        ] else ...[
+                          Text(
+                            'El detalle tecnico queda registrado para soporte.',
+                            style: AppTypography.footnote.copyWith(
+                              color: titleColor,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
                         if (kDebugMode && details.stack != null) ...[
                           const SizedBox(height: 12),
                           DecoratedBox(
@@ -565,8 +575,9 @@ class _AppState extends State<App> {
     return _BootSplash(
       isLight: _isLight,
       onToggleTheme: _toggleTheme,
-      subtitle: 'Almacenamiento no inicio',
-      details: _formatBootErrors(status),
+      subtitle:
+          'No pudimos preparar el almacenamiento local. Reintenta para continuar.',
+      details: kDebugMode ? _formatBootErrors(status) : null,
       actions: [
         _PillButton(
           label: 'Reintentar',
