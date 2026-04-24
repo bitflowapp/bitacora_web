@@ -75,6 +75,23 @@ Expected release output:
 - `build/app/outputs/flutter-apk/app-release.apk`
 - `dist/BitFlow-<version>-android.apk` (via `scripts/build_android_release.ps1`)
 
+## 1.3) Offline Android sanity
+1. Confirm Android identity:
+- `applicationId`: `com.bitflow.app`
+- App label: `Bit Flow`
+2. Build APK:
+- `flutter build apk --release`
+3. Install on device and disable internet.
+4. Smoke flow:
+- Open app.
+- Create blank sheet.
+- Create from template.
+- Edit cells.
+- Save.
+- Close/reopen app and confirm data persists.
+- Export/share XLSX or ZIP.
+5. If storage warning says session-only, export ZIP before closing the app.
+
 Android release automation:
 - Workflow: `.github/workflows/android_release.yml`
 - Triggers: `workflow_dispatch` y tags `v*`
