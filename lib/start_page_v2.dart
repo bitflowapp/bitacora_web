@@ -290,6 +290,8 @@ class _StartPageV2State extends State<StartPageV2> {
     final kind = await showModalBottomSheet<TemplateKind>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: context.tokens.colors.bg,
       builder: (ctx) {
         final t = ctx.tokens;
@@ -330,48 +332,56 @@ class _StartPageV2State extends State<StartPageV2> {
           child: Padding(
             padding: EdgeInsets.fromLTRB(
                 t.spacing.lg, 6, t.spacing.lg, t.spacing.lg),
-            child: GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.2,
-              children: [
-                for (final item in items)
-                  _ActionSurface(
-                    onTap: () => Navigator.of(ctx).pop(item.$1),
-                    backgroundColor: t.colors.surfaceMuted,
-                    borderColor: t.colors.border,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(item.$4, color: t.colors.accent),
-                        const SizedBox(height: 10),
-                        Text(
-                          item.$2,
-                          style: AppTypography.subheadline.copyWith(
-                            color: t.colors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 560 ? 2 : 1;
+                return GridView.count(
+                  crossAxisCount: columns,
+                  shrinkWrap: true,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: columns == 1 ? 2.7 : 1.2,
+                  children: [
+                    for (final item in items)
+                      _ActionSurface(
+                        onTap: () => Navigator.of(ctx).pop(item.$1),
+                        backgroundColor: t.colors.surfaceMuted,
+                        borderColor: t.colors.border,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(item.$4, color: t.colors.accent),
+                            const SizedBox(height: 10),
+                            Text(
+                              item.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.subheadline.copyWith(
+                                color: t.colors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.$3,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption1.copyWith(
+                                color: t.colors.textSecondary,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.$3,
-                          style: AppTypography.caption1.copyWith(
-                            color: t.colors.textSecondary,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         );
       },
     );
-
     if (!mounted || kind == null) return;
     await _createTemplateSheet(kind);
   }
@@ -1132,12 +1142,20 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
-                                  crossAxisCount: isWide ? 4 : 2,
+                                  crossAxisCount: isWide
+                                      ? 4
+                                      : constraints.maxWidth >= 560
+                                          ? 2
+                                          : 1,
                                   shrinkWrap: true,
                                   physics: const NeverScrollableScrollPhysics(),
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10,
-                                  childAspectRatio: isWide ? 1.5 : 1.25,
+                                  childAspectRatio: isWide
+                                      ? 1.5
+                                      : constraints.maxWidth >= 560
+                                          ? 1.25
+                                          : 2.75,
                                   children: [
                                     for (final action in quickActions)
                                       _QuickActionTile(
