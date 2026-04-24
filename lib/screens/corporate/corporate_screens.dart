@@ -86,7 +86,8 @@ class _WorkspaceListScreenState extends State<WorkspaceListScreen> {
           if (snapshot.hasError) {
             return _CorporateError(
               message: 'No se pudieron cargar los workspaces.',
-              detail: '${snapshot.error}',
+              detail:
+                  'Revisa la conexion o intenta actualizar. Si el problema sigue, valida la sesion corporativa.',
               onRetry: () => setState(_reload),
             );
           }
@@ -98,10 +99,10 @@ class _WorkspaceListScreenState extends State<WorkspaceListScreen> {
               icon: Icons.business_rounded,
               title: remoteConfigured && !remoteSignedIn
                   ? 'Inicia sesion para ver tus workspaces'
-                  : 'No hay workspaces disponibles',
+                  : 'Configura el primer workspace',
               message: remoteConfigured && !remoteSignedIn
-                  ? 'Supabase esta configurado, pero todavia no hay una sesion corporativa activa.'
-                  : 'Cuando conectes Supabase o crees membresias, la empresa aparecera aca.',
+                  ? 'La base remota esta configurada, pero falta iniciar una sesion corporativa.'
+                  : 'Cuando exista una empresa o membresia, aparecera aca con sus proyectos y planillas.',
               action: remoteConfigured && !remoteSignedIn
                   ? AppButton(
                       label: 'Iniciar sesion',
@@ -226,7 +227,8 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           if (snapshot.hasError) {
             return _CorporateError(
               message: 'No se pudieron cargar los proyectos.',
-              detail: '${snapshot.error}',
+              detail:
+                  'Actualiza la vista. Si continua, revisa acceso al workspace o conectividad.',
               onRetry: () => setState(_reload),
             );
           }
@@ -248,7 +250,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
               icon: Icons.folder_open_rounded,
               title: 'No hay proyectos activos',
               message:
-                  'La base corporativa ya esta lista para mostrar proyectos cuando existan en Supabase.',
+                  'Crea o sincroniza un proyecto para agrupar planillas, responsables y revisiones.',
             );
           }
           return Column(
@@ -642,7 +644,8 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
     if (snapshot.hasError) {
       return _CorporateError(
         message: 'No se pudieron cargar las planillas del proyecto.',
-        detail: '${snapshot.error}',
+        detail:
+            'Actualiza la vista. Si continua, revisa permisos del proyecto o conectividad.',
         onRetry: () => setState(_reload),
       );
     }
@@ -708,9 +711,9 @@ class _ProjectSheetsScreenState extends State<ProjectSheetsScreen> {
         if (data.sheetIds.isEmpty)
           _CorporateEmpty(
             icon: Icons.table_chart_rounded,
-            title: 'No hay planillas vinculadas a este proyecto.',
+            title: 'Este proyecto todavia no tiene planillas',
             message:
-                'Crea una planilla nueva o vincula una existente para trabajar con contexto de proyecto.',
+                'Vincula una existente o crea una nueva para mantener mediciones, evidencias y revisiones en contexto.',
             action: AppButton(
               label: 'Vincular planilla existente',
               icon: Icons.link_rounded,

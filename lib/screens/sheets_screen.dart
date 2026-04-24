@@ -173,8 +173,10 @@ class _SheetsScreenState extends State<SheetsScreen> {
     } catch (e) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo guardar el cambio local: $e'),
+        const SnackBar(
+          content: Text(
+            'No se pudo guardar el cambio local. Reintenta o exporta un backup.',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -645,7 +647,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   String get _subtitleText {
     if (_loading) return 'Cargando planillas...';
-    if (_items.isEmpty) return 'Sin planillas guardadas todavia';
+    if (_items.isEmpty) return 'Crea una planilla tecnica o abre una demo';
 
     final last = _lastUpdatedSheet;
     final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '—';

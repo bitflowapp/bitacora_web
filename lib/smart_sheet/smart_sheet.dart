@@ -165,12 +165,21 @@ class _SmartSheetState extends State<SmartSheet> {
   }
 
   Future<void> _export() async {
-    await ExportXlsxService.download(
-      fileName: '${widget.sheetName}.xlsx',
-      headers: _headers,
-      rows:
-          _rows.map((r) => r.map((e) => e?.toString() ?? '').toList()).toList(),
-    );
+    try {
+      await ExportXlsxService.download(
+        fileName: '${widget.sheetName}.xlsx',
+        headers: _headers,
+        rows: _rows
+            .map((r) => r.map((e) => e?.toString() ?? '').toList())
+            .toList(),
+      );
+      _showPasteSnack('XLSX listo para enviar: ${widget.sheetName}.xlsx');
+    } catch (_) {
+      _showPasteSnack(
+        'No se pudo exportar XLSX. Reintenta o revisa los datos.',
+        isError: true,
+      );
+    }
   }
 
   Future<void> pasteFromClipboard() async {
@@ -179,7 +188,10 @@ class _SmartSheetState extends State<SmartSheet> {
       final raw = data?.text ?? '';
       final parsed = _parseClipboardTable(raw);
       if (parsed.isEmpty) {
-        _showPasteSnack('Formato no válido', isError: true);
+        _showPasteSnack(
+          'No se detecto una tabla para pegar.',
+          isError: true,
+        );
         return;
       }
 
@@ -194,10 +206,13 @@ class _SmartSheetState extends State<SmartSheet> {
         _computeTotals();
       });
 
-      _showPasteSnack('Tabla pegada (${parsed.length} filas)');
+      _showPasteSnack('Tabla pegada: ${parsed.length} filas listas.');
     } catch (e) {
       debugPrint('[SmartSheet] pasteFromClipboard failed: $e');
-      _showPasteSnack('Formato no válido', isError: true);
+      _showPasteSnack(
+        'No se pudo pegar la tabla. Revisa el formato del portapapeles.',
+        isError: true,
+      );
     }
   }
 
