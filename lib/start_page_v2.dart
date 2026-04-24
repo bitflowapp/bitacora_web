@@ -1682,6 +1682,7 @@ class _SheetGroupCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: _SheetMiniRow(
+                      key: ValueKey<String>(item.id),
                       meta: item,
                       isFavorite: favoriteIds.contains(item.id),
                       isPinned: pinnedIds.contains(item.id),
@@ -1701,6 +1702,7 @@ class _SheetGroupCard extends StatelessWidget {
 
 class _SheetMiniRow extends StatelessWidget {
   const _SheetMiniRow({
+    super.key,
     required this.meta,
     required this.isFavorite,
     required this.isPinned,

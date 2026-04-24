@@ -940,6 +940,7 @@ class _SheetsSliverList extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.only(bottom: t.spacing.sm),
                 child: _SheetCard(
+                  key: ValueKey<String>(it.id),
                   meta: it,
                   updatedLabel: updated,
                   accent: t.colors.accent,
@@ -1313,6 +1314,7 @@ class _SearchBarState extends State<_SearchBar> {
 
 class _SheetCard extends StatefulWidget {
   const _SheetCard({
+    super.key,
     required this.meta,
     required this.updatedLabel,
     required this.onOpen,
