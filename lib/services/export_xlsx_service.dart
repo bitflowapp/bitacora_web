@@ -7,7 +7,7 @@
 // - Hoja INSTRUCCIONES: guía para quien recibe el archivo.
 //
 // Compatible con:
-//  - Descarga local (móvil / desktop) mediante saver stub/web (saveXlsxBytes).
+//  - Descarga local (móvil / desktop) mediante saver IO/Web.
 //  - Envío por correo vía MailReportService (Cloud Functions + Resend).
 
 import 'dart:typed_data';
@@ -17,9 +17,7 @@ import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'mail_report_service.dart';
 import 'export_xlsx_with_photos.dart';
 
-// Saver genérico: stub por defecto / web override, con alias.
-import 'export_xlsx_saver_stub.dart'
-    if (dart.library.html) 'export_xlsx_saver_web.dart' as xlsx_saver;
+import 'save_xlsx.dart' as platform_saver;
 
 class ExportXlsxService {
   const ExportXlsxService._();
@@ -27,10 +25,10 @@ class ExportXlsxService {
   /// Compatibilidad con código legacy:
   /// permite llamadas tipo:
   ///   ExportXlsxService.saveXlsx('Planilla.xlsx', bytes);
-  /// Internamente delega en el saver unificado (saveXlsxBytes).
+  /// Internamente delega en el saver unificado por plataforma.
   static Future<void> saveXlsx(String fileName, List<int> bytes) async {
     final data = Uint8List.fromList(bytes);
-    await xlsx_saver.saveXlsxBytes(data, fileName);
+    await platform_saver.saveXlsx(fileName, data);
   }
 
   /// Construye el XLSX en memoria (bytes).
