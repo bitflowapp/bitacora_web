@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+const int _maxXlsxBaseNameLength = 120;
+
 /// IO (Android, iOS, desktop): guarda el XLSX en disco y devuelve la ruta.
 ///
 /// Android / iOS:
@@ -50,10 +52,7 @@ Future<Directory> _resolveBaseDir() async {
 
 String _sanitize(String s) {
   // Quitá una extensión .xlsx final si viene incluida.
-  var t = s.trim().replaceAll(
-        RegExp(r'\.xlsx$', caseSensitive: false),
-        '',
-      );
+  var t = s.trim().replaceAll(RegExp(r'\.xlsx$', caseSensitive: false), '');
 
   // Reemplazamos caracteres problemáticos en Windows/macOS/Linux.
   // Ej: \ / : * ? " < > |  ->  _
@@ -62,6 +61,11 @@ String _sanitize(String s) {
   // Evitamos nombre vacío.
   if (t.isEmpty) return 'gridnote_export';
 
-  // Podrías acotar longitud si querés, pero por ahora lo dejamos así.
+  if (t.length > _maxXlsxBaseNameLength) {
+    t = t
+        .substring(0, _maxXlsxBaseNameLength)
+        .replaceFirst(RegExp(r'[_\s.-]+$'), '');
+  }
+
   return t;
 }

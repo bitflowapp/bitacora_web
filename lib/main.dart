@@ -185,7 +185,7 @@ Future<void> main() async {
                           ),
                         ] else ...[
                           Text(
-                            'El detalle tecnico queda registrado para soporte.',
+                            'El detalle técnico queda registrado para soporte.',
                             style: AppTypography.footnote.copyWith(
                               color: titleColor,
                               height: 1.35,
@@ -248,6 +248,7 @@ class _BootStatus {
 
   final bool firebaseOk;
   final bool storeOk;
+
   /// True when the sheet store is running in-memory (IndexedDB unavailable).
   /// The app is usable but data won't survive a page reload.
   final bool storeMemoryMode;

@@ -6,8 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('attachment failure shows classified reason and detail action',
-      (tester) async {
+  testWidgets('attachment failure shows friendly message and detail action', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tester.view.physicalSize = const Size(1440, 2200);
     tester.view.devicePixelRatio = 1.0;
@@ -15,9 +16,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: EditorScreen(sheetId: 'attachment-error-reason'),
-      ),
+      const MaterialApp(home: EditorScreen(sheetId: 'attachment-error-reason')),
     );
     await tester.pump();
 
@@ -32,8 +31,11 @@ void main() {
 
     expect(
       (state.debugLastErrorFeedbackMessage() ?? '').toString(),
-      contains('storage_blocked'),
+      allOf(
+        contains('almacenamiento local'),
+        isNot(contains('storage_blocked')),
+      ),
     );
-    expect(find.text('Ver detalle tecnico'), findsOneWidget);
+    expect(find.text('Ver detalle técnico'), findsOneWidget);
   });
 }

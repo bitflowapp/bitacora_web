@@ -25,26 +25,57 @@ void main() {
     }
   });
 
-  test('ExportXlsxService.download writes an XLSX file on IO platforms',
-      () async {
-    await ExportXlsxService.download(
-      fileName: 'Planilla Campo',
-      headers: const <String>['Equipo', 'Estado'],
-      rows: const <List<String>>[
-        <String>['Bomba P-101', 'OK'],
-      ],
-    );
+  test(
+    'ExportXlsxService.download writes an XLSX file on IO platforms',
+    () async {
+      await ExportXlsxService.download(
+        fileName: 'Planilla Campo',
+        headers: const <String>['Equipo', 'Estado'],
+        rows: const <List<String>>[
+          <String>['Bomba P-101', 'OK'],
+        ],
+      );
 
-    final files = tempDir
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.xlsx'))
-        .toList(growable: false);
+      final files = tempDir
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.xlsx'))
+          .toList(growable: false);
 
-    expect(files, hasLength(1));
-    expect(files.single.path, endsWith('Planilla Campo.xlsx'));
-    expect(await files.single.length(), greaterThan(0));
-  });
+      expect(files, hasLength(1));
+      expect(files.single.path, endsWith('Planilla Campo.xlsx'));
+      expect(await files.single.length(), greaterThan(0));
+    },
+  );
+
+  test(
+    'ExportXlsxService.download caps long filenames on IO platforms',
+    () async {
+      final longName = List<String>.filled(90, 'Obra Norte').join(' ');
+
+      await ExportXlsxService.download(
+        fileName: '$longName:/?*.xlsx',
+        headers: const <String>['Equipo'],
+        rows: const <List<String>>[
+          <String>['Bomba P-101'],
+        ],
+      );
+
+      final files = tempDir
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.xlsx'))
+          .toList(growable: false);
+
+      expect(files, hasLength(1));
+      final fileName = files.single.path.split(Platform.pathSeparator).last;
+      expect(fileName.length, lessThanOrEqualTo(125));
+      expect(fileName, isNot(contains(':')));
+      expect(fileName, isNot(contains('?')));
+      expect(fileName, isNot(contains('*')));
+      expect(await files.single.length(), greaterThan(0));
+    },
+  );
 }
 
 class _FakePathProvider extends PathProviderPlatform {

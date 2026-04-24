@@ -8923,7 +8923,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
@@ -8962,7 +8962,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
@@ -18016,7 +18016,8 @@ class _EditorScreenState extends State<EditorScreen>
         detail,
         flow: AppErrorFlow.attachmentPermission,
         operation: 'debug_emit_attachment_error',
-        fallbackMessage: 'No se pudo guardar la foto. Causa: $code.',
+        fallbackMessage:
+            'No se pudo guardar la foto en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.',
         code: code,
         diagnosticDetails: detail,
         icon: Icons.photo_outlined,

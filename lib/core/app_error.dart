@@ -1,10 +1,4 @@
-enum AppErrorFlow {
-  load,
-  save,
-  exportData,
-  importData,
-  attachmentPermission,
-}
+enum AppErrorFlow { load, save, exportData, importData, attachmentPermission }
 
 enum AppErrorKind {
   permissionDenied,
@@ -107,11 +101,7 @@ class AppErrorMapper {
     ])) {
       return AppErrorKind.permissionDenied;
     }
-    if (_containsAny(lower, const [
-      'timeout',
-      'timed out',
-      'time out',
-    ])) {
+    if (_containsAny(lower, const ['timeout', 'timed out', 'time out'])) {
       return AppErrorKind.timeout;
     }
     if (_containsAny(lower, const [
@@ -186,7 +176,7 @@ class AppErrorMapper {
         case AppErrorKind.cancelled:
           return 'Operacion cancelada.';
         case AppErrorKind.unknown:
-          return 'No se pudo completar el adjunto. Causa: unknown.';
+          return 'No se pudo completar el adjunto. Intenta de nuevo.';
       }
     }
 

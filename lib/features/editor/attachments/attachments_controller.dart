@@ -169,27 +169,46 @@ extension _EditorAttachments on _EditorScreenState {
   String _photoMessageForCause(String cause) {
     switch (cause) {
       case _causeStorageBlocked:
-        return 'No se pudo guardar la foto. Causa: storage_blocked.';
+        return 'No se pudo guardar la foto en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
       case _causeDecodeUnsupported:
-        return 'No se pudo procesar la foto. Causa: decode_unsupported.';
+        return 'No se pudo procesar la foto. Proba con JPG o PNG, o selecciona otra imagen.';
       default:
-        final c = cause.trim().isEmpty ? 'unknown' : cause.trim();
-        return 'No se pudo guardar la foto. Causa: $c.';
+        return 'No se pudo guardar la foto. Intenta de nuevo.';
     }
   }
 
   String _audioMessageForCause(String cause) {
     switch (cause) {
       case _causeMicDenied:
-        return 'No se pudo iniciar la grabación. Causa: mic_denied.';
+        return 'No se pudo usar el microfono. Revisa permisos y volve a intentar.';
       case _causeMicUnsupported:
-        return 'Grabación no disponible en este navegador. Causa: mic_unsupported.';
+        return 'La grabacion de audio no esta disponible en este navegador.';
       case _causeStorageBlocked:
-        return 'No se pudo guardar el audio. Causa: storage_blocked.';
+        return 'No se pudo guardar el audio en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
       default:
-        final c = cause.trim().isEmpty ? 'unknown' : cause.trim();
-        return 'No se pudo iniciar la grabación de audio. Causa: $c.';
+        return 'No se pudo iniciar la grabacion de audio. Intenta de nuevo.';
     }
+  }
+
+  String _videoMessageForCause(String cause) {
+    if (cause == _causeStorageBlocked) {
+      return 'No se pudo guardar el video en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
+    }
+    return 'No se pudo adjuntar el video. Revisa permisos y volve a intentar.';
+  }
+
+  String _docMessageForCause(String cause) {
+    if (cause == _causeStorageBlocked) {
+      return 'No se pudo guardar el archivo en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
+    }
+    return 'No se pudo adjuntar el archivo. Selecciona otro archivo e intenta de nuevo.';
+  }
+
+  String _locationMessageForCause(String cause) {
+    if (cause == _causeStorageBlocked) {
+      return 'No se pudo guardar la ubicacion en el almacenamiento local.';
+    }
+    return 'No se pudo guardar la ubicacion. Revisa permisos de ubicacion.';
   }
 
   Future<void> _refreshAttachmentCapabilitiesIfWeb() async {
@@ -231,11 +250,11 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.audio:
         return _audioMessageForCause(reason);
       case AttachmentKind.video:
-        return 'No se pudo adjuntar el video. Causa: $reason.';
+        return _videoMessageForCause(reason);
       case AttachmentKind.doc:
-        return 'No se pudo adjuntar el archivo. Causa: $reason.';
+        return _docMessageForCause(reason);
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicacion. Causa: $reason.';
+        return _locationMessageForCause(reason);
     }
   }
 
@@ -389,8 +408,9 @@ extension _EditorAttachments on _EditorScreenState {
     });
   }
 
-  void _clearPhotoFlowStatusSoon(
-      {Duration delay = const Duration(seconds: 3)}) {
+  void _clearPhotoFlowStatusSoon({
+    Duration delay = const Duration(seconds: 3),
+  }) {
     _photoFlowClearT?.cancel();
     _photoFlowClearT = Timer(delay, () {
       _updatePhotoFlowStatus(null);
@@ -426,12 +446,14 @@ extension _EditorAttachments on _EditorScreenState {
         ? PhotoAcquireService.I.captureFromCamera(context: context)
         : PhotoAcquireService.I.pickFromGallery();
 
-    unawaited(_handlePhotoOutcome(
-      future,
-      ref,
-      fromCamera: fromCamera,
-      sheetContext: sheetContext,
-    ));
+    unawaited(
+      _handlePhotoOutcome(
+        future,
+        ref,
+        fromCamera: fromCamera,
+        sheetContext: sheetContext,
+      ),
+    );
   }
 
   Future<void> _handlePhotoOutcome(
@@ -502,8 +524,11 @@ extension _EditorAttachments on _EditorScreenState {
     return await future;
   }
 
-  Future<void> _pickPhotoForCell(int r, int c,
-      {bool fromCamera = false}) async {
+  Future<void> _pickPhotoForCell(
+    int r,
+    int c, {
+    bool fromCamera = false,
+  }) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
     final ref = _cellRefAt(r, c);
@@ -631,10 +656,7 @@ extension _EditorAttachments on _EditorScreenState {
           ok: false,
           message: 'photo_blocked $msg',
         );
-        DiagnosticsLog.I.updatePhotoAttempt(
-          stage: 'blocked',
-          error: msg,
-        );
+        DiagnosticsLog.I.updatePhotoAttempt(stage: 'blocked', error: msg);
         _reportFlowErrorMessage(
           msg,
           flow: AppErrorFlow.attachmentPermission,
@@ -849,8 +871,11 @@ extension _EditorAttachments on _EditorScreenState {
               isLastKnown: fixOutcome.fix?.source == 'lastKnown',
             );
 
-            if (!_applyPhotoToRef(targetRef, attachment,
-                replaceIndex: replaceIndex)) {
+            if (!_applyPhotoToRef(
+              targetRef,
+              attachment,
+              replaceIndex: replaceIndex,
+            )) {
               throw Exception('bind_failed: cell_missing');
             }
 
@@ -970,8 +995,11 @@ extension _EditorAttachments on _EditorScreenState {
     return true;
   }
 
-  bool _applyPhotoToRef(CellRef ref, PhotoAttachment attachment,
-      {int? replaceIndex}) {
+  bool _applyPhotoToRef(
+    CellRef ref,
+    PhotoAttachment attachment, {
+    int? replaceIndex,
+  }) {
     if (_cellIndexForRef(ref) == null) return false;
     final current = _cellMeta[ref.key];
 
@@ -996,10 +1024,7 @@ extension _EditorAttachments on _EditorScreenState {
       return true;
     }
 
-    final photos = <PhotoAttachment>[
-      ...?current?.photos,
-      attachment,
-    ];
+    final photos = <PhotoAttachment>[...?current?.photos, attachment];
     final next = CellMeta(
       gps: current?.gps,
       photos: photos,
@@ -1014,10 +1039,7 @@ extension _EditorAttachments on _EditorScreenState {
     final ref = _cellRefAt(r, c);
     if (ref == null) return;
     final current = _cellMeta[ref.key];
-    final photos = <PhotoAttachment>[
-      ...?current?.photos,
-      attachment,
-    ];
+    final photos = <PhotoAttachment>[...?current?.photos, attachment];
     final next = CellMeta(
       gps: current?.gps,
       photos: photos,
@@ -1385,10 +1407,7 @@ extension _EditorAttachments on _EditorScreenState {
                         return Container(
                           color: pal.cellBg,
                           alignment: Alignment.center,
-                          child: Icon(
-                            Icons.photo_outlined,
-                            color: pal.fgMuted,
-                          ),
+                          child: Icon(Icons.photo_outlined, color: pal.fgMuted),
                         );
                       }
                       final child = kIsWeb
@@ -1446,10 +1465,7 @@ extension _EditorAttachments on _EditorScreenState {
                           width: 160,
                           child: Opacity(opacity: 0.85, child: tile),
                         ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.35,
-                          child: tile,
-                        ),
+                        childWhenDragging: Opacity(opacity: 0.35, child: tile),
                         child: tile,
                       ),
                     );
@@ -1475,8 +1491,9 @@ extension _EditorAttachments on _EditorScreenState {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: pal.cellText
-                              .withValues(alpha: pal.isLight ? 0.05 : 0.2),
+                          color: pal.cellText.withValues(
+                            alpha: pal.isLight ? 0.05 : 0.2,
+                          ),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -1625,10 +1642,7 @@ extension _EditorAttachments on _EditorScreenState {
     _setCellMetaEntry(
       r,
       c,
-      const CellMeta(
-        photos: <PhotoAttachment>[],
-        audios: <AudioAttachment>[],
-      ),
+      const CellMeta(photos: <PhotoAttachment>[], audios: <AudioAttachment>[]),
       markDirty: true,
     );
     _refreshCellAfterSave(r, c);
@@ -1694,18 +1708,16 @@ extension _EditorAttachments on _EditorScreenState {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: onTap != null
-                  ? AppTheme.of(context)
-                      .colors
-                      .accent
-                      .withValues(alpha: pal.isLight ? 0.12 : 0.20)
+                  ? AppTheme.of(
+                      context,
+                    ).colors.accent.withValues(alpha: pal.isLight ? 0.12 : 0.20)
                   : pal.chipBg,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: onTap != null
-                    ? AppTheme.of(context)
-                        .colors
-                        .accent
-                        .withValues(alpha: pal.isLight ? 0.45 : 0.55)
+                    ? AppTheme.of(context).colors.accent.withValues(
+                          alpha: pal.isLight ? 0.45 : 0.55,
+                        )
                     : pal.chipBorder,
                 width: math.max(pal.hairline, 1).toDouble(),
               ),
@@ -1790,8 +1802,9 @@ extension _EditorAttachments on _EditorScreenState {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: pal.cellText
-                        .withValues(alpha: pal.isLight ? 0.08 : 0.24),
+                    color: pal.cellText.withValues(
+                      alpha: pal.isLight ? 0.08 : 0.24,
+                    ),
                     blurRadius: 16,
                     offset: const Offset(0, 8),
                   ),
@@ -1816,8 +1829,10 @@ extension _EditorAttachments on _EditorScreenState {
                       IconButton(
                         onPressed: () => Navigator.of(ctx).pop(),
                         tooltip: 'Cerrar',
-                        icon:
-                            Icon(Icons.close_rounded, color: pal.cellTextMuted),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: pal.cellTextMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -1825,26 +1840,25 @@ extension _EditorAttachments on _EditorScreenState {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      statChip(Icons.photo_rounded,
-                          'Fotos ${currentMeta.photos.length}'),
-                      statChip(Icons.graphic_eq_rounded,
-                          'Audios ${currentMeta.audios.length}'),
+                      statChip(
+                        Icons.photo_rounded,
+                        'Fotos ${currentMeta.photos.length}',
+                      ),
+                      statChip(
+                        Icons.graphic_eq_rounded,
+                        'Audios ${currentMeta.audios.length}',
+                      ),
                       if (hasGps)
-                        statChip(
-                          Icons.my_location_rounded,
-                          'GPS activo',
-                        )
+                        statChip(Icons.my_location_rounded, 'GPS activo')
                       else
                         statChip(
                           Icons.my_location_rounded,
                           'Capturar GPS',
                           onTap: () {
                             Navigator.of(ctx).pop();
-                            unawaited(_requestGpsForCell(
-                              r,
-                              c,
-                              forceWriteText: true,
-                            ));
+                            unawaited(
+                              _requestGpsForCell(r, c, forceWriteText: true),
+                            );
                           },
                         ),
                     ],
@@ -1884,10 +1898,11 @@ extension _EditorAttachments on _EditorScreenState {
                         ),
                         const SizedBox(height: 6),
                         metaRow(
-                            'Fecha/Hora',
-                            latestTs == null
-                                ? '-'
-                                : _formatDateTimeShort(latestTs)),
+                          'Fecha/Hora',
+                          latestTs == null
+                              ? '-'
+                              : _formatDateTimeShort(latestTs),
+                        ),
                         metaRow(
                           'Lat/Lon',
                           hasGps
@@ -2350,7 +2365,7 @@ extension _EditorAttachments on _EditorScreenState {
     return null;
   }
 
-// ------------------------------ Audio -----------------------------------
+  // ------------------------------ Audio -----------------------------------
 
   String _audioStoredRefFrom(StoredAudio stored) {
     final key = stored.storageKey.trim();
@@ -2586,14 +2601,7 @@ extension _EditorAttachments on _EditorScreenState {
         'audio/wav',
         'audio/x-wav',
       ],
-      extensions: const <String>[
-        'm4a',
-        'mp3',
-        'aac',
-        'webm',
-        'wav',
-        'ogg',
-      ],
+      extensions: const <String>['m4a', 'mp3', 'aac', 'webm', 'wav', 'ogg'],
     );
 
     final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
@@ -2960,10 +2968,7 @@ extension _EditorAttachments on _EditorScreenState {
       _lastAudioSupport = await WebAudioRecorder.I.probeSupport();
       if (!(_lastAudioSupport?.isSupported ?? false)) {
         final cause = _causeMicUnsupported;
-        final usedFallback = await _offerAudioFileFallback(
-          ref,
-          cause: cause,
-        );
+        final usedFallback = await _offerAudioFileFallback(ref, cause: cause);
         if (usedFallback) return;
         _reportFlowErrorMessage(
           'media_recorder_unavailable',
@@ -3010,10 +3015,7 @@ extension _EditorAttachments on _EditorScreenState {
         message: 'audio_start_failed $e',
       );
       final usedFallback = cause == _causeMicUnsupported
-          ? await _offerAudioFileFallback(
-              ref,
-              cause: cause,
-            )
+          ? await _offerAudioFileFallback(ref, cause: cause)
           : false;
       if (!mounted) return;
       if (usedFallback) return;
@@ -3055,8 +3057,11 @@ extension _EditorAttachments on _EditorScreenState {
     _startAudioRecordingTicker();
     unawaited(_startAudioTranscriptionSession(_audioRecordingSessionId));
     final cellLabel = _cellLabelForRef(ref);
-    _showActionSnack('Grabando audio en celda $cellLabel...',
-        isError: false, icon: Icons.mic_rounded);
+    _showActionSnack(
+      'Grabando audio en celda $cellLabel...',
+      isError: false,
+      icon: Icons.mic_rounded,
+    );
   }
 
   Future<void> _stopAudioRecording() async {
@@ -3078,8 +3083,11 @@ extension _EditorAttachments on _EditorScreenState {
         ok: false,
         message: 'audio_save_empty',
       );
-      _showActionSnack('No se guardo el audio.',
-          isError: true, icon: Icons.mic_off_rounded);
+      _showActionSnack(
+        'No se guardo el audio.',
+        isError: true,
+        icon: Icons.mic_off_rounded,
+      );
       return;
     }
     await _saveAudioAttachment(
@@ -3094,10 +3102,7 @@ extension _EditorAttachments on _EditorScreenState {
     final ref = _cellRefAt(r, c);
     if (ref == null) return;
     final current = _cellMeta[ref.key];
-    final audios = <AudioAttachment>[
-      ...?current?.audios,
-      attachment,
-    ];
+    final audios = <AudioAttachment>[...?current?.audios, attachment];
     final next = CellMeta(
       gps: current?.gps,
       photos: current?.photos ?? const <PhotoAttachment>[],
@@ -3279,13 +3284,8 @@ extension _EditorAttachments on _EditorScreenState {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _formatDuration(
-                            Duration(milliseconds: a.durationMs),
-                          ),
-                          style: TextStyle(
-                            color: pal.fgMuted,
-                            fontSize: 12,
-                          ),
+                          _formatDuration(Duration(milliseconds: a.durationMs)),
+                          style: TextStyle(color: pal.fgMuted, fontSize: 12),
                         ),
                         if (a.transcript.trim().isNotEmpty) ...[
                           const SizedBox(height: 5),
@@ -3318,8 +3318,10 @@ extension _EditorAttachments on _EditorScreenState {
                         Navigator.of(ctx2).pop();
                         unawaited(_deleteAudioFromCell(r, c, idx));
                       },
-                      icon: Icon(Icons.delete_outline_rounded,
-                          color: pal.fgMuted),
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
+                        color: pal.fgMuted,
+                      ),
                     ),
                   ),
                 ],
@@ -3366,12 +3368,7 @@ extension _EditorAttachments on _EditorScreenState {
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(
-                _openRowFormMode(
-                  rowIndex: _selRow,
-                  createNew: false,
-                ),
-              );
+              unawaited(_openRowFormMode(rowIndex: _selRow, createNew: false));
             },
           ),
           const SizedBox(height: 8),
@@ -3829,8 +3826,12 @@ extension _EditorAttachments on _EditorScreenState {
     }
   }
 
-  Uint8List? _compressThumb(Uint8List bytes,
-      {required int maxW, required int maxH, required int quality}) {
+  Uint8List? _compressThumb(
+    Uint8List bytes, {
+    required int maxW,
+    required int maxH,
+    required int quality,
+  }) {
     try {
       final decoded = img.decodeImage(bytes);
       if (decoded == null) return null;
@@ -4000,10 +4001,7 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
         child: SizedBox(
           width: 16,
           height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: pal.fgMuted,
-          ),
+          child: CircularProgressIndicator(strokeWidth: 2, color: pal.fgMuted),
         ),
       );
     } else {
@@ -4032,10 +4030,6 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
   Widget _fallback(_SheetPalette pal) => Container(
         color: pal.headerBg,
         alignment: Alignment.center,
-        child: Icon(
-          Icons.image_outlined,
-          color: pal.fgMuted,
-          size: 20,
-        ),
+        child: Icon(Icons.image_outlined, color: pal.fgMuted, size: 20),
       );
 }
