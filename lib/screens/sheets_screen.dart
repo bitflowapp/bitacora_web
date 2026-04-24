@@ -350,7 +350,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
       builder: (ctx) {
         return _OverlaySheetFrame(
           title: 'Galeria de templates',
-          subtitle: 'Base, relevamientos y checklists listos para usar',
+          subtitle: 'Casos tecnicos listos para campo, evidencia y exportacion',
           maxHeightFactor: 0.78,
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -365,28 +365,35 @@ class _SheetsScreenState extends State<SheetsScreen> {
                 childAspectRatio: crossAxisCount == 2 ? 1.18 : 1.45,
                 children: [
                   _TemplateTile(
+                    icon: Icons.bolt_rounded,
+                    title: 'Proteccion catodica',
+                    subtitle: 'ON/OFF, IR drop, cupon, estado y evidencia',
+                    onTap: () =>
+                        Navigator.of(ctx).pop(TemplateKind.proteccionCatodica),
+                  ),
+                  _TemplateTile(
                     icon: Icons.auto_awesome_outlined,
-                    title: 'Plantilla base',
-                    subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                    title: 'Relevamiento con evidencias',
+                    subtitle: 'Cliente, sector, hallazgo, criticidad y accion',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.plantilla),
                   ),
                   _TemplateTile(
                     icon: Icons.table_rows_rounded,
-                    title: 'Relevamiento resistividades',
-                    subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                    title: 'Puesta a tierra',
+                    subtitle: 'PAT, resistencia, continuidad y responsable',
                     onTap: () =>
                         Navigator.of(ctx).pop(TemplateKind.resistividades),
                   ),
                   _TemplateTile(
                     icon: Icons.inventory_2_outlined,
-                    title: 'Inventario simple',
-                    subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                    title: 'Control operativo',
+                    subtitle: 'Equipo, control, valor, estado y accion',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.inventario),
                   ),
                   _TemplateTile(
                     icon: Icons.check_circle_outline_rounded,
-                    title: 'Checklist diario',
-                    subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
+                    title: 'Inspeccion de campo',
+                    subtitle: 'Frente, actividad, estado y observaciones',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.checklist),
                   ),
                 ],

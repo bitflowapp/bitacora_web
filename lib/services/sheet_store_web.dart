@@ -142,10 +142,12 @@ class _TemplateDefinition {
   const _TemplateDefinition({
     required this.name,
     required this.columns,
+    this.rows = const <List<String>>[],
   });
 
   final String name;
   final List<_TemplateColumn> columns;
+  final List<List<String>> rows;
 
   List<String> headersWithPhotos(String photosHeader) {
     return <String>[
@@ -166,6 +168,15 @@ class _TemplateDefinition {
 
   List<List<String>> initialRows(int count) {
     final headersLen = columns.length + 1; // +Photos
+    if (rows.isNotEmpty) {
+      return rows.map((source) {
+        final row = List<String>.filled(headersLen, '');
+        for (int i = 0; i < headersLen && i < source.length; i++) {
+          row[i] = source[i];
+        }
+        return row;
+      }).toList(growable: false);
+    }
     return List<List<String>>.generate(count, (_) {
       final row = List<String>.filled(headersLen, '');
       for (int i = 0; i < columns.length; i++) {
@@ -614,30 +625,90 @@ class SheetStore {
     switch (kind) {
       case TemplateKind.plantilla:
         return const _TemplateDefinition(
-          name: 'Plantilla base',
+          name: 'Relevamiento tecnico con evidencias',
           columns: <_TemplateColumn>[
-            _TemplateColumn(label: 'Actividad', type: 'text'),
-            _TemplateColumn(label: 'Detalle', type: 'text'),
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Cliente / Obra', type: 'text'),
+            _TemplateColumn(label: 'Sector', type: 'text'),
+            _TemplateColumn(label: 'Hallazgo', type: 'text'),
+            _TemplateColumn(
+              label: 'Criticidad',
+              type: 'status',
+              defaultValue: 'Media',
+              options: <String>['Baja', 'Media', 'Alta'],
+            ),
+            _TemplateColumn(label: 'Accion recomendada', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+          ],
+          rows: <List<String>>[
+            <String>[
+              '2026-04-20',
+              'Operadora Norte',
+              'Manifold 3',
+              'Etiqueta ilegible en valvula bypass',
+              'Media',
+              'Reponer identificacion y fotografiar cierre.',
+              'S. Perez',
+              '',
+            ],
+            <String>[
+              '2026-04-20',
+              'Operadora Norte',
+              'Linea 6"',
+              'Soporte con corrosion superficial',
+              'Media',
+              'Lijar, pintar y registrar evidencia final.',
+              'S. Perez',
+              '',
+            ],
+          ],
+        );
+      case TemplateKind.resistividades:
+        return const _TemplateDefinition(
+          name: 'Puesta a tierra - mediciones',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Sector', type: 'text'),
+            _TemplateColumn(label: 'Punto PAT', type: 'text'),
+            _TemplateColumn(label: 'Resistencia (Ohm)', type: 'number'),
+            _TemplateColumn(
+              label: 'Continuidad',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
             _TemplateColumn(
               label: 'Estado',
               type: 'status',
               defaultValue: 'OK',
               options: <String>['OK', 'Obs', 'Urgente'],
             ),
-            _TemplateColumn(label: 'Responsable', type: 'text'),
-            _TemplateColumn(label: 'Fecha', type: 'date'),
-          ],
-        );
-      case TemplateKind.resistividades:
-        return const _TemplateDefinition(
-          name: 'Relevamiento resistividades',
-          columns: <_TemplateColumn>[
-            _TemplateColumn(label: 'Fecha', type: 'date'),
-            _TemplateColumn(label: 'Progresiva', type: 'number'),
-            _TemplateColumn(label: '1 m (Ohm)', type: 'number'),
-            _TemplateColumn(label: '3 m (Ohm)', type: 'number'),
-            _TemplateColumn(label: '5 m (Ohm)', type: 'number'),
             _TemplateColumn(label: 'Observaciones', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+          ],
+          rows: <List<String>>[
+            <String>[
+              '2026-04-21',
+              'Tablero bombas',
+              'PAT-TB-01',
+              '2.8',
+              'OK',
+              'OK',
+              'Bornes limpios. Se adjunta foto de jabalina.',
+              'L. Vega',
+              '',
+            ],
+            <String>[
+              '2026-04-21',
+              'Sala MCC',
+              'PAT-MCC-02',
+              '4.6',
+              'OK',
+              'Obs',
+              'Valor alto para criterio interno. Repetir.',
+              'L. Vega',
+              '',
+            ],
           ],
         );
       case TemplateKind.proteccionCatodica:
@@ -663,34 +734,112 @@ class SheetStore {
               options: <String>['OK', 'Obs', 'Urgente'],
             ),
             _TemplateColumn(label: 'Observaciones', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+          ],
+          rows: <List<String>>[
+            <String>[
+              '2026-04-22',
+              '12+000',
+              'CMP-120',
+              '-1.12',
+              '-0.92',
+              '0.20',
+              'Polarizado',
+              'OK',
+              'Caja limpia. Referencia Cu/CuSO4 estable.',
+              'M. Luna',
+              '',
+            ],
+            <String>[
+              '2026-04-22',
+              '12+050',
+              'CMP-122',
+              '-0.82',
+              '-0.61',
+              '0.21',
+              'Despolarizado',
+              'Obs',
+              'Revisar continuidad y repetir medicion.',
+              'A. Rojas',
+              '',
+            ],
           ],
         );
       case TemplateKind.inventario:
         return const _TemplateDefinition(
-          name: 'Inventario simple',
+          name: 'Control operativo simple',
           columns: <_TemplateColumn>[
-            _TemplateColumn(label: 'Item', type: 'text'),
-            _TemplateColumn(
-                label: 'Cantidad', type: 'number', defaultValue: '1'),
-            _TemplateColumn(label: 'Unidad', type: 'text', defaultValue: 'u'),
-            _TemplateColumn(label: 'Ubicacion', type: 'text'),
-            _TemplateColumn(label: 'Nota', type: 'text'),
-          ],
-        );
-      case TemplateKind.checklist:
-        return const _TemplateDefinition(
-          name: 'Checklist diario',
-          columns: <_TemplateColumn>[
-            _TemplateColumn(label: 'Tarea', type: 'text'),
-            _TemplateColumn(label: 'Responsable', type: 'text'),
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Equipo / Area', type: 'text'),
+            _TemplateColumn(label: 'Control', type: 'text'),
+            _TemplateColumn(label: 'Valor', type: 'text'),
             _TemplateColumn(
               label: 'Estado',
               type: 'status',
               defaultValue: 'OK',
               options: <String>['OK', 'Obs', 'Urgente'],
             ),
+            _TemplateColumn(label: 'Accion', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+          ],
+          rows: <List<String>>[
+            <String>[
+              '2026-04-18',
+              'Bomba P-101',
+              'Presion descarga',
+              '8.4 bar',
+              'OK',
+              'Sin accion',
+              'G. Molina',
+              '',
+            ],
+            <String>[
+              '2026-04-18',
+              'Compresor C-02',
+              'Nivel aceite',
+              'Bajo',
+              'Obs',
+              'Completar nivel y registrar foto.',
+              'G. Molina',
+              '',
+            ],
+          ],
+        );
+      case TemplateKind.checklist:
+        return const _TemplateDefinition(
+          name: 'Inspeccion operativa de campo',
+          columns: <_TemplateColumn>[
             _TemplateColumn(label: 'Fecha', type: 'date'),
-            _TemplateColumn(label: 'Comentario', type: 'text'),
+            _TemplateColumn(label: 'Frente', type: 'text'),
+            _TemplateColumn(label: 'Actividad', type: 'text'),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
+            _TemplateColumn(label: 'Observaciones', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+          ],
+          rows: <List<String>>[
+            <String>[
+              '2026-04-19',
+              'Norte',
+              'Replanteo de traza',
+              'OK',
+              'Puntos marcados y fotografiados.',
+              'J. Soto',
+              '',
+            ],
+            <String>[
+              '2026-04-19',
+              'Sur',
+              'Verificacion de tapada',
+              'OK',
+              'Cota verificada contra plano IFC.',
+              'A. Rojas',
+              '',
+            ],
           ],
         );
     }

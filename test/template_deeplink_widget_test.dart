@@ -30,7 +30,7 @@ void main() {
     expect(find.byType(EditorScreen), findsOneWidget);
     final state = tester.state(find.byType(EditorScreen)) as dynamic;
     expect(state.debugRowCount, greaterThan(0));
-    expect(state.debugCellText(0, 0), '2026-02-14');
+    expect(state.debugCellText(0, 0), '2026-04-19');
   });
 }
 

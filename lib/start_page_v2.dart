@@ -297,32 +297,32 @@ class _StartPageV2State extends State<StartPageV2> {
             <(TemplateKind kind, String title, String subtitle, IconData icon)>[
           (
             TemplateKind.proteccionCatodica,
-            'Proteccion Catodica',
-            'Progresiva, punto, ON/OFF, IR drop, cupon.',
+            'Proteccion catodica',
+            'Progresiva, punto, ON/OFF, IR drop y evidencia.',
             Icons.bolt_rounded,
           ),
           (
             TemplateKind.resistividades,
-            'Resistividades',
-            'Fecha, progresiva, 1m, 3m, 5m.',
+            'Puesta a tierra',
+            'PAT, resistencia, continuidad, estado y responsable.',
             Icons.straighten_rounded,
           ),
           (
             TemplateKind.plantilla,
-            'Plantilla base',
-            'Actividad, detalle, estado, responsable.',
+            'Relevamiento con evidencias',
+            'Cliente, sector, hallazgo, criticidad y accion.',
             Icons.auto_awesome_rounded,
           ),
           (
             TemplateKind.inventario,
-            'Inventario',
-            'Item, cantidad, unidad y ubicacion.',
+            'Control operativo',
+            'Equipo, control, valor, estado y accion.',
             Icons.inventory_2_rounded,
           ),
           (
             TemplateKind.checklist,
-            'Checklist',
-            'Tarea, estado, fecha y comentario.',
+            'Inspeccion de campo',
+            'Frente, actividad, estado, observaciones y evidencia.',
             Icons.task_alt_rounded,
           ),
         ];
@@ -563,7 +563,7 @@ class _StartPageV2State extends State<StartPageV2> {
         },
       ),
       _AutomationSuggestion(
-        title: 'Nuevo relevamiento PC',
+        title: 'Demo proteccion catodica',
         subtitle: '$templateSubtitle Uso: $templateCount',
         icon: Icons.bolt_rounded,
         onTap: () => _createTemplateSheet(TemplateKind.proteccionCatodica),
@@ -1064,7 +1064,7 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Proteccion Catodica',
+                      title: 'Proteccion catodica',
                       subtitle: 'Demo con mediciones, estado y evidencia',
                       icon: Icons.bolt_rounded,
                       shortcut: '1 click',
