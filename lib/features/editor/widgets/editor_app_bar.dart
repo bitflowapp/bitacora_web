@@ -506,11 +506,11 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 palette: palette,
                                 filled: false,
                                 icon: Icons.group_work_outlined,
-                                label: 'Colaborar',
+                                label: 'Paquete',
                                 semanticsLabel:
-                                    'Flujo de colaboracion por paquete',
+                                    'Exportar, importar y fusionar paquetes',
                                 tooltip:
-                                    'Exportar, importar y mergear paquetes',
+                                    'Colaborar por paquete: exportar, importar y fusionar',
                                 onTap: onCollaborate,
                               ),
                             ),
@@ -659,13 +659,13 @@ class _PremiumAppleHeader extends StatelessWidget {
                               onTap: onAttachments,
                             ),
                             AppleToolbarItem(
-                              icon: Icons.attach_file_rounded,
+                              icon: Icons.upload_file_outlined,
                               label: 'Archivo',
                               onTap: onFile,
                             ),
                             AppleToolbarItem(
                               icon: Icons.group_work_outlined,
-                              label: 'Colaborar',
+                              label: 'Paquete',
                               onTap: onCollaborate,
                             ),
                             AppleToolbarItem(
@@ -811,8 +811,9 @@ class _MobileCompactHeader extends StatelessWidget {
 
             final pendingLabel =
                 pendingRequired > 0 ? 'Errores: $pendingRequired' : null;
-            final queueLabel =
-                pendingOfflineCount > 0 ? 'Cola: $pendingOfflineCount' : null;
+            final queueLabel = pendingOfflineCount > 0
+                ? 'Pendientes: $pendingOfflineCount'
+                : null;
             final outboxPendingLabel = outboxPendingCount > 0
                 ? 'Pendientes: $outboxPendingCount'
                 : null;
@@ -921,7 +922,7 @@ class _MobileCompactHeader extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: AppButton(
-                            label: 'Cola',
+                            label: 'Pendientes',
                             icon: Icons.sync_alt_rounded,
                             variant: AppButtonVariant.secondary,
                             size: AppButtonSize.sm,
@@ -1311,4 +1312,3 @@ typedef _SelectCell = void Function(int r, int c);
 typedef _EditCell = void Function(int r, int c, double cellWidth);
 typedef _EditHeader = void Function(int c, double headerWidth);
 typedef _ContextMenu = void Function(Offset pos, int r, int c, bool isHeader);
-

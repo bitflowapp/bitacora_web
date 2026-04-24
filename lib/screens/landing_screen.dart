@@ -40,7 +40,7 @@ class LandingScreen extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: const LoadingState(
-                      message: 'Preparando demo comercial...',
+                      message: 'Iniciando BitFlow...',
                     ),
                   ),
                 ),
@@ -92,6 +92,7 @@ class LandingScreen extends StatelessWidget {
                                   ? 'Bitacora'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
+                              isLight: isLight,
                             ),
                             if (hasConfigError) ...[
                               const SizedBox(height: 16),
@@ -124,33 +125,34 @@ class LandingScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 56),
                             SectionHeader(
-                              title: 'Beneficios claros y medibles',
+                              title: 'Por qué equipos técnicos eligen BitFlow',
                               subtitle:
-                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin friccion.',
+                                  'Control operativo con evidencia, sin servidores y sin fricción.',
                             ),
                             const SizedBox(height: 18),
                             _BenefitsGrid(),
                             const SizedBox(height: 48),
                             SectionHeader(
-                              title: 'Como funciona',
+                              title: 'Cómo funciona',
                               subtitle:
-                                  'Tres pasos simples para empezar hoy mismo.',
+                                  'Tres pasos para empezar a registrar hoy mismo.',
                             ),
                             const SizedBox(height: 18),
                             _HowItWorks(),
                             const SizedBox(height: 48),
                             SectionHeader(
-                              title: 'Casos de uso',
+                              title: 'Sectores que ya lo usan',
                               subtitle:
-                                  'Pensado para equipos operativos, auditorias y seguimiento diario.',
+                                  'Diseñado para equipos de campo, inspecciones y control operativo.',
                             ),
                             const SizedBox(height: 18),
                             _UseCases(),
                             const SizedBox(height: 52),
                             SectionHeader(
-                              title: 'Planes claros, sin servidor',
+                              title:
+                                  'Licenciamiento simple, sin suscripción mensual',
                               subtitle:
-                                  'Licencia local + soporte. No depende de internet para operar.',
+                                  'Licencia local, instalación en minutos, soporte incluido.',
                             ),
                             const SizedBox(height: 18),
                             _Pricing(
@@ -164,9 +166,8 @@ class LandingScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 52),
                             SectionHeader(
-                              title: 'FAQ',
-                              subtitle:
-                                  'Respuestas rápidas para decidir sin dudas.',
+                              title: 'Preguntas frecuentes',
+                              subtitle: 'Respuestas rápidas antes de decidir.',
                             ),
                             const SizedBox(height: 18),
                             const _FaqList(),
@@ -217,10 +218,12 @@ class _TopNav extends StatelessWidget {
   const _TopNav({
     required this.brand,
     required this.onToggleTheme,
+    required this.isLight,
   });
 
   final String brand;
   final VoidCallback onToggleTheme;
+  final bool isLight;
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +242,8 @@ class _TopNav extends StatelessWidget {
           onPressed: () => context.go('/app'),
         ),
         AppButton(
-          label: 'Modo',
+          label: isLight ? 'Oscuro' : 'Claro',
+          icon: isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
           variant: AppButtonVariant.ghost,
           onPressed: onToggleTheme,
         ),
@@ -277,7 +281,7 @@ class _HeroSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
+                    'Planillas técnicas con evidencias, offline y exportación inmediata',
                     style: t.text.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -287,7 +291,7 @@ class _HeroSection extends StatelessWidget {
                   Text(
                     config.brandTagline.isNotEmpty
                         ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
+                        : 'Relevamientos, inspecciones y checklists con fotos, audio y GPS. Sin conexión. Exportación XLSX y HTML lista para auditorías.',
                     style: t.text.bodyLarge?.copyWith(
                       color: t.colors.textSecondary,
                       height: 1.5,
@@ -320,10 +324,11 @@ class _HeroSection extends StatelessWidget {
                     spacing: 10,
                     runSpacing: 10,
                     children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
-                      _Tag('Reporte imprimible'),
-                      _Tag('Sin servidores'),
+                      _Tag('Sin internet'),
+                      _Tag('Respaldo ZIP'),
+                      _Tag('Informe HTML'),
+                      _Tag('Sin servidor'),
+                      _Tag('Exporta XLSX'),
                     ],
                   ),
                 ],
@@ -358,7 +363,7 @@ class _PreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vista rapida',
+            'Vista de planilla técnica',
             style: t.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
@@ -370,17 +375,28 @@ class _PreviewCard extends StatelessWidget {
               border: Border.all(color: t.colors.border),
             ),
             child: Center(
-              child: Text(
-                'Dashboard + grilla + evidencias',
-                style: t.text.bodyMedium?.copyWith(
-                  color: t.colors.textSecondary,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.table_chart_outlined,
+                    size: 40,
+                    color: t.colors.accent.withValues(alpha: 0.55),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Grilla · Adjuntos · Exportación',
+                    style: t.text.bodyMedium?.copyWith(
+                      color: t.colors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
+            'Cada fila con fotos, audio y GPS. Exportación XLSX o informe HTML en un tap.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -400,32 +416,38 @@ class _BenefitsGrid extends StatelessWidget {
         final cards = [
           const _BenefitCard(
             title: 'Evidencias por celda',
-            desc: 'Fotos, audio y GPS vinculados a cada registro.',
+            desc:
+                'Fotos, audio y coordenadas GPS vinculadas a cada registro de campo.',
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin conexión real',
-            desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
+            title: 'Funciona sin internet',
+            desc:
+                'Opera offline en terreno. Exporta o importa cuando tengas señal.',
             icon: Icons.offline_bolt_outlined,
           ),
           const _BenefitCard(
-            title: 'Reporte listo',
-            desc: 'HTML imprimible con evidencias para auditorias.',
+            title: 'Informe listo para entregar',
+            desc:
+                'Reporte HTML imprimible con fotos y datos para auditorías o clientes.',
             icon: Icons.picture_as_pdf_outlined,
           ),
           const _BenefitCard(
-            title: 'Estandar operativo',
-            desc: 'Procesos claros, menos errores y mas trazabilidad.',
+            title: 'Estándar operativo',
+            desc:
+                'Procesos repetibles, menos errores humanos y trazabilidad completa.',
             icon: Icons.rule_folder_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin servidores',
-            desc: 'Control total. Datos en tu equipo, sin costos ocultos.',
+            title: 'Sin servidor, sin costo mensual',
+            desc:
+                'Todos los datos en tu equipo. Sin nube, sin suscripción, sin sorpresas.',
             icon: Icons.cloud_off_outlined,
           ),
           const _BenefitCard(
-            title: 'Escala local',
-            desc: 'Multiples proyectos, carpetas y backups confiables.',
+            title: 'Exporta XLSX directo',
+            desc:
+                'Planillas compatibles con Excel y Google Sheets. Sin conversión manual.',
             icon: Icons.grid_view_rounded,
           ),
         ];
@@ -491,18 +513,21 @@ class _HowItWorks extends StatelessWidget {
         final cards = const [
           _StepCard(
             index: '01',
-            title: 'Crea un proyecto',
-            desc: 'Define columnas y equipos. Todo queda ordenado.',
+            title: 'Elige o crea una plantilla',
+            desc:
+                'Inspección, relevamiento, checklist o planilla en blanco. Lista en segundos.',
           ),
           _StepCard(
             index: '02',
-            title: 'Carga y evidencia',
-            desc: 'Edita la grilla y adjunta fotos o audio por celda.',
+            title: 'Registra con evidencias',
+            desc:
+                'Completa la grilla de campo y adjunta fotos, audio o GPS por celda.',
           ),
           _StepCard(
             index: '03',
             title: 'Exporta y entrega',
-            desc: 'Backup ZIP y reporte imprimible listo para auditorias.',
+            desc:
+                'XLSX para el cliente y reporte HTML para la auditoría. Un tap, listo.',
           ),
         ];
         if (wide) {
@@ -571,20 +596,21 @@ class _UseCases extends StatelessWidget {
   Widget build(BuildContext context) {
     final cases = const [
       _UseCaseCard(
-        title: 'Municipal y obras',
-        desc: 'Inspecciones, avances y evidencias por cuadrilla.',
+        title: 'Obras y municipios',
+        desc: 'Partes diarios, avance de frente y evidencias por cuadrilla.',
       ),
       _UseCaseCard(
-        title: 'Mantenimiento',
-        desc: 'Rutinas, checklists y anexos fotografiados.',
+        title: 'Mantenimiento industrial',
+        desc: 'OT, checklists, rutinas preventivas y adjuntos fotográficos.',
       ),
       _UseCaseCard(
-        title: 'Logistica y flota',
-        desc: 'Control de entregas, incidencias y trazas.',
+        title: 'Relevamientos técnicos',
+        desc: 'Mediciones, resistividades, GPS y observaciones en terreno.',
       ),
       _UseCaseCard(
-        title: 'Salud y seguridad',
-        desc: 'Registros diarios con fotos y firmas digitales.',
+        title: 'HSE y calidad',
+        desc:
+            'Inspecciones de seguridad, registros con foto y trazabilidad de incidentes.',
       ),
     ];
 
@@ -804,14 +830,14 @@ class _CtaBand extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Listo para ordenar tu operacion?',
+                '¿Listo para reemplazar las planillas improvisadas?',
                 style: t.text.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Instalacion local en minutos. Sin servidores, sin friccion.',
+                'Instalación local en minutos. Sin servidores, sin fricción, sin costo mensual.',
                 style: t.text.bodyMedium?.copyWith(
                   color: t.colors.textSecondary,
                 ),
@@ -857,18 +883,18 @@ class _FaqList extends StatelessWidget {
     return Column(
       children: const [
         _FaqItem(
-          q: 'Necesito servidor o internet?',
-          a: 'No. Funciona local. Solo necesitas internet para enviar o imprimir.',
+          q: '¿Necesito servidor o conexión a internet?',
+          a: 'No. Funciona completamente offline. Solo necesitas internet para enviar el informe o hacer backup.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Se puede migrar desde Excel?',
-          a: 'Si. Copias y pegas columnas o importas planillas existentes.',
+          q: '¿Se puede migrar desde Excel?',
+          a: 'Sí. Podés copiar y pegar columnas o importar planillas existentes en formato CSV o XLSX.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
-          a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
+          q: '¿Qué pasa si necesito capacitar a mi equipo?',
+          a: 'Ofrecemos capacitación in-company y soporte técnico. Los planes Enterprise incluyen acompañamiento dedicado.',
         ),
       ],
     );
