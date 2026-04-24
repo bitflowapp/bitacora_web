@@ -220,6 +220,16 @@ class _StartPageV2State extends State<StartPageV2> {
     );
   }
 
+  Future<void> _flushSheetStoreBeforeOpen() async {
+    try {
+      await SheetStore.flushPendingWrites();
+    } catch (_) {
+      _showMessage(
+        'Storage local limitado. Abrimos en modo temporal; exporta un ZIP si vas a recargar.',
+      );
+    }
+  }
+
   String _formatRelative(DateTime date) {
     final local = date.toLocal();
     final now = DateTime.now();
@@ -275,6 +285,7 @@ class _StartPageV2State extends State<StartPageV2> {
     if (_busy) return;
     _trackUsage('create_blank');
     final id = SheetStore.createNew();
+    await _flushSheetStoreBeforeOpen();
     await _openSheetById(id);
   }
 
@@ -282,6 +293,7 @@ class _StartPageV2State extends State<StartPageV2> {
     if (_busy) return;
     _trackUsage('create_template');
     final id = SheetStore.createFromTemplate(kind);
+    await _flushSheetStoreBeforeOpen();
     await _persistLastTemplate(kind.name);
     await _openSheetById(id);
   }
@@ -845,6 +857,7 @@ class _StartPageV2State extends State<StartPageV2> {
       final normalized = SheetStore.normalizeModel(model);
       normalized['savedAt'] = DateTime.now().toIso8601String();
       final id = SheetStore.createFromModel(normalized);
+      await _flushSheetStoreBeforeOpen();
       _trackUsage('import_data');
       await _reloadSheets();
       if (!mounted) return;

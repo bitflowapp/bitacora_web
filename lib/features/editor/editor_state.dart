@@ -1675,7 +1675,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<bool> _tryRestoreFromRaw(
-    SharedPreferences prefs, {
+    SharedPreferences? prefs, {
     required String? raw,
     required String source,
     bool announceRecovery = false,
@@ -1686,10 +1686,12 @@ class _EditorScreenState extends State<EditorScreen>
     if (loaded == null) return false;
 
     if (!mounted) return true;
-    _lastBackup = _latestBackupFromPrefs(prefs);
+    if (prefs != null) {
+      _lastBackup = _latestBackupFromPrefs(prefs);
+    }
     _applyLoadedModel(loaded);
 
-    if (syncAsCurrent) {
+    if (syncAsCurrent && prefs != null) {
       try {
         await prefs.setString(_prefsKey, raw);
         await prefs.remove(_prefsKeyStaging);
@@ -1737,7 +1739,7 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      final loadedLegacy = await _loadLegacyFromSheetStore();
+      final loadedLegacy = await _loadFromSheetStore(prefs);
       if (!loadedLegacy &&
           currentRaw != null &&
           currentRaw.trim().isNotEmpty &&
@@ -1750,6 +1752,13 @@ class _EditorScreenState extends State<EditorScreen>
         );
       }
     } catch (e, st) {
+      final loadedFromStore = await _loadFromSheetStore(null);
+      if (loadedFromStore) {
+        debugPrint(
+          '[EditorScreen] flow=load kind=storage op=load_prefs_unavailable_using_sheet_store error=$e',
+        );
+        return;
+      }
       _reportFlowError(
         e,
         flow: AppErrorFlow.load,
@@ -1760,8 +1769,18 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  Future<bool> _loadLegacyFromSheetStore() async {
+  Future<bool> _loadFromSheetStore(SharedPreferences? prefs) async {
     try {
+      final raw = SheetStore.loadRaw(widget.sheetId);
+      if (await _tryRestoreFromRaw(
+        prefs,
+        raw: raw,
+        source: 'sheet_store_model',
+        syncAsCurrent: prefs != null,
+      )) {
+        return true;
+      }
+
       final legacy = SheetStore.load(widget.sheetId);
       if (legacy == null) return false;
 
@@ -1791,7 +1810,7 @@ class _EditorScreenState extends State<EditorScreen>
       _reportFlowError(
         e,
         flow: AppErrorFlow.load,
-        operation: 'load_legacy_sheet_store',
+        operation: 'load_sheet_store',
         stackTrace: st,
         icon: Icons.folder_off_rounded,
       );
@@ -2058,15 +2077,28 @@ class _EditorScreenState extends State<EditorScreen>
     if (mounted) setState(() {}); // refresca ???Saving??????
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-
       // ??? Captura consistente: copia headers + cells (evita mutaciones durante await).
       final model = _buildModelForSave(savedAt);
 
-      await _persistModelAtomically(prefs, model);
+      SharedPreferences? prefs;
+      try {
+        prefs = await SharedPreferences.getInstance();
+      } catch (e) {
+        debugPrint(
+          '[EditorScreen] flow=save kind=storage op=save_prefs_unavailable_using_sheet_store error=$e',
+        );
+      }
+
+      if (prefs != null) {
+        await _persistModelAtomically(prefs, model);
+      } else {
+        await _persistModelToSheetStoreFallback(model);
+      }
 
       _lastSavedRev = startRev;
-      _lastBackup = _latestBackupFromPrefs(prefs);
+      if (prefs != null) {
+        _lastBackup = _latestBackupFromPrefs(prefs);
+      }
 
       if (!mounted) return;
       setState(() {
@@ -2108,6 +2140,17 @@ class _EditorScreenState extends State<EditorScreen>
         _savePending = false;
       }
       _saveHapticPending = false;
+    }
+  }
+
+  Future<void> _persistModelToSheetStoreFallback(_SheetModel model) async {
+    await SheetStore.init();
+    SheetStore.saveModel(widget.sheetId, model.toJson());
+    await SheetStore.flushPendingWrites();
+
+    final raw = SheetStore.loadRaw(widget.sheetId);
+    if (raw == null || _decodeSheetModelRaw(raw) == null) {
+      throw StateError('sheet_store_fallback_write_unavailable');
     }
   }
 
