@@ -21525,11 +21525,13 @@ Este paquete incluye:
     }
 
     if (isMobile) {
-      try {
-        _throwIfOperationCancelledBy(shouldCancel);
-        await Share.shareXFiles([xf], subject: 'BitFlow Export');
-        return;
-      } catch (_) {}
+      final shared = await _shareOnMobileWithFallbacks(
+        name: name,
+        mime: mime,
+        bytes: bytes,
+        shouldCancel: shouldCancel,
+      );
+      if (shared) return;
     }
 
     final lower = name.toLowerCase();
