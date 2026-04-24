@@ -241,12 +241,16 @@ class _BootStatus {
   const _BootStatus({
     required this.firebaseOk,
     required this.storeOk,
+    this.storeMemoryMode = false,
     this.firebaseError,
     this.storeError,
   });
 
   final bool firebaseOk;
   final bool storeOk;
+  /// True when the sheet store is running in-memory (IndexedDB unavailable).
+  /// The app is usable but data won't survive a page reload.
+  final bool storeMemoryMode;
   final Object? firebaseError;
   final Object? storeError;
 }
@@ -305,6 +309,7 @@ class _AppState extends State<App> {
   Future<_BootStatus> _boot() async {
     bool firebaseOk = false;
     bool storeOk = false;
+    bool storeMemoryMode = false;
     Object? firebaseError;
     Object? storeError;
 
@@ -319,10 +324,18 @@ class _AppState extends State<App> {
     }
 
     try {
-      await SheetStore.init().timeout(const Duration(seconds: 6));
+      // init() never throws — it falls back to an in-memory store on failure.
+      // The outer timeout is a last-resort guard (e.g. SharedPreferences hangs
+      // longer than the internal 4-second guard inside init()).
+      await SheetStore.init().timeout(const Duration(seconds: 8));
       storeOk = true;
+      storeMemoryMode = !SheetStore.isPersistent;
+      if (storeMemoryMode) storeError = SheetStore.storeInitError;
     } catch (e) {
-      storeOk = false;
+      // Timeout or unexpected error after init()'s internal guard fired.
+      // The in-memory fallback is already active (_kv is set); mark usable.
+      storeOk = true;
+      storeMemoryMode = true;
       storeError = e;
     }
 
@@ -343,6 +356,7 @@ class _AppState extends State<App> {
     return _BootStatus(
       firebaseOk: firebaseOk,
       storeOk: storeOk,
+      storeMemoryMode: storeMemoryMode,
       firebaseError: firebaseError,
       storeError: storeError,
     );
@@ -581,8 +595,25 @@ class _AppState extends State<App> {
       actions: [
         _PillButton(
           label: 'Reintentar',
+          onPressed: () => setState(_startBoot),
+        ),
+        // Safety exit: fall back to in-memory mode so the user is never
+        // permanently blocked.  SheetStore.init() should have already set up
+        // the _MemoryKv fallback, so tapping this just re-triggers the build.
+        _PillButton(
+          label: 'Continuar en modo temporal',
+          outlined: true,
           onPressed: () {
-            setState(_startBoot);
+            setState(() {
+              _bootFuture = Future.value(
+                _BootStatus(
+                  firebaseOk: status.firebaseOk,
+                  storeOk: true,
+                  storeMemoryMode: true,
+                  storeError: status.storeError,
+                ),
+              );
+            });
           },
         ),
       ],

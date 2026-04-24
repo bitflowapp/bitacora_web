@@ -122,6 +122,12 @@ class SheetStore {
     _prefs = await SharedPreferences.getInstance();
   }
 
+  /// Always true on native platforms — SharedPreferences is always persistent.
+  static bool get isPersistent => true;
+
+  /// Always null on native platforms — no fallback needed.
+  static Object? get storeInitError => null;
+
   static Object? get lastWriteError => null;
 
   static Future<void> flushPendingWrites() async {}

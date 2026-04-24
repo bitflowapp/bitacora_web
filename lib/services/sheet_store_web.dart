@@ -11,9 +11,50 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/table_state.dart';
 
+/// Common KV interface shared by the Hive-backed store and the in-memory
+/// fallback so [SheetStore] can swap between them without branching.
+abstract class _Kv {
+  String? getString(String key);
+  void setString(String key, String value);
+  void remove(String key);
+  Set<String> getKeys();
+  Object? get lastWriteError;
+  Future<void> flushPendingWrites();
+}
+
+/// In-memory fallback used when IndexedDB is unavailable (Safari Private
+/// Browsing, storage-restricted contexts, first-install quota issues, etc.).
+/// Data is NOT persisted across page reloads, but the app remains fully
+/// usable for demo and single-session workflows.
+class _MemoryKv implements _Kv {
+  final Map<String, String> _data = <String, String>{};
+
+  @override
+  String? getString(String key) => _data[key];
+
+  @override
+  void setString(String key, String value) {
+    _data[key] = value;
+  }
+
+  @override
+  void remove(String key) {
+    _data.remove(key);
+  }
+
+  @override
+  Set<String> getKeys() => _data.keys.toSet();
+
+  @override
+  Object? get lastWriteError => null;
+
+  @override
+  Future<void> flushPendingWrites() async {}
+}
+
 /// Synchronous key-value store backed by a Hive Box (IndexedDB on web).
 /// On init it migrates any SharedPreferences sheet keys to Hive once.
-class _HiveKv {
+class _HiveKv implements _Kv {
   _HiveKv(this._box);
 
   final Box<dynamic> _box;
@@ -52,23 +93,29 @@ class _HiveKv {
     }
   }
 
+  @override
   String? getString(String key) {
     final v = _box.get(key);
     return v is String ? v : null;
   }
 
+  @override
   void setString(String key, String value) {
     _track(_box.put(key, value));
   }
 
+  @override
   void remove(String key) {
     _track(_box.delete(key));
   }
 
+  @override
   Set<String> getKeys() => _box.keys.whereType<String>().toSet();
 
+  @override
   Object? get lastWriteError => _lastWriteError;
 
+  @override
   Future<void> flushPendingWrites() async {
     while (_pendingWrites.isNotEmpty) {
       final pending = List<Future<void>>.of(_pendingWrites);
@@ -188,7 +235,17 @@ class _TemplateDefinition {
 }
 
 class SheetStore {
-  static _HiveKv? _kv;
+  static _Kv? _kv;
+
+  /// True when the active store is backed by IndexedDB (Hive).
+  /// False means we are running from a transient in-memory store — data will
+  /// not survive a page reload.  Callers may read this to show a warning UI.
+  static bool _isPersistent = false;
+  static bool get isPersistent => _isPersistent;
+
+  /// The error that caused the persistent store to be unavailable, if any.
+  static Object? _storeInitError;
+  static Object? get storeInitError => _storeInitError;
 
   static const String _sheetPrefix = 'bitflow:sheet:';
   static const String _backupMarker = ':bk:';
@@ -202,9 +259,24 @@ class SheetStore {
   static const String _photosColId = 'col_photos';
   static int _sheetIdSeed = 0;
 
+  /// Initialises the store.  Never throws.
+  ///
+  /// Tries IndexedDB (Hive) first with an internal 5-second guard so Safari
+  /// hangs don't propagate to the boot splash.  On any failure (private
+  /// browsing, quota, ITP restrictions) falls back to an in-memory store so
+  /// the app remains fully usable for the current session.
   static Future<void> init() async {
-    final sp = await SharedPreferences.getInstance();
-    _kv = await _HiveKv.open(sp);
+    try {
+      final sp = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 4));
+      _kv = await _HiveKv.open(sp).timeout(const Duration(seconds: 4));
+      _isPersistent = true;
+      _storeInitError = null;
+    } catch (e) {
+      _kv ??= _MemoryKv();
+      _isPersistent = false;
+      _storeInitError = e;
+    }
   }
 
   static Object? get lastWriteError => _kv?.lastWriteError;
