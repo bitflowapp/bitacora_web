@@ -37,7 +37,8 @@ void main() {
     state.debugConfirmExportValidationGateForTest();
     await tester.pumpAndSettle();
 
-    expect(find.text('Hay errores de validacion'), findsOneWidget);
+    expect(find.text('Revisar antes de exportar'), findsOneWidget);
+    expect(find.textContaining('registros requieren'), findsWidgets);
     expect(find.text('Exportar igual'), findsOneWidget);
     expect(find.text('Ir a errores'), findsOneWidget);
   });
