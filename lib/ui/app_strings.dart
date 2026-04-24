@@ -25,18 +25,18 @@ class AppStrings {
   // Sheets
   static const sheetsTitle = 'BitFlow';
   static const sheetsSearchHint = 'Buscar por nombre o ID... (Ctrl/Cmd+K o /)';
-  static const newSheet = 'Crear planilla';
+  static const newSheet = 'Nueva planilla';
   static const templates = 'Plantillas';
-  static const openLast = 'Abrir ultima';
-  static const clearSearch = 'Limpiar busqueda';
-  static const emptySheetsTitle = 'Todavia no hay planillas';
+  static const openLast = 'Abrir última';
+  static const clearSearch = 'Limpiar búsqueda';
+  static const emptySheetsTitle = 'Todavía no hay planillas';
   static const emptySheetsBody =
-      'Crea tu primera planilla o arranca desde una plantilla para tus relevamientos.';
+      'Crea tu primera planilla de campo o elige una plantilla de relevamientos, checklists o mediciones.';
   static const noResultsTitle = 'Sin resultados';
   static const deletedSheetToast = 'Planilla eliminada';
   static const renameSheetTitle = 'Renombrar planilla';
   static const renameSheetNameLabel = 'Nombre';
-  static const renameSheetNameHint = 'Ej: Relevamiento Pozo 12';
+  static const renameSheetNameHint = 'Ej: Relevamiento Pozo 12 — Abril 2025';
   static const deleteSheetTitle = 'Eliminar planilla';
 
   static String deleteSheetMessage(String title) {

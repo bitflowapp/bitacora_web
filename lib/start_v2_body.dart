@@ -5243,7 +5243,7 @@ class _StartPageState extends State<StartPageV2> {
             ? 'Continua donde lo dejaste'
             : 'Centro de control diario';
     final headerDetail = activeCount == 0
-        ? 'Crea una planilla, importa datos o arranca desde una automatizacion.'
+        ? 'Crea una planilla de campo o elige una plantilla para empezar.'
         : recentCount > 0
             ? '$recentCount archivo(s) abiertos recientemente'
             : '$activeCount archivo(s) listos para abrir';
@@ -5276,10 +5276,10 @@ class _StartPageState extends State<StartPageV2> {
       ),
       _StartQuickActionSpec(
         key: const ValueKey('start-primary-automate'),
-        icon: CupertinoIcons.sparkles,
-        title: 'Automatizar tarea',
-        subtitle: 'Sugerencias listas para continuar, medir o importar',
-        shortcut: 'Smart',
+        icon: CupertinoIcons.bolt_fill,
+        title: 'Acceso rápido',
+        subtitle: 'Continuar, importar o usar una plantilla de campo',
+        shortcut: 'Pro',
         onPressed: () => _openAutomationSheet(colors),
       ),
     ];
@@ -5381,7 +5381,7 @@ class _StartPageState extends State<StartPageV2> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Inicio productivo',
+                                        'Planillas · Relevamientos · Control',
                                         style: TextStyle(
                                           color: colors.textSecondary,
                                           fontSize: 12,
