@@ -36,6 +36,6 @@ void main() {
         isNot(contains('storage_blocked')),
       ),
     );
-    expect(find.text('Ver detalle tecnico'), findsOneWidget);
+    expect(find.text('Ver detalle técnico'), findsOneWidget);
   });
 }

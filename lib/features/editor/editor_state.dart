@@ -8923,7 +8923,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
@@ -8962,7 +8962,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
