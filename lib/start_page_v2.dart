@@ -213,10 +213,7 @@ class _StartPageV2State extends State<StartPageV2> {
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -343,7 +340,11 @@ class _StartPageV2State extends State<StartPageV2> {
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
-                t.spacing.lg, 6, t.spacing.lg, t.spacing.lg),
+              t.spacing.lg,
+              6,
+              t.spacing.lg,
+              t.spacing.lg,
+            ),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final columns = constraints.maxWidth >= 560 ? 2 : 1;
@@ -404,7 +405,7 @@ class _StartPageV2State extends State<StartPageV2> {
       CommandAction(
         id: 'create_blank',
         label: 'Nueva planilla',
-        subtitle: 'Crear un relevamiento tecnico en blanco',
+        subtitle: 'Empezar desde cero',
         shortcut: 'Ctrl/Cmd + N',
         icon: Icons.add_box_rounded,
         onSelected: () => unawaited(_createBlankSheet()),
@@ -412,22 +413,22 @@ class _StartPageV2State extends State<StartPageV2> {
       CommandAction(
         id: 'open_recent',
         label: 'Abrir reciente',
-        subtitle: 'Continuar ultimo archivo',
+        subtitle: 'Continuar trabajo',
         shortcut: 'Ctrl/Cmd + O',
         icon: Icons.history_rounded,
         onSelected: () => unawaited(_openMostRecent()),
       ),
       CommandAction(
         id: 'template',
-        label: 'Usar plantilla tecnica',
-        subtitle: 'Partir de un caso real de campo',
+        label: 'Usar plantilla',
+        subtitle: 'Plantillas tecnicas',
         icon: Icons.auto_fix_high_rounded,
-        onSelected: () => unawaited(_openAutomationSheet()),
+        onSelected: () => unawaited(_showTemplateChooser()),
       ),
       CommandAction(
         id: 'import',
         label: 'Importar datos',
-        subtitle: 'Restaurar archivo JSON/ZIP',
+        subtitle: 'JSON o ZIP de respaldo',
         icon: Icons.file_upload_rounded,
         onSelected: () => unawaited(_importData()),
       ),
@@ -494,7 +495,11 @@ class _StartPageV2State extends State<StartPageV2> {
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
-                t.spacing.lg, 8, t.spacing.lg, t.spacing.lg),
+              t.spacing.lg,
+              8,
+              t.spacing.lg,
+              t.spacing.lg,
+            ),
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: suggestions.length,
@@ -515,7 +520,8 @@ class _StartPageV2State extends State<StartPageV2> {
                         height: 36,
                         decoration: BoxDecoration(
                           color: t.colors.accent.withValues(
-                              alpha: t.colors.isLight ? 0.12 : 0.18),
+                            alpha: t.colors.isLight ? 0.12 : 0.18,
+                          ),
                           borderRadius: BorderRadius.circular(t.radii.xs),
                         ),
                         child: Icon(suggestion.icon, color: t.colors.accent),
@@ -555,24 +561,21 @@ class _StartPageV2State extends State<StartPageV2> {
 
   List<_AutomationSuggestion> get _automationSuggestions {
     final recent = _items.isNotEmpty ? _items.first : null;
-    final openCount = _usage['open_recent'] ?? 0;
-    final templateCount = _usage['create_template'] ?? 0;
-    final importCount = _usage['import_data'] ?? 0;
 
     final continueSubtitle = recent == null
-        ? 'Crea tu primera planilla o prueba una demo con datos tecnicos.'
-        : 'Ultimo archivo: ${recent.title.trim().isEmpty ? recent.id : recent.title}.';
+        ? 'Planilla local en blanco.'
+        : recent.title.trim().isEmpty
+            ? 'Ultimo archivo.'
+            : recent.title;
 
     final templateSubtitle = _lastTemplate.isEmpty
-        ? 'Ideal para relevamientos repetitivos de campo.'
-        : 'Ultima plantilla usada: $_lastTemplate.';
+        ? 'Demo tecnica lista.'
+        : 'Ultima: $_lastTemplate';
 
     return <_AutomationSuggestion>[
       _AutomationSuggestion(
-        title: recent == null
-            ? 'Crear primer relevamiento'
-            : 'Continuar ultimo relevamiento',
-        subtitle: '$continueSubtitle Uso: $openCount',
+        title: recent == null ? 'Nueva planilla' : 'Abrir reciente',
+        subtitle: continueSubtitle,
         icon: recent == null
             ? Icons.playlist_add_rounded
             : Icons.play_circle_fill_rounded,
@@ -585,22 +588,21 @@ class _StartPageV2State extends State<StartPageV2> {
         },
       ),
       _AutomationSuggestion(
-        title: 'Demo proteccion catodica',
-        subtitle: '$templateSubtitle Uso: $templateCount',
+        title: 'Proteccion catodica',
+        subtitle: templateSubtitle,
         icon: Icons.bolt_rounded,
         onTap: () => _createTemplateSheet(TemplateKind.proteccionCatodica),
       ),
       _AutomationSuggestion(
         title: 'Importar datos',
-        subtitle: 'Restaurar paquete JSON/ZIP. Uso: $importCount',
+        subtitle: 'JSON o ZIP de respaldo.',
         icon: Icons.system_update_alt_rounded,
         onTap: _importData,
       ),
       _AutomationSuggestion(
-        title: 'Abrir plantilla reciente',
-        subtitle: _lastTemplate.isEmpty
-            ? 'No hay plantilla reciente. Abre la galeria tecnica.'
-            : 'Plantilla guardada: $_lastTemplate',
+        title: 'Plantilla reciente',
+        subtitle:
+            _lastTemplate.isEmpty ? 'Elegir desde plantillas.' : _lastTemplate,
         icon: Icons.auto_awesome_motion_rounded,
         onTap: () async {
           if (_lastTemplate == TemplateKind.proteccionCatodica.name) {
@@ -659,7 +661,7 @@ class _StartPageV2State extends State<StartPageV2> {
                 ListTile(
                   leading: Icon(Icons.tune_rounded, color: accent),
                   title: const Text('Resetear sugerencias'),
-                  subtitle: const Text('Limpia historial de automatizaciones'),
+                  subtitle: const Text('Limpia historial local'),
                   onTap: () {
                     setState(() => _usage = <String, int>{});
                     unawaited(_persistUsage());
@@ -780,6 +782,14 @@ class _StartPageV2State extends State<StartPageV2> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.flash_on_rounded),
+                title: const Text('Atajos'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  unawaited(_openAutomationSheet());
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
                 title: const Text('Soporte'),
                 onTap: () {
@@ -850,7 +860,8 @@ class _StartPageV2State extends State<StartPageV2> {
       final model = _decodeImportModel(bytes: bytes, fileName: picked.name);
       if (model == null) {
         _showMessage(
-            'El archivo no parece ser un respaldo valido de Bit Flow.');
+          'El archivo no parece ser un respaldo valido de Bit Flow.',
+        );
         return;
       }
 
@@ -989,9 +1000,7 @@ class _StartPageV2State extends State<StartPageV2> {
     final rows = <List<String>>[];
     for (final row in rowsRaw) {
       if (row is List) {
-        rows.add(
-          row.map((e) => (e ?? '').toString()).toList(growable: false),
-        );
+        rows.add(row.map((e) => (e ?? '').toString()).toList(growable: false));
         continue;
       }
       if (row is Map) {
@@ -1014,10 +1023,10 @@ class _StartPageV2State extends State<StartPageV2> {
   }
 
   String get _contextMessage {
-    if (_items.isEmpty) return 'Crea una demo en 30 segundos';
-    if (_items.length == 1) return 'Continua donde lo dejaste';
+    if (_items.isEmpty) return 'Listo para trabajar';
+    if (_items.length == 1) return 'Continua tu trabajo';
     final recent = _items.take(3).length;
-    return '$recent archivos abiertos recientemente';
+    return '$recent recientes listos';
   }
 
   @override
@@ -1087,35 +1096,32 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Proteccion catodica',
-                      subtitle: 'Demo con mediciones, estado y evidencia',
-                      icon: Icons.bolt_rounded,
-                      shortcut: '1 click',
-                      onTap: () => _createTemplateSheet(
-                        TemplateKind.proteccionCatodica,
-                      ),
+                      title: 'Nueva planilla',
+                      subtitle: 'Empeza desde cero',
+                      icon: Icons.add_box_rounded,
+                      shortcut: 'Ctrl/Cmd + N',
+                      onTap: _createBlankSheet,
                       featured: true,
                     ),
                     _QuickActionData(
-                      title: recent.isEmpty ? 'Nueva planilla' : 'Continuar',
-                      subtitle: recent.isEmpty
-                          ? 'Crear relevamiento tecnico en blanco'
-                          : 'Retomar ultimo relevamiento',
-                      icon: Icons.history_rounded,
-                      shortcut: 'Ctrl/Cmd + O',
-                      onTap:
-                          recent.isEmpty ? _createBlankSheet : _openMostRecent,
-                    ),
-                    _QuickActionData(
-                      title: 'Galeria tecnica',
-                      subtitle: 'PC, puesta a tierra, inspeccion',
+                      title: 'Usar plantilla',
+                      subtitle: 'Tecnicas listas',
                       icon: Icons.dashboard_customize_rounded,
                       shortcut: 'Templates',
                       onTap: _showTemplateChooser,
                     ),
                     _QuickActionData(
-                      title: 'Buscar archivos',
-                      subtitle: 'Abrir por nombre, cliente o sector',
+                      title: 'Abrir reciente',
+                      subtitle: recent.isEmpty
+                          ? 'Sin archivos aun'
+                          : 'Ultimo trabajo',
+                      icon: Icons.history_rounded,
+                      shortcut: 'Ctrl/Cmd + O',
+                      onTap: _openMostRecent,
+                    ),
+                    _QuickActionData(
+                      title: 'Buscar',
+                      subtitle: 'Archivos y acciones',
                       icon: Icons.search_rounded,
                       shortcut: 'Ctrl/Cmd + K',
                       onTap: _openQuickSearch,
@@ -1142,16 +1148,16 @@ class _StartPageV2State extends State<StartPageV2> {
                                 _Header(
                                   message: _contextMessage,
                                   subtitle:
-                                      'Planillas inteligentes para campo, oficina y evidencias',
+                                      'Relevamientos, inspecciones y control operativo',
                                   onMore: _openMoreSheet,
                                   onThemeToggle: widget.onToggleTheme,
                                   isLight: widget.isLight,
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  title: 'Empezar ahora',
+                                  title: 'Acciones',
                                   subtitle:
-                                      'Demo tecnica, ultimos trabajos y plantillas listas para usar',
+                                      'Crear, usar plantilla o retomar trabajo',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1179,9 +1185,8 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  title: 'Continuar trabajo',
-                                  subtitle:
-                                      'Tus relevamientos recientes quedan visibles para retomar rapido',
+                                  title: 'Ultimos archivos',
+                                  subtitle: 'Retoma trabajos guardados',
                                 ),
                                 const SizedBox(height: 10),
                                 isWide
@@ -1193,7 +1198,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                             child: _SheetGroupCard(
                                               title: 'Recientes',
                                               emptyHint:
-                                                  'Todavia no hay trabajos. Crea una planilla o usa una demo tecnica.',
+                                                  'Crea una planilla o usa una plantilla.',
                                               items: recent,
                                               onOpen: _openMeta,
                                               onFavoriteToggle: _toggleFavorite,
@@ -1208,7 +1213,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                             child: _SheetGroupCard(
                                               title: 'Favoritos',
                                               emptyHint:
-                                                  'Marca trabajos clave para encontrarlos antes de salir a campo.',
+                                                  'Marca trabajos clave.',
                                               items: favorites,
                                               onOpen: _openMeta,
                                               onFavoriteToggle: _toggleFavorite,
@@ -1223,7 +1228,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                             child: _SheetGroupCard(
                                               title: 'Fijados',
                                               emptyHint:
-                                                  'Fija proyectos activos para acceso inmediato.',
+                                                  'Fija proyectos activos.',
                                               items: pinned,
                                               onOpen: _openMeta,
                                               onFavoriteToggle: _toggleFavorite,
@@ -1240,7 +1245,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                           _SheetGroupCard(
                                             title: 'Recientes',
                                             emptyHint:
-                                                'Todavia no hay trabajos. Crea una planilla o usa una demo tecnica.',
+                                                'Crea una planilla o usa una plantilla.',
                                             items: recent,
                                             onOpen: _openMeta,
                                             onFavoriteToggle: _toggleFavorite,
@@ -1249,58 +1254,42 @@ class _StartPageV2State extends State<StartPageV2> {
                                             pinnedIds: _pinnedIds,
                                             formatter: _formatRelative,
                                           ),
-                                          const SizedBox(height: 10),
-                                          _SheetGroupCard(
-                                            title: 'Favoritos',
-                                            emptyHint:
-                                                'Marca trabajos clave para encontrarlos antes de salir a campo.',
-                                            items: favorites,
-                                            onOpen: _openMeta,
-                                            onFavoriteToggle: _toggleFavorite,
-                                            onPinnedToggle: _togglePinned,
-                                            favoriteIds: _favoriteIds,
-                                            pinnedIds: _pinnedIds,
-                                            formatter: _formatRelative,
-                                          ),
-                                          const SizedBox(height: 10),
-                                          _SheetGroupCard(
-                                            title: 'Fijados',
-                                            emptyHint:
-                                                'Fija proyectos activos para acceso inmediato.',
-                                            items: pinned,
-                                            onOpen: _openMeta,
-                                            onFavoriteToggle: _toggleFavorite,
-                                            onPinnedToggle: _togglePinned,
-                                            favoriteIds: _favoriteIds,
-                                            pinnedIds: _pinnedIds,
-                                            formatter: _formatRelative,
-                                          ),
+                                          if (favorites.isNotEmpty) ...[
+                                            const SizedBox(height: 10),
+                                            _SheetGroupCard(
+                                              title: 'Favoritos',
+                                              emptyHint:
+                                                  'Marca trabajos clave.',
+                                              items: favorites,
+                                              onOpen: _openMeta,
+                                              onFavoriteToggle: _toggleFavorite,
+                                              onPinnedToggle: _togglePinned,
+                                              favoriteIds: _favoriteIds,
+                                              pinnedIds: _pinnedIds,
+                                              formatter: _formatRelative,
+                                            ),
+                                          ],
+                                          if (pinned.isNotEmpty) ...[
+                                            const SizedBox(height: 10),
+                                            _SheetGroupCard(
+                                              title: 'Fijados',
+                                              emptyHint:
+                                                  'Fija proyectos activos.',
+                                              items: pinned,
+                                              onOpen: _openMeta,
+                                              onFavoriteToggle: _toggleFavorite,
+                                              onPinnedToggle: _togglePinned,
+                                              favoriteIds: _favoriteIds,
+                                              pinnedIds: _pinnedIds,
+                                              formatter: _formatRelative,
+                                            ),
+                                          ],
                                         ],
                                       ),
-                                const SizedBox(height: 18),
-                                _SectionTitle(
-                                  title: 'Sugerencias y plantillas',
-                                  subtitle:
-                                      'Casos tecnicos para cargar datos reales sin armar columnas desde cero',
-                                ),
-                                const SizedBox(height: 10),
-                                GridView.count(
-                                  crossAxisCount: isWide ? 2 : 1,
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  mainAxisSpacing: 10,
-                                  crossAxisSpacing: 10,
-                                  childAspectRatio: isWide ? 3.3 : 2.9,
-                                  children: [
-                                    for (final suggestion
-                                        in _automationSuggestions)
-                                      _AutomationTile(
-                                        suggestion: suggestion,
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 18),
-                                const _ShortcutStrip(),
+                                if (isWide) ...[
+                                  const SizedBox(height: 18),
+                                  const _ShortcutStrip(),
+                                ],
                               ],
                             ),
                           ),
@@ -1318,8 +1307,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: t.colors.surfaceMuted,
-                                  borderRadius:
-                                      BorderRadius.circular(t.radii.sm),
+                                  borderRadius: BorderRadius.circular(
+                                    t.radii.sm,
+                                  ),
                                   border: Border.all(color: t.colors.border),
                                 ),
                                 child: Row(
@@ -1387,8 +1377,9 @@ class _Header extends StatelessWidget {
         border: Border.all(color: t.colors.border),
         boxShadow: [
           BoxShadow(
-            color:
-                Colors.black.withValues(alpha: t.colors.isLight ? 0.06 : 0.22),
+            color: Colors.black.withValues(
+              alpha: t.colors.isLight ? 0.06 : 0.22,
+            ),
             blurRadius: 28,
             offset: const Offset(0, 18),
           ),
@@ -1512,10 +1503,7 @@ class _Header extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -1537,9 +1525,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           subtitle,
-          style: AppTypography.caption1.copyWith(
-            color: t.colors.textSecondary,
-          ),
+          style: AppTypography.caption1.copyWith(color: t.colors.textSecondary),
         ),
       ],
     );
@@ -1565,10 +1551,7 @@ class _QuickActionData {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({
-    required this.data,
-    required this.disabled,
-  });
+  const _QuickActionTile({required this.data, required this.disabled});
 
   final _QuickActionData data;
   final bool disabled;
@@ -1583,8 +1566,9 @@ class _QuickActionTile extends StatelessWidget {
     final secondary = data.featured
         ? featuredFg.withValues(alpha: 0.74)
         : t.colors.textSecondary;
-    final accentSoft =
-        t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
+    final accentSoft = t.colors.accent.withValues(
+      alpha: t.colors.isLight ? 0.12 : 0.18,
+    );
     return _ActionSurface(
       backgroundColor:
           data.featured ? t.colors.textPrimary : t.colors.surfaceMuted,
@@ -1738,8 +1722,9 @@ class _SheetMiniRow extends StatelessWidget {
     final t = context.tokens;
     final title =
         meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
-    final rowBg =
-        t.colors.accent.withValues(alpha: t.colors.isLight ? 0.055 : 0.08);
+    final rowBg = t.colors.accent.withValues(
+      alpha: t.colors.isLight ? 0.055 : 0.08,
+    );
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1885,62 +1870,6 @@ class _AutomationSuggestion {
   final Future<void> Function() onTap;
 }
 
-class _AutomationTile extends StatelessWidget {
-  const _AutomationTile({required this.suggestion});
-
-  final _AutomationSuggestion suggestion;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final accentSoft =
-        t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
-    return _ActionSurface(
-      onTap: () => unawaited(suggestion.onTap()),
-      backgroundColor: t.colors.surfaceMuted,
-      borderColor: t.colors.border,
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(t.radii.xs),
-              color: accentSoft,
-            ),
-            child: Icon(suggestion.icon, color: t.colors.accent),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  suggestion.title,
-                  style: AppTypography.callout.copyWith(
-                    color: t.colors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  suggestion.subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption1.copyWith(
-                    color: t.colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ShortcutBadge extends StatelessWidget {
   const _ShortcutBadge({
     required this.label,
@@ -1956,8 +1885,9 @@ class _ShortcutBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final invertedFg = invertedColor ?? Colors.white;
-    final accentSoft =
-        t.colors.accent.withValues(alpha: t.colors.isLight ? 0.12 : 0.18);
+    final accentSoft = t.colors.accent.withValues(
+      alpha: t.colors.isLight ? 0.12 : 0.18,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
