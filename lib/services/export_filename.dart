@@ -29,5 +29,5 @@ String buildBitFlowExportFileName({
   final yyyy = at.year.toString().padLeft(4, '0');
   final mm = at.month.toString().padLeft(2, '0');
   final dd = at.day.toString().padLeft(2, '0');
-  return 'BitFlow_${yyyy}-${mm}-${dd}_$safeSheet.$ext';
+  return 'BitFlow_$yyyy-$mm-${dd}_$safeSheet.$ext';
 }
