@@ -116,8 +116,8 @@ class ExportXlsxService {
 
     await mailService.sendReport(
       to: to,
-      subject: subject ?? 'Reporte Gridnote',
-      message: message ?? 'Adjunto XLSX generado desde Gridnote.',
+      subject: subject ?? 'Reporte tecnico Bit Flow',
+      message: message ?? 'Adjunto XLSX generado desde Bit Flow.',
       fileName: '$base.xlsx',
       xlsxBytes: bytes,
     );
@@ -244,7 +244,8 @@ class ExportXlsxService {
 
     final headerStyle = sheet.workbook.styles.add('HeaderStyle');
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.backColor = '#FF007AFF';
+    headerStyle.fontColor = '#FFFFFFFF';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
 
@@ -290,7 +291,8 @@ class ExportXlsxService {
 
     final headerStyle = sheet.workbook.styles.add('FotosHeaderStyle');
     headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
+    headerStyle.backColor = '#FF007AFF';
+    headerStyle.fontColor = '#FFFFFFFF';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
 
@@ -374,7 +376,7 @@ class ExportXlsxService {
     required DateTime? createdAt,
   }) {
     final title = sheet.getRangeByIndex(1, 1);
-    title.setText('Ubicación general de esta planilla');
+    title.setText('Ubicacion general de esta planilla');
     title.cellStyle.bold = true;
     title.cellStyle.fontSize = 14;
 
@@ -400,18 +402,18 @@ class ExportXlsxService {
         mapsUrl,
       );
       link.textToDisplay = 'Abrir en Google Maps';
-      link.screenTip = 'Abrir ubicación en Google Maps';
+      link.screenTip = 'Abrir ubicacion en Google Maps';
 
       linkRange.cellStyle.fontColor = '#FF0000FF';
       linkRange.cellStyle.bold = true;
     } else {
       sheet.getRangeByIndex(4, 1).setText(
-            'Ubicación no disponible en este reporte.',
+            'Ubicacion no disponible en este reporte.',
           );
     }
 
     if (createdAt != null) {
-      sheet.getRangeByIndex(9, 1).setText('Fecha/hora de generación');
+      sheet.getRangeByIndex(9, 1).setText('Fecha/hora de generacion');
       final dateCell = sheet.getRangeByIndex(9, 2);
       dateCell.dateTime = createdAt;
       dateCell.numberFormat = 'dd/mm/yyyy hh:mm';
@@ -429,31 +431,31 @@ class ExportXlsxService {
 
     final textCell = sheet.getRangeByIndex(3, 1);
     textCell.setText('''
-1) Qué es este archivo
-   - Planilla generada automáticamente desde la app Gridnote / Bitácora.
+1) Que es este archivo
+   - Planilla generada automaticamente desde Bit Flow.
    - Contiene los datos exactamente como fueron cargados en campo.
 
-2) Cómo ver los datos
+2) Como ver los datos
    - Hoja PLANILLA   : datos principales (mediciones, observaciones, GPS).
-   - Hoja FOTOS      : fotos asociadas a cada fila (n° fila, archivo, descripción).
+   - Hoja FOTOS      : fotos asociadas a cada fila (nro. fila, archivo, descripcion).
    - Hoja UBICACION  : punto general de la planilla y link a Google Maps.
    - Hoja INSTRUCCIONES: esta ayuda.
 
-3) Revisión rápida
+3) Revision rapida
    - Verifique fecha y hora de los registros.
    - Use la columna Fila en FOTOS para cruzar cada foto con PLANILLA.
    - Use Latitud / Longitud para ubicar los puntos en un mapa.
 
-4) Cómo reenviar esta planilla
+4) Como reenviar esta planilla
    - Puede reenviar este mismo archivo .xlsx por:
        * Correo corporativo (Outlook, Gmail empresa, etc.).
        * WhatsApp / WhatsApp Business (adjuntar como Documento).
        * Teams, Slack u otra plataforma corporativa.
    - No es necesario modificar nada para que otros puedan verlo.
 
-5) Recomendación
+5) Recomendacion
    - Conserve este archivo como respaldo original del relevamiento.
-   - Si hace cambios manuales, guárdelo con otro nombre
+   - Si hace cambios manuales, guardelo con otro nombre
      (por ejemplo: Planilla_ObraX_EDITADO.xlsx).
 ''');
 
