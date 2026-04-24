@@ -15,4 +15,17 @@ void main() {
     );
     expect(fileName, 'BitFlow_2026-02-13_Mi_Hoja_QA.xlsx');
   });
+
+  test('buildBitFlowExportFileName caps long worker sheet names', () {
+    final longName = List<String>.filled(80, 'Obra Norte').join(' ');
+    final fileName = buildBitFlowExportFileName(
+      sheetName: longName,
+      extension: '.xlsx',
+      now: DateTime(2026, 2, 13, 10, 12),
+    );
+
+    expect(fileName, endsWith('.xlsx'));
+    expect(fileName.length, lessThanOrEqualTo(120));
+    expect(fileName, startsWith('BitFlow_2026-02-13_Obra_Norte'));
+  });
 }

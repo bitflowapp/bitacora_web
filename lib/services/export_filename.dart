@@ -1,12 +1,19 @@
+const int _maxExportSheetNameLength = 96;
+
 String sanitizeBitFlowSheetName(String sheetName) {
   final trimmed = sheetName.trim();
   final fallback = trimmed.isEmpty ? 'Sheet' : trimmed;
-  final noForbidden = fallback
+  var noForbidden = fallback
       .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
       .replaceAll(RegExp(r'[^A-Za-z0-9._\\-\\s]'), '_')
       .replaceAll(RegExp(r'\s+'), '_')
       .replaceAll(RegExp(r'_+'), '_')
       .trim();
+  if (noForbidden.length > _maxExportSheetNameLength) {
+    noForbidden = noForbidden
+        .substring(0, _maxExportSheetNameLength)
+        .replaceFirst(RegExp(r'[_\s.-]+$'), '');
+  }
   if (noForbidden.isEmpty) return 'Sheet';
   return noForbidden;
 }

@@ -19,6 +19,8 @@ import 'export_xlsx_with_photos.dart';
 
 import 'save_xlsx.dart' as platform_saver;
 
+const int _maxExportBaseNameLength = 120;
+
 class ExportXlsxService {
   const ExportXlsxService._();
 
@@ -123,8 +125,9 @@ class ExportXlsxService {
 
   /// Normaliza el nombre base del archivo.
   static String _resolveBaseName(String? fileName, String name) {
-    final candidate =
-        (fileName != null && fileName.trim().isNotEmpty) ? fileName : name;
+    final candidate = (fileName != null && fileName.trim().isNotEmpty)
+        ? fileName
+        : name;
 
     // Quita extensión si ya viene con .xlsx
     var base = candidate.trim();
@@ -137,6 +140,9 @@ class ExportXlsxService {
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+    if (base.length > _maxExportBaseNameLength) {
+      base = base.substring(0, _maxExportBaseNameLength).trim();
+    }
 
     return base.isEmpty ? 'BitFlow' : base;
   }
@@ -177,11 +183,7 @@ class ExportXlsxService {
       final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACION';
       final sheetInstrucciones = workbook.worksheets[3]..name = 'INSTRUCCIONES';
 
-      _buildPlanillaSheet(
-        sheetPlanilla,
-        headers: headers,
-        rows: rows,
-      );
+      _buildPlanillaSheet(sheetPlanilla, headers: headers, rows: rows);
 
       _buildFotosSheet(
         sheetFotos,
@@ -357,9 +359,9 @@ class ExportXlsxService {
         tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
       }
     } else {
-      sheet.getRangeByIndex(3, 1).setText(
-            'No hay fotos asociadas en este reporte.',
-          );
+      sheet
+          .getRangeByIndex(3, 1)
+          .setText('No hay fotos asociadas en este reporte.');
     }
 
     for (int c = 1; c <= fotoHeaders.length; c++) {
@@ -405,9 +407,9 @@ class ExportXlsxService {
       linkRange.cellStyle.fontColor = '#FF0000FF';
       linkRange.cellStyle.bold = true;
     } else {
-      sheet.getRangeByIndex(4, 1).setText(
-            'Ubicacion no disponible en este reporte.',
-          );
+      sheet
+          .getRangeByIndex(4, 1)
+          .setText('Ubicacion no disponible en este reporte.');
     }
 
     if (createdAt != null) {
@@ -488,7 +490,9 @@ class ExportXlsxService {
   }
 
   static List<List<String>> _normalizeRows(
-      List<List<String>> rows, int colCount) {
+    List<List<String>> rows,
+    int colCount,
+  ) {
     return rows.map((original) {
       final row = List<String>.from(original);
       while (row.length < colCount) {
