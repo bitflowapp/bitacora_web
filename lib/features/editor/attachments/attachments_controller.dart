@@ -276,8 +276,8 @@ extension _EditorAttachments on _EditorScreenState {
     final ua = supportUa.trim().isNotEmpty
         ? supportUa.trim()
         : (photoAttempt?.ua?.trim().isNotEmpty == true
-              ? photoAttempt!.ua!.trim()
-              : 'n/a');
+            ? photoAttempt!.ua!.trim()
+            : 'n/a');
     final lines = <String>[
       'type=${type.name}',
       'cause=$cause',
@@ -381,9 +381,8 @@ extension _EditorAttachments on _EditorScreenState {
 
   PhotoAttachment _photoAttachmentFromRowPhoto(_RowPhoto photo) {
     final storedRef = _photoStoredRefFromRowPhoto(photo);
-    final size = photo.dataB64.trim().isNotEmpty
-        ? _estimateB64Size(photo.dataB64)
-        : 0;
+    final size =
+        photo.dataB64.trim().isNotEmpty ? _estimateB64Size(photo.dataB64) : 0;
     return PhotoAttachment(
       id: _genAttachmentId('ph_legacy_'),
       filename: photo.name,
@@ -671,8 +670,7 @@ extension _EditorAttachments on _EditorScreenState {
       if (!currentOutcome.ok) {
         final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
         final lower = rawMsg.toLowerCase();
-        final readFail =
-            lower.contains('empty_bytes') ||
+        final readFail = lower.contains('empty_bytes') ||
             lower.contains('leer la imagen') ||
             lower.contains('leer los bytes');
         final cause = _decodeLikelyUnsupported(rawMessage: rawMsg)
@@ -794,9 +792,8 @@ extension _EditorAttachments on _EditorScreenState {
       final pipeline = await _attachmentPipeline.run<_PreparedPhoto>(
         AttachmentPipelineRequest<_PreparedPhoto>(
           kind: AttachmentKind.photo,
-          source: fromCamera
-              ? AttachmentSource.capture
-              : AttachmentSource.gallery,
+          source:
+              fromCamera ? AttachmentSource.capture : AttachmentSource.gallery,
           cellRef: targetRef.compactKey,
           captureCapabilities: kIsWeb,
           pick: () => prepared,
@@ -841,12 +838,12 @@ extension _EditorAttachments on _EditorScreenState {
             final previewable = _isPreviewableMime(safeMime, value.fileName);
             final thumbBytes = previewable
                 ? (value.thumbBytes ??
-                      await _buildThumbBytesForPreview(
-                        bytes,
-                        maxW: 320,
-                        maxH: 320,
-                        quality: 74,
-                      ))
+                    await _buildThumbBytesForPreview(
+                      bytes,
+                      maxW: 320,
+                      maxH: 320,
+                      quality: 74,
+                    ))
                 : null;
             final thumbB64 = (thumbBytes == null || thumbBytes.isEmpty)
                 ? ''
@@ -1325,9 +1322,8 @@ extension _EditorAttachments on _EditorScreenState {
 
               final media = MediaQuery.of(ctx2);
               final isNarrow = media.size.width < 600;
-              final crossAxisCount = isNarrow
-                  ? 2
-                  : (media.size.width < 900 ? 3 : 4);
+              final crossAxisCount =
+                  isNarrow ? 2 : (media.size.width < 900 ? 3 : 4);
 
               final photos =
                   _cellMetaAt(r, c)?.photos ?? const <PhotoAttachment>[];
@@ -1539,11 +1535,11 @@ extension _EditorAttachments on _EditorScreenState {
                                       controller: scrollController,
                                       gridDelegate:
                                           SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: crossAxisCount,
-                                            crossAxisSpacing: 10,
-                                            mainAxisSpacing: 10,
-                                            childAspectRatio: 0.85,
-                                          ),
+                                        crossAxisCount: crossAxisCount,
+                                        crossAxisSpacing: 10,
+                                        mainAxisSpacing: 10,
+                                        childAspectRatio: 0.85,
+                                      ),
                                       itemCount: photos.length,
                                       itemBuilder: (ctx4, idx) =>
                                           buildTile(photos[idx], idx),
@@ -1720,8 +1716,8 @@ extension _EditorAttachments on _EditorScreenState {
               border: Border.all(
                 color: onTap != null
                     ? AppTheme.of(context).colors.accent.withValues(
-                        alpha: pal.isLight ? 0.45 : 0.55,
-                      )
+                          alpha: pal.isLight ? 0.45 : 0.55,
+                        )
                     : pal.chipBorder,
                 width: math.max(pal.hairline, 1).toDouble(),
               ),
@@ -2215,8 +2211,8 @@ extension _EditorAttachments on _EditorScreenState {
               bytes: value,
               originalName: picked.name.trim().isEmpty
                   ? (kind == AttachmentKind.video
-                        ? 'video_adjuntado'
-                        : 'archivo_adjuntado')
+                      ? 'video_adjuntado'
+                      : 'archivo_adjuntado')
                   : picked.name.trim(),
               mime: inferredMime,
               webFile: kIsWeb ? value : null,
@@ -2233,8 +2229,8 @@ extension _EditorAttachments on _EditorScreenState {
           bindToCell: (value, storedRef) async {
             final safeName = picked.name.trim().isEmpty
                 ? (kind == AttachmentKind.video
-                      ? 'video_adjuntado'
-                      : 'archivo_adjuntado')
+                    ? 'video_adjuntado'
+                    : 'archivo_adjuntado')
                 : picked.name.trim();
             final thumbB64 = await _buildInlineThumbB64(
               bytes: value,
@@ -2376,8 +2372,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (key.isEmpty) return '';
     if (key.startsWith('file:') ||
         key.startsWith('key:') ||
-        key.startsWith('mem:'))
-      return key;
+        key.startsWith('mem:')) return key;
     final hasSlash = key.contains('\\') || key.contains('/');
     if (key.contains(':') && !hasSlash) return 'key:$key';
     return hasSlash ? 'file:$key' : 'key:$key';
@@ -2509,18 +2504,17 @@ extension _EditorAttachments on _EditorScreenState {
       builder: (ctx) {
         final pal = _palette(ctx);
         final label = permissionLabel.trim();
-        final sentence = label.isEmpty
-            ? 'este permiso'
-            : 'el permiso de $label';
+        final sentence =
+            label.isEmpty ? 'este permiso' : 'el permiso de $label';
         return AlertDialog(
           backgroundColor: pal.menuBg,
           title: const Text('Permiso bloqueado'),
           content: Text(
             canOpenSettings
                 ? 'Parece que $sentence esta bloqueado de forma permanente. '
-                      'Abre configuracion para habilitarlo.'
+                    'Abre configuracion para habilitarlo.'
                 : 'Parece que $sentence esta bloqueado. '
-                      'Habilitalo desde la configuracion del navegador o sistema.',
+                    'Habilitalo desde la configuracion del navegador o sistema.',
           ),
           actions: [
             TextButton(
@@ -2756,9 +2750,8 @@ extension _EditorAttachments on _EditorScreenState {
               _audioRecordingSessionId == sessionId) {
             _setEditorState(() {
               final previous = _audioTranscriptFinal.trim();
-              _audioTranscriptFinal = previous.isEmpty
-                  ? clean
-                  : '$previous $clean';
+              _audioTranscriptFinal =
+                  previous.isEmpty ? clean : '$previous $clean';
               _audioTranscriptPartial = '';
             });
           }
@@ -2843,9 +2836,8 @@ extension _EditorAttachments on _EditorScreenState {
   }) async {
     await _refreshAttachmentCapabilitiesIfWeb();
     final attachmentId = _genAttachmentId('au_');
-    final usedSource = source == 'record'
-        ? AttachmentSource.record
-        : AttachmentSource.files;
+    final usedSource =
+        source == 'record' ? AttachmentSource.record : AttachmentSource.files;
     String? storageKey;
     int storedSize = recording.bytes?.lengthInBytes ?? 0;
 
@@ -3682,8 +3674,7 @@ extension _EditorAttachments on _EditorScreenState {
         : result.mime.trim();
 
     final enableBrowserNormalizer = kIsWeb || _debugForceWebImageNormalization;
-    final needsBrowserNormalize =
-        enableBrowserNormalizer &&
+    final needsBrowserNormalize = enableBrowserNormalizer &&
         result.bytes.isNotEmpty &&
         (kIsWeb ||
             result.webFile != null ||
@@ -4037,8 +4028,8 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
   }
 
   Widget _fallback(_SheetPalette pal) => Container(
-    color: pal.headerBg,
-    alignment: Alignment.center,
-    child: Icon(Icons.image_outlined, color: pal.fgMuted, size: 20),
-  );
+        color: pal.headerBg,
+        alignment: Alignment.center,
+        child: Icon(Icons.image_outlined, color: pal.fgMuted, size: 20),
+      );
 }

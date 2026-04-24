@@ -125,9 +125,8 @@ class ExportXlsxService {
 
   /// Normaliza el nombre base del archivo.
   static String _resolveBaseName(String? fileName, String name) {
-    final candidate = (fileName != null && fileName.trim().isNotEmpty)
-        ? fileName
-        : name;
+    final candidate =
+        (fileName != null && fileName.trim().isNotEmpty) ? fileName : name;
 
     // Quita extensión si ya viene con .xlsx
     var base = candidate.trim();
