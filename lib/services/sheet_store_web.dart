@@ -55,14 +55,18 @@ class _MemoryKv implements _Kv {
 /// Synchronous key-value store backed by a Hive Box (IndexedDB on web).
 /// On init it migrates any SharedPreferences sheet keys to Hive once.
 class _HiveKv implements _Kv {
-  _HiveKv(this._box);
+  _HiveKv(this._box, this._sp);
 
   final Box<dynamic> _box;
+  final SharedPreferences _sp;
   final Set<Future<void>> _pendingWrites = <Future<void>>{};
   Object? _lastWriteError;
 
   static const String _boxName = 'bitflow_sheets';
   static const String _migratedKey = '__sp_migrated_v1';
+  static const String _sheetPrefix = 'bitflow:sheet:';
+  static const String _legacyPrefix = 'sheet:';
+  static const String _legacyIndexKey = 'sheets:index';
 
   static Future<_HiveKv> open(SharedPreferences sp) async {
     try {
@@ -74,7 +78,7 @@ class _HiveKv implements _Kv {
       await Hive.openBox<dynamic>(_boxName);
     }
     final box = Hive.box<dynamic>(_boxName);
-    final kv = _HiveKv(box);
+    final kv = _HiveKv(box, sp);
     if (box.get(_migratedKey) != true) {
       await kv._migrateFrom(sp);
       await box.put(_migratedKey, true);
@@ -96,21 +100,44 @@ class _HiveKv implements _Kv {
   @override
   String? getString(String key) {
     final v = _box.get(key);
-    return v is String ? v : null;
+    final hiveValue = v is String ? v : null;
+    final prefsValue = _sp.getString(key);
+    if (_isSheetPayloadKey(key)) {
+      return _freshestSheetPayload(hiveValue, prefsValue);
+    }
+    return hiveValue ?? prefsValue;
   }
 
   @override
   void setString(String key, String value) {
-    _track(_box.put(key, value));
+    _track(
+      Future.wait<void>([
+        _box.put(key, value),
+        _sp.setString(key, value).then((ok) {
+          if (!ok) throw StateError('SharedPreferences write failed: $key');
+        }),
+      ]),
+    );
   }
 
   @override
   void remove(String key) {
-    _track(_box.delete(key));
+    _track(
+      Future.wait<void>([
+        _box.delete(key),
+        _sp.remove(key).then((ok) {
+          if (!ok) throw StateError('SharedPreferences remove failed: $key');
+        }),
+      ]),
+    );
   }
 
   @override
-  Set<String> getKeys() => _box.keys.whereType<String>().toSet();
+  Set<String> getKeys() {
+    final keys = _box.keys.whereType<String>().toSet();
+    keys.addAll(_sp.getKeys().where(_isStoreKey));
+    return keys;
+  }
 
   @override
   Object? get lastWriteError => _lastWriteError;
@@ -137,6 +164,38 @@ class _HiveKv implements _Kv {
         _pendingWrites.remove(write);
       }),
     );
+  }
+
+  static bool _isStoreKey(String key) {
+    return key.startsWith(_sheetPrefix) ||
+        key.startsWith(_legacyPrefix) ||
+        key == _legacyIndexKey;
+  }
+
+  static bool _isSheetPayloadKey(String key) {
+    if (!key.startsWith(_sheetPrefix)) return false;
+    final id = key.substring(_sheetPrefix.length);
+    return id.isNotEmpty && !id.contains(':');
+  }
+
+  static String? _freshestSheetPayload(String? a, String? b) {
+    if (a == null || a.trim().isEmpty) return b;
+    if (b == null || b.trim().isEmpty) return a;
+    final aSavedAt = _savedAtMs(a);
+    final bSavedAt = _savedAtMs(b);
+    if (bSavedAt > aSavedAt) return b;
+    return a;
+  }
+
+  static int _savedAtMs(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return 0;
+      final parsed = DateTime.tryParse((decoded['savedAt'] ?? '').toString());
+      return parsed?.millisecondsSinceEpoch ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 }
 

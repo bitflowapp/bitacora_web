@@ -3,6 +3,7 @@
 // Primary key: bitflow:sheet:<id> (JSON compatible with EditorScreen _SheetModel).
 // Legacy fallback: sheet:<id> (TableState) + sheet:<id>:title.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -103,8 +104,104 @@ class _TemplateDefinition {
   }
 }
 
+abstract class _Kv {
+  String? getString(String key);
+  void setString(String key, String value);
+  void remove(String key);
+  Set<String> getKeys();
+  Object? get lastWriteError;
+  Future<void> flushPendingWrites();
+}
+
+class _MemoryKv implements _Kv {
+  final Map<String, String> _data = <String, String>{};
+
+  @override
+  String? getString(String key) => _data[key];
+
+  @override
+  void setString(String key, String value) {
+    _data[key] = value;
+  }
+
+  @override
+  void remove(String key) {
+    _data.remove(key);
+  }
+
+  @override
+  Set<String> getKeys() => _data.keys.toSet();
+
+  @override
+  Object? get lastWriteError => null;
+
+  @override
+  Future<void> flushPendingWrites() async {}
+}
+
+class _SharedPreferencesKv implements _Kv {
+  _SharedPreferencesKv(this._prefs);
+
+  final SharedPreferences _prefs;
+  final Set<Future<void>> _pendingWrites = <Future<void>>{};
+  Object? _lastWriteError;
+
+  @override
+  String? getString(String key) => _prefs.getString(key);
+
+  @override
+  void setString(String key, String value) {
+    _track(
+      _prefs.setString(key, value).then((ok) {
+        if (!ok) throw StateError('SharedPreferences write failed: $key');
+      }),
+    );
+  }
+
+  @override
+  void remove(String key) {
+    _track(
+      _prefs.remove(key).then((ok) {
+        if (!ok) throw StateError('SharedPreferences remove failed: $key');
+      }),
+    );
+  }
+
+  @override
+  Set<String> getKeys() => _prefs.getKeys();
+
+  @override
+  Object? get lastWriteError => _lastWriteError;
+
+  @override
+  Future<void> flushPendingWrites() async {
+    while (_pendingWrites.isNotEmpty) {
+      final pending = List<Future<void>>.of(_pendingWrites);
+      await Future.wait(pending);
+    }
+    final error = _lastWriteError;
+    if (error != null) {
+      _lastWriteError = null;
+      throw StateError('SheetStore write failed: $error');
+    }
+  }
+
+  void _track(Future<void> write) {
+    _pendingWrites.add(write);
+    unawaited(
+      write.catchError((Object error, StackTrace stackTrace) {
+        _lastWriteError = error;
+      }).whenComplete(() {
+        _pendingWrites.remove(write);
+      }),
+    );
+  }
+}
+
 class SheetStore {
-  static SharedPreferences? _prefs;
+  static _Kv? _kv;
+  static bool _isPersistent = false;
+  static Object? _storeInitError;
 
   static const String _sheetPrefix = 'bitflow:sheet:';
   static const String _backupMarker = ':bk:';
@@ -119,27 +216,39 @@ class SheetStore {
   static int _sheetIdSeed = 0;
 
   static Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 4));
+      _kv = _SharedPreferencesKv(prefs);
+      _isPersistent = true;
+      _storeInitError = null;
+    } catch (e) {
+      _kv ??= _MemoryKv();
+      _isPersistent = false;
+      _storeInitError = e;
+    }
   }
 
-  /// Always true on native platforms — SharedPreferences is always persistent.
-  static bool get isPersistent => true;
+  /// True when native SharedPreferences is available.
+  /// False means data is kept in memory for this session only.
+  static bool get isPersistent => _isPersistent;
 
-  /// Always null on native platforms — no fallback needed.
-  static Object? get storeInitError => null;
+  static Object? get storeInitError => _storeInitError;
 
-  static Object? get lastWriteError => null;
+  static Object? get lastWriteError => _kv?.lastWriteError;
 
-  static Future<void> flushPendingWrites() async {}
+  static Future<void> flushPendingWrites() async {
+    await _kv?.flushPendingWrites();
+  }
 
   static String _sheetKey(String id) => '$_sheetPrefix$id';
 
   static String? loadRaw(String id) {
-    final prefs = _prefs;
-    if (prefs == null) return null;
-    final raw = prefs.getString(_sheetKey(id));
+    final kv = _kv;
+    if (kv == null) return null;
+    final raw = kv.getString(_sheetKey(id));
     if (raw != null && raw.trim().isNotEmpty) return raw;
-    return prefs.getString('$_legacyPrefix$id');
+    return kv.getString('$_legacyPrefix$id');
   }
 
   /// Intenta devolver un TableState (desde nuevo JSON o legacy).
@@ -182,8 +291,8 @@ class SheetStore {
   /// Guarda estado simple (sin adjuntos) en el store nuevo.
   /// Preserva ids/metadata si ya existe un modelo previo.
   static void saveState(String id, TableState state) {
-    final prefs = _prefs;
-    if (prefs == null) return;
+    final kv = _kv;
+    if (kv == null) return;
 
     final fixed = TableState(
       headers: state.headers,
@@ -191,7 +300,7 @@ class SheetStore {
       savedAt: DateTime.now(),
     );
 
-    final existingRaw = prefs.getString(_sheetKey(id));
+    final existingRaw = kv.getString(_sheetKey(id));
     Map<String, dynamic>? existingMap;
     if (existingRaw != null && existingRaw.trim().isNotEmpty) {
       try {
@@ -244,14 +353,14 @@ class SheetStore {
       model['templateKind'] = templateKind;
     }
 
-    prefs.setString(_sheetKey(id), jsonEncode(model));
+    kv.setString(_sheetKey(id), jsonEncode(model));
   }
 
   /// Guarda un modelo completo (BitFlow JSON) ya normalizado.
   static void saveModel(String id, Map<String, dynamic> model) {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    prefs.setString(_sheetKey(id), jsonEncode(model));
+    final kv = _kv;
+    if (kv == null) return;
+    kv.setString(_sheetKey(id), jsonEncode(model));
   }
 
   /// Crea una planilla a partir de un modelo completo (BitFlow JSON).
@@ -358,23 +467,23 @@ class SheetStore {
   }
 
   static void rename(String id, String newTitle) {
-    final prefs = _prefs;
-    if (prefs == null) return;
+    final kv = _kv;
+    if (kv == null) return;
     final key = _sheetKey(id);
-    final raw = prefs.getString(key);
+    final raw = kv.getString(key);
     if (raw != null && raw.trim().isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
           decoded['name'] = newTitle.trim();
-          prefs.setString(key, jsonEncode(decoded));
+          kv.setString(key, jsonEncode(decoded));
           return;
         }
       } catch (_) {}
     }
 
     // Legacy fallback
-    prefs.setString('$_legacyPrefix$id$_legacyTitleSuffix', newTitle.trim());
+    kv.setString('$_legacyPrefix$id$_legacyTitleSuffix', newTitle.trim());
   }
 
   static String createNew() {
@@ -393,7 +502,7 @@ class SheetStore {
       'rows': rows,
     };
 
-    _prefs?.setString(_sheetKey(id), jsonEncode(model));
+    _kv?.setString(_sheetKey(id), jsonEncode(model));
     return id;
   }
 
@@ -418,30 +527,30 @@ class SheetStore {
   }
 
   static void delete(String id) {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    prefs.remove(_sheetKey(id));
+    final kv = _kv;
+    if (kv == null) return;
+    kv.remove(_sheetKey(id));
 
-    for (final key in prefs.getKeys()) {
+    for (final key in kv.getKeys()) {
       if (key.startsWith('$_sheetPrefix$id$_backupMarker')) {
-        prefs.remove(key);
+        kv.remove(key);
       }
     }
 
     // Legacy cleanup
-    prefs
+    kv
       ..remove('$_legacyPrefix$id')
       ..remove('$_legacyPrefix$id$_legacyTitleSuffix');
   }
 
   static List<SheetMeta> list() {
-    final prefs = _prefs;
-    if (prefs == null) return <SheetMeta>[];
+    final kv = _kv;
+    if (kv == null) return <SheetMeta>[];
 
     final ids = _collectIds();
     final out = <SheetMeta>[];
     for (final id in ids) {
-      final raw = prefs.getString(_sheetKey(id));
+      final raw = kv.getString(_sheetKey(id));
       if (raw != null && raw.trim().isNotEmpty) {
         final meta = _metaFromNewJson(id, raw);
         if (meta != null) out.add(meta);
@@ -449,10 +558,9 @@ class SheetStore {
       }
 
       // Legacy
-      final legacyRaw = prefs.getString('$_legacyPrefix$id');
+      final legacyRaw = kv.getString('$_legacyPrefix$id');
       if (legacyRaw == null || legacyRaw.trim().isEmpty) continue;
-      final legacyTitle =
-          prefs.getString('$_legacyPrefix$id$_legacyTitleSuffix');
+      final legacyTitle = kv.getString('$_legacyPrefix$id$_legacyTitleSuffix');
       final legacyMeta = _metaFromLegacy(
         id,
         legacyRaw,
@@ -468,10 +576,10 @@ class SheetStore {
   // ----------------- Helpers internos -----------------
 
   static List<String> _collectIds() {
-    final prefs = _prefs;
-    if (prefs == null) return <String>[];
+    final kv = _kv;
+    if (kv == null) return <String>[];
 
-    final keys = prefs.getKeys();
+    final keys = kv.getKeys();
     final ids = <String, bool>{};
 
     for (final key in keys) {
@@ -790,7 +898,7 @@ class SheetStore {
         'templateKind': templateKind.trim(),
     };
 
-    _prefs?.setString(_sheetKey(id), jsonEncode(model));
+    _kv?.setString(_sheetKey(id), jsonEncode(model));
     return id;
   }
 
@@ -893,12 +1001,12 @@ class SheetStore {
   }
 
   static String _nextSheetId() {
-    final prefs = _prefs;
+    final kv = _kv;
     for (int attempt = 0; attempt < 64; attempt++) {
       final id = _sheetIdCandidate();
-      if (prefs == null) return id;
-      final hasNew = prefs.getString(_sheetKey(id)) != null;
-      final hasLegacy = prefs.getString('$_legacyPrefix$id') != null;
+      if (kv == null) return id;
+      final hasNew = kv.getString(_sheetKey(id)) != null;
+      final hasLegacy = kv.getString('$_legacyPrefix$id') != null;
       if (!hasNew && !hasLegacy) return id;
     }
     return _sheetIdCandidate();

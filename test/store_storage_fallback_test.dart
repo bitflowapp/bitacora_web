@@ -18,7 +18,8 @@ void main() {
     await expectLater(SheetStore.init(), completes);
   });
 
-  test('SheetStore is usable after init regardless of persistence mode', () async {
+  test('SheetStore is usable after init regardless of persistence mode',
+      () async {
     await SheetStore.init();
 
     final id = SheetStore.createNew();
@@ -53,10 +54,44 @@ void main() {
         },
       ],
     });
+    await SheetStore.flushPendingWrites();
 
     final raw = SheetStore.loadRaw(id);
     expect(raw, isNotNull);
     expect(raw, contains('Test planilla'));
+  });
+
+  test('SheetStore write operations are visible after flush', () async {
+    await SheetStore.init();
+
+    final id = SheetStore.createNew();
+    await SheetStore.flushPendingWrites();
+
+    SheetStore.saveModel(id, <String, dynamic>{
+      'name': 'Persisted sheet',
+      'savedAt': DateTime(2026, 4, 24, 10).toIso8601String(),
+      'headers': <String>['Equipo', 'Estado', 'Photos'],
+      'rows': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'r_1',
+          'cells': <String>['Bomba P-101', 'OK', ''],
+        },
+      ],
+    });
+    await SheetStore.flushPendingWrites();
+
+    var meta = SheetStore.list().singleWhere((sheet) => sheet.id == id);
+    expect(meta.title, 'Persisted sheet');
+    expect(meta.rows, 1);
+
+    SheetStore.rename(id, 'Renamed sheet');
+    await SheetStore.flushPendingWrites();
+    meta = SheetStore.list().singleWhere((sheet) => sheet.id == id);
+    expect(meta.title, 'Renamed sheet');
+
+    SheetStore.delete(id);
+    await SheetStore.flushPendingWrites();
+    expect(SheetStore.list().any((sheet) => sheet.id == id), isFalse);
   });
 
   test('SheetStore.init() called twice does not throw', () async {

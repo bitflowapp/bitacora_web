@@ -1652,6 +1652,15 @@ class _EditorScreenState extends State<EditorScreen>
     }
     await prefs.setString(_prefsKey, stagedRaw);
     await prefs.remove(_prefsKeyStaging);
+
+    try {
+      SheetStore.saveModel(widget.sheetId, model.toJson());
+      await SheetStore.flushPendingWrites();
+    } catch (e) {
+      debugPrint(
+        '[EditorScreen] flow=save kind=storage op=sheet_store_mirror_failed error=$e',
+      );
+    }
   }
 
   void _showRecoveryNotice(String source) {
