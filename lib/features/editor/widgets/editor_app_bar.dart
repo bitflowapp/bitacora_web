@@ -348,7 +348,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             AppleToolbarItem(
                               icon: Icons.pin_drop_outlined,
-                              label: 'Jump to...',
+                              label: 'Ir a...',
                               shortcut: 'Ctrl/Cmd+J',
                               onTap: onJumpTo,
                             ),
@@ -768,7 +768,7 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             return Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              padding: const EdgeInsets.fromLTRB(10, 5, 10, 4),
               child: AppTopBar(
                 title: label,
                 subtitle:

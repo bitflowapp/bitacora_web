@@ -7182,7 +7182,7 @@ class _EditorScreenState extends State<EditorScreen>
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             return AlertDialog(
-              title: const Text('Jump to...'),
+              title: const Text('Ir a...'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -9714,8 +9714,9 @@ class _EditorScreenState extends State<EditorScreen>
         final bodyBottomPad = isDesktop
             ? 0.0
             : (editorActive ? panelH + keyboardInset : quickBarH);
-        final showSelectionQuickActions =
-            !_mobileEditorOpen && (_selRow >= 0 && _selCol >= 0);
+        final showSelectionQuickActions = !_zenModeEnabled &&
+            !_mobileEditorOpen &&
+            (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
         final visibleRows = _visibleRowIndexes();

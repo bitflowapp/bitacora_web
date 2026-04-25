@@ -130,7 +130,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'jump_to',
-          label: 'Jump to...',
+          label: 'Ir a...',
           subtitle: 'Ir rapido por fila o ID',
           shortcut: 'Ctrl/Cmd+J',
           icon: Icons.pin_drop_outlined,

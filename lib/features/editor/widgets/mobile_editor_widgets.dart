@@ -514,93 +514,204 @@ class _SelectionQuickActionsBar extends StatelessWidget {
         selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: AppleCard(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        radius: 16,
-        color: palette.menuBg.withValues(alpha: palette.isLight ? 0.94 : 0.82),
-        borderColor: palette.borderStrong,
-        shadows: const <BoxShadow>[],
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color:
+              palette.menuBg.withValues(alpha: palette.isLight ? 0.94 : 0.82),
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: palette.borderStrong, width: palette.hairline),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        child: Row(
           children: [
-            Text(
-              '$rowsLabel · $selectionLabel',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.fgMuted,
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-                letterSpacing: 0.1,
+            Flexible(
+              flex: 0,
+              child: Text(
+                '$rowsLabel · $selectionLabel',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fgMuted,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11.5,
+                  letterSpacing: 0.1,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                AppButton(
-                  label: 'Pegar valor',
-                  icon: Icons.format_color_text_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onApplyValue,
-                ),
-                AppButton(
-                  label: 'Rellenar',
-                  icon: Icons.vertical_align_bottom_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onFillDown,
-                ),
-                AppButton(
-                  label: 'Duplicar fila',
-                  icon: Icons.copy_all_outlined,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onDuplicateRows,
-                ),
-                AppButton(
-                  label: 'Adjuntar foto',
-                  icon: Icons.photo_camera_outlined,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onAttachPhoto,
-                ),
-                AppButton(
-                  label: 'Adjuntar GPS',
-                  icon: Icons.my_location_rounded,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onAttachGps,
-                ),
-                AppButton(
-                  label: 'Jump to...',
-                  icon: Icons.pin_drop_outlined,
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.ghost,
-                  onPressed: onJumpTo,
-                ),
-              ],
-            ),
-            if (canMarkStatus) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final status in const <String>['OK', 'Obs', 'Urgente'])
-                    AppButton(
-                      label: status,
-                      icon: Icons.flag_outlined,
-                      size: AppButtonSize.sm,
-                      variant: AppButtonVariant.ghost,
-                      onPressed: () => onMarkStatus(status),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _QuickChip(
+                      palette: palette,
+                      icon: Icons.format_color_text_rounded,
+                      label: 'Pegar',
+                      onTap: onApplyValue,
                     ),
-                ],
+                    _QuickChip(
+                      palette: palette,
+                      icon: Icons.vertical_align_bottom_rounded,
+                      label: 'Rellenar',
+                      onTap: onFillDown,
+                    ),
+                    _QuickChip(
+                      palette: palette,
+                      icon: Icons.copy_all_outlined,
+                      label: 'Duplicar',
+                      onTap: onDuplicateRows,
+                    ),
+                    _QuickChip(
+                      palette: palette,
+                      icon: Icons.photo_camera_outlined,
+                      label: 'Foto',
+                      onTap: onAttachPhoto,
+                    ),
+                    _QuickChip(
+                      palette: palette,
+                      icon: Icons.my_location_rounded,
+                      label: 'GPS',
+                      onTap: onAttachGps,
+                    ),
+                    if (canMarkStatus) ...[
+                      for (final status in const <String>[
+                        'OK',
+                        'Obs',
+                        'Urgente'
+                      ])
+                        _QuickChip(
+                          palette: palette,
+                          icon: Icons.flag_outlined,
+                          label: status,
+                          onTap: () => onMarkStatus(status),
+                        ),
+                    ],
+                    _QuickChipMore(
+                      palette: palette,
+                      onJumpTo: onJumpTo,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: palette.pillBtnBg,
+          borderRadius: BorderRadius.circular(20),
+          border:
+              Border.all(color: palette.pillBtnBorder, width: palette.hairline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: palette.fg),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: palette.fg,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickChipMore extends StatelessWidget {
+  const _QuickChipMore({
+    required this.palette,
+    required this.onJumpTo,
+  });
+
+  final _SheetPalette palette;
+  final VoidCallback onJumpTo;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        if (value == 'jump') onJumpTo();
+      },
+      tooltip: '',
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: palette.menuBg,
+      elevation: 4,
+      itemBuilder: (ctx) => [
+        PopupMenuItem<String>(
+          value: 'jump',
+          child: Row(
+            children: [
+              Icon(Icons.pin_drop_outlined, size: 16, color: palette.fg),
+              const SizedBox(width: 8),
+              Text(
+                'Ir a...',
+                style: TextStyle(
+                  color: palette.fg,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
+          ),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: palette.pillBtnBg,
+          borderRadius: BorderRadius.circular(20),
+          border:
+              Border.all(color: palette.pillBtnBorder, width: palette.hairline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.more_horiz_rounded, size: 13, color: palette.fgMuted),
+            const SizedBox(width: 4),
+            Text(
+              'Más',
+              style: TextStyle(
+                color: palette.fgMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                height: 1.1,
+              ),
+            ),
           ],
         ),
       ),

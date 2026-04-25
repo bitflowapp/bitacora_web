@@ -165,7 +165,7 @@ extension _EditorDialogs on _EditorScreenState {
           _ShortcutLine(shortcut: 'Ctrl/Cmd+K', label: 'Paleta de comandos'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+S', label: 'Guardar'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+F', label: 'Buscar inline'),
-          _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Jump to fila/ID'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Ir a fila/ID'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Z', label: 'Deshacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Y', label: 'Rehacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+Z', label: 'Toggle modo Zen'),
