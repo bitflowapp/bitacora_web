@@ -1240,11 +1240,6 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 splashRadius: 16,
                                 padding: const EdgeInsets.all(4),
                               ),
-                              _MobileDictateButton(
-                                palette: palette,
-                                active: dictationActive,
-                                onTap: onDictate,
-                              ),
                               _MobilePanelIconButton(
                                 icon: Icons.chevron_left_rounded,
                                 tooltip: 'Anterior',

@@ -9983,7 +9983,7 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                               onDismiss: _ackAndroidInstallHelper,
                             ),
-                          if (_pendingOfflineCount > 0)
+                          if (isDesktop && _pendingOfflineCount > 0)
                             _warningBanner(
                               pal,
                               text: _isNetworkOnline()
@@ -21750,8 +21750,7 @@ Este paquete incluye:
     }
   }
 
-  String get _engineFallbackMessage =>
-      'Engine no disponible. Modo local activo.';
+  String get _engineFallbackMessage => 'Modo local activo.';
 
   Future<void> _retryEngineConnection() async {
     await _initEngineConnection(manualRetry: true);
