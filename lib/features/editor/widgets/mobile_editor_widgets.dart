@@ -518,10 +518,9 @@ class _SelectionQuickActionsBar extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color:
-              palette.menuBg.withValues(alpha: palette.isLight ? 0.94 : 0.82),
+              palette.menuBg.withValues(alpha: palette.isLight ? 0.92 : 0.78),
           borderRadius: BorderRadius.circular(14),
-          border:
-              Border.all(color: palette.borderStrong, width: palette.hairline),
+          border: Border.all(color: palette.border, width: palette.hairline),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(

@@ -751,42 +751,106 @@ class _MobileCompactHeader extends StatelessWidget {
         return ValueListenableBuilder<OfflineSyncSnapshot>(
           valueListenable: controller.offlineStatus,
           builder: (context, offline, __) {
-            String saveLabel;
-            switch (snap.state) {
-              case EditorSaveState.saving:
-                saveLabel = 'Guardando';
-                break;
-              case EditorSaveState.dirty:
-                saveLabel = 'Sin guardar';
-                break;
-              case EditorSaveState.saved:
-                saveLabel = 'Guardado';
-                break;
-              case EditorSaveState.idle:
-                saveLabel = 'Listo';
-                break;
+            final isSaving = snap.state == EditorSaveState.saving;
+            final isDirty = snap.state == EditorSaveState.dirty;
+            final hasErrors = pendingRequired > 0;
+            final hasQueue = pendingOfflineCount > 0;
+            final showHint = isSaving || isDirty || hasErrors || hasQueue;
+
+            String hintText = '';
+            if (isSaving) {
+              hintText = 'Guardando';
+            } else if (isDirty) {
+              hintText = 'Sin guardar';
+            }
+            if (hasErrors) {
+              final errPart = '$pendingRequired err.';
+              hintText = hintText.isEmpty ? errPart : '$hintText · $errPart';
+            }
+            if (hasQueue) {
+              final qPart = '$pendingOfflineCount cola';
+              hintText = hintText.isEmpty ? qPart : '$hintText · $qPart';
             }
 
+            final dotColor = hasErrors
+                ? context.tokens.colors.dangerFg
+                : (isSaving || isDirty)
+                    ? palette.accent
+                    : Colors.transparent;
+            final hintColor =
+                hasErrors ? context.tokens.colors.dangerFg : palette.fgMuted;
+
             return Padding(
-              padding: const EdgeInsets.fromLTRB(10, 5, 10, 4),
-              child: AppTopBar(
-                title: label,
-                subtitle:
-                    '$saveLabel${pendingRequired > 0 ? " · $pendingRequired err." : ""}${pendingOfflineCount > 0 ? " · $pendingOfflineCount cola" : ""}',
-                actions: [
-                  AppButton(
-                    label: AppStrings.editorExport,
-                    icon: Icons.ios_share_rounded,
-                    variant: AppButtonVariant.ghost,
-                    size: AppButtonSize.sm,
-                    onPressed: onExport,
+              padding: const EdgeInsets.fromLTRB(14, 5, 8, 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.fg,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            height: 1.15,
+                          ),
+                        ),
+                        if (showHint) ...[
+                          const SizedBox(height: 2),
+                          GestureDetector(
+                            onTap: hasErrors || hasQueue
+                                ? onOpenOfflineQueue
+                                : null,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: dotColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    hintText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: hintColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  AppButton(
-                    label: AppStrings.editorOptions,
+                  _HeaderIconBtn(
+                    palette: palette,
+                    icon: Icons.ios_share_rounded,
+                    onTap: onExport,
+                    label: AppStrings.editorExport,
+                  ),
+                  const SizedBox(width: 2),
+                  _HeaderIconBtn(
+                    palette: palette,
                     icon: Icons.more_horiz_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onMenu,
+                    onTap: onMenu,
+                    label: AppStrings.editorOptions,
                   ),
                 ],
               ),
@@ -794,6 +858,38 @@ class _MobileCompactHeader extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _HeaderIconBtn extends StatelessWidget {
+  const _HeaderIconBtn({
+    required this.palette,
+    required this.icon,
+    required this.onTap,
+    required this.label,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Icon(icon, size: 21, color: palette.fg),
+          ),
+        ),
+      ),
     );
   }
 }
