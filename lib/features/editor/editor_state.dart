@@ -122,8 +122,10 @@ class _EditorScreenState extends State<EditorScreen>
   static const String _prefGpsMode = 'bitflow:gps_mode';
   static const String _prefAutoGpsBatch = 'bitflow:auto_gps_batch';
   static const String _prefGridDensity = 'bitflow:grid_density';
+  static const int _kMaxFastColumnsPerBatch = 50;
 
   _GridDensity _gridDensity = _GridDensity.normal;
+  _ConfirmAdvanceMode _confirmAdvanceMode = _ConfirmAdvanceMode.stay;
   bool _gridDensityExplicit = false;
   bool _inAppModalShown = false;
 
@@ -163,8 +165,10 @@ class _EditorScreenState extends State<EditorScreen>
   final ValueNotifier<int> _gridVersion = ValueNotifier<int>(0);
   final Map<String, ValueNotifier<int>> _rowVersionById =
       <String, ValueNotifier<int>>{};
-  final _ThumbDecodeCache _thumbDecodeCache =
-      _ThumbDecodeCache(maxEntries: 220, maxBytes: 14 * 1024 * 1024);
+  final _ThumbDecodeCache _thumbDecodeCache = _ThumbDecodeCache(
+    maxEntries: 220,
+    maxBytes: 14 * 1024 * 1024,
+  );
   int _debugGridBuilds = 0;
   int _debugRowBuilds = 0;
   int _debugCellBuilds = 0;
@@ -830,8 +834,10 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final repo = createCorporateRepository();
       final reviews = await repo.listSheetRowReviews(projectId, widget.sheetId);
-      final evidenceLinks =
-          await repo.listRowEvidenceLinks(projectId, widget.sheetId);
+      final evidenceLinks = await repo.listRowEvidenceLinks(
+        projectId,
+        widget.sheetId,
+      );
       final reviewByRow = <String, RowReview>{
         for (final review in reviews) review.rowId: review,
       };
@@ -1121,8 +1127,10 @@ class _EditorScreenState extends State<EditorScreen>
         await SpeechService.I.cancel();
       } catch (_) {}
       setState(() => _dictationActive = false);
-      _setDictationStatus('Dictado cancelado.',
-          autoClear: const Duration(seconds: 2));
+      _setDictationStatus(
+        'Dictado cancelado.',
+        autoClear: const Duration(seconds: 2),
+      );
       return;
     }
 
@@ -1965,9 +1973,9 @@ class _EditorScreenState extends State<EditorScreen>
             (c) => _effectiveCell(r, c),
             growable: false,
           ),
-          photos: row.photos.map((p) => p.copyWithoutThumb()).toList(
-                growable: false,
-              ),
+          photos: row.photos
+              .map((p) => p.copyWithoutThumb())
+              .toList(growable: false),
           reviewState: row.reviewState,
           createdBy: row.createdBy,
           updatedBy: row.updatedBy,
@@ -2361,6 +2369,25 @@ class _EditorScreenState extends State<EditorScreen>
     return null;
   }
 
+  String _confirmAdvanceLabel(_ConfirmAdvanceMode mode) {
+    switch (mode) {
+      case _ConfirmAdvanceMode.down:
+        return 'Avanzar abajo';
+      case _ConfirmAdvanceMode.right:
+        return 'Avanzar derecha';
+      case _ConfirmAdvanceMode.stay:
+        return 'No avanzar';
+    }
+  }
+
+  _ConfirmAdvanceMode _confirmAdvanceModeFromPref(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return _ConfirmAdvanceMode.stay;
+    for (final value in _ConfirmAdvanceMode.values) {
+      if (value.name == raw.trim()) return value;
+    }
+    return _ConfirmAdvanceMode.stay;
+  }
+
   Future<void> _loadGridDensity() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -2429,6 +2456,9 @@ class _EditorScreenState extends State<EditorScreen>
           (decoded['mobileFocusCellModeEnabled'] as bool?) ??
               (prefs.getBool(_kPrefMobileFocusCellMode) ??
                   _mobileFocusCellModeEnabled);
+      final nextConfirmAdvanceMode = _confirmAdvanceModeFromPref(
+        decoded['confirmAdvanceMode'] as String?,
+      );
       final nextFlowBotUseLocalLlm = (decoded['flowBotUseLocalLlm'] as bool?) ??
           (prefs.getBool(_kPrefFlowBotUseLocalLlm) ?? _flowBotUseLocalLlm);
       final fromJsonModelPath =
@@ -2445,6 +2475,7 @@ class _EditorScreenState extends State<EditorScreen>
         _mobileCompactModeEnabled = nextMobileCompact;
         _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
+        _confirmAdvanceMode = nextConfirmAdvanceMode;
         _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
@@ -2458,6 +2489,7 @@ class _EditorScreenState extends State<EditorScreen>
         _mobileCompactModeEnabled = nextMobileCompact;
         _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
+        _confirmAdvanceMode = nextConfirmAdvanceMode;
         _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
@@ -2478,6 +2510,7 @@ class _EditorScreenState extends State<EditorScreen>
           'mobileCompactModeEnabled': _mobileCompactModeEnabled,
           'zenModeEnabled': _zenModeEnabled,
           'mobileFocusCellModeEnabled': _mobileFocusCellModeEnabled,
+          'confirmAdvanceMode': _confirmAdvanceMode.name,
           'flowBotUseLocalLlm': _flowBotUseLocalLlm,
           'flowBotLocalModelPath': _flowBotLocalModelPath,
         }),
@@ -2485,7 +2518,9 @@ class _EditorScreenState extends State<EditorScreen>
       await prefs.setBool(_kPrefMobileCompactMode, _mobileCompactModeEnabled);
       await prefs.setBool(_kPrefZenMode, _zenModeEnabled);
       await prefs.setBool(
-          _kPrefMobileFocusCellMode, _mobileFocusCellModeEnabled);
+        _kPrefMobileFocusCellMode,
+        _mobileFocusCellModeEnabled,
+      );
       await prefs.setBool(_kPrefFlowBotUseLocalLlm, _flowBotUseLocalLlm);
       await prefs.setString(
         _kPrefFlowBotLocalModelPath,
@@ -2502,6 +2537,7 @@ class _EditorScreenState extends State<EditorScreen>
     bool? mobileCompactModeEnabled,
     bool? zenModeEnabled,
     bool? mobileFocusCellModeEnabled,
+    _ConfirmAdvanceMode? confirmAdvanceMode,
     bool? flowBotUseLocalLlm,
     String? flowBotLocalModelPath,
   }) async {
@@ -2515,6 +2551,7 @@ class _EditorScreenState extends State<EditorScreen>
     final nextZenMode = zenModeEnabled ?? _zenModeEnabled;
     final nextMobileFocusCellMode =
         mobileFocusCellModeEnabled ?? _mobileFocusCellModeEnabled;
+    final nextConfirmAdvanceMode = confirmAdvanceMode ?? _confirmAdvanceMode;
     final nextFlowBotUseLocalLlm = flowBotUseLocalLlm ?? _flowBotUseLocalLlm;
     final nextFlowBotLocalModelPath =
         (flowBotLocalModelPath ?? _flowBotLocalModelPath).trim();
@@ -2525,6 +2562,7 @@ class _EditorScreenState extends State<EditorScreen>
         nextMobileCompact == _mobileCompactModeEnabled &&
         nextZenMode == _zenModeEnabled &&
         nextMobileFocusCellMode == _mobileFocusCellModeEnabled &&
+        nextConfirmAdvanceMode == _confirmAdvanceMode &&
         nextFlowBotUseLocalLlm == _flowBotUseLocalLlm &&
         nextFlowBotLocalModelPath == _flowBotLocalModelPath) {
       return;
@@ -2538,6 +2576,7 @@ class _EditorScreenState extends State<EditorScreen>
         _mobileCompactModeEnabled = nextMobileCompact;
         _zenModeEnabled = nextZenMode;
         _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
+        _confirmAdvanceMode = nextConfirmAdvanceMode;
         _mobileTopBarCollapsed = nextZenMode;
         _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
         _flowBotLocalModelPath = nextFlowBotLocalModelPath;
@@ -2551,6 +2590,7 @@ class _EditorScreenState extends State<EditorScreen>
       _mobileCompactModeEnabled = nextMobileCompact;
       _zenModeEnabled = nextZenMode;
       _mobileFocusCellModeEnabled = nextMobileFocusCellMode;
+      _confirmAdvanceMode = nextConfirmAdvanceMode;
       _mobileTopBarCollapsed = nextZenMode;
       _flowBotUseLocalLlm = nextFlowBotUseLocalLlm;
       _flowBotLocalModelPath = nextFlowBotLocalModelPath;
@@ -2569,8 +2609,9 @@ class _EditorScreenState extends State<EditorScreen>
       for (final item in parsed) {
         final text = item.toString().trim();
         if (text.isEmpty) continue;
-        if (cleaned
-            .any((existing) => existing.toLowerCase() == text.toLowerCase())) {
+        if (cleaned.any(
+          (existing) => existing.toLowerCase() == text.toLowerCase(),
+        )) {
           continue;
         }
         cleaned.add(text);
@@ -2647,7 +2688,8 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedScope = _normalizeFlowBotScopeToken(
-          prefs.getString(_kPrefFlowBotLastScope) ?? '');
+        prefs.getString(_kPrefFlowBotLastScope) ?? '',
+      );
       final fieldMode = prefs.getBool(_kPrefFieldMode) ?? _fieldModeEnabled;
       final macrosRaw = prefs.getString(_kPrefFlowBotMacros);
       final macros = FlowBotMacroStore.decode(macrosRaw ?? '', maxItems: 24);
@@ -4332,10 +4374,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   _ColumnPrefs _defaultColumnPrefsFor(int c) {
     final type = _inferColTypeFromHeader(_headerLabel(c));
-    return _ColumnPrefs(
-      type: type,
-      wrapLines: _defaultWrapLinesForType(type),
-    );
+    return _ColumnPrefs(type: type, wrapLines: _defaultWrapLinesForType(type));
   }
 
   int _colWrapLines(int c) {
@@ -5400,9 +5439,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   List<({int row, int col, String before, String after})>
-      _flowBotPreviewPatches(
-    List<FlowBotAction> actions,
-  ) {
+      _flowBotPreviewPatches(List<FlowBotAction> actions) {
     final patches = <({int row, int col, String before, String after})>[];
     final dataCols = _headers.length - 1;
     if (dataCols <= 0) return patches;
@@ -5418,7 +5455,10 @@ class _EditorScreenState extends State<EditorScreen>
       switch (action.type) {
         case FlowBotActionType.setCell:
           addPatch(
-              action.row ?? _selRow, action.col ?? _selCol, action.value ?? '');
+            action.row ?? _selRow,
+            action.col ?? _selCol,
+            action.value ?? '',
+          );
           break;
         case FlowBotActionType.fillRange:
           final startRow = action.row ?? _selRow;
@@ -5433,10 +5473,13 @@ class _EditorScreenState extends State<EditorScreen>
           }
           break;
         case FlowBotActionType.setToday:
-          final scope =
-              _normalizeFlowBotScopeToken(action.value ?? _flowBotLastScope);
-          final col = (_firstColumnByType(_ColType.date) ?? _selCol)
-              .clamp(0, dataCols - 1);
+          final scope = _normalizeFlowBotScopeToken(
+            action.value ?? _flowBotLastScope,
+          );
+          final col = (_firstColumnByType(_ColType.date) ?? _selCol).clamp(
+            0,
+            dataCols - 1,
+          );
           final after = _flowBotDateText(action.format);
           final rows = switch (scope) {
             'columna' => List<int>.generate(_rows.length, (index) => index),
@@ -5450,8 +5493,9 @@ class _EditorScreenState extends State<EditorScreen>
           break;
         case FlowBotActionType.clearSelection:
         case FlowBotActionType.clearRow:
-          final scope =
-              _normalizeFlowBotScopeToken(action.value ?? _flowBotLastScope);
+          final scope = _normalizeFlowBotScopeToken(
+            action.value ?? _flowBotLastScope,
+          );
           final rows = switch (scope) {
             'columna' => List<int>.generate(_rows.length, (index) => index),
             'fila' => <int>[_selRow],
@@ -5759,8 +5803,10 @@ class _EditorScreenState extends State<EditorScreen>
             final targets = (() {
               final explicitCount = action.count;
               if (explicitCount != null && explicitCount > 0) {
-                final startRow =
-                    _selRow.clamp(0, math.max(_rows.length, 1) - 1);
+                final startRow = _selRow.clamp(
+                  0,
+                  math.max(_rows.length, 1) - 1,
+                );
                 final rows = <int>[];
                 for (int i = 0; i < explicitCount; i++) {
                   rows.add(startRow + i);
@@ -5794,8 +5840,10 @@ class _EditorScreenState extends State<EditorScreen>
             break;
           case FlowBotActionType.copyGps:
             if (_rows.isEmpty) continue;
-            final sourceRow =
-                (action.fromRow ?? _selRow).clamp(0, _rows.length - 1);
+            final sourceRow = (action.fromRow ?? _selRow).clamp(
+              0,
+              _rows.length - 1,
+            );
             final sourceCol = _selCol.clamp(0, dataCols - 1);
             final meta = _cellMetaAt(sourceRow, sourceCol)?.gps;
             if (meta == null) continue;
@@ -5842,10 +5890,7 @@ class _EditorScreenState extends State<EditorScreen>
             lastCol = col;
             break;
           case FlowBotActionType.exportPdfPreset:
-            await _exportPdf(
-              includeAttachments: true,
-              share: false,
-            );
+            await _exportPdf(includeAttachments: true, share: false);
             applied += 1;
             break;
           case FlowBotActionType.pasteTable:
@@ -5940,8 +5985,9 @@ class _EditorScreenState extends State<EditorScreen>
                   parsing: parsing,
                 );
                 if (canApply) {
-                  Navigator.of(modalCtx)
-                      .pop(List<FlowBotAction>.from(scopedPreview));
+                  Navigator.of(
+                    modalCtx,
+                  ).pop(List<FlowBotAction>.from(scopedPreview));
                 } else {
                   setModalState(() {
                     warning = _flowBotApplyDisabledReason(
@@ -6090,8 +6136,9 @@ class _EditorScreenState extends State<EditorScreen>
                             value: listening ? level : 0,
                             minHeight: 4,
                             borderRadius: BorderRadius.circular(999),
-                            backgroundColor:
-                                pal.cellText.withValues(alpha: 0.08),
+                            backgroundColor: pal.cellText.withValues(
+                              alpha: 0.08,
+                            ),
                             color: pal.accent,
                           ),
                         ),
@@ -6200,13 +6247,21 @@ class _EditorScreenState extends State<EditorScreen>
                                   TableRow(
                                     children: [
                                       _flowBotPreviewHeaderCell(
-                                          'Fila', pal.fgMuted),
+                                        'Fila',
+                                        pal.fgMuted,
+                                      ),
                                       _flowBotPreviewHeaderCell(
-                                          'Col', pal.fgMuted),
+                                        'Col',
+                                        pal.fgMuted,
+                                      ),
                                       _flowBotPreviewHeaderCell(
-                                          'Antes', pal.fgMuted),
+                                        'Antes',
+                                        pal.fgMuted,
+                                      ),
                                       _flowBotPreviewHeaderCell(
-                                          'Despues', pal.fgMuted),
+                                        'Despues',
+                                        pal.fgMuted,
+                                      ),
                                     ],
                                   ),
                                   for (final patch in previewPatches.take(5))
@@ -6386,9 +6441,9 @@ class _EditorScreenState extends State<EditorScreen>
                           dense: true,
                           variant: AppleButtonVariant.filled,
                           onPressed: canApply
-                              ? () => Navigator.of(modalCtx).pop(
-                                    List<FlowBotAction>.from(scopedPreview),
-                                  )
+                              ? () => Navigator.of(
+                                    modalCtx,
+                                  ).pop(List<FlowBotAction>.from(scopedPreview))
                               : null,
                         ),
                       ],
@@ -6465,8 +6520,10 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _rememberFlowBotHistory(text);
     _lastFlowBotValidCommand = text;
-    final scoped =
-        _applyScopeToFlowBotActions(parsed.actions, _flowBotLastScope);
+    final scoped = _applyScopeToFlowBotActions(
+      parsed.actions,
+      _flowBotLastScope,
+    );
     final applied = await _applyFlowBotActions(scoped);
     if (!mounted) return;
     _emitActionResult(
@@ -6520,11 +6577,7 @@ class _EditorScreenState extends State<EditorScreen>
     nameEC.dispose();
     if (accepted != true || name.isEmpty) return;
 
-    await _upsertFlowBotMacro(
-      name: name,
-      command: command,
-      emitFeedback: true,
-    );
+    await _upsertFlowBotMacro(name: name, command: command, emitFeedback: true);
   }
 
   Future<void> _upsertFlowBotMacro({
@@ -9228,10 +9281,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Widget _buildPerfOverlay(
-    _SheetPalette pal, {
-    required bool isDesktop,
-  }) {
+  Widget _buildPerfOverlay(_SheetPalette pal, {required bool isDesktop}) {
     final topInset = isDesktop ? 18.0 : 72.0;
     final width = isDesktop ? 340.0 : 318.0;
     final bg = pal.isLight
@@ -9453,8 +9503,9 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          orange.withValues(alpha: pal.isLight ? 0.20 : 0.28),
+                      color: orange.withValues(
+                        alpha: pal.isLight ? 0.20 : 0.28,
+                      ),
                       blurRadius: 30,
                       offset: const Offset(0, 12),
                     ),
@@ -9474,16 +9525,15 @@ class _EditorScreenState extends State<EditorScreen>
                         TweenAnimationBuilder<double>(
                           tween: Tween<double>(
                             begin: 0,
-                            end: (_audioInputLevel * 0.35 + 0.65)
-                                .clamp(0.65, 1.0),
+                            end: (_audioInputLevel * 0.35 + 0.65).clamp(
+                              0.65,
+                              1.0,
+                            ),
                           ),
                           duration: const Duration(milliseconds: 220),
                           curve: Curves.easeOut,
                           builder: (context, scale, child) {
-                            return Transform.scale(
-                              scale: scale,
-                              child: child,
-                            );
+                            return Transform.scale(scale: scale, child: child);
                           },
                           child: Container(
                             width: 42,
@@ -9822,7 +9872,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       onSearch: () =>
                                           unawaited(_openSearchDialog()),
                                       onSearchEverywhere: () => unawaited(
-                                          _openSearchEverywhereDialog()),
+                                        _openSearchEverywhereDialog(),
+                                      ),
                                       onJumpTo: () =>
                                           unawaited(_openJumpToDialog()),
                                       onColumns: () =>
@@ -9836,7 +9887,8 @@ class _EditorScreenState extends State<EditorScreen>
                                       onManageViews: () =>
                                           unawaited(_openSavedViewsManager()),
                                       onMarkReviewed: () => unawaited(
-                                          _markSelectedRowsReviewed()),
+                                        _markSelectedRowsReviewed(),
+                                      ),
                                       onTogglePendingReviewView:
                                           _togglePendingReviewView,
                                       onSave: () =>
@@ -9853,20 +9905,26 @@ class _EditorScreenState extends State<EditorScreen>
                                       onGps: () =>
                                           unawaited(this._runGpsForSelection()),
                                       onPhoto: () => unawaited(
-                                          this._runPhotoForSelection()),
+                                        this._runPhotoForSelection(),
+                                      ),
                                       onVideo: () => unawaited(
-                                          this._runVideoForSelection()),
+                                        this._runVideoForSelection(),
+                                      ),
                                       onAudio: () => unawaited(
-                                          this._runAudioForSelection()),
+                                        this._runAudioForSelection(),
+                                      ),
                                       onFile: () => unawaited(
-                                          this._runFileForSelection()),
+                                        this._runFileForSelection(),
+                                      ),
                                       onAttachments: () => unawaited(
                                         this._runOpenAttachmentsForSelection(),
                                       ),
                                       onShare: () => unawaited(
-                                          _exportZipBundle(share: true)),
+                                        _exportZipBundle(share: true),
+                                      ),
                                       onCollaborate: () => unawaited(
-                                          _openCollaborateFlowDialog()),
+                                        _openCollaborateFlowDialog(),
+                                      ),
                                       onPalette: () =>
                                           unawaited(_openCommandPalette()),
                                       onGpsMode: () =>
@@ -10280,7 +10338,8 @@ class _EditorScreenState extends State<EditorScreen>
                                             ),
                                           ),
                                           onUseTemplate: () => unawaited(
-                                              _openDemoTemplateSheet()),
+                                            _openDemoTemplateSheet(),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -10293,8 +10352,7 @@ class _EditorScreenState extends State<EditorScreen>
                                           order: const NumericFocusOrder(2.0),
                                           child: Semantics(
                                             key: const ValueKey(
-                                              'editor-grid-root',
-                                            ),
+                                                'editor-grid-root'),
                                             container: true,
                                             label: 'Grilla de planilla',
                                             child: Stack(
@@ -10306,7 +10364,8 @@ class _EditorScreenState extends State<EditorScreen>
                                                         _gridVersion,
                                                     builder: (ctx, _, __) {
                                                       _trackGridHostBuild(
-                                                          'desktop');
+                                                        'desktop',
+                                                      );
                                                       return _GridView(
                                                         palette: pal,
                                                         metrics: metrics,
@@ -10662,15 +10721,16 @@ class _EditorScreenState extends State<EditorScreen>
                                                           _selRow < _rows.length
                                                       ? _selRow
                                                       : null,
-                                                  preferredTargetCol: _selCol >=
-                                                              0 &&
-                                                          _selCol <
-                                                              math.max(
-                                                                  0,
-                                                                  _headers.length -
-                                                                      1)
-                                                      ? _selCol
-                                                      : null,
+                                                  preferredTargetCol:
+                                                      _selCol >= 0 &&
+                                                              _selCol <
+                                                                  math.max(
+                                                                    0,
+                                                                    _headers.length -
+                                                                        1,
+                                                                  )
+                                                          ? _selCol
+                                                          : null,
                                                   onInsertResult:
                                                       _onTraceInsert,
                                                   onClose: () =>
@@ -10684,8 +10744,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     : RepaintBoundary(
                                         child: KeyedSubtree(
                                           key: const ValueKey(
-                                            'editor-grid-root',
-                                          ),
+                                              'editor-grid-root'),
                                           child: ValueListenableBuilder<int>(
                                             valueListenable: _gridVersion,
                                             builder: (ctx, _, __) {
@@ -10821,7 +10880,8 @@ class _EditorScreenState extends State<EditorScreen>
                                                     displayColumns,
                                                   );
                                                   return _colVerticalAlign(
-                                                      actualCol);
+                                                    actualCol,
+                                                  );
                                                 },
                                                 isAttachmentProcessing: (r, c) {
                                                   final actualRow =
@@ -10892,9 +10952,13 @@ class _EditorScreenState extends State<EditorScreen>
                                                   ),
                                                   cardW,
                                                 ),
-                                                onContextMenu:
-                                                    (pos, r, c, isHeader) =>
-                                                        _openContextMenu(
+                                                onContextMenu: (
+                                                  pos,
+                                                  r,
+                                                  c,
+                                                  isHeader,
+                                                ) =>
+                                                    _openContextMenu(
                                                   ctx,
                                                   pal,
                                                   pos,
@@ -10966,12 +11030,10 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                               ),
                               onSearch: () => unawaited(_openSearchDialog()),
-                              onPhoto: () => unawaited(
-                                this._runPhotoForSelection(),
-                              ),
-                              onGps: () => unawaited(
-                                this._runGpsForSelection(),
-                              ),
+                              onPhoto: () =>
+                                  unawaited(this._runPhotoForSelection()),
+                              onGps: () =>
+                                  unawaited(this._runGpsForSelection()),
                               onExport: () => unawaited(_openExportMenu()),
                               onPalette: () => unawaited(_openCommandPalette()),
                               onToggleTrace: _toggleTraceMode,
@@ -11036,60 +11098,31 @@ class _EditorScreenState extends State<EditorScreen>
                             ? [
                                 _MobileFabAction(
                                   key: const ValueKey(
-                                      'mobile-fab-action-new-record'),
+                                    'mobile-fab-action-new-record',
+                                  ),
                                   icon: Icons.add_box_outlined,
                                   label: 'Nuevo registro',
                                   onTap: () => unawaited(
                                     _createNewRecordAction(
-                                        origin: 'mobile_fab'),
-                                  ),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-flowbot'),
-                                  icon: Icons.auto_awesome_rounded,
-                                  label: 'FlowBot',
-                                  onTap: () => unawaited(_openFlowBotSheet()),
-                                ),
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-smart-paste'),
-                                  icon: Icons.table_chart_rounded,
-                                  label: 'Pegar tabla',
-                                  onTap: () => unawaited(
-                                    _pasteTableSmartFromClipboard(
-                                      emitFeedback: true,
-                                      interactivePreview: true,
+                                      origin: 'mobile_fab',
                                     ),
                                   ),
                                 ),
                                 _MobileFabAction(
-                                  key:
-                                      const ValueKey('mobile-fab-action-trace'),
-                                  icon: Icons.gesture_rounded,
-                                  label: _traceModeActive
-                                      ? 'Trazo activo'
-                                      : 'Modo trazo',
-                                  onTap: _toggleTraceMode,
-                                ),
-                                _MobileFabAction(
                                   key: const ValueKey(
-                                      'mobile-fab-action-field-mode'),
-                                  icon: Icons.terrain_rounded,
-                                  label: 'Salir modo campo',
-                                  onTap: () => unawaited(_toggleFieldMode()),
-                                ),
-                              ]
-                            : [
-                                _MobileFabAction(
-                                  key: const ValueKey(
-                                      'mobile-fab-action-new-record'),
-                                  icon: Icons.add_box_outlined,
-                                  label: 'Nuevo registro',
-                                  onTap: () => unawaited(
-                                    _createNewRecordAction(
-                                        origin: 'mobile_fab'),
+                                    'mobile-fab-action-columns',
                                   ),
+                                  icon: Icons.view_column_rounded,
+                                  label: 'Columnas',
+                                  onTap: () => unawaited(_openColumnPanel()),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-flowbot',
+                                  ),
+                                  icon: Icons.auto_awesome_rounded,
+                                  label: 'FlowBot',
+                                  onTap: () => unawaited(_openFlowBotSheet()),
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
@@ -11106,14 +11139,69 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
-                                      'mobile-fab-action-export'),
+                                    'mobile-fab-action-trace',
+                                  ),
+                                  icon: Icons.gesture_rounded,
+                                  label: _traceModeActive
+                                      ? 'Trazo activo'
+                                      : 'Modo trazo',
+                                  onTap: _toggleTraceMode,
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-field-mode',
+                                  ),
+                                  icon: Icons.terrain_rounded,
+                                  label: 'Salir modo campo',
+                                  onTap: () => unawaited(_toggleFieldMode()),
+                                ),
+                              ]
+                            : [
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-new-record',
+                                  ),
+                                  icon: Icons.add_box_outlined,
+                                  label: 'Nuevo registro',
+                                  onTap: () => unawaited(
+                                    _createNewRecordAction(
+                                      origin: 'mobile_fab',
+                                    ),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-columns',
+                                  ),
+                                  icon: Icons.view_column_rounded,
+                                  label: 'Columnas',
+                                  onTap: () => unawaited(_openColumnPanel()),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-smart-paste',
+                                  ),
+                                  icon: Icons.table_chart_rounded,
+                                  label: 'Pegar tabla',
+                                  onTap: () => unawaited(
+                                    _pasteTableSmartFromClipboard(
+                                      emitFeedback: true,
+                                      interactivePreview: true,
+                                    ),
+                                  ),
+                                ),
+                                _MobileFabAction(
+                                  key: const ValueKey(
+                                    'mobile-fab-action-export',
+                                  ),
                                   icon: Icons.ios_share_rounded,
                                   label: 'Exportar',
                                   onTap: () => unawaited(_openExportMenu()),
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
-                                      'mobile-fab-action-templates'),
+                                    'mobile-fab-action-templates',
+                                  ),
                                   icon: Icons.grid_view_rounded,
                                   label: 'Plantillas',
                                   onTap: () =>
@@ -11126,8 +11214,9 @@ class _EditorScreenState extends State<EditorScreen>
                                   onTap: _undoOnce,
                                 ),
                                 _MobileFabAction(
-                                  key:
-                                      const ValueKey('mobile-fab-action-trace'),
+                                  key: const ValueKey(
+                                    'mobile-fab-action-trace',
+                                  ),
                                   icon: Icons.gesture_rounded,
                                   label: _traceModeActive
                                       ? 'Trazo activo'
@@ -11136,7 +11225,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 _MobileFabAction(
                                   key: const ValueKey(
-                                      'mobile-fab-action-field-mode'),
+                                    'mobile-fab-action-field-mode',
+                                  ),
                                   icon: Icons.landscape_rounded,
                                   label: 'Modo campo',
                                   onTap: () => unawaited(_toggleFieldMode()),
@@ -11144,15 +11234,9 @@ class _EditorScreenState extends State<EditorScreen>
                               ],
                       ),
                     if (_perfHarnessRequested && kDebugMode)
-                      _buildPerfOverlay(
-                        pal,
-                        isDesktop: isDesktop,
-                      ),
+                      _buildPerfOverlay(pal, isDesktop: isDesktop),
                     if (_audioRecording)
-                      _buildAudioRecordingOverlay(
-                        pal,
-                        isDesktop: isDesktop,
-                      ),
+                      _buildAudioRecordingOverlay(pal, isDesktop: isDesktop),
                     if (_longOperation != null)
                       Positioned.fill(
                         child: DecoratedBox(
@@ -11839,6 +11923,70 @@ class _EditorScreenState extends State<EditorScreen>
     _bumpGridVersion();
   }
 
+  String _nextGeneratedColumnLabel(Set<String> usedLabels, int startOrdinal) {
+    var ordinal = math.max(1, startOrdinal);
+    while (true) {
+      final label = 'Col $ordinal';
+      if (!usedLabels.contains(label.toLowerCase())) {
+        usedLabels.add(label.toLowerCase());
+        return label;
+      }
+      ordinal += 1;
+    }
+  }
+
+  int _addDataColumns(int requestedCount) {
+    if (requestedCount <= 0) return 0;
+    final count = requestedCount.clamp(1, _kMaxFastColumnsPerBatch).toInt();
+    _commitActiveEditors();
+
+    final insertAt = math.max(0, _headers.length - 1);
+    final usedLabels = <String>{
+      for (int c = 0; c < _headers.length - 1; c++)
+        if (_headers[c].trim().isNotEmpty) _headers[c].trim().toLowerCase(),
+    };
+    final newColIds = <String>[];
+
+    for (int i = 0; i < count; i++) {
+      final targetIndex = insertAt + i;
+      final colId = _genStableId('c_');
+      final label = _nextGeneratedColumnLabel(usedLabels, targetIndex + 1);
+      _headers.insert(targetIndex, label);
+      _colIds.insert(targetIndex, colId);
+      _columnPrefsById[colId] = const _ColumnPrefs(type: _ColType.text);
+      newColIds.add(colId);
+      for (final row in _rows) {
+        row.cells.insert(targetIndex, '');
+      }
+    }
+
+    _columnOrder = _normalizeColumnOrder(
+      colIds: _colIds,
+      incoming: <String>[..._columnOrder, ...newColIds],
+    );
+    _frozenColId = _normalizeFrozenColId(
+      colIds: _colIds,
+      requested: _frozenColId,
+    );
+    if (_rows.isNotEmpty) {
+      _setSelection(_selRow, insertAt.clamp(0, _headers.length - 2).toInt());
+    }
+    _markDirty(snapshot: true);
+    _bumpGridVersion();
+    _scheduleValidationRecompute(immediate: true);
+    return count;
+  }
+
+  void _addDataColumnsWithFeedback(int requestedCount) {
+    final added = _addDataColumns(requestedCount);
+    if (added <= 0) return;
+    _showActionSnack(
+      added == 1 ? 'Se agregó 1 columna.' : 'Se agregaron $added columnas.',
+      isError: false,
+      icon: Icons.view_column_rounded,
+    );
+  }
+
   void _setColumnTypeForIndex(int col, _ColType type) {
     if (col < 0 || col >= _headers.length - 1) return;
     if (type == _ColType.photos) return;
@@ -12327,6 +12475,15 @@ class _EditorScreenState extends State<EditorScreen>
                   _cancelMobileEdit();
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.keyboard_tab_rounded),
+                title: const Text('Al confirmar'),
+                subtitle: Text(_confirmAdvanceLabel(_confirmAdvanceMode)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  unawaited(_openConfirmAdvancePicker());
+                },
+              ),
               if (canCopy)
                 ListTile(
                   leading: const Icon(Icons.content_copy_rounded),
@@ -12721,6 +12878,59 @@ class _EditorScreenState extends State<EditorScreen>
     _scheduleEnsureRowVisibleLate(r);
   }
 
+  bool _openMobileHeaderForConfirmTarget() {
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty) return false;
+    final currentIndex = editableCols.indexOf(_mobileCol);
+    final index = currentIndex < 0 ? 0 : currentIndex;
+    if (index >= editableCols.length - 1) return false;
+    final nextC = editableCols[index + 1];
+    _openMobileInlineEditor(
+      isHeader: true,
+      row: -1,
+      col: nextC,
+      title: 'Encabezado ${nextC + 1}',
+      initial: _effectiveHeader(nextC),
+      actions: const [],
+    );
+    return true;
+  }
+
+  bool _openMobileCellForConfirmTarget() {
+    if (_mobileRow < 0 || _mobileRow >= _rows.length) return false;
+    final editableCols = _visibleDataColumnIndexes();
+    if (editableCols.isEmpty) return false;
+
+    var nextRow = _mobileRow;
+    var nextCol = _mobileCol;
+    final currentIndex = editableCols.indexOf(_mobileCol);
+    final colIndex = currentIndex < 0 ? 0 : currentIndex;
+
+    switch (_confirmAdvanceMode) {
+      case _ConfirmAdvanceMode.down:
+        if (_mobileRow >= _rows.length - 1) return false;
+        nextRow = _mobileRow + 1;
+        break;
+      case _ConfirmAdvanceMode.right:
+        if (colIndex >= editableCols.length - 1) return false;
+        nextCol = editableCols[colIndex + 1];
+        break;
+      case _ConfirmAdvanceMode.stay:
+        return false;
+    }
+
+    _openMobileInlineEditor(
+      isHeader: false,
+      row: nextRow,
+      col: nextCol,
+      title: _mobileCellLabel(nextRow, nextCol),
+      initial: _effectiveCell(nextRow, nextCol),
+      actions: _mobileActionsForCell(nextRow, nextCol),
+    );
+    _setSelectionAndRefreshGrid(nextRow, nextCol, blink: true);
+    return true;
+  }
+
   void _cancelMobileEdit() {
     _cancelMobileEnsureTimers();
     _detachMobileDraftListener();
@@ -12762,7 +12972,18 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _commitMobileEdit() {
     if (!_mobileEditorOpen) return;
-    _commitActiveEditors();
+    if (_confirmAdvanceMode == _ConfirmAdvanceMode.stay) {
+      _commitActiveEditors();
+      return;
+    }
+
+    _commitMobileDraftKeepingKeyboard();
+    final advanced = _mobileEditingHeader
+        ? _openMobileHeaderForConfirmTarget()
+        : _openMobileCellForConfirmTarget();
+    if (!advanced) {
+      _closeMobileEditor();
+    }
   }
 
   void _closeMobileEditor() {
@@ -12819,7 +13040,9 @@ class _EditorScreenState extends State<EditorScreen>
       final currentIndex = editableCols.indexOf(currentHeader);
       var nextIndex = currentIndex < 0 ? 0 : currentIndex;
 
-      if (move == _OverlayMove.next) {
+      if (move == _OverlayMove.next ||
+          move == _OverlayMove.rightStayAtEdge ||
+          move == _OverlayMove.downStayAtEdge) {
         nextIndex = (nextIndex + 1).clamp(0, editableCols.length - 1);
       }
       if (move == _OverlayMove.prev) {
@@ -12837,7 +13060,10 @@ class _EditorScreenState extends State<EditorScreen>
         return;
       }
 
-      if (move == _OverlayMove.next || move == _OverlayMove.prev) {
+      if (move == _OverlayMove.next ||
+          move == _OverlayMove.prev ||
+          move == _OverlayMove.rightStayAtEdge ||
+          move == _OverlayMove.downStayAtEdge) {
         if (nextC == currentHeader) return;
         _beginEditHeader(context, pal, nextC, width);
         return;
@@ -12872,6 +13098,12 @@ class _EditorScreenState extends State<EditorScreen>
         r -= 1;
         cIndex = editableCols.length - 1;
       }
+    } else if (move == _OverlayMove.rightStayAtEdge) {
+      if (cIndex >= editableCols.length - 1) return;
+      cIndex += 1;
+    } else if (move == _OverlayMove.downStayAtEdge) {
+      if (r >= _rows.length - 1) return;
+      r += 1;
     } else if (move == _OverlayMove.down) {
       r += 1;
     } else if (move == _OverlayMove.up) {
@@ -12889,6 +13121,17 @@ class _EditorScreenState extends State<EditorScreen>
     c = editableCols[cIndex.clamp(0, editableCols.length - 1)];
 
     _beginEditCell(context, pal, r, c, width);
+  }
+
+  _OverlayMove _overlayMoveForConfirm() {
+    switch (_confirmAdvanceMode) {
+      case _ConfirmAdvanceMode.down:
+        return _OverlayMove.downStayAtEdge;
+      case _ConfirmAdvanceMode.right:
+        return _OverlayMove.rightStayAtEdge;
+      case _ConfirmAdvanceMode.stay:
+        return _OverlayMove.none;
+    }
   }
 
   void _showOverlayEditor({
@@ -13069,12 +13312,16 @@ class _EditorScreenState extends State<EditorScreen>
                                       hintStyle: TextStyle(color: pal.fgMuted),
                                       border: InputBorder.none,
                                     ),
-                                    onSubmitted: (_) => commitAndDismiss(),
+                                    onSubmitted: (_) => commitAndNavigate(
+                                      _overlayMoveForConfirm(),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 InkWell(
-                                  onTap: commitAndDismiss,
+                                  onTap: () => commitAndNavigate(
+                                    _overlayMoveForConfirm(),
+                                  ),
                                   borderRadius: BorderRadius.circular(10),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -13287,6 +13534,141 @@ class _EditorScreenState extends State<EditorScreen>
     _setColumnTypeForIndex(col, picked);
   }
 
+  Future<void> _openAddColumnsDialog() async {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final amountEC = TextEditingController(text: '5');
+    final picked = await showAppModal<int>(
+      context: context,
+      title: 'Agregar columnas',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final amount in const <int>[1, 5, 10])
+                AppButton(
+                  label: '+$amount',
+                  icon: Icons.view_column_rounded,
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(context).pop(amount),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amountEC,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              isDense: true,
+              labelText: 'Cantidad personalizada',
+              helperText: 'Máximo $_kMaxFastColumnsPerBatch por vez.',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: 'Agregar',
+          icon: Icons.add_rounded,
+          variant: AppButtonVariant.primary,
+          onPressed: () {
+            final parsed = int.tryParse(amountEC.text.trim()) ?? 0;
+            Navigator.of(context).pop(parsed);
+          },
+        ),
+      ],
+      showClose: false,
+      barrierDismissible: true,
+    );
+    amountEC.dispose();
+    if (!mounted || picked == null) return;
+    if (picked <= 0) {
+      _showActionSnack(
+        'Ingresa una cantidad mayor a cero.',
+        isError: true,
+        icon: Icons.error_outline_rounded,
+      );
+      return;
+    }
+    _addDataColumnsWithFeedback(picked);
+  }
+
+  Future<void> _openConfirmAdvancePicker() async {
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<_ConfirmAdvanceMode>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            decoration: BoxDecoration(
+              color: pal.menuBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pal.border, width: pal.hairline),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.keyboard_tab_rounded, color: pal.fg),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Al confirmar',
+                      style: TextStyle(
+                        color: pal.fg,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, color: pal.fgMuted),
+                    ),
+                  ],
+                ),
+                for (final mode in _ConfirmAdvanceMode.values)
+                  ListTile(
+                    leading: Icon(
+                      _confirmAdvanceMode == mode
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: pal.fgMuted,
+                    ),
+                    title: Text(_confirmAdvanceLabel(mode)),
+                    onTap: () => Navigator.of(ctx).pop(mode),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null || picked == _confirmAdvanceMode) return;
+    await _setEditorDefaultRules(confirmAdvanceMode: picked);
+    if (!mounted) return;
+    _showActionSnack(
+      'Al confirmar: ${_confirmAdvanceLabel(picked)}.',
+      isError: false,
+      icon: Icons.keyboard_tab_rounded,
+    );
+  }
+
   Future<void> _openColumnPanel() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -13380,6 +13762,27 @@ class _EditorScreenState extends State<EditorScreen>
                           await _openApplyColumnTemplateDialog();
                         },
                       ),
+                      for (final amount in const <int>[1, 5, 10])
+                        AppButton(
+                          label: '+$amount columnas',
+                          icon: Icons.view_column_rounded,
+                          size: AppButtonSize.sm,
+                          variant: AppButtonVariant.ghost,
+                          onPressed: () {
+                            Navigator.of(context).pop(false);
+                            _addDataColumnsWithFeedback(amount);
+                          },
+                        ),
+                      AppButton(
+                        label: 'Personalizar...',
+                        icon: Icons.add_rounded,
+                        size: AppButtonSize.sm,
+                        variant: AppButtonVariant.ghost,
+                        onPressed: () {
+                          Navigator.of(context).pop(false);
+                          unawaited(_openAddColumnsDialog());
+                        },
+                      ),
                       AppButton(
                         label: 'Mostrar todas',
                         icon: Icons.visibility_rounded,
@@ -13433,8 +13836,10 @@ class _EditorScreenState extends State<EditorScreen>
                 final numberMax = pref?.numberMax;
                 final regexPattern = pref?.regexPattern;
                 final wrapLines =
-                    (pref?.wrapLines ?? _defaultWrapLinesForColumn(col))
-                        .clamp(1, 3);
+                    (pref?.wrapLines ?? _defaultWrapLinesForColumn(col)).clamp(
+                  1,
+                  3,
+                );
                 final textAlignPref = pref?.textAlign ?? _GridTextAlignX.left;
                 final verticalAlignPref =
                     pref?.verticalAlign ?? _GridTextAlignY.middle;
@@ -13666,9 +14071,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   _GridTextAlignX.right => 'Derecha',
                                 };
                                 return DropdownMenuItem<_GridTextAlignX>(
-                                  value: entry,
-                                  child: Text(label),
-                                );
+                                    value: entry, child: Text(label));
                               }).toList(growable: false),
                               onChanged: (nextAlign) {
                                 if (nextAlign == null) return;
@@ -14084,7 +14487,8 @@ class _EditorScreenState extends State<EditorScreen>
           'Observar fila',
           Icons.flag_outlined,
           () => unawaited(
-              _setReviewStateForRows(<int>[r], reviewState: 'observada')),
+            _setReviewStateForRows(<int>[r], reviewState: 'observada'),
+          ),
         ),
       );
       actions.add(
@@ -14092,7 +14496,8 @@ class _EditorScreenState extends State<EditorScreen>
           'Marcar corregida',
           Icons.edit_note_rounded,
           () => unawaited(
-              _setReviewStateForRows(<int>[r], reviewState: 'corregida')),
+            _setReviewStateForRows(<int>[r], reviewState: 'corregida'),
+          ),
         ),
       );
       actions.add(
@@ -14100,7 +14505,8 @@ class _EditorScreenState extends State<EditorScreen>
           'Aprobar fila',
           Icons.verified_rounded,
           () => unawaited(
-              _setReviewStateForRows(<int>[r], reviewState: 'aprobada')),
+            _setReviewStateForRows(<int>[r], reviewState: 'aprobada'),
+          ),
         ),
       );
 
@@ -14241,9 +14647,9 @@ class _EditorScreenState extends State<EditorScreen>
               const SizedBox(height: 12),
               Text(
                 'Autoría y control',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               _ReviewMetaLine(
@@ -14282,9 +14688,9 @@ class _EditorScreenState extends State<EditorScreen>
               const SizedBox(height: 16),
               Text(
                 'Evidencia vinculada',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               if (evidence.isEmpty)
@@ -14309,9 +14715,9 @@ class _EditorScreenState extends State<EditorScreen>
                           vertical: 10,
                         ),
                         radius: 12,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
@@ -14340,9 +14746,9 @@ class _EditorScreenState extends State<EditorScreen>
               const SizedBox(height: 16),
               Text(
                 'Acciones',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -14355,10 +14761,9 @@ class _EditorScreenState extends State<EditorScreen>
                     variant: AppButtonVariant.secondary,
                     onPressed: canObserve
                         ? () => unawaited(
-                              _setReviewStateForRows(
-                                <int>[r],
-                                reviewState: 'observada',
-                              ),
+                              _setReviewStateForRows(<int>[
+                                r,
+                              ], reviewState: 'observada'),
                             )
                         : null,
                   ),
@@ -14368,10 +14773,9 @@ class _EditorScreenState extends State<EditorScreen>
                     variant: AppButtonVariant.secondary,
                     onPressed: canCorrect
                         ? () => unawaited(
-                              _setReviewStateForRows(
-                                <int>[r],
-                                reviewState: 'corregida',
-                              ),
+                              _setReviewStateForRows(<int>[
+                                r,
+                              ], reviewState: 'corregida'),
                             )
                         : null,
                   ),
@@ -14380,10 +14784,9 @@ class _EditorScreenState extends State<EditorScreen>
                     icon: Icons.verified_rounded,
                     onPressed: canApprove && !selfApprovalBlocked
                         ? () => unawaited(
-                              _setReviewStateForRows(
-                                <int>[r],
-                                reviewState: 'aprobada',
-                              ),
+                              _setReviewStateForRows(<int>[
+                                r,
+                              ], reviewState: 'aprobada'),
                             )
                         : null,
                     tooltip: selfApprovalBlocked
@@ -15079,8 +15482,9 @@ class _EditorScreenState extends State<EditorScreen>
         AppButton(
           label: 'Aplicar',
           variant: AppButtonVariant.primary,
-          onPressed: () => Navigator.of(context)
-              .pop(int.tryParse(stepController.text.trim())),
+          onPressed: () => Navigator.of(
+            context,
+          ).pop(int.tryParse(stepController.text.trim())),
         ),
       ],
       showClose: false,
@@ -15180,10 +15584,7 @@ class _EditorScreenState extends State<EditorScreen>
       final accepted = await _confirmUndoEditedNewRecord();
       if (!accepted) {
         _emitActionResult(
-          const _ActionResult(
-            ok: false,
-            message: 'Se mantuvo la fila creada.',
-          ),
+          const _ActionResult(ok: false, message: 'Se mantuvo la fila creada.'),
           failureIcon: Icons.info_outline_rounded,
         );
         return;
@@ -15211,10 +15612,7 @@ class _EditorScreenState extends State<EditorScreen>
         message: 'No hay columnas editables para crear un registro.',
       );
       if (emitFeedback) {
-        _emitActionResult(
-          result,
-          failureIcon: Icons.info_outline_rounded,
-        );
+        _emitActionResult(result, failureIcon: Icons.info_outline_rounded);
       }
       return result;
     }
@@ -15259,12 +15657,8 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         result,
         successIcon: Icons.add_box_outlined,
-        onUndo: () => unawaited(
-          _undoNewRecordById(
-            rowId,
-            baselineCells: baselineCells,
-          ),
-        ),
+        onUndo: () =>
+            unawaited(_undoNewRecordById(rowId, baselineCells: baselineCells)),
       );
     }
     return result;
@@ -16002,9 +16396,7 @@ class _EditorScreenState extends State<EditorScreen>
                           ? const Text(
                               'Mapeo simple: renombrar columnas visibles desde la celda activa.',
                             )
-                          : const Text(
-                              'Se pega toda la tabla como datos.',
-                            ),
+                          : const Text('Se pega toda la tabla como datos.'),
                       onChanged: (value) =>
                           setModalState(() => firstRowIsHeader = value),
                     ),
@@ -16140,10 +16532,7 @@ class _EditorScreenState extends State<EditorScreen>
     _ActionResult fail(String message) {
       final result = _ActionResult(ok: false, message: message);
       if (emitFeedback) {
-        _emitActionResult(
-          result,
-          failureIcon: Icons.warning_amber_rounded,
-        );
+        _emitActionResult(result, failureIcon: Icons.warning_amber_rounded);
       }
       return result;
     }
@@ -16219,8 +16608,10 @@ class _EditorScreenState extends State<EditorScreen>
         inputCells.first.length == 1 &&
         selectedRows.length > 1 &&
         mode != _SmartPasteMode.insertRows) {
-      final normalized =
-          _normalizeCellValueForColumn(startC, inputCells.first.first);
+      final normalized = _normalizeCellValueForColumn(
+        startC,
+        inputCells.first.first,
+      );
       final refsToClear = <_CellRef>[];
       final undoCells = <_SmartPasteUndoCell>[];
       var changed = 0;
@@ -16307,7 +16698,8 @@ class _EditorScreenState extends State<EditorScreen>
         headerChanges.isEmpty &&
         plan.insertedRows <= 0) {
       return fail(
-          'Pegado sin cambios: el bloque coincide con los datos actuales.');
+        'Pegado sin cambios: el bloque coincide con los datos actuales.',
+      );
     }
 
     final insertAt = plan.insertedRows > 0
@@ -17643,9 +18035,8 @@ class _EditorScreenState extends State<EditorScreen>
   String debugEffectiveCellText(int r, int c) => _effectiveCell(r, c);
 
   @visibleForTesting
-  bool debugHasCellDraft(int r, int c) => _draftCells.containsKey(
-        _CellRef(r, c),
-      );
+  bool debugHasCellDraft(int r, int c) =>
+      _draftCells.containsKey(_CellRef(r, c));
 
   @visibleForTesting
   void debugSetCellDraft(int r, int c, String value) {
@@ -17684,7 +18075,28 @@ class _EditorScreenState extends State<EditorScreen>
   int get debugRowCount => _rows.length;
 
   @visibleForTesting
+  int get debugHeaderCount => _headers.length;
+
+  @visibleForTesting
+  List<String> get debugHeaders => List<String>.unmodifiable(_headers);
+
+  @visibleForTesting
+  int get debugSelectedRow => _selRow;
+
+  @visibleForTesting
+  int get debugSelectedCol => _selCol;
+
+  @visibleForTesting
   bool get debugMobileEditorOpen => _mobileEditorOpen;
+
+  @visibleForTesting
+  bool get debugMobileEditingHeader => _mobileEditingHeader;
+
+  @visibleForTesting
+  int get debugMobileCol => _mobileCol;
+
+  @visibleForTesting
+  String get debugConfirmAdvanceMode => _confirmAdvanceMode.name;
 
   @visibleForTesting
   double get debugVerticalScrollOffset =>
@@ -17806,6 +18218,46 @@ class _EditorScreenState extends State<EditorScreen>
         initial: _effectiveCell(r, c),
         actions: _mobileActionsForCell(r, c),
       );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugOpenMobileEditorForHeader(int c) {
+    assert(() {
+      if (c < 0 || c >= _headers.length - 1) return true;
+      _openMobileInlineEditor(
+        isHeader: true,
+        row: -1,
+        col: c,
+        title: 'Encabezado ${c + 1}',
+        initial: _effectiveHeader(c),
+        actions: const [],
+      );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugSetConfirmAdvanceMode(String mode) {
+    assert(() {
+      _confirmAdvanceMode = _confirmAdvanceModeFromPref(mode);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugAddColumns(int count) {
+    assert(() {
+      _addDataColumns(count);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugCommitMobileEdit() {
+    assert(() {
+      _commitMobileEdit();
       return true;
     }());
   }
@@ -19316,7 +19768,7 @@ class _EditorScreenState extends State<EditorScreen>
       String kind,
       String detail,
       String date,
-      String? link,
+      String? link
     })>[];
     final evidenceItems = <({
       String cell,
@@ -19401,12 +19853,7 @@ class _EditorScreenState extends State<EditorScreen>
               preferThumb: true,
             );
             if (bytes != null && bytes.isNotEmpty) {
-              thumb = _compressThumb(
-                bytes,
-                maxW: 900,
-                maxH: 620,
-                quality: 74,
-              );
+              thumb = _compressThumb(bytes, maxW: 900, maxH: 620, quality: 74);
             }
           }
           evidenceItems.add((
@@ -19508,9 +19955,7 @@ class _EditorScreenState extends State<EditorScreen>
         footer: (context) => pw.Container(
           padding: const pw.EdgeInsets.only(top: 8),
           decoration: const pw.BoxDecoration(
-            border: pw.Border(
-              top: pw.BorderSide(color: pdfLine, width: 0.5),
-            ),
+            border: pw.Border(top: pw.BorderSide(color: pdfLine, width: 0.5)),
           ),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -19595,14 +20040,18 @@ class _EditorScreenState extends State<EditorScreen>
                         pw.SizedBox(height: 2),
                         pw.Text(
                           'Reporte tecnico - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
-                          style:
-                              const pw.TextStyle(fontSize: 11, color: pdfMuted),
+                          style: const pw.TextStyle(
+                            fontSize: 11,
+                            color: pdfMuted,
+                          ),
                         ),
                         pw.SizedBox(height: 8),
                         pw.Text(
                           'Exportado: $exportedAt',
-                          style:
-                              const pw.TextStyle(fontSize: 8.5, color: pdfInk),
+                          style: const pw.TextStyle(
+                            fontSize: 8.5,
+                            color: pdfInk,
+                          ),
                         ),
                       ],
                     ),
@@ -19612,14 +20061,18 @@ class _EditorScreenState extends State<EditorScreen>
                     children: [
                       pw.Text(
                         'Version $appVersion',
-                        style:
-                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
+                        style: const pw.TextStyle(
+                          fontSize: 8.5,
+                          color: pdfMuted,
+                        ),
                       ),
                       pw.SizedBox(height: 2),
                       pw.Text(
                         'Build $buildId',
-                        style:
-                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
+                        style: const pw.TextStyle(
+                          fontSize: 8.5,
+                          color: pdfMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -19674,9 +20127,7 @@ class _EditorScreenState extends State<EditorScreen>
                   fontWeight: pw.FontWeight.bold,
                 ),
                 cellStyle: const pw.TextStyle(fontSize: 7.4, color: pdfInk),
-                headerDecoration: const pw.BoxDecoration(
-                  color: pdfHeaderFill,
-                ),
+                headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
                 rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
                 oddRowDecoration: const pw.BoxDecoration(
                   color: PdfColor.fromInt(0xfffbfdff),
@@ -19693,10 +20144,12 @@ class _EditorScreenState extends State<EditorScreen>
 
           if (includeAttachments) {
             content
-              ..add(sectionTitle(
-                'Adjuntos',
-                subtitle: 'Fotos, videos, audios, archivos y ubicaciones.',
-              ));
+              ..add(
+                sectionTitle(
+                  'Adjuntos',
+                  subtitle: 'Fotos, videos, audios, archivos y ubicaciones.',
+                ),
+              );
             if (attachmentRows.isEmpty) {
               content.add(
                 pw.Text(
@@ -19756,11 +20209,13 @@ class _EditorScreenState extends State<EditorScreen>
 
             if (evidencePreview.isNotEmpty) {
               content
-                ..add(sectionTitle(
-                  'Evidencias',
-                  subtitle:
-                      'Todas las fotos, videos, audios, archivos y ubicaciones registradas.',
-                ))
+                ..add(
+                  sectionTitle(
+                    'Evidencias',
+                    subtitle:
+                        'Todas las fotos, videos, audios, archivos y ubicaciones registradas.',
+                  ),
+                )
                 ..add(
                   pw.Wrap(
                     spacing: 10,
@@ -19852,11 +20307,13 @@ class _EditorScreenState extends State<EditorScreen>
                 '${signature.signedAt.toLocal().year}-${_two(signature.signedAt.toLocal().month)}-${_two(signature.signedAt.toLocal().day)} '
                 '${_two(signature.signedAt.toLocal().hour)}:${_two(signature.signedAt.toLocal().minute)}';
             content
-              ..add(sectionTitle(
-                'Firma y cierre de planilla',
-                subtitle:
-                    'Certificación firmada digitalmente por el responsable de campo.',
-              ))
+              ..add(
+                sectionTitle(
+                  'Firma y cierre de planilla',
+                  subtitle:
+                      'Certificación firmada digitalmente por el responsable de campo.',
+                ),
+              )
               ..add(
                 pw.Container(
                   padding: const pw.EdgeInsets.all(14),
@@ -20092,13 +20549,9 @@ class _EditorScreenState extends State<EditorScreen>
               preferThumb: true,
             );
             if (bytes != null && bytes.isNotEmpty) {
-              previewBytes = _compressThumb(
-                    bytes,
-                    maxW: 720,
-                    maxH: 520,
-                    quality: 76,
-                  ) ??
-                  bytes;
+              previewBytes =
+                  _compressThumb(bytes, maxW: 720, maxH: 520, quality: 76) ??
+                      bytes;
             }
           }
 
@@ -20183,10 +20636,7 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               notes: _audioNotes(audio),
               relativePath: relPath,
-              linkTarget: exportLinkFromStoredRef(
-                audio.storedRef,
-                audio: true,
-              ),
+              linkTarget: exportLinkFromStoredRef(audio.storedRef, audio: true),
               addedAt: audio.addedAt,
               transcript: audio.transcript,
             ),

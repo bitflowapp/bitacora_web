@@ -144,6 +144,20 @@ extension _EditorActions on _EditorScreenState {
           onSelected: () => unawaited(_openColumnPanel()),
         ),
         CommandAction(
+          id: 'add_columns',
+          label: 'Agregar columnas',
+          subtitle: '+1, +5, +10 o cantidad personalizada',
+          icon: Icons.table_chart_rounded,
+          onSelected: () => unawaited(_openAddColumnsDialog()),
+        ),
+        CommandAction(
+          id: 'confirm_advance_mode',
+          label: 'Al confirmar',
+          subtitle: _confirmAdvanceLabel(_confirmAdvanceMode),
+          icon: Icons.keyboard_tab_rounded,
+          onSelected: () => unawaited(_openConfirmAdvancePicker()),
+        ),
+        CommandAction(
           id: 'center_column',
           label: 'Centrar columna activa',
           subtitle: activeCell,
@@ -195,12 +209,8 @@ extension _EditorActions on _EditorScreenState {
           subtitle: 'Editar fila activa con inputs por tipo',
           shortcut: 'Ctrl/Cmd+Shift+M',
           icon: Icons.description_outlined,
-          onSelected: () => unawaited(
-            _openRowFormMode(
-              rowIndex: _selRow,
-              createNew: false,
-            ),
-          ),
+          onSelected: () =>
+              unawaited(_openRowFormMode(rowIndex: _selRow, createNew: false)),
         ),
         CommandAction(
           id: 'create_row',
@@ -208,9 +218,8 @@ extension _EditorActions on _EditorScreenState {
           subtitle: 'Inserta fila con defaults y foco en primera celda',
           shortcut: 'Ctrl/Cmd+N',
           icon: Icons.add_rounded,
-          onSelected: () => unawaited(
-            _createNewRecordAction(origin: 'command_palette'),
-          ),
+          onSelected: () =>
+              unawaited(_createNewRecordAction(origin: 'command_palette')),
         ),
         CommandAction(
           id: 'templates',
@@ -422,12 +431,8 @@ extension _EditorActions on _EditorScreenState {
           subtitle: 'Resumen comercial + evidencias',
           shortcut: 'Ctrl/Cmd+Shift+P',
           icon: Icons.picture_as_pdf_outlined,
-          onSelected: () => unawaited(
-            _exportPdf(
-              includeAttachments: true,
-              share: false,
-            ),
-          ),
+          onSelected: () =>
+              unawaited(_exportPdf(includeAttachments: true, share: false)),
         ),
         CommandAction(
           id: 'export_xlsx',

@@ -56,7 +56,17 @@ const String _kPrefFieldMode = 'bitflow.editor.field_mode.v1';
 
 // ============================== Enums ======================================
 
-enum _OverlayMove { none, next, prev, down, up }
+enum _OverlayMove {
+  none,
+  next,
+  prev,
+  down,
+  up,
+  rightStayAtEdge,
+  downStayAtEdge,
+}
+
+enum _ConfirmAdvanceMode { stay, down, right }
 
 enum _ReviewFilterMode { all, pending, reviewed }
 
@@ -198,10 +208,7 @@ class _ReviewStatePill extends StatelessWidget {
 }
 
 class _ReviewMetaLine extends StatelessWidget {
-  const _ReviewMetaLine({
-    required this.label,
-    required this.value,
-  });
+  const _ReviewMetaLine({required this.label, required this.value});
 
   final String label;
   final String value;
