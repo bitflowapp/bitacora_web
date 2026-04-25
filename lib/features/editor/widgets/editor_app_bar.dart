@@ -836,19 +836,19 @@ class _MobileCompactHeader extends StatelessWidget {
             ];
 
             return Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
               child: GlassSurface(
-                radius: 22,
-                blurSigma: palette.isLight ? 13 : 10,
+                radius: 18,
+                blurSigma: palette.isLight ? 11 : 9,
                 backgroundColor: palette.headerCardBg
-                    .withValues(alpha: palette.isLight ? 0.78 : 0.6),
+                    .withValues(alpha: palette.isLight ? 0.74 : 0.58),
                 borderColor: palette.headerCardBorder
-                    .withValues(alpha: palette.isLight ? 0.55 : 0.84),
+                    .withValues(alpha: palette.isLight ? 0.5 : 0.84),
                 shadowColor: Colors.black
-                    .withValues(alpha: palette.isLight ? 0.08 : 0.26),
-                shadowBlur: 18,
-                shadowOffset: const Offset(0, 8),
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    .withValues(alpha: palette.isLight ? 0.06 : 0.22),
+                shadowBlur: 12,
+                shadowOffset: const Offset(0, 5),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -862,7 +862,7 @@ class _MobileCompactHeader extends StatelessWidget {
                             style: TextStyle(
                               color: palette.fg,
                               fontWeight: FontWeight.w900,
-                              fontSize: 15,
+                              fontSize: 14.4,
                               height: 1.1,
                             ),
                           ),
@@ -884,7 +884,7 @@ class _MobileCompactHeader extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       summaryParts.join(' | '),
                       maxLines: 1,
@@ -892,53 +892,74 @@ class _MobileCompactHeader extends StatelessWidget {
                       style: TextStyle(
                         color: palette.fgMuted,
                         fontWeight: FontWeight.w700,
-                        fontSize: 11.8,
+                        fontSize: 11.2,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
-                      'Celda: $activeCell | $localLabel | $offlineLabel',
+                      'Celda $activeCell | $localLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: palette.fgMuted,
                         fontWeight: FontWeight.w600,
-                        fontSize: 11.5,
+                        fontSize: 10.8,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppButton(
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          AppButton(
                             label: AppStrings.editorSave,
                             icon: Icons.check_circle_outline_rounded,
                             variant: AppButtonVariant.secondary,
                             size: AppButtonSize.sm,
                             onPressed: onSave,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: AppButton(
+                          const SizedBox(width: 6),
+                          AppButton(
                             label: 'Cola',
                             icon: Icons.sync_alt_rounded,
                             variant: AppButtonVariant.secondary,
                             size: AppButtonSize.sm,
                             onPressed: onOpenOfflineQueue,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: AppButton(
+                          const SizedBox(width: 6),
+                          AppButton(
                             label: AppStrings.editorExport,
                             icon: Icons.ios_share_rounded,
                             variant: AppButtonVariant.ghost,
                             size: AppButtonSize.sm,
                             onPressed: onExport,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: palette.hintBg,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: palette.border,
+                                width: palette.hairline,
+                              ),
+                            ),
+                            child: Text(
+                              offlineLabel,
+                              style: TextStyle(
+                                color: palette.fgMuted,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10.6,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

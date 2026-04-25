@@ -600,8 +600,6 @@ class _SelectionQuickActionsBar extends StatefulWidget {
 }
 
 class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
-  bool _expanded = false;
-
   List<_QuickActionItem> _buildActions() {
     return <_QuickActionItem>[
       _QuickActionItem(
@@ -696,39 +694,28 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     );
   }
 
-  Widget _buildQuickButton(_QuickActionItem action) {
-    return AppButton(
-      label: action.label,
-      icon: action.icon,
-      size: AppButtonSize.sm,
-      variant: action.variant,
-      onPressed: action.onTap,
-    );
-  }
-
-  Widget _buildCompactQuickButton(_QuickActionItem action) {
+  Widget _buildQuickChip(_QuickActionItem action) {
     return Tooltip(
       message: action.label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         onTap: action.onTap,
         child: Container(
-          width: 58,
-          constraints: const BoxConstraints(minHeight: 58),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 34),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: widget.palette.hintBg,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: widget.palette.border,
               width: widget.palette.hairline,
             ),
           ),
-          child: Column(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(action.icon, size: 18, color: widget.palette.fg),
-              const SizedBox(height: 4),
+              Icon(action.icon, size: 15, color: widget.palette.fgMuted),
+              const SizedBox(width: 6),
               Text(
                 _compactLabelFor(action.label),
                 maxLines: 1,
@@ -736,7 +723,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                 style: TextStyle(
                   color: widget.palette.fgMuted,
                   fontWeight: FontWeight.w700,
-                  fontSize: 10.5,
+                  fontSize: 11.2,
                   height: 1,
                 ),
               ),
@@ -765,155 +752,72 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         final rowsLabel = widget.selectedRowsCount <= 1
             ? '1 fila'
             : '${widget.selectedRowsCount} filas';
-        final isCompact = constraints.maxWidth <= 420;
         final actions = _buildActions();
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
         final keyboardVisible = bottomInset > 0.0;
-        final compactLayout = isCompact || keyboardVisible;
-        const safeSeparator = ' | ';
-        final quickActionsHeader =
-            '${AppStrings.quickActions}$safeSeparator$rowsLabel';
-        final pinnedCount = 4;
-        final pinnedActions = actions.take(pinnedCount).toList(growable: false);
-        final moreActions = actions.skip(pinnedCount).toList(growable: false);
+        final compactLayout = constraints.maxWidth <= 420 || keyboardVisible;
+        final visibleActions = compactLayout ? 5 : actions.length;
+        final pinnedActions = actions.take(visibleActions).toList(growable: false);
+        final moreActions = actions.skip(visibleActions).toList(growable: false);
         final compactMoreActions = _buildCompactMoreActions(moreActions);
+        final quickActionsHeader =
+            '${AppStrings.quickActions} • $rowsLabel • ${widget.selectionLabel}';
 
         return AnimatedPadding(
-          duration: const Duration(milliseconds: 150),
+          duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
-          padding: EdgeInsets.fromLTRB(12, 0, 12, keyboardVisible ? 6 : 8),
+          padding: EdgeInsets.fromLTRB(10, 0, 10, keyboardVisible ? 4 : 6),
           child: GlassSurface(
-            radius: keyboardVisible ? 14 : 18,
-            blurSigma: widget.palette.isLight ? (keyboardVisible ? 10 : 12) : 9,
+            radius: 14,
+            blurSigma: widget.palette.isLight ? 10 : 8,
             backgroundColor: widget.palette.menuBg
-                .withValues(alpha: widget.palette.isLight ? 0.78 : 0.58),
+                .withValues(alpha: widget.palette.isLight ? 0.72 : 0.56),
             borderColor: widget.palette.borderStrong
-                .withValues(alpha: widget.palette.isLight ? 0.55 : 0.82),
+                .withValues(alpha: widget.palette.isLight ? 0.44 : 0.78),
             shadowColor: Colors.black
-                .withValues(alpha: widget.palette.isLight ? 0.08 : 0.24),
-            shadowBlur: 16,
-            shadowOffset: const Offset(0, 8),
-            padding: keyboardVisible
-                ? const EdgeInsets.fromLTRB(8, 6, 8, 6)
-                : const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                .withValues(alpha: widget.palette.isLight ? 0.06 : 0.2),
+            shadowBlur: 10,
+            shadowOffset: const Offset(0, 4),
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: compactLayout
-                      ? () => unawaited(
-                            _openMoreActionsSheet(compactMoreActions),
-                          )
-                      : () => setState(() => _expanded = !_expanded),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 2,
-                      vertical: 2,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            quickActionsHeader,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: widget.palette.fgMuted,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12.8,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          compactLayout
-                              ? Icons.more_horiz_rounded
-                              : (_expanded
-                                  ? Icons.expand_less_rounded
-                                  : Icons.expand_more_rounded),
-                          size: 18,
-                          color: widget.palette.fgMuted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (!keyboardVisible && (compactLayout || _expanded)) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.selectionLabel,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    quickActionsHeader,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: widget.palette.fgMuted,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11.8,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.6,
                     ),
                   ),
-                ],
-                SizedBox(height: keyboardVisible ? 4 : 8),
-                if (compactLayout)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final action in pinnedActions) ...[
-                          _buildCompactQuickButton(action),
-                          const SizedBox(width: 8),
-                        ],
-                        if (compactMoreActions.isNotEmpty)
-                          _buildCompactQuickButton(
-                            _QuickActionItem(
-                              label: AppStrings.more,
-                              icon: Icons.more_horiz_rounded,
-                              onTap: () => unawaited(
-                                _openMoreActionsSheet(compactMoreActions),
-                              ),
+                ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      for (final action in pinnedActions) ...[
+                        _buildQuickChip(action),
+                        const SizedBox(width: 6),
+                      ],
+                      if (compactMoreActions.isNotEmpty || widget.canMarkStatus)
+                        _buildQuickChip(
+                          _QuickActionItem(
+                            label: AppStrings.more,
+                            icon: Icons.more_horiz_rounded,
+                            onTap: () => unawaited(
+                              _openMoreActionsSheet(compactMoreActions),
                             ),
                           ),
-                      ],
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final action in pinnedActions)
-                        _buildQuickButton(action),
-                      AppButton(
-                        label: AppStrings.more,
-                        icon: Icons.more_horiz_rounded,
-                        size: AppButtonSize.sm,
-                        variant: AppButtonVariant.ghost,
-                        onPressed: moreActions.isEmpty
-                            ? null
-                            : () =>
-                                unawaited(_openMoreActionsSheet(moreActions)),
-                      ),
-                    ],
-                  ),
-                if (!compactLayout && _expanded && widget.canMarkStatus) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final status in const <String>[
-                        'OK',
-                        'Obs',
-                        'Urgente'
-                      ])
-                        AppButton(
-                          label: status,
-                          icon: Icons.flag_outlined,
-                          size: AppButtonSize.sm,
-                          variant: AppButtonVariant.ghost,
-                          onPressed: () => widget.onMarkStatus(status),
                         ),
                     ],
                   ),
-                ],
+                ),
               ],
             ),
           ),
