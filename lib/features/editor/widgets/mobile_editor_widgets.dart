@@ -627,12 +627,6 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         icon: Icons.my_location_rounded,
         onTap: widget.onAttachGps,
       ),
-      _QuickActionItem(
-        label: AppStrings.quickActionGoTo,
-        icon: Icons.pin_drop_outlined,
-        variant: AppButtonVariant.ghost,
-        onTap: widget.onJumpTo,
-      ),
     ];
   }
 
@@ -701,8 +695,8 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         borderRadius: BorderRadius.circular(999),
         onTap: action.onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 34),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: widget.palette.hintBg,
             borderRadius: BorderRadius.circular(999),
@@ -723,7 +717,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                 style: TextStyle(
                   color: widget.palette.fgMuted,
                   fontWeight: FontWeight.w700,
-                  fontSize: 11.2,
+                  fontSize: 11,
                   height: 1,
                 ),
               ),
@@ -749,76 +743,84 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final rowsLabel = widget.selectedRowsCount <= 1
-            ? '1 fila'
-            : '${widget.selectedRowsCount} filas';
+        final rowsLabel = widget.selectedRowsCount <= 1 ? '1 fila' : 'filas';
         final actions = _buildActions();
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
         final keyboardVisible = bottomInset > 0.0;
-        final compactLayout = constraints.maxWidth <= 420 || keyboardVisible;
-        final visibleActions = compactLayout ? 5 : actions.length;
+        final compactLayout = constraints.maxWidth <= 520 || keyboardVisible;
+        const visibleActions = 5;
         final pinnedActions = actions.take(visibleActions).toList(growable: false);
         final moreActions = actions.skip(visibleActions).toList(growable: false);
         final compactMoreActions = _buildCompactMoreActions(moreActions);
-        final quickActionsHeader =
-            '${AppStrings.quickActions} • $rowsLabel • ${widget.selectionLabel}';
 
         return AnimatedPadding(
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
-          padding: EdgeInsets.fromLTRB(10, 0, 10, keyboardVisible ? 4 : 6),
+          padding: EdgeInsets.fromLTRB(10, 0, 10, keyboardVisible ? 2 : 4),
           child: GlassSurface(
-            radius: 14,
-            blurSigma: widget.palette.isLight ? 10 : 8,
+            radius: 12,
+            blurSigma: widget.palette.isLight ? 8 : 7,
             backgroundColor: widget.palette.menuBg
-                .withValues(alpha: widget.palette.isLight ? 0.72 : 0.56),
+                .withValues(alpha: widget.palette.isLight ? 0.68 : 0.52),
             borderColor: widget.palette.borderStrong
-                .withValues(alpha: widget.palette.isLight ? 0.44 : 0.78),
+                .withValues(alpha: widget.palette.isLight ? 0.4 : 0.74),
             shadowColor: Colors.black
-                .withValues(alpha: widget.palette.isLight ? 0.06 : 0.2),
-            shadowBlur: 10,
-            shadowOffset: const Offset(0, 4),
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Text(
-                    quickActionsHeader,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: widget.palette.fgMuted,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11.6,
+                .withValues(alpha: widget.palette.isLight ? 0.05 : 0.16),
+            shadowBlur: 8,
+            shadowOffset: const Offset(0, 3),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: SizedBox(
+              height: compactLayout ? 42 : 44,
+              child: Row(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: widget.palette.hintBg,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: widget.palette.border,
+                        width: widget.palette.hairline,
+                      ),
+                    ),
+                    child: Text(
+                      '${widget.selectedRowsCount} $rowsLabel',
+                      style: TextStyle(
+                        color: widget.palette.fgMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.8,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const ClampingScrollPhysics(),
-                  child: Row(
-                    children: [
-                      for (final action in pinnedActions) ...[
-                        _buildQuickChip(action),
-                        const SizedBox(width: 6),
-                      ],
-                      if (compactMoreActions.isNotEmpty || widget.canMarkStatus)
-                        _buildQuickChip(
-                          _QuickActionItem(
-                            label: AppStrings.more,
-                            icon: Icons.more_horiz_rounded,
-                            onTap: () => unawaited(
-                              _openMoreActionsSheet(compactMoreActions),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          for (final action in pinnedActions) ...[
+                            _buildQuickChip(action),
+                            const SizedBox(width: 6),
+                          ],
+                          if (compactMoreActions.isNotEmpty ||
+                              widget.canMarkStatus)
+                            _buildQuickChip(
+                              _QuickActionItem(
+                                label: AppStrings.more,
+                                icon: Icons.more_horiz_rounded,
+                                onTap: () => unawaited(
+                                  _openMoreActionsSheet(compactMoreActions),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -829,6 +831,14 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
   List<_QuickActionItem> _buildCompactMoreActions(
       List<_QuickActionItem> actions) {
     final out = <_QuickActionItem>[...actions];
+    out.insert(
+      0,
+      _QuickActionItem(
+        label: AppStrings.quickActionGoTo,
+        icon: Icons.pin_drop_outlined,
+        onTap: widget.onJumpTo,
+      ),
+    );
     if (widget.canMarkStatus) {
       out.addAll(<_QuickActionItem>[
         _QuickActionItem(
