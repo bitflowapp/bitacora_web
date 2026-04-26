@@ -208,7 +208,11 @@ Future<Uint8List> buildXlsxWithPhotos({
     // Headers de texto (si faltan, se completan con vacio).
     for (int i = 0; i < textCols; i++) {
       final title = (i < columns.length) ? columns[i] : '';
-      sheet.getRangeByIndex(headerRow, textStartCol + i).setText(title);
+      if (title.trim().isNotEmpty) {
+        sheet
+            .getRangeByIndex(headerRow, textStartCol + i)
+            .setText(_polishVisibleText(title));
+      }
     }
 
     if (hasGps) {
@@ -284,7 +288,12 @@ Future<Uint8List> buildXlsxWithPhotos({
 
       // Texto: escribe hasta textCols, padding con ''.
       for (int c = 0; c < textCols; c++) {
-        final v = (c < rowValues.length) ? rowValues[c] : '';
+        var v = (c < rowValues.length) ? rowValues[c] : '';
+        if (_isEvidenceSummaryColumn(c, columns)) {
+          v = _evidenceSummaryForTypes(
+            _evidenceTypesForRow(r, attachments),
+          );
+        }
         _setSheetValue(sheet, excelRow, textStartCol + c, v);
       }
 
@@ -307,7 +316,7 @@ Future<Uint8List> buildXlsxWithPhotos({
           }
           sheet
               .getRangeByIndex(excelRow, gpsStartCol + 4)
-              .setText(gps.isLastKnown ? 'Ultima ubicacion' : 'GPS');
+              .setText(gps.isLastKnown ? 'Última ubicación' : 'GPS');
         }
       }
 
@@ -434,14 +443,14 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
 
     if (attachments != null && attachments.isNotEmpty) {
-      _buildAttachmentsSheet(
+      embeddedCount += _buildAttachmentsSheet(
         workbook,
         attachments: attachments,
       );
     }
 
     if (includeCoverSheet) {
-      _buildCoverSheet(workbook);
+      _buildCoverSheet(workbook, sheetName: sheetName);
     }
 
     if (includeSummarySheet) {
@@ -465,7 +474,7 @@ Future<Uint8List> buildXlsxWithPhotos({
       workbook,
       embeddedImageCount: embeddedCount,
       exportVersion: _kExportVersion,
-      appVersion: _kAppVersion.isEmpty ? null : _kAppVersion,
+      appVersion: _cleanAppVersionForMeta(_kAppVersion),
       timestamp: DateTime.now(),
     );
 
@@ -490,7 +499,8 @@ void addBitflowMetaSheet(
   final ts = (timestamp ?? DateTime.now()).toIso8601String();
   final rows = <List<String>>[
     ['exportVersion', exportVersion ?? _kExportVersion],
-    ['appVersion', appVersion ?? ''],
+    if ((appVersion ?? '').trim().isNotEmpty)
+      ['appVersion', appVersion!.trim()],
     ['timestamp', ts],
     ['embeddedImageCount', embeddedImageCount.toString()],
   ];
@@ -515,14 +525,14 @@ int _buildFotosSheet(
   photosSheet.showGridlines = false;
 
   final headers = [
-    'Row',
-    'Col',
-    'File',
-    'AddedAt',
-    'Lat',
-    'Lon',
-    'Accuracy',
-    'Source',
+    'Fila',
+    'Columna',
+    'Archivo original',
+    'Fecha',
+    'Latitud',
+    'Longitud',
+    'Precisión',
+    'Origen',
     'Foto',
   ];
 
@@ -535,7 +545,7 @@ int _buildFotosSheet(
   photosSheet.setRowHeightInPixels(1, 28);
   photosSheet.getRangeByIndex(2, 1).freezePanes();
 
-  const hiddenHeaders = <String>{'File', 'Mime', 'Path'};
+  const hiddenHeaders = <String>{'Archivo original', 'Mime', 'Path'};
   for (int c = 0; c < headers.length; c++) {
     if (!hiddenHeaders.contains(headers[c])) continue;
     final existing = photosSheet.columns[c + 1];
@@ -556,7 +566,8 @@ int _buildFotosSheet(
 
     photosSheet.getRangeByIndex(row, 1).setNumber(item.rowIndex + 1);
     photosSheet.getRangeByIndex(row, 2).setNumber(item.colIndex + 1);
-    photosSheet.getRangeByIndex(row, 3).setText('');
+    // Syncfusion can render empty text cells as a visible placeholder in some
+    // readers, so leave intentionally blank cells untouched.
     final addedAt = photosSheet.getRangeByIndex(row, 4);
     addedAt.setDateTime(item.addedAt);
     _styleDateCell(addedAt);
@@ -569,7 +580,10 @@ int _buildFotosSheet(
     if (item.accuracy != null) {
       photosSheet.getRangeByIndex(row, 7).setNumber(item.accuracy ?? 0);
     }
-    photosSheet.getRangeByIndex(row, 8).setText(item.sourceLabel);
+    final sourceLabel = _friendlyPhotoSourceLabel(item.sourceLabel);
+    if (sourceLabel.isNotEmpty) {
+      photosSheet.getRangeByIndex(row, 8).setText(sourceLabel);
+    }
     photosSheet.setRowHeightInPixels(row, 96);
 
     if (bytes != null && bytes.isNotEmpty) {
@@ -589,10 +603,14 @@ int _buildFotosSheet(
         picture.height = 82;
         embeddedCount++;
       } catch (_) {
-        photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
+        photosSheet
+            .getRangeByIndex(row, previewCol)
+            .setText('Foto adjunta disponible desde la app/export.');
       }
     } else {
-      photosSheet.getRangeByIndex(row, previewCol).setText('N/D');
+      photosSheet
+          .getRangeByIndex(row, previewCol)
+          .setText('Foto adjunta disponible desde la app/export.');
     }
   }
 
@@ -627,7 +645,7 @@ int _buildFotosSheet(
   return embeddedCount;
 }
 
-void _buildAttachmentsSheet(
+int _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
@@ -639,11 +657,11 @@ void _buildAttachmentsSheet(
     'Valor',
     'Tipo',
     'Nombre',
-    'Descripcion',
-    'Transcripcion',
+    'Descripción',
+    'Transcripción',
     'Fecha',
     'Coordenadas',
-    'Precision',
+    'Precisión',
     'Abrir',
     'Vista',
   ];
@@ -661,16 +679,29 @@ void _buildAttachmentsSheet(
   headerRange.cellStyle.fontSize = 11;
   headerRange.cellStyle.wrapText = true;
 
+  final sequenceByCellType = <String, int>{};
+  var embeddedCount = 0;
+
   for (int i = 0; i < attachments.length; i++) {
     final row = i + 2;
     final item = attachments[i];
     final target = item.effectiveLinkTarget;
+    final sequenceKey = '${item.cellRef}:${item.type}';
+    final sequence = (sequenceByCellType[sequenceKey] ?? 0) + 1;
+    sequenceByCellType[sequenceKey] = sequence;
+
     sheet.getRangeByIndex(row, 1).setText(item.cellRef);
-    sheet.getRangeByIndex(row, 2).setText(_clipCellText(item.cellValue));
+    sheet
+        .getRangeByIndex(row, 2)
+        .setText(_clipCellText(_polishVisibleText(item.cellValue)));
     sheet.getRangeByIndex(row, 3).setText(_attachmentTypeLabel(item.type));
-    sheet.getRangeByIndex(row, 4).setText(_friendlyEvidenceName(item));
-    sheet.getRangeByIndex(row, 5).setText(item.notes);
-    sheet.getRangeByIndex(row, 6).setText(item.transcript.trim());
+    sheet
+        .getRangeByIndex(row, 4)
+        .setText(_friendlyEvidenceName(item, sequence));
+    sheet.getRangeByIndex(row, 5).setText(_polishVisibleText(item.notes));
+    sheet
+        .getRangeByIndex(row, 6)
+        .setText(_transcriptTextForEvidence(item.transcript));
     if (item.addedAt != null) {
       final dateCell = sheet.getRangeByIndex(row, 7);
       dateCell.setDateTime(item.addedAt!);
@@ -694,8 +725,6 @@ void _buildAttachmentsSheet(
         target,
         displayText: _attachmentOpenLabel(item.type),
       );
-    } else {
-      openCell.setText('');
     }
 
     final previewCell = sheet.getRangeByIndex(row, 11);
@@ -715,9 +744,12 @@ void _buildAttachmentsSheet(
         );
         picture.width = 104;
         picture.height = 78;
+        embeddedCount++;
       } catch (_) {
-        previewCell.setText('Imagen no disponible');
+        previewCell.setText('Foto adjunta disponible desde la app/export.');
       }
+    } else if (item.type == 'photo') {
+      previewCell.setText('Foto adjunta disponible desde la app/export.');
     } else if (item.type == 'video') {
       previewCell.setText('Video adjunto');
     } else if (item.type == 'audio') {
@@ -747,6 +779,7 @@ void _buildAttachmentsSheet(
     } catch (_) {}
   }
   sheet.setColumnWidthInPixels(11, 120);
+  return embeddedCount;
 }
 
 bool _hasGps(List<GpsExport?>? gpsByRow) {
@@ -795,6 +828,61 @@ int _filesCount(List<AttachmentRow>? attachments) {
   return attachments.where((a) => a.type == 'file').length;
 }
 
+bool _isEvidenceSummaryColumn(int index, List<String> columns) {
+  if (index < 0 || index >= columns.length) return false;
+  final normalized =
+      columns[index].toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  return normalized.contains('evidencia') ||
+      normalized == 'foto' ||
+      normalized == 'fotos' ||
+      normalized == 'foto adjunta';
+}
+
+List<String> _evidenceTypesForRow(
+  int rowIndex,
+  List<AttachmentRow>? attachments,
+) {
+  if (attachments == null || attachments.isEmpty) return const <String>[];
+  final types = <String>[];
+  for (final item in attachments) {
+    if (_rowIndexFromCellRef(item.cellRef) == rowIndex) {
+      types.add(item.type);
+    }
+  }
+  return types;
+}
+
+int? _rowIndexFromCellRef(String value) {
+  final match = RegExp(r'^[A-Za-z]+(\d+)$').firstMatch(value.trim());
+  if (match == null) return null;
+  final oneBased = int.tryParse(match.group(1) ?? '');
+  if (oneBased == null || oneBased < 1) return null;
+  return oneBased - 1;
+}
+
+String _evidenceSummaryForTypes(List<String> rawTypes) {
+  final types = rawTypes
+      .map((type) => type.trim().toLowerCase())
+      .where((type) => type.isNotEmpty)
+      .toList(growable: false);
+  if (types.isEmpty) return 'Sin evidencia';
+  if (types.length > 1) return '${types.length} evidencias';
+  switch (types.single) {
+    case 'photo':
+      return 'Foto adjunta';
+    case 'video':
+      return 'Video adjunto';
+    case 'gps':
+      return 'Ubicación GPS';
+    case 'audio':
+      return 'Audio adjunto';
+    case 'file':
+      return 'Archivo adjunto';
+    default:
+      return '1 evidencia';
+  }
+}
+
 void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   final trimmed = v.trim();
   final numVal = double.tryParse(trimmed);
@@ -812,11 +900,11 @@ void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
     return;
   }
   final cell = sheet.getRangeByIndex(r, c);
-  cell.setText(v);
+  cell.setText(_polishVisibleText(v));
   cell.cellStyle.hAlign = xlsio.HAlignType.left;
 }
 
-void _buildCoverSheet(xlsio.Workbook wb) {
+void _buildCoverSheet(xlsio.Workbook wb, {required String sheetName}) {
   final cover = wb.worksheets.addWithName('Caratula');
   cover.showGridlines = false;
   cover.setColumnWidthInPixels(1, 190);
@@ -830,7 +918,7 @@ void _buildCoverSheet(xlsio.Workbook wb) {
   title.cellStyle.fontColor = _kInk;
 
   final subtitle = cover.getRangeByIndex(2, 1);
-  subtitle.setText('Reporte tecnico de campo');
+  subtitle.setText('Reporte técnico de campo');
   subtitle.cellStyle.fontSize = 12;
   subtitle.cellStyle.fontColor = _kMutedInk;
 
@@ -838,7 +926,7 @@ void _buildCoverSheet(xlsio.Workbook wb) {
     'Obra',
     'Cliente',
     'Responsable',
-    'Fecha de emision',
+    'Fecha de emisión',
   ];
   for (int i = 0; i < labels.length; i++) {
     final row = i + 5;
@@ -847,7 +935,9 @@ void _buildCoverSheet(xlsio.Workbook wb) {
     label.cellStyle.bold = true;
     label.cellStyle.fontColor = _kInk;
     label.cellStyle.backColor = _kSoftBlue2;
-    cover.getRangeByIndex(row, 2).setText('');
+    cover.getRangeByIndex(row, 2).setText(
+          i == 0 ? _fallbackSheetName(sheetName) : 'No especificado',
+        );
   }
   final generatedLabel = cover.getRangeByIndex(10, 1);
   generatedLabel.setText('Generado');
@@ -881,7 +971,10 @@ void _buildSummarySheet(
   final totalEvidence =
       photosCount + videosCount + audiosCount + filesCount + gpsCount;
   final data = [
-    ['Planilla', sheetName.trim().isEmpty ? 'Bit Flow' : sheetName.trim()],
+    [
+      'Planilla',
+      sheetName.trim().isEmpty ? 'Bit Flow' : _polishVisibleText(sheetName),
+    ],
     ['Exportado', exportedAt],
     ['Filas', rowsCount],
     ['Evidencias', totalEvidence],
@@ -892,7 +985,7 @@ void _buildSummarySheet(
     ['Ubicaciones', gpsCount],
   ];
   final title = summary.getRangeByIndex(1, 1);
-  title.setText('Resumen de exportacion');
+  title.setText('Resumen de exportación');
   title.cellStyle.bold = true;
   title.cellStyle.fontSize = 16;
   title.cellStyle.fontColor = _kInk;
@@ -911,7 +1004,7 @@ void _buildSummarySheet(
       value.setNumber(rawValue.toDouble());
       value.cellStyle.hAlign = xlsio.HAlignType.right;
     } else {
-      value.setText(rawValue.toString());
+      value.setText(_polishVisibleText(rawValue.toString()));
     }
   }
   final range = summary.getRangeByIndex(3, 1, data.length + 2, 2);
@@ -994,7 +1087,7 @@ String _attachmentTypeLabel(String raw) {
     case 'audio':
       return 'Audio adjunto';
     case 'gps':
-      return 'Ubicacion GPS';
+      return 'Ubicación GPS';
     case 'file':
       return 'Archivo adjunto';
     default:
@@ -1002,20 +1095,102 @@ String _attachmentTypeLabel(String raw) {
   }
 }
 
-String _friendlyEvidenceName(AttachmentRow item) {
-  final typeLabel = _attachmentTypeLabel(item.type);
-  final name = item.fileName.trim();
-  if (name.isEmpty) return typeLabel;
-  return name
-      .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+String _friendlyPhotoSourceLabel(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'camera':
+    case 'camara':
+    case 'cámara':
+      return 'Cámara';
+    case 'gallery':
+    case 'galeria':
+    case 'galería':
+      return 'Galería';
+    case 'current':
+    case 'stream':
+      return 'Captura desde la app';
+    default:
+      return _polishVisibleText(raw.trim());
+  }
+}
+
+String _friendlyEvidenceName(AttachmentRow item, int sequence) {
+  final cell = item.cellRef.trim();
+  final suffix = cell.isEmpty ? '' : ' · $cell';
+  switch (item.type.trim().toLowerCase()) {
+    case 'photo':
+      return 'Foto $sequence$suffix';
+    case 'video':
+      return 'Video $sequence$suffix';
+    case 'audio':
+      return 'Audio $sequence$suffix';
+    case 'gps':
+      return 'GPS$suffix';
+    case 'file':
+      return 'Archivo $sequence$suffix';
+    default:
+      return 'Evidencia $sequence$suffix';
+  }
 }
 
 String _clipCellText(String value) {
   final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
   if (normalized.length <= 120) return normalized;
   return '${normalized.substring(0, 119)}...';
+}
+
+String _transcriptTextForEvidence(String value) {
+  final normalized = _polishVisibleText(
+    value.replaceAll(RegExp(r'\s+'), ' ').trim(),
+  );
+  return normalized.isEmpty ? 'Sin transcripción' : normalized;
+}
+
+String _fallbackSheetName(String sheetName) {
+  final clean =
+      _polishVisibleText(sheetName.replaceAll(RegExp(r'\s+'), ' ').trim());
+  return clean.isEmpty ? 'No especificado' : clean;
+}
+
+String? _cleanAppVersionForMeta(String value) {
+  final clean = value.trim();
+  if (clean.isEmpty) return null;
+  final lower = clean.toLowerCase();
+  if (lower == 'dev' || lower == 'unknown' || lower == 'null') return null;
+  if (RegExp(r'^\d{1,2}$').hasMatch(clean)) return null;
+  return clean;
+}
+
+String _polishVisibleText(String value) {
+  if (value.isEmpty) return value;
+  var polished = value;
+  const replacements = <String, String>{
+    'Reporte tecnico': 'Reporte técnico',
+    'reporte tecnico': 'reporte técnico',
+    'Resumen de exportacion': 'Resumen de exportación',
+    'resumen de exportacion': 'resumen de exportación',
+    'Descripcion': 'Descripción',
+    'descripcion': 'descripción',
+    'Transcripcion': 'Transcripción',
+    'transcripcion': 'transcripción',
+    'Precision': 'Precisión',
+    'precision': 'precisión',
+    'Ubicacion': 'Ubicación',
+    'ubicacion': 'ubicación',
+    'Ultima ubicacion': 'Última ubicación',
+    'ultima ubicacion': 'última ubicación',
+    'Sin dano visible': 'Sin daño visible',
+    'sin dano visible': 'sin daño visible',
+    'Medicion': 'Medición',
+    'medicion': 'medición',
+    'Proteccion catodica': 'Protección catódica',
+    'proteccion catodica': 'protección catódica',
+    'Fecha de emision': 'Fecha de emisión',
+    'fecha de emision': 'fecha de emisión',
+  };
+  for (final entry in replacements.entries) {
+    polished = polished.replaceAll(entry.key, entry.value);
+  }
+  return polished;
 }
 
 String _attachmentOpenLabel(String raw) {
@@ -1027,7 +1202,7 @@ String _attachmentOpenLabel(String raw) {
     case 'photo':
       return 'Abrir foto';
     case 'gps':
-      return 'Abrir mapa';
+      return 'Abrir en mapa';
     default:
       return 'Abrir archivo';
   }

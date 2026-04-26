@@ -21711,36 +21711,56 @@ Este paquete incluye:
   String _gpsNotes(GpsMeta gps) {
     return 'Coordenadas ${gps.lat.toStringAsFixed(6)}, '
         '${gps.lng.toStringAsFixed(6)} - '
-        'Precision ${gps.accuracyM.toStringAsFixed(0)} m';
+        'Precisión ${gps.accuracyM.toStringAsFixed(0)} m';
   }
 
   String _photoNotes(PhotoAttachment photo) {
+    final kind = photo.mime.toLowerCase().startsWith('video/')
+        ? 'Video adjunto'
+        : photo.mime.toLowerCase().startsWith('image/')
+            ? 'Foto adjunta'
+            : 'Archivo adjunto';
     final parts = <String>[
+      kind,
       'Tamaño ${_formatBytes(photo.size)}',
     ];
-    final caption = photo.caption.trim();
+    final caption = _friendlyAttachmentCaption(photo.caption);
     if (caption.isNotEmpty) parts.insert(0, caption);
     if (photo.lat != null && photo.lon != null) {
       parts.add(
-        'Ubicacion ${photo.lat!.toStringAsFixed(6)}, ${photo.lon!.toStringAsFixed(6)}',
+        'Ubicación ${photo.lat!.toStringAsFixed(6)}, ${photo.lon!.toStringAsFixed(6)}',
       );
     }
     if (photo.accuracyM != null) {
-      parts.add('Precision ${photo.accuracyM!.toStringAsFixed(0)} m');
+      parts.add('Precisión ${photo.accuracyM!.toStringAsFixed(0)} m');
     }
     return parts.join(' - ');
   }
 
   String _audioNotes(AudioAttachment audio) {
     final parts = <String>[
-      'Duracion ${_formatDuration(Duration(milliseconds: audio.durationMs))}',
+      'Duración ${_formatDuration(Duration(milliseconds: audio.durationMs))}',
       'Tamaño ${_formatBytes(audio.size)}',
     ];
     final transcript = audio.transcript.trim();
     if (transcript.isNotEmpty) {
-      parts.add('Transcripcion: $transcript');
+      parts.add('Transcripción: $transcript');
     }
     return parts.join(' - ');
+  }
+
+  String _friendlyAttachmentCaption(String raw) {
+    final clean = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.isEmpty) return '';
+    if (clean.length > 32 && RegExp(r'^[A-Za-z0-9_ .-]+$').hasMatch(clean)) {
+      return '';
+    }
+    if (RegExp(
+            r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}')
+        .hasMatch(clean)) {
+      return '';
+    }
+    return clean;
   }
 
   Future<Uint8List?> _loadAudioBytesFromAttachment(

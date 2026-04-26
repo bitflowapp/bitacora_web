@@ -351,11 +351,14 @@ void main() {
 
     expect(workbookXml, contains('Evidencias'));
     expect(workbookXml, contains('Resumen'));
-    expect(visibleText, contains('Ubicacion GPS'));
+    expect(visibleText, contains('Ubicación GPS'));
+    expect(visibleText, contains('Precisión 8 m'));
     expect(visibleText, contains('Video adjunto'));
     expect(visibleText, contains('Abrir video'));
+    expect(visibleText, contains('Abrir en mapa'));
     expect(visibleText, contains('Bomba P-101'));
     expect(visibleText, contains('Evidencias'));
+    expect(visibleText, contains('Sin transcripción'));
     expect(visibleText, isNot(contains('Attachments')));
     expect(visibleText, isNot(contains('Ruta')));
     expect(visibleText, isNot(contains('storedRef')));
@@ -371,6 +374,96 @@ void main() {
       return utf8.decode(file.content as List<int>);
     }).join('\n');
     expect(worksheetXml, isNot(contains('attachments/video/B1_video_1.mp4')));
+  });
+
+  test('professional XLSX polish removes placeholders and technical names',
+      () async {
+    final png = makeTinyPng();
+    final bytes = await buildXlsxWithPhotos(
+      sheetName: 'Demo - Proteccion catodica Loma Norte',
+      columns: const ['Descripcion', 'Foto / Evidencia'],
+      rows: const [
+        ['Sin dano visible', '20'],
+        ['medicion inicial', '20'],
+      ],
+      attachments: [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'I1_p1_camera_.jpg',
+          notes: 'Sin dano visible - Precision 8 m',
+          relativePath: 'attachments/photos/I1_p1_camera_.jpg',
+          previewBytes: png,
+          cellValue: 'Sin dano visible',
+        ),
+        const AttachmentRow(
+          cellRef: 'B1',
+          type: 'video',
+          fileName:
+              'I2_p1_79887671725__76148AA3-8FAC-48CB-B483-7646123A086B.mov',
+          notes: 'Video adjunto',
+          relativePath:
+              'attachments/video/I2_p1_79887671725__76148AA3-8FAC-48CB-B483-7646123A086B.mov',
+          cellValue: 'Video adjunto',
+        ),
+        AttachmentRow(
+          cellRef: 'A2',
+          type: 'gps',
+          fileName: '',
+          notes: 'Ubicacion -34.603722, -58.381592 - Precision 8 m',
+          relativePath: '',
+          cellValue: 'medicion inicial',
+          linkTarget:
+              'https://www.google.com/maps/search/?api=1&query=-34.603722,-58.381592',
+          lat: -34.603722,
+          lng: -58.381592,
+          accuracy: 8,
+          addedAt: DateTime.parse('2026-04-26T10:15:00Z'),
+        ),
+      ],
+      includeCoverSheet: true,
+      includeSummarySheet: true,
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final names = archive.files
+        .map((f) => f.name.replaceAll('\\', '/'))
+        .toList(growable: false);
+    final workbookXml = utf8.decode(
+      archive.files
+          .firstWhere((f) => f.name.replaceAll('\\', '/') == 'xl/workbook.xml')
+          .content as List<int>,
+    );
+    final sharedStrings = readSharedStrings(archive);
+    final visibleText = sharedStrings.join('\n');
+
+    expect(workbookXml, contains('Caratula'));
+    expect(workbookXml, contains('Evidencias'));
+    expect(visibleText, contains('Reporte técnico de campo'));
+    expect(visibleText, contains('Resumen de exportación'));
+    expect(visibleText, contains('Fecha de emisión'));
+    expect(visibleText, contains('No especificado'));
+    expect(
+      visibleText,
+      contains('Demo - Protección catódica Loma Norte'),
+    );
+    expect(visibleText, contains('Descripción'));
+    expect(visibleText, contains('Sin daño visible'));
+    expect(visibleText, contains('medición inicial'));
+    expect(visibleText, contains('2 evidencias'));
+    expect(visibleText, contains('Ubicación GPS'));
+    expect(visibleText, contains('Foto 1 · A1'));
+    expect(visibleText, contains('Video 1 · B1'));
+    expect(visibleText, contains('GPS · A2'));
+    expect(visibleText, contains('Sin transcripción'));
+    expect(sharedStrings, isNot(contains('20')));
+    expect(visibleText, isNot(contains('I2_p1_79887671725')));
+    expect(visibleText, isNot(contains('Fecha de emision')));
+    expect(visibleText, isNot(contains('Reporte tecnico')));
+    expect(visibleText, isNot(contains('source=current')));
+    expect(visibleText, isNot(contains('unknown')));
+    expect(visibleText, isNot(contains('null')));
+    expect(names.any((n) => n.startsWith('xl/media/')), isTrue);
   });
 
   test('date-like values are stored with an Excel date format', () async {
