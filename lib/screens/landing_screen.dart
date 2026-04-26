@@ -465,7 +465,7 @@ class _Hero extends StatelessWidget {
         _Eyebrow(
           palette: palette,
           icon: Icons.engineering_rounded,
-          label: 'Planillas inteligentes para equipos tecnicos B2B',
+          label: 'Planillas operativas para campo, inspección y mantenimiento',
         ),
         const SizedBox(height: 18),
         Text(
@@ -515,8 +515,8 @@ class _Hero extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _TrustChip(palette: palette, label: 'Proteccion catodica'),
-            _TrustChip(palette: palette, label: 'Puesta a tierra'),
+            _TrustChip(palette: palette, label: 'Inspección técnica'),
+            _TrustChip(palette: palette, label: 'Mantenimiento'),
             _TrustChip(palette: palette, label: 'Evidencias + GPS'),
             _TrustChip(palette: palette, label: 'Exportacion profesional'),
           ],
@@ -659,7 +659,7 @@ class _HeroPreview extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Relevamiento PC - Gasoducto Norte',
+                        'Inspección técnica — Planta Norte',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1539,7 +1539,7 @@ class _Workflow extends StatelessWidget {
     final steps = const <(String, String, IconData)>[
       (
         '1. Elegir template',
-        'Proteccion catodica, puesta a tierra o planilla tecnica propia.',
+        'Inspección, mantenimiento, relevamiento o planilla propia.',
         Icons.dashboard_customize_rounded,
       ),
       (
@@ -2091,7 +2091,7 @@ class _FooterCTA extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Pasame un flujo de proteccion catodica, puesta a tierra o inspeccion, y vemos si Bit Flow lo puede ordenar sin agregar burocracia.',
+          'Pasame un flujo de inspección, mantenimiento, relevamiento u obra, y vemos si Bit Flow lo puede ordenar sin agregar burocracia.',
           style: TextStyle(
             color: palette.accentContrast.withValues(alpha: 0.92),
             fontSize: 14,

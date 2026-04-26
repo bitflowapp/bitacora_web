@@ -363,7 +363,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                   ),
                                 ),
                                 Text(
-                                  'PC, PAT, inspección, control operativo…',
+                                  'Inspección, mantenimiento, edificios, petróleo…',
                                   style: TextStyle(
                                     color: t.colors.textSecondary,
                                     fontSize: 12,
@@ -874,7 +874,7 @@ class _StartPageV2State extends State<StartPageV2> {
         },
       ),
       _AutomationSuggestion(
-        title: 'Proteccion catodica',
+        title: 'Demo técnica',
         subtitle: templateSubtitle,
         icon: Icons.bolt_rounded,
         onTap: () => _createTemplateSheet(TemplateKind.proteccionCatodica),
