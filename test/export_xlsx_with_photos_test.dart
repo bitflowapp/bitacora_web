@@ -295,6 +295,84 @@ void main() {
     expect(readSharedStrings(archive), contains('Abrir video'));
   });
 
+  test('professional evidence sheet hides technical paths and labels',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Activo', 'Estado'],
+      rows: const [
+        ['Bomba P-101', 'OK'],
+      ],
+      gpsByRow: [
+        GpsExport(
+          lat: -34.603722,
+          lng: -58.381592,
+          accuracy: 8,
+          ts: DateTime.parse('2026-04-26T10:15:00Z'),
+        ),
+      ],
+      attachments: [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'gps',
+          fileName: '',
+          notes: 'Coordenadas -34.603722, -58.381592 - Precision 8 m',
+          relativePath: '',
+          cellValue: 'Bomba P-101',
+          linkTarget:
+              'https://www.google.com/maps/search/?api=1&query=-34.603722,-58.381592',
+          lat: -34.603722,
+          lng: -58.381592,
+          accuracy: 8,
+          addedAt: DateTime.parse('2026-04-26T10:15:00Z'),
+        ),
+        AttachmentRow(
+          cellRef: 'B1',
+          type: 'video',
+          fileName: 'B1_video_1.mp4',
+          notes: 'Video adjunto',
+          relativePath: 'attachments/video/B1_video_1.mp4',
+          cellValue: 'OK',
+        ),
+      ],
+      includeSummarySheet: true,
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final names = archive.files
+        .map((f) => f.name.replaceAll('\\', '/'))
+        .toList(growable: false);
+    final workbookXml = utf8.decode(
+      archive.files
+          .firstWhere((f) => f.name.replaceAll('\\', '/') == 'xl/workbook.xml')
+          .content as List<int>,
+    );
+    final sharedStrings = readSharedStrings(archive);
+    final visibleText = sharedStrings.join('\n');
+
+    expect(workbookXml, contains('Evidencias'));
+    expect(workbookXml, contains('Resumen'));
+    expect(visibleText, contains('Ubicacion GPS'));
+    expect(visibleText, contains('Video adjunto'));
+    expect(visibleText, contains('Abrir video'));
+    expect(visibleText, contains('Bomba P-101'));
+    expect(visibleText, contains('Evidencias'));
+    expect(visibleText, isNot(contains('Attachments')));
+    expect(visibleText, isNot(contains('Ruta')));
+    expect(visibleText, isNot(contains('storedRef')));
+    expect(visibleText, isNot(contains('attachmentId')));
+    expect(visibleText, isNot(contains('source=')));
+    expect(visibleText, isNot(contains('current')));
+
+    final worksheetXml = names
+        .where((n) => n.startsWith('xl/worksheets/') && !n.contains('_rels/'))
+        .map((name) {
+      final file =
+          archive.files.firstWhere((f) => f.name.replaceAll('\\', '/') == name);
+      return utf8.decode(file.content as List<int>);
+    }).join('\n');
+    expect(worksheetXml, isNot(contains('attachments/video/B1_video_1.mp4')));
+  });
+
   test('date-like values are stored with an Excel date format', () async {
     final bytes = await buildXlsxWithPhotos(
       columns: const ['Fecha'],

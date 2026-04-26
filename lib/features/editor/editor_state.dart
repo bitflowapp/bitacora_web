@@ -19245,6 +19245,10 @@ class _EditorScreenState extends State<EditorScreen>
       html.write(
         '.evidence .cap{font-size:10px;color:#555;margin-top:4px;line-height:1.2;}',
       );
+      html.write(
+        '.evidence-card{border:1px solid #ddd;border-radius:8px;padding:8px;font-size:11px;background:#fafafa;}',
+      );
+      html.write('.evidence-card strong{display:block;margin-bottom:3px;}');
       html.write('@media print{button{display:none;} body{margin:8px;}}');
       html.write('</style></head><body>');
       html.write('<div class=\"header\">');
@@ -19273,22 +19277,69 @@ class _EditorScreenState extends State<EditorScreen>
           html.write('<td>');
           html.write('<div>${esc.convert(text)}</div>');
           final meta = _cellMetaAt(r, c);
-          final photos = meta?.photos ?? const <PhotoAttachment>[];
-          if (photos.isNotEmpty) {
+          if (meta != null && !meta.isEmpty) {
             html.write('<div class=\"evidences\">');
-            for (final photo in photos) {
+            final gps = meta.gps;
+            if (gps != null) {
+              final mapsUrl =
+                  'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}';
+              html.write('<div class=\"evidence-card\">');
+              html.write('<strong>Ubicacion GPS</strong>');
+              html.write(
+                '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}<br>',
+              );
+              html.write(
+                'Precision ${gps.accuracyM.toStringAsFixed(0)} m<br>',
+              );
+              html.write('<a href=\"$mapsUrl\">Abrir en mapa</a>');
+              html.write('</div>');
+            }
+            for (final photo in meta.photos) {
               _throwIfOperationCancelledBy(shouldCancel);
-              final dataUri = await _photoThumbDataUri(photo);
-              if (dataUri.isEmpty) continue;
-              html.write('<div class=\"evidence\">');
-              html.write('<img src=\"$dataUri\" alt=\"evidencia\">');
+              final isImage = _isImageEvidence(photo);
+              final isVideo = _isVideoMime(photo.mime, photo.filename);
               final caption = photo.caption.trim().isNotEmpty
                   ? photo.caption.trim()
-                  : photo.filename.trim();
+                  : isVideo
+                      ? 'Video adjunto'
+                      : isImage
+                          ? 'Foto adjunta'
+                          : 'Archivo adjunto';
               final dateLabel = _formatDateTimeShort(photo.addedAt);
+              if (isImage) {
+                final dataUri = await _photoThumbDataUri(photo);
+                html.write('<div class=\"evidence\">');
+                if (dataUri.isNotEmpty) {
+                  html.write('<img src=\"$dataUri\" alt=\"evidencia\">');
+                } else {
+                  html.write(
+                    '<div class=\"evidence-card\">No se pudo previsualizar esta evidencia</div>',
+                  );
+                }
+                html.write(
+                  '<div class=\"cap\">${esc.convert(caption)}<br>${esc.convert(dateLabel)}</div>',
+                );
+                html.write('</div>');
+              } else {
+                html.write('<div class=\"evidence-card\">');
+                html.write('<strong>${esc.convert(caption)}</strong>');
+                html.write('${esc.convert(dateLabel)}<br>');
+                html.write('Evidencia disponible como archivo adjunto.');
+                html.write('</div>');
+              }
+            }
+            for (final audio in meta.audios) {
+              final transcript = audio.transcript.trim();
+              html.write('<div class=\"evidence-card\">');
+              html.write('<strong>Audio adjunto</strong>');
               html.write(
-                '<div class=\"cap\">${esc.convert(caption)}<br>${esc.convert(dateLabel)}</div>',
+                '${esc.convert(_formatDateTimeShort(audio.addedAt))}<br>',
               );
+              if (transcript.isNotEmpty) {
+                html.write(esc.convert(transcript));
+              } else {
+                html.write('Evidencia disponible como archivo adjunto.');
+              }
               html.write('</div>');
             }
             html.write('</div>');
@@ -19402,6 +19453,14 @@ class _EditorScreenState extends State<EditorScreen>
     );
     final appVersion = await _readAppVersionForExport();
     final buildId = BuildInfo.buildIdLabel;
+    final cleanAppVersion = appVersion.trim();
+    final cleanBuildId = buildId.trim();
+    final showAppVersion = cleanAppVersion.isNotEmpty &&
+        cleanAppVersion.toLowerCase() != 'dev' &&
+        cleanAppVersion.toLowerCase() != 'unknown';
+    final showBuildId = cleanBuildId.isNotEmpty &&
+        !cleanBuildId.toLowerCase().contains('dev') &&
+        cleanBuildId.toLowerCase() != 'unknown';
     final now = DateTime.now().toLocal();
     final exportedAt =
         '${now.year}-${_two(now.month)}-${_two(now.day)} ${_two(now.hour)}:${_two(now.minute)}';
@@ -19508,8 +19567,7 @@ class _EditorScreenState extends State<EditorScreen>
           evidenceItems.add((
             cell: cellLabel,
             kind: 'GPS',
-            caption:
-                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
+            caption: 'Precision ${gps.accuracyM.toStringAsFixed(1)} m',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
             mapUrl: mapUrl,
             fileUrl: null,
@@ -19529,7 +19587,7 @@ class _EditorScreenState extends State<EditorScreen>
           }
           final caption = photo.caption.trim().isNotEmpty
               ? photo.caption.trim()
-              : photo.filename.trim();
+              : '$kind adjunto';
           final mapUrl = (photo.lat != null && photo.lon != null)
               ? 'https://www.google.com/maps/search/?api=1&query=${photo.lat},${photo.lon}'
               : null;
@@ -19603,7 +19661,8 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    final totalAttachments = photoCount + videoCount + fileCount + audioCount;
+    final totalAttachments =
+        photoCount + videoCount + fileCount + audioCount + gpsCount;
     final evidencePreview = evidenceItems.toList(growable: false);
 
     pw.Widget linkText(String text, String? url) {
@@ -19756,22 +19815,30 @@ class _EditorScreenState extends State<EditorScreen>
                       ],
                     ),
                   ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        'Version $appVersion',
-                        style:
-                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'Build $buildId',
-                        style:
-                            const pw.TextStyle(fontSize: 8.5, color: pdfMuted),
-                      ),
-                    ],
-                  ),
+                  if (showAppVersion || showBuildId)
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        if (showAppVersion)
+                          pw.Text(
+                            'Version $cleanAppVersion',
+                            style: const pw.TextStyle(
+                              fontSize: 8.5,
+                              color: pdfMuted,
+                            ),
+                          ),
+                        if (showAppVersion && showBuildId)
+                          pw.SizedBox(height: 2),
+                        if (showBuildId)
+                          pw.Text(
+                            'Build $cleanBuildId',
+                            style: const pw.TextStyle(
+                              fontSize: 8.5,
+                              color: pdfMuted,
+                            ),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -19843,8 +19910,8 @@ class _EditorScreenState extends State<EditorScreen>
           if (includeAttachments) {
             content
               ..add(sectionTitle(
-                'Adjuntos',
-                subtitle: 'Fotos, videos, audios, archivos y ubicaciones.',
+                'Detalle de evidencias',
+                subtitle: 'Fotos, videos, audios, archivos y ubicaciones GPS.',
               ));
             if (attachmentRows.isEmpty) {
               content.add(
@@ -19861,7 +19928,7 @@ class _EditorScreenState extends State<EditorScreen>
                     'Tipo',
                     'Detalle',
                     'Fecha',
-                    'Link',
+                    'Acceso',
                   ],
                   data: [
                     for (final item in attachmentRows)
@@ -19908,7 +19975,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ..add(sectionTitle(
                   'Evidencias',
                   subtitle:
-                      'Todas las fotos, videos, audios, archivos y ubicaciones registradas.',
+                      'Evidencias agrupadas por celda, con fotos embebidas cuando estan disponibles.',
                 ))
                 ..add(
                   pw.Wrap(
@@ -19961,6 +20028,28 @@ class _EditorScreenState extends State<EditorScreen>
                                     fit: pw.BoxFit.cover,
                                   ),
                                 ),
+                              ] else if (item.kind == 'Foto') ...[
+                                pw.SizedBox(height: 6),
+                                pw.Container(
+                                  height: 52,
+                                  width: double.infinity,
+                                  alignment: pw.Alignment.center,
+                                  decoration: pw.BoxDecoration(
+                                    color: pdfPaper,
+                                    borderRadius: pw.BorderRadius.circular(6),
+                                    border: pw.Border.all(
+                                      color: pdfLine,
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: pw.Text(
+                                    'No se pudo previsualizar esta evidencia',
+                                    style: const pw.TextStyle(
+                                      fontSize: 7.8,
+                                      color: pdfMuted,
+                                    ),
+                                  ),
+                                ),
                               ],
                               pw.SizedBox(height: 5),
                               pw.Text(
@@ -19981,7 +20070,7 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                               if (item.mapUrl != null) ...[
                                 pw.SizedBox(height: 2),
-                                linkText('Abrir en mapas', item.mapUrl),
+                                linkText('Abrir en mapa', item.mapUrl),
                               ],
                               if (item.fileUrl != null) ...[
                                 pw.SizedBox(height: 2),
@@ -20181,6 +20270,13 @@ class _EditorScreenState extends State<EditorScreen>
       return ca.col.compareTo(cb.col);
     });
 
+    String cellValueFor(CellKey cell) {
+      if (cell.row < 0 || cell.row >= _rows.length) return '';
+      final cells = _rows[cell.row].cells;
+      if (cell.col < 0 || cell.col >= cells.length) return '';
+      return cells[cell.col].trim();
+    }
+
     for (final entry in entries) {
       _throwIfOperationCancelledBy(shouldCancel);
       final cell = resolveCellKey(entry.key);
@@ -20188,6 +20284,7 @@ class _EditorScreenState extends State<EditorScreen>
       final meta = entry.value;
       if (meta.isEmpty) continue;
       final cellRef = cell.a1;
+      final cellValue = cellValueFor(cell);
       final cellManifest = <String, dynamic>{};
 
       if (meta.gps != null) {
@@ -20208,10 +20305,12 @@ class _EditorScreenState extends State<EditorScreen>
             fileName: '',
             notes: _gpsNotes(gps),
             relativePath: '',
+            cellValue: cellValue,
             linkTarget:
                 'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}',
             lat: gps.lat,
             lng: gps.lng,
+            accuracy: gps.accuracyM,
             addedAt: gps.timestamp,
           ),
         );
@@ -20258,10 +20357,12 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               notes: _photoNotes(photo),
               relativePath: relPath,
+              cellValue: cellValue,
               linkTarget: exportLinkFromStoredRef(photo.storedRef),
               previewBytes: previewBytes,
               lat: photo.lat,
               lng: photo.lon,
+              accuracy: photo.accuracyM,
               addedAt: photo.addedAt,
             ),
           );
@@ -20332,6 +20433,7 @@ class _EditorScreenState extends State<EditorScreen>
               fileName: fileName,
               notes: _audioNotes(audio),
               relativePath: relPath,
+              cellValue: cellValue,
               linkTarget: exportLinkFromStoredRef(
                 audio.storedRef,
                 audio: true,
@@ -21607,41 +21709,38 @@ Este paquete incluye:
   }
 
   String _gpsNotes(GpsMeta gps) {
-    return 'lat=${gps.lat.toStringAsFixed(6)}; '
-        'lon=${gps.lng.toStringAsFixed(6)}; '
-        'acc=${gps.accuracyM.toStringAsFixed(0)}m; '
-        'ts=${gps.timestamp.toIso8601String()}; '
-        'source=${gps.source}; '
-        'provider=${gps.provider}';
+    return 'Coordenadas ${gps.lat.toStringAsFixed(6)}, '
+        '${gps.lng.toStringAsFixed(6)} - '
+        'Precision ${gps.accuracyM.toStringAsFixed(0)} m';
   }
 
   String _photoNotes(PhotoAttachment photo) {
     final parts = <String>[
-      'addedAt=${photo.addedAt.toIso8601String()}',
-      'size=${_formatBytes(photo.size)}',
+      'Tamaño ${_formatBytes(photo.size)}',
     ];
+    final caption = photo.caption.trim();
+    if (caption.isNotEmpty) parts.insert(0, caption);
     if (photo.lat != null && photo.lon != null) {
       parts.add(
-        'lat=${photo.lat!.toStringAsFixed(6)} lon=${photo.lon!.toStringAsFixed(6)}',
+        'Ubicacion ${photo.lat!.toStringAsFixed(6)}, ${photo.lon!.toStringAsFixed(6)}',
       );
     }
     if (photo.accuracyM != null) {
-      parts.add('acc=${photo.accuracyM!.toStringAsFixed(0)}m');
+      parts.add('Precision ${photo.accuracyM!.toStringAsFixed(0)} m');
     }
-    return parts.join('; ');
+    return parts.join(' - ');
   }
 
   String _audioNotes(AudioAttachment audio) {
     final parts = <String>[
-      'addedAt=${audio.addedAt.toIso8601String()}',
-      'duration=${_formatDuration(Duration(milliseconds: audio.durationMs))}',
-      'size=${_formatBytes(audio.size)}',
+      'Duracion ${_formatDuration(Duration(milliseconds: audio.durationMs))}',
+      'Tamaño ${_formatBytes(audio.size)}',
     ];
     final transcript = audio.transcript.trim();
     if (transcript.isNotEmpty) {
-      parts.add('transcript=$transcript');
+      parts.add('Transcripcion: $transcript');
     }
-    return parts.join('; ');
+    return parts.join(' - ');
   }
 
   Future<Uint8List?> _loadAudioBytesFromAttachment(

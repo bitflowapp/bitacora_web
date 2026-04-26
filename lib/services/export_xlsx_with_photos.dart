@@ -85,10 +85,12 @@ class AttachmentRow {
     required this.fileName,
     required this.notes,
     required this.relativePath,
+    this.cellValue = '',
     this.linkTarget,
     this.previewBytes,
     this.lat,
     this.lng,
+    this.accuracy,
     this.addedAt,
     this.transcript = '',
   });
@@ -98,10 +100,12 @@ class AttachmentRow {
   final String fileName;
   final String notes;
   final String relativePath;
+  final String cellValue;
   final String? linkTarget;
   final Uint8List? previewBytes;
   final double? lat;
   final double? lng;
+  final double? accuracy;
   final DateTime? addedAt;
   final String transcript;
 
@@ -213,7 +217,7 @@ Future<Uint8List> buildXlsxWithPhotos({
         'GPS Lon',
         'GPS Acc (m)',
         'GPS Time',
-        'GPS Source',
+        'GPS Tipo',
       ];
       for (int i = 0; i < headers.length; i++) {
         sheet.getRangeByIndex(headerRow, gpsStartCol + i).setText(headers[i]);
@@ -303,7 +307,7 @@ Future<Uint8List> buildXlsxWithPhotos({
           }
           sheet
               .getRangeByIndex(excelRow, gpsStartCol + 4)
-              .setText(gps.isLastKnown ? 'lastKnown' : 'current');
+              .setText(gps.isLastKnown ? 'Ultima ubicacion' : 'GPS');
         }
       }
 
@@ -443,12 +447,17 @@ Future<Uint8List> buildXlsxWithPhotos({
     if (includeSummarySheet) {
       _buildSummarySheet(
         workbook,
+        sheetName: sheetName,
         rowsCount: rows.length,
         photosCount: _photosCount(
           photosByRow: photosByRow,
           attachments: attachments,
         ),
+        videosCount: _videosCount(attachments),
+        audiosCount: _audiosCount(attachments),
+        filesCount: _filesCount(attachments),
         gpsCount: _gpsCount(gpsByRow, attachments: attachments),
+        exportedAt: DateTime.now(),
       );
     }
 
@@ -622,20 +631,20 @@ void _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
-  final sheet = workbook.worksheets.addWithName('Attachments');
+  final sheet = workbook.worksheets.addWithName('Evidencias');
   sheet.showGridlines = false;
 
   const headers = [
     'Celda',
+    'Valor',
     'Tipo',
-    'Archivo',
-    'Notas',
+    'Nombre',
+    'Descripcion',
     'Transcripcion',
     'Fecha',
-    'Lat',
-    'Lon',
+    'Coordenadas',
+    'Precision',
     'Abrir',
-    'Ruta',
     'Vista',
   ];
 
@@ -657,22 +666,27 @@ void _buildAttachmentsSheet(
     final item = attachments[i];
     final target = item.effectiveLinkTarget;
     sheet.getRangeByIndex(row, 1).setText(item.cellRef);
-    sheet.getRangeByIndex(row, 2).setText(_attachmentTypeLabel(item.type));
-    sheet.getRangeByIndex(row, 3).setText(item.fileName);
-    sheet.getRangeByIndex(row, 4).setText(item.notes);
-    sheet.getRangeByIndex(row, 5).setText(item.transcript.trim());
+    sheet.getRangeByIndex(row, 2).setText(_clipCellText(item.cellValue));
+    sheet.getRangeByIndex(row, 3).setText(_attachmentTypeLabel(item.type));
+    sheet.getRangeByIndex(row, 4).setText(_friendlyEvidenceName(item));
+    sheet.getRangeByIndex(row, 5).setText(item.notes);
+    sheet.getRangeByIndex(row, 6).setText(item.transcript.trim());
     if (item.addedAt != null) {
-      final dateCell = sheet.getRangeByIndex(row, 6);
+      final dateCell = sheet.getRangeByIndex(row, 7);
       dateCell.setDateTime(item.addedAt!);
       _styleDateCell(dateCell);
     }
-    if (item.lat != null) {
-      sheet.getRangeByIndex(row, 7).setNumber(item.lat!);
+    if (item.lat != null && item.lng != null) {
+      sheet.getRangeByIndex(row, 8).setText(
+            '${item.lat!.toStringAsFixed(6)}, ${item.lng!.toStringAsFixed(6)}',
+          );
     }
-    if (item.lng != null) {
-      sheet.getRangeByIndex(row, 8).setNumber(item.lng!);
+    if (item.accuracy != null) {
+      sheet
+          .getRangeByIndex(row, 9)
+          .setText('${item.accuracy!.toStringAsFixed(0)} m');
     }
-    final openCell = sheet.getRangeByIndex(row, 9);
+    final openCell = sheet.getRangeByIndex(row, 10);
     if (target.isNotEmpty) {
       _addFileHyperlink(
         sheet,
@@ -683,7 +697,6 @@ void _buildAttachmentsSheet(
     } else {
       openCell.setText('');
     }
-    sheet.getRangeByIndex(row, 10).setText(item.relativePath);
 
     final previewCell = sheet.getRangeByIndex(row, 11);
     if (item.hasPreview) {
@@ -767,6 +780,21 @@ int _photosCount({
   return photosByRow.values.fold<int>(0, (prev, list) => prev + list.length);
 }
 
+int _videosCount(List<AttachmentRow>? attachments) {
+  if (attachments == null || attachments.isEmpty) return 0;
+  return attachments.where((a) => a.type == 'video').length;
+}
+
+int _audiosCount(List<AttachmentRow>? attachments) {
+  if (attachments == null || attachments.isEmpty) return 0;
+  return attachments.where((a) => a.type == 'audio').length;
+}
+
+int _filesCount(List<AttachmentRow>? attachments) {
+  if (attachments == null || attachments.isEmpty) return 0;
+  return attachments.where((a) => a.type == 'file').length;
+}
+
 void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   final trimmed = v.trim();
   final numVal = double.tryParse(trimmed);
@@ -839,15 +867,28 @@ void _buildCoverSheet(xlsio.Workbook wb) {
 
 void _buildSummarySheet(
   xlsio.Workbook wb, {
+  required String sheetName,
   required int rowsCount,
   required int photosCount,
+  required int videosCount,
+  required int audiosCount,
+  required int filesCount,
   required int gpsCount,
+  required DateTime exportedAt,
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
   summary.showGridlines = false;
+  final totalEvidence =
+      photosCount + videosCount + audiosCount + filesCount + gpsCount;
   final data = [
+    ['Planilla', sheetName.trim().isEmpty ? 'Bit Flow' : sheetName.trim()],
+    ['Exportado', exportedAt],
     ['Filas', rowsCount],
+    ['Evidencias', totalEvidence],
     ['Fotos', photosCount],
+    ['Videos', videosCount],
+    ['Audios', audiosCount],
+    ['Archivos', filesCount],
     ['Ubicaciones', gpsCount],
   ];
   final title = summary.getRangeByIndex(1, 1);
@@ -862,10 +903,16 @@ void _buildSummarySheet(
     label.cellStyle.bold = true;
     label.cellStyle.backColor = _kSoftBlue2;
     final value = summary.getRangeByIndex(row, 2);
-    value.setNumber(
-      (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-    );
-    value.cellStyle.hAlign = xlsio.HAlignType.right;
+    final rawValue = data[i][1];
+    if (rawValue is DateTime) {
+      value.setDateTime(rawValue);
+      _styleDateCell(value);
+    } else if (rawValue is num) {
+      value.setNumber(rawValue.toDouble());
+      value.cellStyle.hAlign = xlsio.HAlignType.right;
+    } else {
+      value.setText(rawValue.toString());
+    }
   }
   final range = summary.getRangeByIndex(3, 1, data.length + 2, 2);
   range.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
@@ -941,18 +988,34 @@ void _styleDateCell(xlsio.Range cell) {
 String _attachmentTypeLabel(String raw) {
   switch (raw.trim().toLowerCase()) {
     case 'photo':
-      return 'Foto';
+      return 'Foto adjunta';
     case 'video':
-      return 'Video';
+      return 'Video adjunto';
     case 'audio':
-      return 'Audio';
+      return 'Audio adjunto';
     case 'gps':
-      return 'GPS';
+      return 'Ubicacion GPS';
     case 'file':
-      return 'Archivo';
+      return 'Archivo adjunto';
     default:
       return raw.trim().isEmpty ? 'Adjunto' : raw.trim();
   }
+}
+
+String _friendlyEvidenceName(AttachmentRow item) {
+  final typeLabel = _attachmentTypeLabel(item.type);
+  final name = item.fileName.trim();
+  if (name.isEmpty) return typeLabel;
+  return name
+      .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+String _clipCellText(String value) {
+  final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (normalized.length <= 120) return normalized;
+  return '${normalized.substring(0, 119)}...';
 }
 
 String _attachmentOpenLabel(String raw) {
@@ -989,7 +1052,7 @@ void _addFileHyperlink(
       range,
       type,
       cleaned,
-      'Abrir $cleaned',
+      displayText,
       displayText,
     );
     link.textToDisplay = displayText;
