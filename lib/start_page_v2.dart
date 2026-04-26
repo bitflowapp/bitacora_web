@@ -241,9 +241,13 @@ class _StartPageV2State extends State<StartPageV2> {
     return '$dd/$mm $hh:$min';
   }
 
-  Future<void> _openSheetById(String id, {String? initialName}) async {
+  Future<void> _openSheetById(
+    String id, {
+    String? initialName,
+    List<String>? initialHeaders,
+  }) async {
     if (_busy) return;
-    _setBusy(true, label: 'Abriendo archivo...');
+    _setBusy(true, label: 'Abriendo hoja...');
     try {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
@@ -252,6 +256,7 @@ class _StartPageV2State extends State<StartPageV2> {
             onToggleTheme: widget.onToggleTheme,
             sheetId: id,
             initialName: initialName,
+            initialHeaders: initialHeaders,
           ),
         ),
       );
@@ -259,6 +264,287 @@ class _StartPageV2State extends State<StartPageV2> {
     } finally {
       _setBusy(false);
       await _reloadSheets();
+    }
+  }
+
+  Future<void> _createConfiguredSheet({
+    required int cols,
+    required int rows,
+    required bool autoHeaders,
+  }) async {
+    if (_busy) return;
+    _trackUsage('create_configured');
+    final headers =
+        autoHeaders ? List.generate(cols, (i) => 'Col ${i + 1}') : <String>[];
+    final id = SheetStore.createNew();
+    await _flushSheetStoreBeforeOpen();
+    await _openSheetById(id, initialHeaders: headers.isEmpty ? null : headers);
+  }
+
+  Future<void> _showNewSheetDialog() async {
+    if (_busy) return;
+    var cols = 5;
+    var rows = 10;
+    var autoHeaders = true;
+
+    final result = await showModalBottomSheet<_NewSheetConfig>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: context.tokens.colors.bg,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return StatefulBuilder(
+          builder: (ctx2, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  t.spacing.lg,
+                  8,
+                  t.spacing.lg,
+                  t.spacing.lg,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Nueva hoja',
+                      style: TextStyle(
+                        color: t.colors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '¿Cómo querés empezar?',
+                      style: TextStyle(
+                        color: t.colors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Desde plantilla
+                    _ActionSurface(
+                      onTap: () => Navigator.of(ctx2).pop(
+                        const _NewSheetConfig(fromTemplate: true),
+                      ),
+                      backgroundColor: t.colors.surfaceMuted,
+                      borderColor: t.colors.border,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: t.colors.accent.withValues(
+                                alpha: t.colors.isLight ? 0.12 : 0.18,
+                              ),
+                              borderRadius: BorderRadius.circular(t.radii.xs),
+                            ),
+                            child: Icon(
+                              Icons.dashboard_customize_rounded,
+                              color: t.colors.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Desde plantilla',
+                                  style: TextStyle(
+                                    color: t.colors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  'PC, PAT, inspección, control operativo…',
+                                  style: TextStyle(
+                                    color: t.colors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: t.colors.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // En blanco con config
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: t.colors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(t.radii.sm),
+                        border: Border.all(color: t.colors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: t.colors.accent.withValues(
+                                    alpha: t.colors.isLight ? 0.12 : 0.18,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(t.radii.xs),
+                                ),
+                                child: Icon(
+                                  Icons.table_chart_outlined,
+                                  color: t.colors.accent,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'En blanco',
+                                style: TextStyle(
+                                  color: t.colors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          // Columnas
+                          Text(
+                            'Columnas',
+                            style: TextStyle(
+                              color: t.colors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              for (final n in [3, 5, 8])
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _SegmentChip(
+                                    label: '$n',
+                                    selected: cols == n,
+                                    accent: t.colors.accent,
+                                    onTap: () => setSheetState(() => cols = n),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Filas
+                          Text(
+                            'Filas iniciales',
+                            style: TextStyle(
+                              color: t.colors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              for (final n in [5, 10, 20])
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _SegmentChip(
+                                    label: '$n',
+                                    selected: rows == n,
+                                    accent: t.colors.accent,
+                                    onTap: () => setSheetState(() => rows = n),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Encabezados
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Encabezados automáticos (Col 1, Col 2…)',
+                                  style: TextStyle(
+                                    color: t.colors.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: autoHeaders,
+                                onChanged: (v) =>
+                                    setSheetState(() => autoHeaders = v),
+                                activeThumbColor: t.colors.accent,
+                                activeTrackColor:
+                                    t.colors.accent.withValues(alpha: 0.38),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () => Navigator.of(ctx2).pop(
+                                _NewSheetConfig(
+                                  cols: cols,
+                                  rows: rows,
+                                  autoHeaders: autoHeaders,
+                                ),
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: t.colors.accent,
+                                foregroundColor: t.colors.surface,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(t.radii.pill),
+                                ),
+                              ),
+                              child: Text(
+                                'Crear hoja — $cols cols · $rows filas',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null) return;
+    if (result.fromTemplate) {
+      await _showTemplateChooser();
+    } else {
+      await _createConfiguredSheet(
+        cols: result.cols,
+        rows: result.rows,
+        autoHeaders: result.autoHeaders,
+      );
     }
   }
 
@@ -404,11 +690,11 @@ class _StartPageV2State extends State<StartPageV2> {
     final actions = <CommandAction>[
       CommandAction(
         id: 'create_blank',
-        label: 'Nueva planilla',
-        subtitle: 'Empezar desde cero',
+        label: 'Nueva hoja',
+        subtitle: 'Configurar y crear',
         shortcut: 'Ctrl/Cmd + N',
         icon: Icons.add_box_rounded,
-        onSelected: () => unawaited(_createBlankSheet()),
+        onSelected: () => unawaited(_showNewSheetDialog()),
       ),
       CommandAction(
         id: 'open_recent',
@@ -1076,7 +1362,7 @@ class _StartPageV2State extends State<StartPageV2> {
             ),
             _CreateSheetIntent: CallbackAction<_CreateSheetIntent>(
               onInvoke: (_) {
-                unawaited(_createBlankSheet());
+                unawaited(_showNewSheetDialog());
                 return null;
               },
             ),
@@ -1096,32 +1382,34 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Nueva planilla',
-                      subtitle: 'Empeza desde cero',
+                      title: 'Nueva hoja',
+                      subtitle: 'Configurar y crear',
                       icon: Icons.add_box_rounded,
                       shortcut: 'Ctrl/Cmd + N',
-                      onTap: _createBlankSheet,
+                      onTap: _showNewSheetDialog,
                       featured: true,
                     ),
                     _QuickActionData(
                       title: 'Usar plantilla',
-                      subtitle: 'Tecnicas listas',
+                      subtitle: 'Técnicas listas',
                       icon: Icons.dashboard_customize_rounded,
                       shortcut: 'Templates',
                       onTap: _showTemplateChooser,
                     ),
                     _QuickActionData(
-                      title: 'Abrir reciente',
+                      title: 'Seguir donde quedé',
                       subtitle: recent.isEmpty
-                          ? 'Sin archivos aun'
-                          : 'Ultimo trabajo',
+                          ? 'Sin hojas aún'
+                          : recent.first.title.trim().isEmpty
+                              ? 'Última hoja'
+                              : recent.first.title,
                       icon: Icons.history_rounded,
                       shortcut: 'Ctrl/Cmd + O',
                       onTap: _openMostRecent,
                     ),
                     _QuickActionData(
                       title: 'Buscar',
-                      subtitle: 'Archivos y acciones',
+                      subtitle: 'Hojas y acciones',
                       icon: Icons.search_rounded,
                       shortcut: 'Ctrl/Cmd + K',
                       onTap: _openQuickSearch,
@@ -1157,7 +1445,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                 _SectionTitle(
                                   title: 'Acciones',
                                   subtitle:
-                                      'Crear, usar plantilla o retomar trabajo',
+                                      'Empezar, continuar o buscar un relevamiento',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1983,6 +2271,60 @@ class _ActionSurfaceState extends State<_ActionSurface> {
                 child: widget.child,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewSheetConfig {
+  const _NewSheetConfig({
+    this.cols = 5,
+    this.rows = 10,
+    this.autoHeaders = true,
+    this.fromTemplate = false,
+  });
+  final int cols;
+  final int rows;
+  final bool autoHeaders;
+  final bool fromTemplate;
+}
+
+class _SegmentChip extends StatelessWidget {
+  const _SegmentChip({
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? accent : accent.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : accent,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
           ),
         ),
       ),
