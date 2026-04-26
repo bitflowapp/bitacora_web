@@ -10562,7 +10562,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                             c,
                                                             displayColumns,
                                                           );
-                                                          return _beginEditCell(
+                                                          return _handleCellTapForEdit(
                                                             context,
                                                             pal,
                                                             actualRow,
@@ -10869,7 +10869,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                 onHorizontalScroll:
                                                     _syncMobileHorizontal,
                                                 onCellTap: (cellCtx, r, c) =>
-                                                    _beginEditCell(
+                                                    _handleCellTapForEdit(
                                                   cellCtx,
                                                   pal,
                                                   _actualRowFromDisplay(
@@ -11323,6 +11323,147 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   // ------------------------------ Edici??n Celda ---------------------------
+
+  void _handleCellTapForEdit(
+    BuildContext context,
+    _SheetPalette pal,
+    int r,
+    int c,
+    double cellWidth,
+  ) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    final meta = _cellMetaAt(r, c);
+    if (meta == null || meta.isEmpty) {
+      _beginEditCell(context, pal, r, c, cellWidth);
+      return;
+    }
+
+    if (_mobileEditorOpen) {
+      _commitMobileEdit();
+      _closeMobileEditor();
+    }
+    _removeCellEditor();
+    if (_selRow != r || _selCol != c) {
+      _setSelectionAndRefreshGrid(r, c);
+    }
+    _blink(r, c);
+    _openCellEvidenceIntentSheet(context, pal, r, c, cellWidth);
+  }
+
+  void _openCellEvidenceIntentSheet(
+    BuildContext context,
+    _SheetPalette pal,
+    int r,
+    int c,
+    double cellWidth,
+  ) {
+    final editableCell = c < _headers.length - 1;
+    final canOpenComments = _currentProjectId() != null;
+    final canAddObservation = _canObserveRows();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: pal.menuBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: pal.border, width: pal.hairline),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Esta celda tiene evidencia',
+                    style: TextStyle(
+                      color: pal.cellText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Elegí qué querés hacer.',
+                    style: TextStyle(color: pal.cellTextMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  AppButton(
+                    label: 'Ver evidencia',
+                    icon: Icons.visibility_outlined,
+                    variant: AppButtonVariant.primary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _openEvidenceManagerForCell(r, c);
+                    },
+                  ),
+                  if (editableCell) ...[
+                    const SizedBox(height: 8),
+                    AppButton(
+                      label: 'Editar celda',
+                      icon: Icons.edit_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _beginEditCell(context, pal, r, c, cellWidth);
+                      },
+                    ),
+                  ],
+                  if (canOpenComments || canAddObservation) ...[
+                    const SizedBox(height: 8),
+                    AppButton(
+                      label: canOpenComments
+                          ? 'Agregar comentario'
+                          : 'Agregar observación',
+                      icon: canOpenComments
+                          ? Icons.comment_outlined
+                          : Icons.flag_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        if (canOpenComments) {
+                          unawaited(_openRowCommentSheet(r));
+                        } else {
+                          unawaited(
+                            _setReviewStateForRows(
+                              <int>[r],
+                              reviewState: 'observada',
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Agregar evidencia',
+                    icon: Icons.add_photo_alternate_outlined,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _showAddEvidenceSheet(r, c);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: AppStrings.cancel,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   void _beginEditCell(
     BuildContext context,
@@ -17806,6 +17947,14 @@ class _EditorScreenState extends State<EditorScreen>
         initial: _effectiveCell(r, c),
         actions: _mobileActionsForCell(r, c),
       );
+      return true;
+    }());
+  }
+
+  @visibleForTesting
+  void debugHandleCellTapForIntent(int r, int c, {double width = 180}) {
+    assert(() {
+      _handleCellTapForEdit(context, _palette(context), r, c, width);
       return true;
     }());
   }
