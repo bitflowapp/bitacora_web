@@ -1202,6 +1202,16 @@ extension _EditorAttachments on _EditorScreenState {
     return _isPreviewableMime(photo.mime, photo.filename);
   }
 
+  bool _isVideoMime(String mime, String name) {
+    final m = mime.toLowerCase();
+    if (m.startsWith('video/')) return true;
+    final n = name.toLowerCase();
+    return n.endsWith('.mp4') ||
+        n.endsWith('.mov') ||
+        n.endsWith('.avi') ||
+        n.endsWith('.mkv');
+  }
+
   Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
     final ref = photo.storedRef.trim();
     if (kIsWeb && ref.startsWith('blob:')) {
@@ -1299,6 +1309,26 @@ extension _EditorAttachments on _EditorScreenState {
         );
       },
     );
+  }
+
+  Future<void> _openVideoEvidence(
+    BuildContext context,
+    PhotoAttachment photo,
+  ) async {
+    final ref = photo.storedRef.trim();
+    if (!kIsWeb && ref.startsWith('file:')) {
+      final path = ref.substring(5);
+      final uri = Uri.file(path);
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
+    _showSnack('No se pudo abrir este video. Descargando…', isError: false);
+    await _downloadPhotoAttachment(photo);
   }
 
   void _openPhotosSheetForCell(int r, int c) {
@@ -1847,6 +1877,12 @@ extension _EditorAttachments on _EditorScreenState {
                       statChip(
                         Icons.graphic_eq_rounded,
                         'Audios ${currentMeta.audios.length}',
+                        onTap: hasAudios
+                            ? () {
+                                Navigator.of(ctx).pop();
+                                _openAudiosSheetForCell(r, c);
+                              }
+                            : null,
                       ),
                       if (hasGps)
                         statChip(Icons.my_location_rounded, 'GPS activo')
@@ -1994,6 +2030,382 @@ extension _EditorAttachments on _EditorScreenState {
       },
     );
   }
+
+  // ── Evidence manager ─────────────────────────────────────────────────────
+
+  void _openEvidenceManagerForCell(int r, int c) {
+    if (r < 0 || r >= _rows.length) return;
+    if (c < 0 || c >= _headers.length) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final pal = _palette(ctx);
+        return SafeArea(
+          top: false,
+          child: StatefulBuilder(
+            builder: (ctx2, setSheetState) {
+              final meta = _cellMetaAt(r, c);
+              final photos = meta?.photos ?? const <PhotoAttachment>[];
+              final audios = meta?.audios ?? const <AudioAttachment>[];
+              final gps = meta?.gps;
+              final total =
+                  photos.length + audios.length + (gps != null ? 1 : 0);
+              final cellLabel = CellKey(r, c).a1;
+
+              Future<void> doDeletePhoto(int idx) async {
+                final ok = await _confirmDeleteEvidence(
+                  ctx2,
+                  name: _photoCaptionFor(photos[idx]),
+                  cellLabel: cellLabel,
+                );
+                if (!ok || !mounted) return;
+                await _deletePhotoFromCell(r, c, idx);
+                if (mounted) setSheetState(() {});
+              }
+
+              Future<void> doDeleteAudio(int idx) async {
+                final a = audios[idx];
+                final ok = await _confirmDeleteEvidence(
+                  ctx2,
+                  name: a.filename.isEmpty ? 'audio' : a.filename,
+                  cellLabel: cellLabel,
+                );
+                if (!ok || !mounted) return;
+                await _deleteAudioFromCell(r, c, idx);
+                if (mounted) setSheetState(() {});
+              }
+
+              Widget buildPhotoRow(PhotoAttachment p, int idx) {
+                final isVideo = _isVideoMime(p.mime, p.filename);
+                final typeLabel = isVideo
+                    ? 'Video adjuntado a esta celda'
+                    : 'Foto adjuntada a esta celda';
+                final dateStr = _formatDateTimeShort(p.addedAt.toLocal());
+                final sizeStr = _formatBytes(p.size);
+
+                Widget thumb() {
+                  if (isVideo) {
+                    return Container(
+                      color: pal.cellBg,
+                      alignment: Alignment.center,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(
+                            Icons.videocam_rounded,
+                            color: pal.fgMuted,
+                            size: 24,
+                          ),
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Icon(
+                              Icons.play_circle_filled_rounded,
+                              color: pal.accent,
+                              size: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return FutureBuilder<Uint8List?>(
+                    future: _loadPhotoBytesFromAttachment(p, preferThumb: true),
+                    builder: (_, snap) {
+                      final bytes = snap.data;
+                      if (bytes == null || bytes.isEmpty) {
+                        return Container(
+                          color: pal.cellBg,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.photo_outlined, color: pal.fgMuted),
+                        );
+                      }
+                      final img = kIsWeb
+                          ? WebBlobImage(
+                              bytes: bytes,
+                              mime: p.mime,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.memory(
+                              bytes,
+                              fit: BoxFit.cover,
+                              cacheWidth: 240,
+                              cacheHeight: 240,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) =>
+                                  const SizedBox.shrink(),
+                            );
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: img,
+                      );
+                    },
+                  );
+                }
+
+                return _EvidenceRow(
+                  palette: pal,
+                  thumb: thumb(),
+                  label: typeLabel,
+                  sublabel: '$dateStr · $sizeStr',
+                  primaryLabel: isVideo ? 'Abrir video' : 'Ver foto',
+                  primaryIcon: isVideo
+                      ? Icons.play_circle_outline_rounded
+                      : Icons.visibility_outlined,
+                  onPrimary: () => unawaited(
+                    isVideo
+                        ? _openVideoEvidence(ctx2, p)
+                        : _openPhotoPreview(ctx2, p),
+                  ),
+                  onDelete: () => doDeletePhoto(idx),
+                );
+              }
+
+              Widget buildAudioRow(AudioAttachment a, int idx) {
+                final playing = _playingAudioId == a.id;
+                final durationStr = _formatDuration(
+                  Duration(milliseconds: a.durationMs),
+                );
+                return _EvidenceRow(
+                  palette: pal,
+                  thumb: Container(
+                    color: pal.cellBg,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.graphic_eq_rounded,
+                      color: pal.fgMuted,
+                      size: 28,
+                    ),
+                  ),
+                  label: 'Audio adjuntado a esta celda',
+                  sublabel: durationStr,
+                  primaryLabel: playing ? 'Detener' : 'Reproducir',
+                  primaryIcon: playing
+                      ? Icons.stop_circle_rounded
+                      : Icons.play_circle_fill_rounded,
+                  onPrimary: () => unawaited(_playAudioAttachment(a)),
+                  onDelete: () => doDeleteAudio(idx),
+                );
+              }
+
+              Widget buildGpsRow(GpsMeta g) {
+                final coords =
+                    '${g.lat.toStringAsFixed(6)}, ${g.lng.toStringAsFixed(6)}';
+                final acc = '±${g.accuracyM.toStringAsFixed(1)} m';
+                return _EvidenceRow(
+                  palette: pal,
+                  thumb: Container(
+                    color: pal.cellBg,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.my_location_rounded,
+                      color: pal.fgMuted,
+                      size: 28,
+                    ),
+                  ),
+                  label: 'GPS adjuntado a esta celda',
+                  sublabel: '$coords · $acc',
+                  primaryLabel: 'Copiar',
+                  primaryIcon: Icons.content_copy_rounded,
+                  onPrimary: () => unawaited(_copyGpsCoordinatesForCell(r, c)),
+                  onDelete: null,
+                );
+              }
+
+              final rows = <Widget>[
+                ...photos.asMap().entries.map(
+                      (e) => buildPhotoRow(e.value, e.key),
+                    ),
+                ...audios.asMap().entries.map(
+                      (e) => buildAudioRow(e.value, e.key),
+                    ),
+                if (gps != null) buildGpsRow(gps),
+              ];
+
+              final initialSize = total == 0
+                  ? 0.35
+                  : total == 1
+                      ? 0.42
+                      : total <= 3
+                          ? 0.60
+                          : 0.78;
+
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: initialSize,
+                minChildSize: 0.3,
+                maxChildSize: 0.92,
+                builder: (ctx3, scrollController) {
+                  return Container(
+                    margin: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                    decoration: BoxDecoration(
+                      color: pal.menuBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: pal.border,
+                        width: pal.hairline,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: pal.cellText.withValues(
+                            alpha: pal.isLight ? 0.05 : 0.2,
+                          ),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Evidencia — $cellLabel',
+                                    style: TextStyle(
+                                      color: pal.cellText,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  Text(
+                                    total == 0
+                                        ? 'Sin evidencia'
+                                        : '$total ${total == 1 ? "item" : "items"}',
+                                    style: TextStyle(
+                                      color: pal.cellTextMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            AppButton(
+                              label: 'Agregar',
+                              icon: Icons.add_rounded,
+                              variant: AppButtonVariant.secondary,
+                              size: AppButtonSize.sm,
+                              onPressed: () {
+                                Navigator.of(ctx3).pop();
+                                _showAddEvidenceSheet(r, c);
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            IconButton(
+                              onPressed: () => Navigator.of(ctx3).pop(),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: pal.cellTextMuted,
+                              ),
+                              tooltip: 'Cerrar',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: total == 0
+                              ? Center(
+                                  child: EmptyState(
+                                    title: 'Sin evidencia',
+                                    message:
+                                        'Esta celda no tiene adjuntos todavía.',
+                                    icon: Icons.attach_file_rounded,
+                                    actionLabel: 'Adjuntar evidencia',
+                                    onAction: () {
+                                      Navigator.of(ctx3).pop();
+                                      _showAddEvidenceSheet(r, c);
+                                    },
+                                  ),
+                                )
+                              : ListView(
+                                  controller: scrollController,
+                                  children: rows,
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddEvidenceSheet(int r, int c) {
+    final pal = _palette(context);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: pal.menuBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: pal.border, width: pal.hairline),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Agregar evidencia',
+                    style: TextStyle(
+                      color: pal.cellText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  AppButton(
+                    label: 'Foto o video',
+                    icon: Icons.add_photo_alternate_outlined,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(_pickMultiplePhotosForCell(r, c));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Capturar GPS',
+                    icon: Icons.my_location_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(_requestGpsForCell(r, c, forceWriteText: true));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Cancelar',
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> _attachVideoForCell(int r, int c) async {
     final ref = _cellRefAt(r, c);
@@ -4041,6 +4453,110 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
         alignment: Alignment.center,
         child: Icon(Icons.image_outlined, color: pal.fgMuted, size: 20),
       );
+}
+
+/// Fila de evidencia en el manager unificado de adjuntos por celda.
+class _EvidenceRow extends StatelessWidget {
+  const _EvidenceRow({
+    required this.palette,
+    required this.thumb,
+    required this.label,
+    required this.sublabel,
+    required this.primaryLabel,
+    required this.primaryIcon,
+    required this.onPrimary,
+    this.onDelete,
+  });
+
+  final _SheetPalette palette;
+  final Widget thumb;
+  final String label;
+  final String sublabel;
+  final String primaryLabel;
+  final IconData primaryIcon;
+  final VoidCallback onPrimary;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = palette;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: pal.headerBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: pal.border, width: pal.hairline),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(width: 56, height: 56, child: thumb),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: pal.cellText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    color: pal.cellTextMuted,
+                    fontSize: 11.5,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _iconAction(primaryIcon, primaryLabel, onPrimary, pal.accent),
+              if (onDelete != null)
+                _iconAction(
+                  Icons.delete_outline_rounded,
+                  'Eliminar evidencia',
+                  onDelete!,
+                  pal.fgMuted,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconAction(
+    IconData icon,
+    String tooltip,
+    VoidCallback onTap,
+    Color color,
+  ) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 20, color: color),
+        ),
+      ),
+    );
+  }
 }
 
 /// Separador de sección dentro del menú de acciones mobile.

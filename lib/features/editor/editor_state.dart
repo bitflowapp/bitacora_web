@@ -10625,7 +10625,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                         ),
                                                         onOpenAttachments: (r,
                                                                 c) =>
-                                                            _openAttachmentPanelForCell(
+                                                            _openEvidenceManagerForCell(
                                                           _actualRowFromDisplay(
                                                             r,
                                                             visibleRows,
@@ -10925,7 +10925,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                   _headers.length - 1,
                                                 ),
                                                 onOpenAttachments: (r, c) =>
-                                                    _openAttachmentPanelForCell(
+                                                    _openEvidenceManagerForCell(
                                                   _actualRowFromDisplay(
                                                     r,
                                                     visibleRows,
@@ -14151,9 +14151,9 @@ class _EditorScreenState extends State<EditorScreen>
       if (hasAttachments) {
         actions.add(
           _CtxAction(
-            'Ver adjuntos',
+            'Ver evidencia',
             Icons.attach_file_rounded,
-            () => unawaited(_openAttachmentPanelForCell(r, c)),
+            () => _openEvidenceManagerForCell(r, c),
           ),
         );
       }
