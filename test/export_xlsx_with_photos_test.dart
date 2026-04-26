@@ -638,6 +638,83 @@ void main() {
     expect(visibleText, contains('Origen'));
   });
 
+  test('Foto / Evidencia column is detected as evidence summary in export',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Actividad', 'Foto / Evidencia'],
+      rows: const [
+        ['Bomba P-101', ''],
+        ['Válvula V-02', ''],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1.jpg',
+          notes: 'Foto adjunta',
+          relativePath: 'attachments/photos/A1_p1.jpg',
+          cellValue: 'Bomba P-101',
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sharedStrings = readSharedStrings(archive);
+    final visibleText = sharedStrings.join('\n');
+
+    // La columna "Foto / Evidencia" debe exportar resumen profesional.
+    expect(visibleText, contains('Foto adjunta'));
+    expect(visibleText, contains('Sin evidencia'));
+    expect(visibleText, isNot(contains('Photos')));
+  });
+
+  test(
+      'Photos column header (legacy) still triggers evidence summary in export',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Actividad', 'Photos'],
+      rows: const [
+        ['Bomba P-101', ''],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'gps',
+          fileName: '',
+          notes: 'Ubicación GPS',
+          relativePath: '',
+          cellValue: 'Bomba P-101',
+          linkTarget:
+              'https://www.google.com/maps/search/?api=1&query=-34.6,-58.4',
+          lat: -34.6,
+          lng: -58.4,
+          accuracy: 10,
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final visibleText = readSharedStrings(archive).join('\n');
+    // Columna "Photos" (legacy) también se detecta y exporta resumen.
+    expect(visibleText, contains('Ubicación GPS'));
+  });
+
+  test('export XLSX uses Foto / Evidencia header not Photos', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Dato', 'Foto / Evidencia'],
+      rows: const [
+        ['valor 1', ''],
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sharedStrings = readSharedStrings(archive);
+    final visibleText = sharedStrings.join('\n');
+
+    expect(visibleText, contains('Foto / Evidencia'));
+    expect(visibleText, isNot(contains('Photos')));
+  });
+
   test('very large square images are bounded before embedding', () async {
     final huge = img.Image(width: 3000, height: 3000);
     img.fill(huge, color: img.ColorRgb8(12, 120, 220));

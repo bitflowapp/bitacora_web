@@ -2,8 +2,8 @@ part of 'editor_screen.dart';
 
 // ============================== Constantes globales ========================
 
-const int kDefaultCols = 15; // 14 + Photos
-const String kPhotosHeader = 'Photos';
+const int kDefaultCols = 15; // 14 + Foto / Evidencia
+const String kPhotosHeader = 'Foto / Evidencia';
 const String kPhotosColId = 'col_photos';
 const double _kMobileQuickBarH = 62.0;
 const int _kMaxPhotosPerCell = 6;

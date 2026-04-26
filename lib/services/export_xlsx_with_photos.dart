@@ -831,7 +831,9 @@ bool _isEvidenceSummaryColumn(int index, List<String> columns) {
   return normalized.contains('evidencia') ||
       normalized == 'foto' ||
       normalized == 'fotos' ||
-      normalized == 'foto adjunta';
+      normalized == 'foto adjunta' ||
+      normalized == 'foto / evidencia' ||
+      normalized == 'photos'; // backward compat con nombre anterior
 }
 
 List<String> _evidenceTypesForRow(

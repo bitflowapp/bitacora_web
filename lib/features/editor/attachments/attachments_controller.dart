@@ -1301,23 +1301,23 @@ extension _EditorAttachments on _EditorScreenState {
             ],
           );
         }
-        final preview = kIsWeb
-            ? Center(
-                child: WebBlobImage(
-                  bytes: bytes,
-                  mime: photo.mime,
-                  fit: BoxFit.contain,
-                ),
-              )
-            : InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 4,
-                child: Image.memory(
-                  bytes,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              );
+        // Image.memory + InteractiveViewer funciona en todas las plataformas
+        // (CanvasKit en web, skia en iOS/Android). Evita el ciclo de vida de
+        // blob URLs / HtmlElementView que fallaba en Safari/iPhone.
+        final preview = InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 4,
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Center(
+              child: Text(
+                'No se pudo previsualizar esta foto.\nLa evidencia sigue adjunta a la celda.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        );
         return AppModal(
           title: photo.filename.trim().isEmpty
               ? 'Vista previa'

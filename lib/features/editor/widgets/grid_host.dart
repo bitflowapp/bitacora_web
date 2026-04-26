@@ -1237,30 +1237,34 @@ class _PhotosCell extends StatelessWidget {
             ),
           ),
         if (hasThumb) const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            count == 0 ? '0' : '$count',
-            style: TextStyle(
-              color: palette.fg,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              height: 1.05,
-              letterSpacing: 0.2,
+        if (count > 0)
+          Expanded(
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: palette.fg,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.05,
+                letterSpacing: 0.2,
+              ),
+            ),
+          )
+        else
+          const Spacer(),
+        if (count > 0)
+          InkWell(
+            onTap: onDeleteRow,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: palette.fgMuted,
+              ),
             ),
           ),
-        ),
-        InkWell(
-          onTap: onDeleteRow,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            child: Icon(
-              Icons.delete_outline_rounded,
-              size: 18,
-              color: palette.fgMuted,
-            ),
-          ),
-        ),
       ],
     );
   }
