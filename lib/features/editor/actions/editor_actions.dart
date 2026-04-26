@@ -39,11 +39,11 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runOpenAttachmentsForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para abrir adjuntos.',
+      reason: 'Selecciona una celda para ver evidencia.',
     )) {
       return;
     }
-    await _openAttachmentPanelForCell(_selRow, _selCol);
+    _openEvidenceManagerForCell(_selRow, _selCol);
   }
 
   Future<void> _runPhotoForSelection() async {
@@ -336,7 +336,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'open_attachments',
-          label: 'Abrir adjuntos de celda activa',
+          label: 'Ver evidencia de celda activa',
           subtitle: activeCell,
           icon: Icons.attach_file_rounded,
           onSelected: () => unawaited(_runOpenAttachmentsForSelection()),

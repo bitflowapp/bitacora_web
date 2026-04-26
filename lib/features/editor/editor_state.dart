@@ -14410,7 +14410,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (ref == null) return;
     final idx = _cellIndexForRef(ref);
     if (idx == null) return;
-    await _openAttachmentPanelForCell(idx.r, idx.c);
+    _openEvidenceManagerForCell(idx.r, idx.c);
   }
 
   // ------------------------------ Automatizaciones ------------------------

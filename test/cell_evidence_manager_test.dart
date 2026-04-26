@@ -9,6 +9,8 @@ bool _isVideoMime(String mime, String name) {
   final n = name.toLowerCase();
   return n.endsWith('.mp4') ||
       n.endsWith('.mov') ||
+      n.endsWith('.webm') ||
+      n.endsWith('.m4v') ||
       n.endsWith('.avi') ||
       n.endsWith('.mkv');
 }
@@ -68,8 +70,7 @@ void main() {
     });
 
     test('cell with 3+ photos shows counter', () {
-      final meta =
-          CellMeta(photos: [_photo('p1'), _photo('p2'), _photo('p3')]);
+      final meta = CellMeta(photos: [_photo('p1'), _photo('p2'), _photo('p3')]);
       expect(meta.photos.length, 3);
     });
 
@@ -90,8 +91,7 @@ void main() {
   group('Delete single attachment — others preserved', () {
     test('deleting photo at index 0 preserves photo at index 1', () {
       final meta = CellMeta(photos: [_photo('p1'), _photo('p2')]);
-      final nextPhotos = List<PhotoAttachment>.from(meta.photos)
-        ..removeAt(0);
+      final nextPhotos = List<PhotoAttachment>.from(meta.photos)..removeAt(0);
       final next = CellMeta(
         gps: meta.gps,
         photos: nextPhotos,
@@ -106,8 +106,7 @@ void main() {
         photos: [_photo('p1')],
         audios: [_audio('a1')],
       );
-      final nextPhotos = List<PhotoAttachment>.from(meta.photos)
-        ..removeAt(0);
+      final nextPhotos = List<PhotoAttachment>.from(meta.photos)..removeAt(0);
       final next = CellMeta(
         gps: meta.gps,
         photos: nextPhotos,
@@ -122,8 +121,7 @@ void main() {
         photos: [_photo('p1'), _photo('p2')],
         audios: [_audio('a1')],
       );
-      final nextAudios = List<AudioAttachment>.from(meta.audios)
-        ..removeAt(0);
+      final nextAudios = List<AudioAttachment>.from(meta.audios)..removeAt(0);
       final next = CellMeta(
         gps: meta.gps,
         photos: meta.photos,
@@ -135,8 +133,7 @@ void main() {
 
     test('deleting evidence does not affect cell GPS', () {
       final meta = CellMeta(photos: [_photo('p1')], gps: _gps());
-      final nextPhotos = List<PhotoAttachment>.from(meta.photos)
-        ..removeAt(0);
+      final nextPhotos = List<PhotoAttachment>.from(meta.photos)..removeAt(0);
       final next = CellMeta(
         gps: meta.gps,
         photos: nextPhotos,
@@ -147,10 +144,25 @@ void main() {
       expect(next.gps!.lat, closeTo(-34.60, 0.0001));
     });
 
+    test('deleting GPS preserves photos and audio', () {
+      final meta = CellMeta(
+        gps: _gps(),
+        photos: [_photo('p1')],
+        audios: [_audio('a1')],
+      );
+      final next = CellMeta(
+        photos: meta.photos,
+        audios: meta.audios,
+      );
+      expect(next.hasGps, isFalse);
+      expect(next.photos.length, 1);
+      expect(next.audios.length, 1);
+      expect(next.isEmpty, isFalse);
+    });
+
     test('delete all photos makes cell have no photos', () {
       final meta = CellMeta(photos: [_photo('p1')]);
-      final nextPhotos = List<PhotoAttachment>.from(meta.photos)
-        ..removeAt(0);
+      final nextPhotos = List<PhotoAttachment>.from(meta.photos)..removeAt(0);
       final next = CellMeta(
         gps: meta.gps,
         photos: nextPhotos,
@@ -197,6 +209,27 @@ void main() {
       expect(next.photos.length, 2);
       expect(next.audios.length, 1);
     });
+
+    test('adding file evidence preserves existing photo evidence', () {
+      final meta = CellMeta(photos: [_photo('p1')]);
+      final file = PhotoAttachment(
+        id: 'file1',
+        filename: 'informe.pdf',
+        mime: 'application/pdf',
+        size: 4096,
+        storedRef: 'mem:file1',
+        thumbRef: '',
+        addedAt: DateTime(2026, 4, 26),
+      );
+      final next = CellMeta(
+        gps: meta.gps,
+        photos: [...meta.photos, file],
+        audios: meta.audios,
+      );
+      expect(next.photos.length, 2);
+      expect(next.photos.last.filename, 'informe.pdf');
+      expect(next.photos.first.id, 'p1');
+    });
   });
 
   group('CellMeta serialization round-trip', () {
@@ -241,6 +274,14 @@ void main() {
 
     test('.mkv extension detected as video', () {
       expect(_isVideoMime('', 'video.mkv'), isTrue);
+    });
+
+    test('.webm extension detected as video', () {
+      expect(_isVideoMime('', 'grabacion.webm'), isTrue);
+    });
+
+    test('.m4v extension detected as video', () {
+      expect(_isVideoMime('', 'grabacion.m4v'), isTrue);
     });
 
     test('image/jpeg is NOT video', () {

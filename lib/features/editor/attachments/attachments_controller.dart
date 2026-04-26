@@ -1208,8 +1208,40 @@ extension _EditorAttachments on _EditorScreenState {
     final n = name.toLowerCase();
     return n.endsWith('.mp4') ||
         n.endsWith('.mov') ||
+        n.endsWith('.webm') ||
+        n.endsWith('.m4v') ||
         n.endsWith('.avi') ||
         n.endsWith('.mkv');
+  }
+
+  bool _isImageEvidence(PhotoAttachment photo) {
+    return _isPreviewableMime(photo.mime, photo.filename);
+  }
+
+  String _evidenceTypeLabel(PhotoAttachment photo) {
+    final mime = photo.mime.trim();
+    final name = photo.filename.trim();
+    if (_isVideoMime(mime, name)) return 'Video adjuntado a esta celda';
+    if (_isImageEvidence(photo)) return 'Foto adjuntada a esta celda';
+    return 'Archivo adjuntado a esta celda';
+  }
+
+  String _evidenceOpenLabel(PhotoAttachment photo) {
+    final mime = photo.mime.trim();
+    final name = photo.filename.trim();
+    if (_isVideoMime(mime, name)) return 'Abrir video';
+    if (_isImageEvidence(photo)) return 'Ver foto';
+    return 'Abrir archivo';
+  }
+
+  IconData _evidenceOpenIcon(PhotoAttachment photo) {
+    final mime = photo.mime.trim();
+    final name = photo.filename.trim();
+    if (_isVideoMime(mime, name)) {
+      return Icons.play_circle_outline_rounded;
+    }
+    if (_isImageEvidence(photo)) return Icons.visibility_outlined;
+    return Icons.open_in_new_rounded;
   }
 
   Future<void> _downloadPhotoAttachment(PhotoAttachment photo) async {
@@ -1226,7 +1258,7 @@ extension _EditorAttachments on _EditorScreenState {
     final bytes = await _loadPhotoBytesFromAttachment(photo);
     if (!mounted) return;
     if (bytes == null || bytes.isEmpty) {
-      _showSnack('No se pudo descargar la foto.', isError: true);
+      _showSnack('No se pudo abrir esta evidencia.', isError: true);
       return;
     }
     final name = photo.filename.trim().isEmpty ? 'foto' : photo.filename.trim();
@@ -1243,7 +1275,7 @@ extension _EditorAttachments on _EditorScreenState {
     final bytes = await _loadPhotoBytesFromAttachment(photo);
     if (!context.mounted) return;
     if (bytes == null || bytes.isEmpty) {
-      _showSnack('No se pudo cargar la foto.', isError: true);
+      _showSnack('No se pudo previsualizar esta foto.', isError: true);
       return;
     }
     final previewable = _canPreviewPhoto(photo);
@@ -1251,12 +1283,10 @@ extension _EditorAttachments on _EditorScreenState {
       context: context,
       builder: (ctx) {
         if (!previewable) {
-          final mimeLabel = photo.mime.trim().isEmpty
-              ? 'mime desconocido'
-              : photo.mime.trim();
           return AppModal(
-            title: 'Adjunto guardado',
-            child: Text('Guardado sin vista previa (mime=$mimeLabel).'),
+            title: 'Vista previa no disponible',
+            child:
+                const Text('Esta evidencia no tiene vista previa disponible.'),
             actions: [
               AppButton(
                 label: 'Cerrar',
@@ -1311,7 +1341,7 @@ extension _EditorAttachments on _EditorScreenState {
     );
   }
 
-  Future<void> _openVideoEvidence(
+  Future<void> _openStoredEvidence(
     BuildContext context,
     PhotoAttachment photo,
   ) async {
@@ -1327,7 +1357,10 @@ extension _EditorAttachments on _EditorScreenState {
       } catch (_) {}
     }
     if (!context.mounted) return;
-    _showSnack('No se pudo abrir este video. Descargando…', isError: false);
+    _showSnack(
+      'No se pudo abrir esta evidencia. Intentando descargarla...',
+      isError: false,
+    );
     await _downloadPhotoAttachment(photo);
   }
 
@@ -1701,6 +1734,19 @@ extension _EditorAttachments on _EditorScreenState {
     );
   }
 
+  void _deleteGpsFromCell(int r, int c) {
+    final ref = _cellRefAt(r, c);
+    if (ref == null) return;
+    final current = _cellMeta[ref.key];
+    if (current == null || current.gps == null) return;
+    final next = CellMeta(
+      photos: current.photos,
+      audios: current.audios,
+    );
+    _setCellMetaEntry(r, c, next, markDirty: true);
+    _refreshCellAfterSave(r, c);
+  }
+
   Future<void> _openAttachmentPanelForCell(int r, int c) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
@@ -2062,6 +2108,13 @@ extension _EditorAttachments on _EditorScreenState {
                 );
                 if (!ok || !mounted) return;
                 await _deletePhotoFromCell(r, c, idx);
+                if (mounted) {
+                  _showActionSnack(
+                    'Evidencia eliminada',
+                    isError: false,
+                    icon: Icons.delete_outline_rounded,
+                  );
+                }
                 if (mounted) setSheetState(() {});
               }
 
@@ -2074,16 +2127,41 @@ extension _EditorAttachments on _EditorScreenState {
                 );
                 if (!ok || !mounted) return;
                 await _deleteAudioFromCell(r, c, idx);
+                if (mounted) {
+                  _showActionSnack(
+                    'Evidencia eliminada',
+                    isError: false,
+                    icon: Icons.delete_outline_rounded,
+                  );
+                }
                 if (mounted) setSheetState(() {});
+              }
+
+              Future<void> doDeleteGps() async {
+                final ok = await _confirmDeleteEvidence(
+                  ctx2,
+                  name: 'GPS',
+                  cellLabel: cellLabel,
+                );
+                if (!ok || !mounted) return;
+                _deleteGpsFromCell(r, c);
+                if (mounted) {
+                  _showActionSnack(
+                    'Evidencia eliminada',
+                    isError: false,
+                    icon: Icons.delete_outline_rounded,
+                  );
+                  setSheetState(() {});
+                }
               }
 
               Widget buildPhotoRow(PhotoAttachment p, int idx) {
                 final isVideo = _isVideoMime(p.mime, p.filename);
-                final typeLabel = isVideo
-                    ? 'Video adjuntado a esta celda'
-                    : 'Foto adjuntada a esta celda';
+                final isImage = _isImageEvidence(p);
+                final typeLabel = _evidenceTypeLabel(p);
                 final dateStr = _formatDateTimeShort(p.addedAt.toLocal());
                 final sizeStr = _formatBytes(p.size);
+                final caption = _photoCaptionFor(p);
 
                 Widget thumb() {
                   if (isVideo) {
@@ -2108,6 +2186,17 @@ extension _EditorAttachments on _EditorScreenState {
                             ),
                           ),
                         ],
+                      ),
+                    );
+                  }
+                  if (!isImage) {
+                    return Container(
+                      color: pal.cellBg,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        _inlineAttachmentIcon(p.mime, p.filename),
+                        color: pal.fgMuted,
+                        size: 28,
                       ),
                     );
                   }
@@ -2149,15 +2238,13 @@ extension _EditorAttachments on _EditorScreenState {
                   palette: pal,
                   thumb: thumb(),
                   label: typeLabel,
-                  sublabel: '$dateStr · $sizeStr',
-                  primaryLabel: isVideo ? 'Abrir video' : 'Ver foto',
-                  primaryIcon: isVideo
-                      ? Icons.play_circle_outline_rounded
-                      : Icons.visibility_outlined,
+                  sublabel: '$caption · $dateStr · $sizeStr',
+                  primaryLabel: _evidenceOpenLabel(p),
+                  primaryIcon: _evidenceOpenIcon(p),
                   onPrimary: () => unawaited(
-                    isVideo
-                        ? _openVideoEvidence(ctx2, p)
-                        : _openPhotoPreview(ctx2, p),
+                    isImage
+                        ? _openPhotoPreview(ctx2, p)
+                        : _openStoredEvidence(ctx2, p),
                   ),
                   onDelete: () => doDeletePhoto(idx),
                 );
@@ -2210,7 +2297,7 @@ extension _EditorAttachments on _EditorScreenState {
                   primaryLabel: 'Copiar',
                   primaryIcon: Icons.content_copy_rounded,
                   onPrimary: () => unawaited(_copyGpsCoordinatesForCell(r, c)),
-                  onDelete: null,
+                  onDelete: doDeleteGps,
                 );
               }
 
@@ -2346,7 +2433,9 @@ extension _EditorAttachments on _EditorScreenState {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) {
+        final ref = _cellRefAt(r, c);
         return SafeArea(
           top: false,
           child: Padding(
@@ -2372,8 +2461,18 @@ extension _EditorAttachments on _EditorScreenState {
                   ),
                   const SizedBox(height: 12),
                   AppButton(
-                    label: 'Foto o video',
+                    label: 'Foto',
                     icon: Icons.add_photo_alternate_outlined,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(_startPhotoFlowForCell(r, c));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Varias fotos',
+                    icon: Icons.photo_library_outlined,
                     variant: AppButtonVariant.secondary,
                     onPressed: () {
                       Navigator.of(ctx).pop();
@@ -2382,7 +2481,55 @@ extension _EditorAttachments on _EditorScreenState {
                   ),
                   const SizedBox(height: 8),
                   AppButton(
-                    label: 'Capturar GPS',
+                    label: 'Video',
+                    icon: Icons.videocam_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(_attachVideoForCell(r, c));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: _audioRecording ? 'Detener audio' : 'Audio',
+                    icon: _audioRecording
+                        ? Icons.stop_circle_rounded
+                        : Icons.mic_none_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(
+                        _audioRecording
+                            ? _stopAudioRecording()
+                            : _startAudioRecordingForCell(r, c),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Archivo',
+                    icon: Icons.attach_file_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      unawaited(_attachDocumentForCell(r, c));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'Audio desde archivo',
+                    icon: Icons.audiotrack_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: ref == null
+                        ? null
+                        : () {
+                            Navigator.of(ctx).pop();
+                            unawaited(_attachAudioFromFile(ref));
+                          },
+                  ),
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: 'GPS',
                     icon: Icons.my_location_rounded,
                     variant: AppButtonVariant.secondary,
                     onPressed: () {
@@ -3787,12 +3934,12 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Adjuntar evidencia',
+            label: 'Evidencia de celda',
             icon: Icons.attach_file_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(_openAttachmentPanelForCell(_selRow, _selCol));
+              _openEvidenceManagerForCell(_selRow, _selCol);
             },
           ),
           const SizedBox(height: 8),
