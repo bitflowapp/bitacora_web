@@ -470,6 +470,12 @@ Future<Uint8List> buildXlsxWithPhotos({
       );
     }
 
+    _reorderSheets(
+      workbook,
+      includeCoverSheet: includeCoverSheet,
+      includeSummarySheet: includeSummarySheet,
+    );
+
     addBitflowMetaSheet(
       workbook,
       embeddedImageCount: embeddedCount,
@@ -527,7 +533,6 @@ int _buildFotosSheet(
   final headers = [
     'Fila',
     'Columna',
-    'Archivo original',
     'Fecha',
     'Latitud',
     'Longitud',
@@ -545,15 +550,6 @@ int _buildFotosSheet(
   photosSheet.setRowHeightInPixels(1, 28);
   photosSheet.getRangeByIndex(2, 1).freezePanes();
 
-  const hiddenHeaders = <String>{'Archivo original', 'Mime', 'Path'};
-  for (int c = 0; c < headers.length; c++) {
-    if (!hiddenHeaders.contains(headers[c])) continue;
-    final existing = photosSheet.columns[c + 1];
-    final col = existing ?? (xlsio.Column(photosSheet)..index = c + 1);
-    col.isHidden = true;
-    photosSheet.columns[c + 1] = col;
-  }
-
   int embeddedCount = 0;
 
   for (int i = 0; i < photoMeta.length; i++) {
@@ -566,23 +562,21 @@ int _buildFotosSheet(
 
     photosSheet.getRangeByIndex(row, 1).setNumber(item.rowIndex + 1);
     photosSheet.getRangeByIndex(row, 2).setNumber(item.colIndex + 1);
-    // Syncfusion can render empty text cells as a visible placeholder in some
-    // readers, so leave intentionally blank cells untouched.
-    final addedAt = photosSheet.getRangeByIndex(row, 4);
+    final addedAt = photosSheet.getRangeByIndex(row, 3);
     addedAt.setDateTime(item.addedAt);
     _styleDateCell(addedAt);
     if (item.lat != null) {
-      photosSheet.getRangeByIndex(row, 5).setNumber(item.lat ?? 0);
+      photosSheet.getRangeByIndex(row, 4).setNumber(item.lat ?? 0);
     }
     if (item.lng != null) {
-      photosSheet.getRangeByIndex(row, 6).setNumber(item.lng ?? 0);
+      photosSheet.getRangeByIndex(row, 5).setNumber(item.lng ?? 0);
     }
     if (item.accuracy != null) {
-      photosSheet.getRangeByIndex(row, 7).setNumber(item.accuracy ?? 0);
+      photosSheet.getRangeByIndex(row, 6).setNumber(item.accuracy ?? 0);
     }
     final sourceLabel = _friendlyPhotoSourceLabel(item.sourceLabel);
     if (sourceLabel.isNotEmpty) {
-      photosSheet.getRangeByIndex(row, 8).setText(sourceLabel);
+      photosSheet.getRangeByIndex(row, 7).setText(sourceLabel);
     }
     photosSheet.setRowHeightInPixels(row, 96);
 
@@ -636,9 +630,7 @@ int _buildFotosSheet(
 
   for (int c = 0; c < lastPhotoCol - 1; c++) {
     try {
-      if (!hiddenHeaders.contains(headers[c])) {
-        photosSheet.autoFitColumn(c + 1);
-      }
+      photosSheet.autoFitColumn(c + 1);
     } catch (_) {}
   }
 
@@ -718,13 +710,17 @@ int _buildAttachmentsSheet(
           .setText('${item.accuracy!.toStringAsFixed(0)} m');
     }
     final openCell = sheet.getRangeByIndex(row, 10);
-    if (target.isNotEmpty) {
+    if (target.isNotEmpty && _isSafeExportLink(target)) {
       _addFileHyperlink(
         sheet,
         openCell,
         target,
         displayText: _attachmentOpenLabel(item.type),
       );
+    } else if (target.isNotEmpty) {
+      // Link no portable (ruta local del dispositivo) — no se expone al cliente.
+      openCell.setText('Disponible desde la app');
+      openCell.cellStyle.fontColor = _kMutedInk;
     }
 
     final previewCell = sheet.getRangeByIndex(row, 11);
@@ -935,17 +931,18 @@ void _buildCoverSheet(xlsio.Workbook wb, {required String sheetName}) {
     label.cellStyle.bold = true;
     label.cellStyle.fontColor = _kInk;
     label.cellStyle.backColor = _kSoftBlue2;
-    cover.getRangeByIndex(row, 2).setText(
-          i == 0 ? _fallbackSheetName(sheetName) : 'No especificado',
-        );
+    if (i == 0) {
+      cover.getRangeByIndex(row, 2).setText(_fallbackSheetName(sheetName));
+    } else if (i == 3) {
+      // Fecha de emisión = fecha real de generación del reporte
+      final dateCell = cover.getRangeByIndex(row, 2);
+      dateCell.setDateTime(DateTime.now());
+      _styleDateCell(dateCell);
+    } else {
+      cover.getRangeByIndex(row, 2).setText('No especificado');
+    }
   }
-  final generatedLabel = cover.getRangeByIndex(10, 1);
-  generatedLabel.setText('Generado');
-  generatedLabel.cellStyle.bold = true;
-  final generated = cover.getRangeByIndex(10, 2);
-  generated.setDateTime(DateTime.now());
-  _styleDateCell(generated);
-  final range = cover.getRangeByIndex(5, 1, 10, 2);
+  final range = cover.getRangeByIndex(5, 1, 8, 2);
   range.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
   range.cellStyle.borders.all.color = _kLine;
   range.cellStyle.vAlign = xlsio.VAlignType.center;
@@ -1124,7 +1121,7 @@ String _friendlyEvidenceName(AttachmentRow item, int sequence) {
     case 'audio':
       return 'Audio $sequence$suffix';
     case 'gps':
-      return 'GPS$suffix';
+      return sequence > 1 ? 'GPS $sequence$suffix' : 'GPS$suffix';
     case 'file':
       return 'Archivo $sequence$suffix';
     default:
@@ -1237,6 +1234,65 @@ void _addFileHyperlink(
     range.setText(displayText);
     range.cellStyle.fontColor = _kLinkBlue;
   }
+}
+
+/// Devuelve true si el link es portable y seguro para incluir en el XLSX.
+/// Suprime rutas locales del dispositivo que no existen en la máquina del cliente.
+bool _isSafeExportLink(String target) {
+  final t = target.trim().toLowerCase();
+  if (t.isEmpty) {
+    return false;
+  }
+  if (t.startsWith('file://')) {
+    return false;
+  }
+  if (t.startsWith('c:/') || t.startsWith('c:\\')) {
+    return false;
+  }
+  if (t.startsWith('/users/') ||
+      t.startsWith('/var/') ||
+      t.startsWith('/tmp/') ||
+      t.startsWith('/data/')) {
+    return false;
+  }
+  if (t.contains('/cache/') || t.contains('\\cache\\')) {
+    return false;
+  }
+  return true;
+}
+
+/// Reordena las hojas del workbook al orden esperado:
+/// Carátula → Resumen → Planilla → Evidencias → _BITFLOW_META.
+void _reorderSheets(
+  xlsio.Workbook workbook, {
+  required bool includeCoverSheet,
+  required bool includeSummarySheet,
+}) {
+  try {
+    int nextIndex = 0;
+    if (includeCoverSheet) {
+      final cover = _findWorksheet(workbook, 'Caratula');
+      if (cover != null && workbook.worksheets.count > 1) {
+        workbook.worksheets.moveTo(cover, nextIndex);
+        nextIndex++;
+      }
+    }
+    if (includeSummarySheet) {
+      final summary = _findWorksheet(workbook, 'Resumen');
+      if (summary != null && workbook.worksheets.count > 1) {
+        workbook.worksheets.moveTo(summary, nextIndex);
+      }
+    }
+  } catch (_) {
+    // Reorden es best-effort; nunca bloquea el export.
+  }
+}
+
+xlsio.Worksheet? _findWorksheet(xlsio.Workbook wb, String name) {
+  for (var i = 0; i < wb.worksheets.count; i++) {
+    if (wb.worksheets[i].name == name) return wb.worksheets[i];
+  }
+  return null;
 }
 
 String _sanitizeWorksheetName(String name) {

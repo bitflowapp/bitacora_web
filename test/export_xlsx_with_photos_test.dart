@@ -25,6 +25,18 @@ void main() {
         .replaceAll('&apos;', "'");
   }
 
+  List<String> readSheetOrder(Archive archive) {
+    final workbookXml = utf8.decode(
+      archive.files
+          .firstWhere(
+            (f) => f.name.replaceAll('\\', '/') == 'xl/workbook.xml',
+          )
+          .content as List<int>,
+    );
+    final reg = RegExp(r'<sheet\b[^>]+name="([^"]+)"', caseSensitive: false);
+    return reg.allMatches(workbookXml).map((m) => m.group(1) ?? '').toList();
+  }
+
   List<String> readSharedStrings(Archive archive) {
     final shared = archive.files
         .where((f) => f.name.replaceAll('\\', '/') == 'xl/sharedStrings.xml')
@@ -442,6 +454,7 @@ void main() {
     expect(visibleText, contains('Reporte técnico de campo'));
     expect(visibleText, contains('Resumen de exportación'));
     expect(visibleText, contains('Fecha de emisión'));
+    // Cliente y Responsable siguen mostrando "No especificado"; Fecha de emisión ya no.
     expect(visibleText, contains('No especificado'));
     expect(
       visibleText,
@@ -463,7 +476,17 @@ void main() {
     expect(visibleText, isNot(contains('source=current')));
     expect(visibleText, isNot(contains('unknown')));
     expect(visibleText, isNot(contains('null')));
+    expect(visibleText, isNot(contains('Archivo original')));
     expect(names.any((n) => n.startsWith('xl/media/')), isTrue);
+
+    // Orden de hojas: Carátula → Resumen → Planilla → Evidencias.
+    final sheetOrder = readSheetOrder(archive);
+    final caratulaIdx = sheetOrder.indexOf('Caratula');
+    final resumenIdx = sheetOrder.indexOf('Resumen');
+    final evidenciasIdx = sheetOrder.indexOf('Evidencias');
+    expect(caratulaIdx, greaterThanOrEqualTo(0));
+    expect(resumenIdx, greaterThan(caratulaIdx));
+    expect(evidenciasIdx, greaterThan(resumenIdx));
   });
 
   test('date-like values are stored with an Excel date format', () async {
@@ -494,6 +517,125 @@ void main() {
 
     final archive = ZipDecoder().decodeBytes(bytes);
     expect(readSharedStrings(archive), contains('31/02/2026 14:35'));
+  });
+
+  test('local file:// links are suppressed and replaced with friendly text',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Activo'],
+      rows: const [
+        ['Bomba P-101'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1_foto.jpg',
+          notes: 'Foto adjunta',
+          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+          cellValue: 'Bomba P-101',
+          linkTarget: 'file:///Users/marco/.cache/bitflow/abc123.jpg',
+        ),
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'video',
+          fileName: 'A1_v1.mp4',
+          notes: 'Video adjunto',
+          relativePath: 'attachments/video/A1_v1.mp4',
+          cellValue: 'Bomba P-101',
+          linkTarget: 'C:/Users/marco/AppData/Local/cache/A1_v1.mp4',
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sharedStrings = readSharedStrings(archive);
+    final visibleText = sharedStrings.join('\n');
+    final allXml = archive.files
+        .where((f) => f.name.endsWith('.xml') || f.name.endsWith('.rels'))
+        .map((f) => utf8.decode(f.content as List<int>).toLowerCase())
+        .join('\n');
+
+    expect(visibleText, isNot(contains('file://')));
+    expect(allXml, isNot(contains('file:///users/marco')));
+    expect(allXml, isNot(contains('c:/users/marco')));
+    expect(visibleText, contains('Disponible desde la app'));
+  });
+
+  test('multiple GPS entries in same cell get numbered names', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Activo'],
+      rows: const [
+        ['Bomba P-101'],
+      ],
+      attachments: [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'gps',
+          fileName: '',
+          notes: 'Primera ubicación',
+          relativePath: '',
+          cellValue: 'Bomba P-101',
+          linkTarget:
+              'https://www.google.com/maps/search/?api=1&query=-34.1,-58.1',
+          lat: -34.1,
+          lng: -58.1,
+          accuracy: 5,
+          addedAt: DateTime.parse('2026-04-26T10:00:00Z'),
+        ),
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'gps',
+          fileName: '',
+          notes: 'Segunda ubicación',
+          relativePath: '',
+          cellValue: 'Bomba P-101',
+          linkTarget:
+              'https://www.google.com/maps/search/?api=1&query=-34.2,-58.2',
+          lat: -34.2,
+          lng: -58.2,
+          accuracy: 5,
+          addedAt: DateTime.parse('2026-04-26T11:00:00Z'),
+        ),
+      ],
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final visibleText = readSharedStrings(archive).join('\n');
+
+    expect(visibleText, contains('GPS · A1'));
+    expect(visibleText, contains('GPS 2 · A1'));
+  });
+
+  test('Fotos sheet does not include hidden Archivo original column', () async {
+    final png = makeTinyPng();
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Dato'],
+      rows: const [
+        ['valor 1'],
+      ],
+      photoMeta: [
+        PhotoMeta(
+          rowIndex: 0,
+          colIndex: 0,
+          photoIndex: 0,
+          addedAt: DateTime.parse('2026-04-26T10:00:00Z'),
+          sourceLabel: 'camera',
+        ),
+      ],
+      photosByRow: {
+        0: [png],
+      },
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final visibleText = readSharedStrings(archive).join('\n');
+
+    expect(visibleText, isNot(contains('Archivo original')));
+    // Columnas visibles sí deben existir.
+    expect(visibleText, contains('Fila'));
+    expect(visibleText, contains('Fecha'));
+    expect(visibleText, contains('Origen'));
   });
 
   test('very large square images are bounded before embedding', () async {
