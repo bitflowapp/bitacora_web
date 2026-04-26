@@ -3351,7 +3351,9 @@ extension _EditorAttachments on _EditorScreenState {
       title: 'Acciones',
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── Trabajo ──────────────────────────────────────────────
           AppButton(
             label: '+ Registro',
             icon: Icons.add_box_outlined,
@@ -3363,17 +3365,17 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Formulario',
-            icon: Icons.description_outlined,
+            label: 'Agregar fila',
+            icon: Icons.add_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(_openRowFormMode(rowIndex: _selRow, createNew: false));
+              _insertRow(_rows.length);
             },
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Adjuntar en celda activa',
+            label: 'Adjuntar evidencia',
             icon: Icons.attach_file_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
@@ -3393,16 +3395,6 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Cola offline',
-            icon: Icons.sync_alt_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_openOfflineQueueDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
             label: 'Exportar / Compartir',
             icon: Icons.ios_share_rounded,
             variant: AppButtonVariant.secondary,
@@ -3411,54 +3403,35 @@ extension _EditorAttachments on _EditorScreenState {
               unawaited(_openExportMenu());
             },
           ),
-          const SizedBox(height: 8),
+          // ── Organización ─────────────────────────────────────────
+          const _MobileMenuSection('Organización'),
           AppButton(
-            label: 'Ver atajos',
-            icon: Icons.keyboard_rounded,
+            label: 'Formulario',
+            icon: Icons.description_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(_openShortcutsHelp());
+              unawaited(_openRowFormMode(rowIndex: _selRow, createNew: false));
             },
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Ver tour rapido',
-            icon: Icons.explore_outlined,
+            label: 'Deshacer',
+            icon: Icons.undo_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              _reopenEditorTour();
+              _undoOnce();
             },
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Importar paquete',
-            icon: Icons.file_open_rounded,
+            label: 'Rehacer',
+            icon: Icons.redo_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(_openImportPackageDialog());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Smoke Test (GPS/Foto/Audio)',
-            icon: Icons.science_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_runAttachmentSmokeTest());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Agregar fila',
-            icon: Icons.add_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _insertRow(_rows.length);
+              _redoOnce();
             },
           ),
           const SizedBox(height: 8),
@@ -3484,8 +3457,8 @@ extension _EditorAttachments on _EditorScreenState {
           const SizedBox(height: 8),
           AppButton(
             label: _reviewFilterMode == _ReviewFilterMode.pending
-                ? 'Quitar vista pendientes'
-                : 'Vista pendientes',
+                ? 'Quitar pendientes'
+                : 'Pendientes',
             icon: _reviewFilterMode == _ReviewFilterMode.pending
                 ? Icons.filter_alt_off_rounded
                 : Icons.pending_actions_rounded,
@@ -3505,7 +3478,61 @@ extension _EditorAttachments on _EditorScreenState {
               unawaited(_activateUrgentViewShortcut());
             },
           ),
+          // ── Preferencias ─────────────────────────────────────────
+          const _MobileMenuSection('Preferencias'),
+          AppButton(
+            label: pal.isLight ? 'Modo oscuro' : 'Modo claro',
+            icon: pal.isLight
+                ? Icons.dark_mode_outlined
+                : Icons.light_mode_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _toggleTheme();
+            },
+          ),
           const SizedBox(height: 8),
+          AppButton(
+            label: _mobileCompactModeEnabled
+                ? 'Modo compacto: ON'
+                : 'Modo compacto: OFF',
+            icon: _mobileCompactModeEnabled
+                ? Icons.view_compact_alt_rounded
+                : Icons.view_day_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(
+                _setEditorDefaultRules(
+                  mobileCompactModeEnabled: !_mobileCompactModeEnabled,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: _zenModeEnabled ? 'Modo Zen: ON' : 'Modo Zen: OFF',
+            icon: _zenModeEnabled
+                ? Icons.visibility_rounded
+                : Icons.visibility_off_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_toggleZenMode());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Preferencias de editor',
+            icon: Icons.tune_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openEditorDefaultsDialog());
+            },
+          ),
+          // ── Avanzado ─────────────────────────────────────────────
+          const _MobileMenuSection('Avanzado'),
           AppButton(
             label: 'Auto-ID',
             icon: Icons.tag_rounded,
@@ -3567,74 +3594,22 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Preferencias de editor',
-            icon: Icons.tune_rounded,
+            label: 'Estado de sync',
+            icon: Icons.sync_alt_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(_openEditorDefaultsDialog());
+              unawaited(_openOfflineQueueDialog());
             },
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: _mobileCompactModeEnabled
-                ? 'Modo compacto: ON'
-                : 'Modo compacto: OFF',
-            icon: _mobileCompactModeEnabled
-                ? Icons.view_compact_alt_rounded
-                : Icons.view_day_outlined,
+            label: 'Importar',
+            icon: Icons.file_open_rounded,
             variant: AppButtonVariant.secondary,
             onPressed: () {
               Navigator.of(context).pop();
-              unawaited(
-                _setEditorDefaultRules(
-                  mobileCompactModeEnabled: !_mobileCompactModeEnabled,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: _zenModeEnabled ? 'Modo Zen: ON' : 'Modo Zen: OFF',
-            icon: _zenModeEnabled
-                ? Icons.visibility_rounded
-                : Icons.visibility_off_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_toggleZenMode());
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Deshacer',
-            icon: Icons.undo_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _undoOnce();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'Rehacer',
-            icon: Icons.redo_rounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _redoOnce();
-            },
-          ),
-          const SizedBox(height: 8),
-          AppButton(
-            label: pal.isLight ? 'Modo oscuro' : 'Modo claro',
-            icon: pal.isLight
-                ? Icons.dark_mode_outlined
-                : Icons.light_mode_outlined,
-            variant: AppButtonVariant.secondary,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _toggleTheme();
+              unawaited(_openImportPackageDialog());
             },
           ),
           const SizedBox(height: 8),
@@ -3649,6 +3624,40 @@ extension _EditorAttachments on _EditorScreenState {
                   }
                 : null,
           ),
+          // ── Ayuda ────────────────────────────────────────────────
+          const _MobileMenuSection('Ayuda'),
+          AppButton(
+            label: 'Ver atajos',
+            icon: Icons.keyboard_rounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_openShortcutsHelp());
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'Ayuda rápida',
+            icon: Icons.explore_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _reopenEditorTour();
+            },
+          ),
+          // ── Debug (solo en builds de desarrollo) ─────────────────
+          if (kDebugMode) ...[
+            const _MobileMenuSection('Debug'),
+            AppButton(
+              label: 'Smoke Test (GPS/Foto/Audio)',
+              icon: Icons.science_outlined,
+              variant: AppButtonVariant.secondary,
+              onPressed: () {
+                Navigator.of(context).pop();
+                unawaited(_runAttachmentSmokeTest());
+              },
+            ),
+          ],
         ],
       ),
       actions: [
@@ -4032,4 +4041,27 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
         alignment: Alignment.center,
         child: Icon(Icons.image_outlined, color: pal.fgMuted, size: 20),
       );
+}
+
+/// Separador de sección dentro del menú de acciones mobile.
+class _MobileMenuSection extends StatelessWidget {
+  const _MobileMenuSection(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 18, bottom: 8),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: t.colors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
 }
