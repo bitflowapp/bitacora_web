@@ -559,15 +559,15 @@ void _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
-  final sheet = workbook.worksheets.addWithName('Adjuntos');
+  final sheet = workbook.worksheets.addWithName('Evidencias');
   sheet.showGridlines = false;
 
   const headers = [
-    'Referencia de celda',
+    'Referencia',
     'Tipo',
-    'Nombre de archivo',
-    'Notas',
-    'Ruta',
+    'Evidencia',
+    'Descripción',
+    'Archivo',
   ];
 
   for (int c = 0; c < headers.length; c++) {
@@ -742,4 +742,27 @@ int _maxTextLenForColumn({
 int _widthPxForLen(int len) {
   final clamped = len.clamp(0, 60);
   return (80 + (clamped * 7)).toInt();
+}
+
+/// Elimina columnas cuyo header es vacío o en blanco, junto con los valores
+/// correspondientes en cada fila. Usado por la capa del editor antes de
+/// llamar a [buildXlsxWithPhotos] para evitar columnas auxiliares sin label.
+({List<String> columns, List<List<String>> rows}) filterEmptyHeaderColumns({
+  required List<String> columns,
+  required List<List<String>> rows,
+}) {
+  final keepIndices = <int>[
+    for (int i = 0; i < columns.length; i++)
+      if (columns[i].trim().isNotEmpty) i,
+  ];
+  return (
+    columns: keepIndices.map((i) => columns[i]).toList(),
+    rows: rows
+        .map(
+          (row) => keepIndices
+              .map((i) => i < row.length ? row[i] : '')
+              .toList(),
+        )
+        .toList(),
+  );
 }

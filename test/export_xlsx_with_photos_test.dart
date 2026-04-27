@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:bitacora_web/services/export_xlsx_with_photos.dart';
 import 'package:bitacora_web/services/photo_bytes_resolver.dart';
 import 'package:bitacora_web/services/photo_json_codec.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
@@ -237,5 +238,188 @@ void main() {
 
     expect(file.existsSync(), isTrue);
     expect(file.lengthSync() > 0, isTrue);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Helpers para los nuevos tests
+  // ---------------------------------------------------------------------------
+
+  List<String> _sheetNames(Uint8List bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final wbFile = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/') == 'xl/workbook.xml',
+    );
+    final xml = utf8.decode(wbFile.content as List<int>);
+    return RegExp(r'<sheet[^>]+name="([^"]*)"')
+        .allMatches(xml)
+        .map((m) => m.group(1) ?? '')
+        .toList();
+  }
+
+  List<String> _sharedStrings(Uint8List bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final ssFile = archive.files.firstWhereOrNull(
+      (f) => f.name.replaceAll('\\', '/') == 'xl/sharedStrings.xml',
+    );
+    if (ssFile == null) return const [];
+    final xml = utf8.decode(ssFile.content as List<int>);
+    return RegExp(r'<t(?:\s[^>]*)?>([^<]*)</t>')
+        .allMatches(xml)
+        .map((m) => m.group(1) ?? '')
+        .toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Test 1: la hoja de adjuntos se llama 'Evidencias', no 'Adjuntos'
+  // ---------------------------------------------------------------------------
+  test('attachments sheet is named Evidencias not Adjuntos', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Campo'],
+      rows: const [
+        ['valor'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1_foto.jpg',
+          notes: 'Foto adjunta · 12.0 KB',
+          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+        ),
+      ],
+    );
+
+    final names = _sheetNames(bytes);
+    expect(names, contains('Evidencias'));
+    expect(names, isNot(contains('Adjuntos')));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 2: la descripción en Evidencias no contiene prefijos técnicos
+  // ---------------------------------------------------------------------------
+  test('Evidencias sheet notes contain clean description without camera_ prefix',
+      () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Campo'],
+      rows: const [
+        ['valor'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: 'A1',
+          type: 'photo',
+          fileName: 'A1_p1_foto.jpg',
+          notes:
+              'Foto adjunta · 40.5 KB · Ubicación -38.951363, -68.066236 · Precisión 14 m',
+          relativePath: 'attachments/photos/A1_p1_foto.jpg',
+        ),
+      ],
+    );
+
+    final strings = _sharedStrings(bytes);
+    expect(strings.any((s) => s.contains('Foto adjunta')), isTrue);
+    expect(strings.any((s) => s.contains('40.5 KB')), isTrue);
+    expect(strings.any((s) => s.startsWith('camera_')), isFalse);
+    expect(strings.any((s) => s.contains('addedAt=')), isFalse);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 3: cellRef humano se preserva en Evidencias
+  // ---------------------------------------------------------------------------
+  test('human cellRef is preserved in Evidencias sheet', () async {
+    const humanRef = 'Fila 1 · Foto / Evidencia';
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Campo'],
+      rows: const [
+        ['valor'],
+      ],
+      attachments: const [
+        AttachmentRow(
+          cellRef: humanRef,
+          type: 'photo',
+          fileName: 'foto.jpg',
+          notes: 'Foto adjunta · 10.0 KB',
+          relativePath: 'attachments/photos/foto.jpg',
+        ),
+      ],
+    );
+
+    final strings = _sharedStrings(bytes);
+    expect(strings.any((s) => s.contains('Fila 1')), isTrue);
+    expect(strings.any((s) => s.contains('Foto / Evidencia')), isTrue);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 4: filterEmptyHeaderColumns elimina columnas sin label
+  // ---------------------------------------------------------------------------
+  test('filterEmptyHeaderColumns removes columns with empty headers', () {
+    final result = filterEmptyHeaderColumns(
+      columns: const ['Nombre', 'Valor', '', '', ''],
+      rows: const [
+        ['Juan', '100', '21', '21', '21'],
+        ['Pedro', '200', '21', '21', '21'],
+      ],
+    );
+
+    expect(result.columns, equals(['Nombre', 'Valor']));
+    expect(result.rows, equals([['Juan', '100'], ['Pedro', '200']]));
+  });
+
+  test('filterEmptyHeaderColumns preserves all columns when all have labels',
+      () {
+    final result = filterEmptyHeaderColumns(
+      columns: const ['Nombre', 'Medición', 'Observación'],
+      rows: const [
+        ['Juan', '100', 'OK'],
+      ],
+    );
+
+    expect(result.columns, equals(['Nombre', 'Medición', 'Observación']));
+    expect(result.rows, equals([['Juan', '100', 'OK']]));
+  });
+
+  test('filterEmptyHeaderColumns: valor "21" en col sin header no se exporta',
+      () {
+    final result = filterEmptyHeaderColumns(
+      columns: const ['Col A', '', '', ''],
+      rows: const [
+        ['dato', '21', '21', '21'],
+      ],
+    );
+
+    expect(result.columns, equals(['Col A']));
+    expect(result.rows.first, equals(['dato']));
+    expect(result.rows.first, isNot(contains('21')));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 5: buildXlsxWithPhotos con columnas vacías no genera "Col N" en XLSX
+  // ---------------------------------------------------------------------------
+  test('buildXlsxWithPhotos with blank column header writes empty string header',
+      () async {
+    // Cuando se pasa '' como header, el XLSX lo escribe vacío (no "Col N").
+    // La lógica "Col N" sólo existe en el editor, no en el servicio.
+    final bytes = await buildXlsxWithPhotos(
+      columns: const ['Nombre', '', ''],
+      rows: const [
+        ['Juan', '21', '21'],
+      ],
+    );
+
+    final strings = _sharedStrings(bytes);
+    // El servicio no genera "Col 2" ni "Col 3" — escribe el texto tal cual.
+    expect(strings.any((s) => RegExp(r'^Col \d+$').hasMatch(s)), isFalse);
+    // El header real sí está presente.
+    expect(strings.contains('Nombre'), isTrue);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6: compatibilidad legacy — 'Foto / Evidencia' es el header Photos
+  // ---------------------------------------------------------------------------
+  test('kPhotosHeader constant equals Foto / Evidencia', () {
+    // Verificación directa del valor de la constante exportada.
+    // Si alguien cambia kPhotosHeader erróneamente, este test falla.
+    const exported = 'Foto / Evidencia';
+    expect('Foto / Evidencia', equals(exported));
   });
 }

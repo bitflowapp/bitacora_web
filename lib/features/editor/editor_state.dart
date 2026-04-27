@@ -3,7 +3,7 @@ part of 'editor_screen.dart';
 // ============================== Constantes globales ========================
 
 const int kDefaultCols = 15; // 14 + Fotos
-const String kPhotosHeader = 'Fotos';
+const String kPhotosHeader = 'Foto / Evidencia';
 const String kPhotosColId = 'col_photos';
 const double _kMobileInlineCompactBarH = 68.0;
 const double _kMinMobileGridVisiblePx = 200.0;
@@ -19203,22 +19203,41 @@ class _EditorScreenState extends State<EditorScreen>
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
-    final dataCols = math.max(0, _headers.length - 1); // sin Photos
-    final columns = List<String>.generate(dataCols, (i) => _headerLabel(i));
+    final allDataCols = math.max(0, _headers.length - 1); // sin Photos
+
+    // Solo exportar columnas con label real definido por el usuario.
+    // Columnas con header vacío (generarían "Col N") se excluyen.
+    final colIndicesToExport = <int>[
+      for (int i = 0; i < allDataCols; i++)
+        if (_effectiveHeader(i).trim().isNotEmpty) i,
+    ];
+
+    final columns =
+        colIndicesToExport.map((i) => _effectiveHeader(i).trim()).toList();
+
     final rows = <List<String>>[];
     for (final row in _rows) {
       _throwIfOperationCancelledBy(shouldCancel);
-      final values = List<String>.filled(dataCols, '');
-      for (int c = 0; c < dataCols && c < row.cells.length; c++) {
-        values[c] = row.cells[c];
-      }
+      final values = colIndicesToExport
+          .map((i) => i < row.cells.length ? row.cells[i] : '')
+          .toList();
       rows.add(values);
+    }
+
+    // Remap de índices de fotos embebidas al layout de columnas filtrado.
+    final remappedPhotos = <EmbeddedPhoto>[];
+    for (final ep in embeddedPhotos) {
+      final newCol = colIndicesToExport.indexOf(ep.colIndex);
+      if (newCol < 0) continue;
+      remappedPhotos.add(
+        EmbeddedPhoto(rowIndex: ep.rowIndex, colIndex: newCol, bytes: ep.bytes),
+      );
     }
 
     return buildXlsxWithPhotos(
       columns: columns,
       rows: rows,
-      embeddedPhotos: embeddedPhotos,
+      embeddedPhotos: remappedPhotos,
       attachments: attachments,
       sheetName: _sheetName,
       includeIndexColumn: false,
@@ -19678,7 +19697,11 @@ class _EditorScreenState extends State<EditorScreen>
       if (cell == null) continue;
       final meta = entry.value;
       if (meta.isEmpty) continue;
-      final cellRef = cell.a1;
+      // Si la celda está en la columna Photos (excluida del XLSX), usar label
+      // humano para que la referencia en Evidencias sea legible y correcta.
+      final cellRef = (cell.col >= dataCols)
+          ? 'Fila ${cell.row + 1} · $kPhotosHeader'
+          : cell.a1;
       final cellManifest = <String, dynamic>{};
 
       if (meta.gps != null) {
@@ -20863,19 +20886,17 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _photoNotes(PhotoAttachment photo) {
-    final parts = <String>[
-      'addedAt=${photo.addedAt.toIso8601String()}',
-      'size=${_formatBytes(photo.size)}',
-    ];
+    final parts = <String>['Foto adjunta', _formatBytes(photo.size)];
     if (photo.lat != null && photo.lon != null) {
       parts.add(
-        'lat=${photo.lat!.toStringAsFixed(6)} lon=${photo.lon!.toStringAsFixed(6)}',
+        'Ubicación ${photo.lat!.toStringAsFixed(6)}, '
+        '${photo.lon!.toStringAsFixed(6)}',
       );
     }
     if (photo.accuracyM != null) {
-      parts.add('acc=${photo.accuracyM!.toStringAsFixed(0)}m');
+      parts.add('Precisión ${photo.accuracyM!.toStringAsFixed(0)} m');
     }
-    return parts.join('; ');
+    return parts.join(' · ');
   }
 
   String _audioNotes(AudioAttachment audio) {
