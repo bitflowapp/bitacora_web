@@ -556,7 +556,7 @@ class _StartPageV2State extends State<StartPageV2> {
     final recent = _items.isNotEmpty ? _items.first : null;
     if (recent == null) {
       _showMessage(
-        'Todavia no hay planillas. Crea una nueva o abre la demo tecnica.',
+        'Todavía no hay planillas. Creá una nueva o abrí la demo técnica.',
       );
       return;
     }
@@ -707,7 +707,7 @@ class _StartPageV2State extends State<StartPageV2> {
       CommandAction(
         id: 'template',
         label: 'Usar plantilla',
-        subtitle: 'Plantillas tecnicas',
+        subtitle: 'Plantillas técnicas',
         icon: Icons.auto_fix_high_rounded,
         onSelected: () => unawaited(_showTemplateChooser()),
       ),
@@ -855,7 +855,7 @@ class _StartPageV2State extends State<StartPageV2> {
             : recent.title;
 
     final templateSubtitle = _lastTemplate.isEmpty
-        ? 'Demo tecnica lista.'
+        ? 'Demo técnica lista.'
         : 'Ultima: $_lastTemplate';
 
     return <_AutomationSuggestion>[
@@ -1035,7 +1035,7 @@ class _StartPageV2State extends State<StartPageV2> {
               ),
               ListTile(
                 leading: const Icon(Icons.download_rounded),
-                title: const Text('Exportar ultimo archivo'),
+                title: const Text('Exportar último archivo'),
                 subtitle: const Text('Genera XLSX de la planilla mas reciente'),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -1146,7 +1146,7 @@ class _StartPageV2State extends State<StartPageV2> {
       final model = _decodeImportModel(bytes: bytes, fileName: picked.name);
       if (model == null) {
         _showMessage(
-          'El archivo no parece ser un respaldo valido de Bit Flow.',
+          'El archivo no parece ser un respaldo válido de Bit Flow.',
         );
         return;
       }
@@ -1159,9 +1159,9 @@ class _StartPageV2State extends State<StartPageV2> {
       await _reloadSheets();
       if (!mounted) return;
       await _openSheetById(id);
-      _showMessage('Datos importados. La planilla ya esta lista para revisar.');
+      _showMessage('Datos importados. La planilla ya está lista para revisar.');
     } catch (e) {
-      _showMessage('No se pudo importar. Revisa que sea un JSON o ZIP valido.');
+      _showMessage('No se pudo importar. Revisá que sea un JSON o ZIP válido.');
     } finally {
       _setBusy(false);
     }
@@ -1241,7 +1241,7 @@ class _StartPageV2State extends State<StartPageV2> {
   Future<void> _exportMostRecent() async {
     if (_busy) return;
     if (_items.isEmpty) {
-      _showMessage('No hay planillas para exportar todavia.');
+      _showMessage('No hay planillas para exportar todavía.');
       return;
     }
 
@@ -1274,7 +1274,7 @@ class _StartPageV2State extends State<StartPageV2> {
   (List<String>, List<List<String>>) _extractRowsAndHeaders(String rawJson) {
     final decoded = jsonDecode(rawJson);
     if (decoded is! Map) {
-      throw Exception('JSON invalido');
+      throw Exception('JSON inválido');
     }
     final map = decoded.cast<String, dynamic>();
     final headers = (map['headers'] as List?)

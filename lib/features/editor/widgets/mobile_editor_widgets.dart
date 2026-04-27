@@ -1674,7 +1674,7 @@ class _SecondaryActionsSheet extends StatelessWidget {
       (
         Icons.layers_outlined,
         'Acciones en lote',
-        'Operaciones sobre múltiples filas',
+        'Aplicar cambios a varias filas',
         onBatch,
         true
       ),
@@ -1695,14 +1695,14 @@ class _SecondaryActionsSheet extends StatelessWidget {
       (
         Icons.attach_file_rounded,
         'Adjuntar archivo',
-        'Cualquier tipo de archivo',
+        'Sumar evidencia desde archivo',
         onFile,
         true
       ),
       (
         Icons.ios_share_rounded,
         'Compartir',
-        'Enviar planilla por otra vía',
+        'Enviar planilla por otra app',
         onShare,
         true
       ),

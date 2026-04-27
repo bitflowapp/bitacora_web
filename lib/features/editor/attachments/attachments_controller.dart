@@ -12,7 +12,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} · esperando selección',
       target: ref,
     );
 
@@ -50,7 +50,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · seleccion multiple',
+      'Destino ${_cellLabelForRef(ref)} · selección múltiple',
       target: ref,
     );
 
@@ -171,7 +171,7 @@ extension _EditorAttachments on _EditorScreenState {
       case _causeStorageBlocked:
         return 'No se pudo guardar la foto en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
       case _causeDecodeUnsupported:
-        return 'No se pudo procesar la foto. Proba con JPG o PNG, o selecciona otra imagen.';
+        return 'No se pudo procesar la foto. Probá con JPG o PNG, o seleccioná otra imagen.';
       default:
         return 'No se pudo guardar la foto. Intenta de nuevo.';
     }
@@ -201,14 +201,14 @@ extension _EditorAttachments on _EditorScreenState {
     if (cause == _causeStorageBlocked) {
       return 'No se pudo guardar el archivo en el almacenamiento local. Intenta exportar la planilla si estas en modo temporal.';
     }
-    return 'No se pudo adjuntar el archivo. Selecciona otro archivo e intenta de nuevo.';
+    return 'No se pudo adjuntar el archivo. Seleccioná otro archivo e intentá de nuevo.';
   }
 
   String _locationMessageForCause(String cause) {
     if (cause == _causeStorageBlocked) {
-      return 'No se pudo guardar la ubicacion en el almacenamiento local.';
+      return 'No se pudo guardar la ubicación en el almacenamiento local.';
     }
-    return 'No se pudo guardar la ubicacion. Revisa permisos de ubicacion.';
+    return 'No se pudo guardar la ubicación. Revisá permisos de ubicación.';
   }
 
   Future<void> _refreshAttachmentCapabilitiesIfWeb() async {
@@ -438,7 +438,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} \u00b7 esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} \u00b7 esperando selección',
       target: ref,
     );
 
@@ -500,9 +500,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la camara'),
+          title: const Text('No se pudo abrir la cámara'),
           content: const Text(
-            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
+            'No se pudo capturar desde cámara. ¿Querés elegir desde galería?',
           ),
           actions: [
             TextButton(
@@ -514,7 +514,7 @@ extension _EditorAttachments on _EditorScreenState {
                 final future = PhotoAcquireService.I.pickFromGallery();
                 Navigator.of(ctx).pop(future);
               },
-              child: const Text('Elegir galeria'),
+              child: const Text('Elegir galería'),
             ),
           ],
         );
@@ -546,10 +546,10 @@ extension _EditorAttachments on _EditorScreenState {
     if (fromCamera) {
       final preflightOk = await _runPermissionPreflight(
         storageKey: _kPrefCameraRationaleSeen,
-        permissionLabel: 'camara',
-        rationaleTitle: 'Permiso de camara',
+        permissionLabel: 'cámara',
+        rationaleTitle: 'Permiso de cámara',
         rationaleMessage:
-            'Usamos la camara para adjuntar evidencia a la celda seleccionada. '
+            'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
             'Las fotos quedan en tu almacenamiento local.',
         permission: ph.Permission.camera,
       );
@@ -662,7 +662,7 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a camara o galeria desde este navegador.',
+              'No se pudo acceder a cámara o galería desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
@@ -1396,9 +1396,9 @@ extension _EditorAttachments on _EditorScreenState {
                   child: SizedBox(
                     width: 360,
                     child: EmptyState(
-                      title: 'Sin adjuntos todavia',
+                      title: 'Sin adjuntos todavía',
                       message:
-                          'Agrega evidencia para esta celda cuando sea necesario.',
+                          'Agregá evidencia para esta celda cuando sea necesario.',
                       icon: Icons.photo_outlined,
                       actionLabel: 'Agregar',
                       onAction: handleAdd,
@@ -2720,7 +2720,7 @@ extension _EditorAttachments on _EditorScreenState {
           '${kind.name}_file_empty',
           flow: AppErrorFlow.attachmentPermission,
           operation: '${kind.name}_file_read',
-          fallbackMessage: 'El archivo seleccionado esta vacio.',
+          fallbackMessage: 'El archivo seleccionado está vacío.',
           code: 'unsupported_format',
           diagnosticDetails: _buildAttachmentDiagnostic(
             cause: 'unsupported_format',

@@ -39,6 +39,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Esta celda tiene evidencia'), findsOneWidget);
+    expect(find.text('1 evidencia adjunta: GPS.'), findsOneWidget);
     expect(find.text('Ver evidencia'), findsOneWidget);
     expect(find.text('Editar celda'), findsOneWidget);
     expect(find.text('Agregar evidencia'), findsOneWidget);

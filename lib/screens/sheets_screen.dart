@@ -351,8 +351,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
       isScrollControlled: true,
       builder: (ctx) {
         return _OverlaySheetFrame(
-          title: 'Galeria de templates',
-          subtitle: 'Casos tecnicos listos para campo, evidencia y exportacion',
+          title: 'Galería de templates',
+          subtitle: 'Casos técnicos listos para campo, evidencia y exportación',
           maxHeightFactor: 0.78,
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -369,7 +369,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   _TemplateTile(
                     icon: Icons.bolt_rounded,
                     title: 'Proteccion catodica',
-                    subtitle: 'ON/OFF, IR drop, cupon, estado y evidencia',
+                    subtitle: 'ON/OFF, IR drop, cupón, estado y evidencia',
                     onTap: () =>
                         Navigator.of(ctx).pop(TemplateKind.proteccionCatodica),
                   ),
@@ -505,7 +505,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
         final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
         return _OverlaySheetFrame(
           title: title,
-          subtitle: 'Acciones rapidas para esta planilla',
+          subtitle: 'Acciones rápidas para esta planilla',
           maxHeightFactor: 0.58,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -647,7 +647,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   String get _subtitleText {
     if (_loading) return 'Cargando planillas...';
-    if (_items.isEmpty) return 'Crea una planilla tecnica o abre una demo';
+    if (_items.isEmpty) return 'Creá una planilla técnica o abrí una demo';
 
     final last = _lastUpdatedSheet;
     final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '—';

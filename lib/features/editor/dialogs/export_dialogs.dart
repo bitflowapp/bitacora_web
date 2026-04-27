@@ -13,18 +13,6 @@ class _PlanillaSignatureResult {
 }
 
 extension _EditorExportDialogs on _EditorScreenState {
-  String _exportPresetLabel(String preset) {
-    switch (preset) {
-      case 'xlsx':
-        return 'Planilla XLSX';
-      case 'zip':
-        return 'Paquete ZIP';
-      case 'pdf':
-      default:
-        return 'Reporte PDF';
-    }
-  }
-
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();

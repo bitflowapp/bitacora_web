@@ -3709,7 +3709,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (dateFromRaw.isNotEmpty && dateFrom == null) {
       _showActionSnack(
-        'Fecha "desde" invalida.',
+        'Fecha "desde" inválida.',
         isError: true,
         icon: Icons.event_busy_rounded,
       );
@@ -3717,7 +3717,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (dateToRaw.isNotEmpty && dateTo == null) {
       _showActionSnack(
-        'Fecha "hasta" invalida.',
+        'Fecha "hasta" inválida.',
         isError: true,
         icon: Icons.event_busy_rounded,
       );
@@ -3727,7 +3727,7 @@ class _EditorScreenState extends State<EditorScreen>
         dateTo != null &&
         _dateOnly(dateFrom).isAfter(_dateOnly(dateTo))) {
       _showActionSnack(
-        'Rango de fecha invalido.',
+        'Rango de fecha inválido.',
         isError: true,
         icon: Icons.event_note_rounded,
       );
@@ -4152,7 +4152,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!restored) {
         if (!mounted) return;
         _showActionSnack(
-          'No se pudo restaurar la sesion previa.',
+          'No se pudo restaurar la sesión previa.',
           isError: true,
           icon: Icons.history_toggle_off_rounded,
         );
@@ -4164,7 +4164,7 @@ class _EditorScreenState extends State<EditorScreen>
         _recoveryStagingRaw = null;
       });
       _showActionSnack(
-        'Sesion previa restaurada.',
+        'Sesión previa restaurada.',
         isError: false,
         icon: Icons.history_rounded,
       );
@@ -4532,7 +4532,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (value.isEmpty && _isRequired(col)) return 'Campo requerido';
       if (value.isEmpty) return null;
       return _parseCheckboxCellValue(value) == null
-          ? 'Valor invalido (usa si/no, true/false, 1/0)'
+          ? 'Valor inválido (usa sí/no, true/false, 1/0)'
           : null;
     }
     final rule = _columnValidationRule(col);
@@ -4556,7 +4556,7 @@ class _EditorScreenState extends State<EditorScreen>
     for (final ref in _invalidCells) {
       if (ref.r < 0 || ref.r >= _rows.length) continue;
       if (ref.c < 0 || ref.c >= _headers.length - 1) continue;
-      final message = _invalidCellMessages[ref] ?? 'Valor invalido';
+      final message = _invalidCellMessages[ref] ?? 'Valor inválido';
       list.add(
         _ValidationIssue(
           ref: ref,
@@ -5359,7 +5359,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
         return 'Nuevo registro $count fila(s)';
       case FlowBotActionType.clearSelection:
-        return 'Limpiar seleccion';
+        return 'Limpiar selección';
       case FlowBotActionType.clearRow:
         return 'Limpiar fila activa';
       case FlowBotActionType.setColumnAlign:
@@ -5897,7 +5897,7 @@ class _EditorScreenState extends State<EditorScreen>
     return const _ActionResult(
       ok: false,
       message:
-          'FlowBot no aplico cambios. Revisa seleccion/comando y vuelve a analizar.',
+          'FlowBot no aplicó cambios. Revisá selección/comando y volvé a analizar.',
       applied: 0,
     );
   }
@@ -6483,7 +6483,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Primero analiza/aplica un comando FlowBot valido.',
+          message: 'Primero analizá o aplicá un comando FlowBot válido.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -6710,7 +6710,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _selectionLabelForQuickActions() {
-    if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
+    if (_selRow < 0 || _selCol < 0) return 'Sin selección';
     final col = _headerLabel(_selCol);
     return '$col | fila ${_selRow + 1}';
   }
@@ -6799,7 +6799,7 @@ class _EditorScreenState extends State<EditorScreen>
       ..sort();
     if (targets.isEmpty) {
       _showActionSnack(
-        'Selecciona al menos una fila.',
+        'Seleccioná al menos una fila.',
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -6934,7 +6934,7 @@ class _EditorScreenState extends State<EditorScreen>
     switch (mode) {
       case _ReviewFilterMode.pending:
         _showActionSnack(
-          'Vista pendiente de revision activa.',
+          'Vista pendiente de revisión activa.',
           isError: false,
           icon: Icons.pending_actions_rounded,
         );
@@ -6948,7 +6948,7 @@ class _EditorScreenState extends State<EditorScreen>
         break;
       case _ReviewFilterMode.all:
         _showActionSnack(
-          'Vista de revision limpia.',
+          'Vista de revisión limpia.',
           isError: false,
           icon: Icons.table_view_rounded,
         );
@@ -6990,7 +6990,7 @@ class _EditorScreenState extends State<EditorScreen>
         return '$count $noun aprobadas.';
       case 'sin_revision':
       default:
-        return '$count $noun marcadas sin revision.';
+        return '$count $noun marcadas sin revisión.';
     }
   }
 
@@ -6998,7 +6998,7 @@ class _EditorScreenState extends State<EditorScreen>
     final issues = _validationIssues();
     if (issues.isEmpty) {
       _showActionSnack(
-        'No hay errores de validacion.',
+        'No hay errores de validación.',
         isError: false,
         icon: Icons.task_alt_rounded,
       );
@@ -7121,7 +7121,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _useLastValueForSelectedCell() {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para usar el ultimo valor.',
+      reason: 'Seleccioná una celda editable para usar el último valor.',
     )) {
       return;
     }
@@ -7387,7 +7387,7 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Aplicar GPS a seleccion',
+            label: 'Aplicar GPS a selección',
             icon: Icons.my_location_rounded,
             variant: AppButtonVariant.secondary,
             fullWidth: true,
@@ -7461,7 +7461,7 @@ class _EditorScreenState extends State<EditorScreen>
           AppButton(
             label: _reviewFilterMode == _ReviewFilterMode.pending
                 ? 'Quitar vista pendientes'
-                : 'Vista pendientes de revision',
+                : 'Vista pendientes de revisión',
             icon: _reviewFilterMode == _ReviewFilterMode.pending
                 ? Icons.filter_alt_off_rounded
                 : Icons.pending_actions_rounded,
@@ -7474,7 +7474,7 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Auto-ID en seleccion',
+            label: 'Auto-ID en selección',
             icon: Icons.tag_rounded,
             variant: AppButtonVariant.secondary,
             fullWidth: true,
@@ -7503,7 +7503,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona al menos una fila para aplicar el valor.',
+          message: 'Seleccioná al menos una fila para aplicar el valor.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -7700,7 +7700,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona al menos una fila para duplicar.',
+          message: 'Seleccioná al menos una fila para duplicar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -7855,7 +7855,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         _ActionResult(
           ok: false,
-          message: reason ?? 'Selecciona una fila valida para continuar.',
+          message: reason ?? 'Seleccioná una fila válida para continuar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -7865,7 +7865,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         _ActionResult(
           ok: false,
-          message: reason ?? 'Selecciona una celda editable para continuar.',
+          message: reason ?? 'Seleccioná una celda editable para continuar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -7919,7 +7919,7 @@ class _EditorScreenState extends State<EditorScreen>
       case OfflineSyncState.failed:
         final retry = _offlineRetryAt?.toLocal();
         if (retry == null)
-          return _offlineLastError ?? 'Fallo de sincronizacion';
+          return _offlineLastError ?? 'Fallo de sincronización';
         return 'Reintento ${_two(retry.hour)}:${_two(retry.minute)}';
     }
   }
@@ -8266,7 +8266,7 @@ class _EditorScreenState extends State<EditorScreen>
       await _markOfflineSyncFailure('sync_error');
       if (notify) {
         _showActionSnack(
-          'Fallo la sincronizacion. Reintenta desde Cola offline.',
+          'Falló la sincronización. Reintentá desde Cola offline.',
           isError: true,
           icon: Icons.sync_problem_rounded,
         );
@@ -8314,7 +8314,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value.isEmpty) return 'Sin detalle';
     switch (value) {
       case 'sync_error':
-        return 'Fallo de sincronizacion';
+        return 'Fallo de sincronización';
       case 'save_failed':
         return 'No se pudo guardar localmente';
       case 'network_offline':
@@ -9937,14 +9937,14 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Estas usando un navegador embebido. Abri en Safari/Chrome para GPS, camara y microfono.',
+                                  'Estás usando un navegador embebido. Abrí en Safari/Chrome para GPS, cámara y micrófono.',
                               icon: Icons.open_in_new_rounded,
                             ),
                           if (!_isSecureContext)
                             _warningBanner(
                               pal,
                               text:
-                                  'Para GPS, camara y audio necesitas HTTPS o localhost. Abri esta pagina en Safari/Chrome.',
+                                  'Para GPS, cámara y audio necesitás HTTPS o localhost. Abrí esta página en Safari/Chrome.',
                               icon: Icons.lock_outline_rounded,
                             ),
                           if (_storageOk == false)
@@ -9962,7 +9962,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Se detecto una sesion previa sin flush completo. Puedes restaurar el estado local anterior.',
+                                  'Se detectó una sesión previa sin guardado completo. Podés restaurar el estado local anterior.',
                               icon: Icons.history_rounded,
                               actionLabel: 'Restaurar',
                               onAction: () =>
@@ -9975,7 +9975,7 @@ class _EditorScreenState extends State<EditorScreen>
                             _warningBanner(
                               pal,
                               text:
-                                  'Instalar en Android/Chrome: menu del navegador -> Instalar aplicacion o Agregar a pantalla principal.',
+                                  'Instalar en Android/Chrome: menú del navegador -> Instalar aplicación o Agregar a pantalla principal.',
                               icon: Icons.download_for_offline_rounded,
                               actionLabel: 'No mostrar mas',
                               onAction: () => unawaited(
@@ -11358,6 +11358,10 @@ class _EditorScreenState extends State<EditorScreen>
     int c,
     double cellWidth,
   ) {
+    final meta = _cellMetaAt(r, c);
+    final evidenceSummary = meta == null
+        ? 'Elegí qué querés hacer.'
+        : _cellEvidenceIntentSubtitle(meta);
     final editableCell = c < _headers.length - 1;
     final canOpenComments = _currentProjectId() != null;
     final canAddObservation = _canObserveRows();
@@ -11390,7 +11394,7 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Elegí qué querés hacer.',
+                    evidenceSummary,
                     style: TextStyle(color: pal.cellTextMuted, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
@@ -11463,6 +11467,34 @@ class _EditorScreenState extends State<EditorScreen>
         );
       },
     );
+  }
+
+  String _cellEvidenceIntentSubtitle(CellMeta meta) {
+    final photosByKind = <String, int>{};
+    for (final photo in meta.photos) {
+      final kind = _attachmentKindLabel(photo.mime, photo.filename);
+      photosByKind[kind] = (photosByKind[kind] ?? 0) + 1;
+    }
+    final parts = <String>[];
+    var total = 0;
+    void add(String singular, String plural, int count) {
+      if (count <= 0) return;
+      total += count;
+      parts.add(count == 1 ? '1 $singular' : '$count $plural');
+    }
+
+    add('foto', 'fotos', photosByKind['Foto'] ?? 0);
+    add('video', 'videos', photosByKind['Video'] ?? 0);
+    add('archivo', 'archivos', photosByKind['Archivo'] ?? 0);
+    add('audio', 'audios', meta.audios.length);
+    if (meta.hasGps) {
+      total += 1;
+      parts.add('GPS');
+    }
+
+    if (total <= 0) return 'Elegí qué querés hacer.';
+    final prefix = total == 1 ? '1 evidencia adjunta' : '$total evidencias';
+    return '$prefix: ${parts.join(' · ')}.';
   }
 
   void _beginEditCell(
@@ -14207,7 +14239,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       actions.add(
         _CtxAction(
-          'Ver revision',
+          'Ver revisión',
           Icons.fact_check_outlined,
           () => unawaited(_openRowReviewSheet(r, c)),
         ),
@@ -14248,7 +14280,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (_batchTargetRows().length > 1) {
         actions.add(
           _CtxAction(
-            'Aplicar valor a seleccion',
+            'Aplicar valor a selección',
             Icons.format_color_text_rounded,
             () => unawaited(_promptBatchApplyValue()),
           ),
@@ -14256,7 +14288,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       actions.add(
         _CtxAction(
-          'Fecha hoy en seleccion',
+          'Fecha hoy en selección',
           Icons.today_rounded,
           _applyDateTodayToSelection,
         ),
@@ -14570,7 +14602,7 @@ class _EditorScreenState extends State<EditorScreen>
         _emitActionResult(
           const _ActionResult(
             ok: false,
-            message: 'Selecciona una fila valida para duplicar.',
+            message: 'Seleccioná una fila válida para duplicar.',
           ),
           failureIcon: Icons.info_outline_rounded,
         );
@@ -14643,7 +14675,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una fila valida para duplicar.',
+          message: 'Seleccioná una fila válida para duplicar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -14707,7 +14739,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda editable para rellenar.',
+          message: 'Seleccioná una celda editable para rellenar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -14752,7 +14784,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda editable para rellenar.',
+          message: 'Seleccioná una celda editable para rellenar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -14762,7 +14794,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una fila valida para rellenar.',
+          message: 'Seleccioná una fila válida para rellenar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -15152,7 +15184,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _applyDateTodayToSelection() {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para aplicar fecha.',
+      reason: 'Seleccioná una celda editable para aplicar fecha.',
     )) {
       return;
     }
@@ -15188,7 +15220,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _runAutonumberProgressiveAction() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para autonumerar.',
+      reason: 'Seleccioná una celda editable para autonumerar.',
     )) {
       return;
     }
@@ -15279,7 +15311,7 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       title: 'Deshacer nuevo registro',
       child: const Text(
-        'La fila fue modificada despues de crearla. Quieres eliminarla igual?',
+        'La fila fue modificada después de crearla. ¿Querés eliminarla igual?',
       ),
       actions: [
         AppButton(
@@ -15892,7 +15924,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _copySelectionToClipboard() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para copiar.',
+      reason: 'Seleccioná una celda editable para copiar.',
     )) {
       return;
     }
@@ -15903,7 +15935,7 @@ class _EditorScreenState extends State<EditorScreen>
         _ActionResult(
           ok: true,
           message:
-              txt.trim().isEmpty ? 'Celda vacia copiada.' : 'Celda copiada.',
+              txt.trim().isEmpty ? 'Celda vacía copiada.' : 'Celda copiada.',
           applied: 1,
         ),
         successIcon: Icons.copy_rounded,
@@ -15929,7 +15961,7 @@ class _EditorScreenState extends State<EditorScreen>
         _ActionResult(
           ok: true,
           message:
-              txt.trim().isEmpty ? 'Celda vacia copiada.' : 'Celda copiada.',
+              txt.trim().isEmpty ? 'Celda vacía copiada.' : 'Celda copiada.',
           applied: 1,
         ),
         successIcon: Icons.copy_rounded,
@@ -16293,10 +16325,10 @@ class _EditorScreenState extends State<EditorScreen>
       return fail('No hay filas ni columnas editables para pegar.');
     }
     if (_selRow < 0 || _selRow >= _rows.length) {
-      return fail('Selecciona una fila valida para pegar.');
+      return fail('Seleccioná una fila válida para pegar.');
     }
     if (_selCol < 0 || _selCol >= _headers.length - 1) {
-      return fail('Selecciona una celda editable para pegar.');
+      return fail('Seleccioná una celda editable para pegar.');
     }
     if (raw.trim().isEmpty) {
       return fail('Portapapeles vacio. Copia una tabla TSV/CSV y reintenta.');
@@ -16304,7 +16336,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     final parsed = parseSmartTable(raw);
     if (parsed.isEmpty) {
-      return fail('No se detecto una tabla valida para pegar.');
+      return fail('No se detectó una tabla válida para pegar.');
     }
     if (parsed.looksLikeTable) {
       unawaited(_markSmartPasteInteracted());
@@ -16799,7 +16831,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     await showAppModal<void>(
       context: context,
-      title: 'Busqueda global',
+      title: 'Búsqueda global',
       child: StatefulBuilder(
         builder: (ctx, setModalState) {
           return ConstrainedBox(
@@ -17515,7 +17547,7 @@ class _EditorScreenState extends State<EditorScreen>
   String _gpsModeDesc(_GpsWriteMode mode) {
     switch (mode) {
       case _GpsWriteMode.pasteActive:
-        return 'Inserta coordenadas en la celda seleccionada.';
+        return 'Insertá coordenadas en la celda seleccionada.';
       case _GpsWriteMode.pickTarget:
         return 'Luego de capturar GPS, elegis la celda destino.';
       case _GpsWriteMode.metadataOnly:
@@ -18339,7 +18371,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (lower.contains('https')) {
       userMsg = 'GPS requiere HTTPS o localhost.';
     } else if (lower.contains('deneg')) {
-      userMsg = 'Permiso de ubicacion denegado. Habilitalo en Ajustes.';
+      userMsg = 'Permiso de ubicación denegado. Habilitalo en Ajustes.';
     } else if (lower.contains('timeout')) {
       userMsg = 'Timeout obteniendo GPS.';
     } else if (lower.contains('no disponible') ||
@@ -18368,7 +18400,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda valida para abrir en Maps.',
+          message: 'Seleccioná una celda válida para abrir en Maps.',
         ),
         failureIcon: Icons.map_outlined,
       );
@@ -18389,7 +18421,7 @@ class _EditorScreenState extends State<EditorScreen>
         _emitActionResult(
           const _ActionResult(
             ok: false,
-            message: 'La celda no contiene coordenadas validas.',
+            message: 'La celda no contiene coordenadas válidas.',
           ),
           failureIcon: Icons.map_outlined,
         );
@@ -18496,7 +18528,7 @@ class _EditorScreenState extends State<EditorScreen>
                     final r = int.tryParse(rowCtrl.text.trim());
                     final c = int.tryParse(colCtrl.text.trim());
                     if (r == null || c == null) {
-                      setState(() => error = 'Fila/Col invalidas.');
+                      setState(() => error = 'Fila/Col inválidas.');
                       return;
                     }
                     final rr = r - 1;
@@ -18564,7 +18596,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ListTile(
                   leading: Icon(Icons.photo_camera_outlined, color: pal.fg),
                   title: const Text('Tomar foto'),
-                  subtitle: const Text('Usar camara'),
+                  subtitle: const Text('Usar cámara'),
                   onTap: () async {
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
@@ -18574,10 +18606,10 @@ class _EditorScreenState extends State<EditorScreen>
                     }
                     final preflightOk = await _runPermissionPreflight(
                       storageKey: _kPrefCameraRationaleSeen,
-                      permissionLabel: 'camara',
-                      rationaleTitle: 'Permiso de camara',
+                      permissionLabel: 'cámara',
+                      rationaleTitle: 'Permiso de cámara',
                       rationaleMessage:
-                          'Usamos la camara para adjuntar evidencia a la celda seleccionada. '
+                          'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
                           'Las fotos quedan en tu almacenamiento local.',
                       permission: ph.Permission.camera,
                     );
@@ -18605,7 +18637,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 ListTile(
                   leading: Icon(Icons.photo_library_outlined, color: pal.fg),
-                  title: const Text('Elegir de galeria'),
+                  title: const Text('Elegir de galería'),
                   subtitle: const Text('Seleccionar archivo'),
                   onTap: () async {
                     try {
@@ -19449,7 +19481,7 @@ class _EditorScreenState extends State<EditorScreen>
           'Bit Flow - ${_sheetName.trim().isEmpty ? 'Reporte' : _sheetName.trim()}',
       author: 'Bit Flow',
       creator: 'Bit Flow',
-      subject: 'Reporte tecnico de campo',
+      subject: 'Reporte técnico de campo',
     );
     final appVersion = await _readAppVersionForExport();
     final buildId = BuildInfo.buildIdLabel;
@@ -19724,7 +19756,7 @@ class _EditorScreenState extends State<EditorScreen>
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Bit Flow - Reporte tecnico',
+                'Bit Flow - Reporte técnico',
                 style: const pw.TextStyle(fontSize: 7.5, color: pdfMuted),
               ),
               pw.Text(
@@ -19802,7 +19834,7 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         pw.SizedBox(height: 2),
                         pw.Text(
-                          'Reporte tecnico - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
+                          'Reporte técnico - ${_sheetName.trim().isEmpty ? 'Planilla' : _sheetName.trim()}',
                           style:
                               const pw.TextStyle(fontSize: 11, color: pdfMuted),
                         ),
@@ -19860,7 +19892,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             sectionTitle(
               'Registros',
-              subtitle: 'Tabla principal limpia y alineada para revision.',
+              subtitle: 'Tabla principal limpia y alineada para revisión.',
             ),
           ];
 
@@ -20706,19 +20738,19 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (backupFile == null && sheetFile == null) {
       throw const FormatException(
-        'ZIP invalido: falta backup.json o sheet.json.',
+        'ZIP inválido: falta backup.json o sheet.json.',
       );
     }
 
     if (backupFile != null) {
       final rootRaw = jsonDecode(utf8.decode(_archiveFileBytes(backupFile)));
       if (rootRaw is! Map) {
-        throw const FormatException('backup.json invalido.');
+        throw const FormatException('backup.json inválido.');
       }
       final root = Map<String, dynamic>.from(rootRaw);
       final sheetRaw = root['sheet'];
       if (sheetRaw is! Map) {
-        throw const FormatException('backup.json invalido: falta sheet.');
+        throw const FormatException('backup.json inválido: falta sheet.');
       }
 
       final assets = <Map<String, dynamic>>[];
@@ -20757,7 +20789,7 @@ class _EditorScreenState extends State<EditorScreen>
       utf8.decode(_archiveFileBytes(sheetFile!)),
     );
     if (sheetRawDecoded is! Map) {
-      throw const FormatException('sheet.json invalido.');
+      throw const FormatException('sheet.json inválido.');
     }
     final sheetRaw = Map<String, dynamic>.from(sheetRawDecoded);
 

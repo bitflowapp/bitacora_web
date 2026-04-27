@@ -46,6 +46,30 @@ class AttachmentTile extends StatelessWidget {
                       Positioned.fill(child: thumb),
                       Positioned(
                         top: 8,
+                        left: 8,
+                        child: Tooltip(
+                          message: 'Ver evidencia',
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: overlayBg,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: palette.border,
+                                width: palette.hairline,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.visibility_outlined,
+                              size: 15,
+                              color: palette.fgMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
                         right: 8,
                         child: Tooltip(
                           message: 'Reordenar',

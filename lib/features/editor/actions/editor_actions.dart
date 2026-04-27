@@ -3,7 +3,7 @@ part of '../editor_screen.dart';
 extension _EditorActions on _EditorScreenState {
   void _runCenterActiveColumnAction() {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para centrar la columna.',
+      reason: 'Seleccioná una celda editable para centrar la columna.',
     )) {
       return;
     }
@@ -19,7 +19,7 @@ extension _EditorActions on _EditorScreenState {
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una fila valida para duplicar.',
+          message: 'Seleccioná una fila válida para duplicar.',
         ),
         failureIcon: Icons.info_outline_rounded,
       );
@@ -30,7 +30,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runFillDownForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda editable para rellenar.',
+      reason: 'Seleccioná una celda editable para rellenar.',
     )) {
       return;
     }
@@ -39,7 +39,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runOpenAttachmentsForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para ver evidencia.',
+      reason: 'Seleccioná una celda para ver evidencia.',
     )) {
       return;
     }
@@ -48,7 +48,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runPhotoForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para adjuntar foto.',
+      reason: 'Seleccioná una celda para adjuntar foto.',
     )) {
       return;
     }
@@ -57,7 +57,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runGpsForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para adjuntar GPS.',
+      reason: 'Seleccioná una celda para adjuntar GPS.',
     )) {
       return;
     }
@@ -66,7 +66,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runAudioForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para grabar audio.',
+      reason: 'Seleccioná una celda para grabar audio.',
     )) {
       return;
     }
@@ -79,7 +79,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runVideoForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para adjuntar video.',
+      reason: 'Seleccioná una celda para adjuntar video.',
     )) {
       return;
     }
@@ -88,7 +88,7 @@ extension _EditorActions on _EditorScreenState {
 
   Future<void> _runFileForSelection() async {
     if (!_hasActiveEditableCell(
-      reason: 'Selecciona una celda para adjuntar archivo.',
+      reason: 'Seleccioná una celda para adjuntar archivo.',
     )) {
       return;
     }
@@ -99,7 +99,7 @@ extension _EditorActions on _EditorScreenState {
     if (!mounted) return;
     final activeCell = (_selRow >= 0 && _selCol >= 0)
         ? 'Fila ${_selRow + 1}, Col ${_selCol + 1}'
-        : 'Sin seleccion';
+        : 'Sin selección';
     await showCommandPalette(
       context,
       title: 'Comandos',
@@ -107,7 +107,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'save',
           label: 'Guardar',
-          subtitle: 'Persistir cambios locales y sincronizacion',
+          subtitle: 'Persistir cambios locales y sincronización',
           shortcut: 'Ctrl/Cmd+S',
           icon: Icons.check_circle_outline_rounded,
           onSelected: () => unawaited(_saveLocalNow()),
@@ -115,14 +115,14 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'search',
           label: 'Buscar',
-          subtitle: 'Busqueda inline con resaltado',
+          subtitle: 'Búsqueda inline con resaltado',
           shortcut: 'Ctrl/Cmd+F',
           icon: Icons.search_rounded,
           onSelected: () => unawaited(_openSearchDialog()),
         ),
         CommandAction(
           id: 'search_everywhere',
-          label: 'Busqueda global',
+          label: 'Búsqueda global',
           subtitle: 'Buscar en esta planilla o en todas',
           shortcut: 'Ctrl/Cmd+Shift+F',
           icon: Icons.travel_explore_rounded,
@@ -131,7 +131,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'jump_to',
           label: 'Ir a...',
-          subtitle: 'Ir rapido por fila o ID',
+          subtitle: 'Ir rápido por fila o ID',
           shortcut: 'Ctrl/Cmd+J',
           icon: Icons.pin_drop_outlined,
           onSelected: () => unawaited(_openJumpToDialog()),
@@ -153,14 +153,14 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'history_log',
           label: 'Historial',
-          subtitle: 'Auditoria de cambios por planilla',
+          subtitle: 'Auditoría de cambios por planilla',
           icon: Icons.history_rounded,
           onSelected: () => unawaited(_openHistoryPanel()),
         ),
         CommandAction(
           id: 'quick_capture',
           label: 'Modo campo (+Registro)',
-          subtitle: 'Alta rapida para relevamiento',
+          subtitle: 'Alta rápida para relevamiento',
           icon: Icons.add_box_outlined,
           onSelected: () => unawaited(_startQuickCaptureFlow()),
         ),
@@ -174,7 +174,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'flowbot_save_macro',
           label: 'Guardar macro FlowBot',
-          subtitle: 'Guarda el ultimo comando FlowBot valido',
+          subtitle: 'Guarda el último comando FlowBot válido',
           icon: Icons.bookmark_add_rounded,
           onSelected: () => unawaited(_saveCurrentFlowBotMacro()),
         ),
@@ -215,7 +215,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'templates',
           label: 'Plantillas',
-          subtitle: 'Abrir galeria de plantillas demo',
+          subtitle: 'Abrir galería de plantillas demo',
           icon: Icons.grid_view_rounded,
           onSelected: () => unawaited(_openDemoTemplateSheet()),
         ),
@@ -228,7 +228,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'duplicate_last_row',
-          label: 'Duplicar ultima fila',
+          label: 'Duplicar última fila',
           subtitle: 'Replica la fila final en un toque',
           icon: Icons.copy_all_rounded,
           onSelected: _duplicateLastRowQuick,
@@ -236,7 +236,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'mark_reviewed',
           label: 'Aprobar fila',
-          subtitle: 'Workflow de revision para seleccion',
+          subtitle: 'Workflow de revisión para selección',
           icon: Icons.verified_rounded,
           onSelected: () => unawaited(_markSelectedRowsReviewed()),
         ),
@@ -257,7 +257,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'goto_errors',
           label: 'Ir a errores',
-          subtitle: 'Salta a la primera celda invalida',
+          subtitle: 'Salta a la primera celda inválida',
           icon: Icons.rule_rounded,
           onSelected: _jumpToFirstValidationIssue,
         ),
@@ -270,21 +270,21 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'pending_review',
-          label: 'Pendientes de revision',
-          subtitle: 'Filtrar filas sin revision',
+          label: 'Pendientes de revisión',
+          subtitle: 'Filtrar filas sin revisión',
           icon: Icons.pending_actions_rounded,
           onSelected: _togglePendingReviewView,
         ),
         CommandAction(
           id: 'auto_id',
           label: 'Auto-ID',
-          subtitle: 'Completa IDs faltantes en seleccion',
+          subtitle: 'Completa IDs faltantes en selección',
           icon: Icons.tag_rounded,
           onSelected: _applyAutoIdQuick,
         ),
         CommandAction(
           id: 'last_value',
-          label: 'Usar ultimo valor',
+          label: 'Usar último valor',
           subtitle: 'Aplica sugerencia reciente de la columna',
           icon: Icons.history_rounded,
           onSelected: _useLastValueForSelectedCell,
@@ -292,20 +292,20 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'batch_actions',
           label: 'Acciones por lote',
-          subtitle: 'Aplicar a seleccion actual',
+          subtitle: 'Aplicar a selección actual',
           icon: Icons.layers_outlined,
           onSelected: () => unawaited(_openBatchActionsSheet()),
         ),
         CommandAction(
           id: 'apply_value_to_selection',
-          label: 'Aplicar valor a seleccion',
-          subtitle: 'Carga rapida por columna activa',
+          label: 'Aplicar valor a selección',
+          subtitle: 'Carga rápida por columna activa',
           icon: Icons.format_color_text_rounded,
           onSelected: () => unawaited(_promptBatchApplyValue()),
         ),
         CommandAction(
           id: 'today_selection',
-          label: 'Fecha hoy en seleccion',
+          label: 'Fecha hoy en selección',
           subtitle: 'Aplica YYYY-MM-DD en filas seleccionadas',
           icon: Icons.today_rounded,
           onSelected: _applyDateTodayToSelection,
@@ -460,7 +460,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'export_menu',
           label: 'Exportar',
-          subtitle: 'Abrir flujo de exportacion, compartir o imprimir',
+          subtitle: 'Abrir flujo de exportación, compartir o imprimir',
           icon: Icons.ios_share_rounded,
           onSelected: () => unawaited(_openExportMenu()),
         ),

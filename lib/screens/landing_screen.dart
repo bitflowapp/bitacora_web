@@ -32,7 +32,7 @@ class _LandingScreenState extends State<LandingScreen>
   static const String _whatsappMessage = String.fromEnvironment(
     'WHATSAPP_MESSAGE',
     defaultValue:
-        'Hola! Quiero ver Bit Flow para relevamientos tecnicos de campo.',
+        'Hola! Quiero ver Bit Flow para relevamientos técnicos de campo.',
   );
 
   late final AnimationController _controller;
@@ -87,9 +87,9 @@ class _LandingScreenState extends State<LandingScreen>
       scheme: 'mailto',
       path: _contactEmail,
       queryParameters: const <String, String>{
-        'subject': 'Demo Bit Flow para relevamientos tecnicos',
+        'subject': 'Demo Bit Flow para relevamientos técnicos',
         'body':
-            'Hola! Quiero evaluar Bit Flow para relevamientos tecnicos, evidencias y exportaciones.',
+            'Hola! Quiero evaluar Bit Flow para relevamientos técnicos, evidencias y exportaciones.',
       },
     );
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -469,7 +469,7 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Text(
-          'Relevamientos tecnicos con evidencias, listos para entregar.',
+          'Relevamientos técnicos con evidencias, listos para entregar.',
           style: TextStyle(
             color: palette.textPrimary,
             fontSize: isWide ? 58 : 38,
@@ -480,9 +480,9 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Bit Flow convierte datos de campo y oficina en planillas tecnicas '
+          'Bit Flow convierte datos de campo y oficina en planillas técnicas '
           'claras. Registra mediciones, fotos, GPS, notas y responsables; '
-          'despues exporta XLSX, PDF o backup ZIP sin rehacer el trabajo.',
+          'después exporta XLSX, PDF o backup ZIP sin rehacer el trabajo.',
           style: TextStyle(
             color: palette.textSecondary,
             fontSize: isWide ? 18 : 15.5,
@@ -873,7 +873,7 @@ class _PreviewRow extends StatelessWidget {
               _PreviewCell(label: 'ON', value: on, palette: palette, flex: 2),
               _PreviewCell(label: 'OFF', value: off, palette: palette, flex: 2),
               _PreviewCell(
-                  label: 'Cupon', value: cupon, palette: palette, flex: 3),
+                  label: 'Cupón', value: cupon, palette: palette, flex: 3),
               Expanded(
                 flex: 2,
                 child: Row(
@@ -1225,7 +1225,7 @@ class _VerticalStrip extends StatelessWidget {
       _UseCase(
         Icons.bolt_rounded,
         'Proteccion catodica',
-        'ON/OFF, IR drop, cupon, estado y evidencia por progresiva.',
+        'ON/OFF, IR drop, cupón, estado y evidencia por progresiva.',
         'Abrir demo',
         onOpenDemo,
         featured: true,
@@ -1259,7 +1259,7 @@ class _VerticalStrip extends StatelessWidget {
         _SectionTitle(
           palette: palette,
           eyebrow: 'Templates y casos de uso',
-          title: 'Arranca con estructura tecnica, no con una planilla vacia.',
+          title: 'Arranca con estructura técnica, no con una planilla vacía.',
         ),
         const SizedBox(height: 20),
         LayoutBuilder(builder: (context, constraints) {
@@ -1414,7 +1414,7 @@ class _Benefits extends StatelessWidget {
       (
         Icons.timer_rounded,
         'Menos carga duplicada',
-        'El tecnico registra una vez y exporta el informe sin transcribir.',
+        'El técnico registra una vez y exporta el informe sin transcribir.',
       ),
       (
         Icons.photo_camera_back_rounded,
@@ -1434,12 +1434,12 @@ class _Benefits extends StatelessWidget {
       (
         Icons.cloud_off_rounded,
         'Trabajo local',
-        'Pensado para campo: carga local y exportacion cuando el equipo vuelve.',
+        'Pensado para campo: carga local y exportación cuando el equipo vuelve.',
       ),
       (
         Icons.people_alt_rounded,
         'Equipo alineado',
-        'Contratistas, inspeccion y mantenimiento usan la misma estructura.',
+        'Contratistas, inspección y mantenimiento usan la misma estructura.',
       ),
     ];
 
@@ -1579,7 +1579,7 @@ class _Workflow extends StatelessWidget {
           _SectionTitle(
             palette: palette,
             eyebrow: 'Flujo de trabajo',
-            title: 'De la medicion al entregable en cuatro pasos claros.',
+            title: 'De la medición al entregable en cuatro pasos claros.',
           ),
           const SizedBox(height: 20),
           LayoutBuilder(
@@ -1671,7 +1671,7 @@ class _ComparisonTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = const <(String, bool, bool, bool)>[
       ('Medicion + evidencia en el mismo registro', false, false, true),
-      ('Plantillas tecnicas reutilizables', false, true, true),
+      ('Plantillas técnicas reutilizables', false, true, true),
       ('Estados y columnas consistentes', false, true, true),
       ('XLSX/PDF/ZIP para entregar o respaldar', false, false, true),
       ('Continuar trabajos recientes', false, false, true),
@@ -1690,7 +1690,7 @@ class _ComparisonTable extends StatelessWidget {
           _SectionTitle(
             palette: palette,
             eyebrow: 'Donde se gana tiempo',
-            title: 'Lo importante queda junto: medicion, evidencia y salida.',
+            title: 'Lo importante queda junto: medición, evidencia y salida.',
           ),
           const SizedBox(height: 16),
           _CompareHeader(palette: palette),
@@ -1857,7 +1857,7 @@ class _Pricing extends StatelessWidget {
         _SectionTitle(
           palette: palette,
           eyebrow: 'Implementacion',
-          title: 'Empeza acotado y escala cuando el flujo ya esta validado.',
+          title: 'Empezá acotado y escalá cuando el flujo ya está validado.',
         ),
         const SizedBox(height: 20),
         LayoutBuilder(builder: (context, constraints) {
@@ -1875,7 +1875,7 @@ class _Pricing extends StatelessWidget {
                   title: 'Piloto 30 dias',
                   price: 'Precio cerrado',
                   description:
-                      'Un proyecto tecnico para probar Bit Flow con un entregable real.',
+                      'Un proyecto técnico para probar Bit Flow con un entregable real.',
                   ctaLabel: 'Agendar piloto',
                   onCta: onContact,
                   bullets: const [
@@ -1892,14 +1892,14 @@ class _Pricing extends StatelessWidget {
                   title: 'Equipo de campo',
                   price: 'Mensual',
                   description:
-                      'Uso continuo para cuadrillas, inspeccion y supervisores.',
+                      'Uso continuo para cuadrillas, inspección y supervisores.',
                   ctaLabel: 'Ver demo',
                   onCta: onOpenDemo,
                   highlight: true,
                   bullets: const [
-                    'Templates tecnicas reutilizables',
+                    'Templates técnicas reutilizables',
                     'Recientes, favoritos y fijados',
-                    'Soporte de implementacion',
+                    'Soporte de implementación',
                   ],
                 ),
               ),
