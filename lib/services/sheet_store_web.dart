@@ -756,7 +756,7 @@ class SheetStore {
     switch (kind) {
       case TemplateKind.plantilla:
         return const _TemplateDefinition(
-          name: 'Relevamiento tecnico con evidencias',
+          name: 'Relevamiento técnico con evidencias',
           columns: <_TemplateColumn>[
             _TemplateColumn(label: 'Fecha', type: 'date'),
             _TemplateColumn(label: 'Cliente / Obra', type: 'text'),
@@ -848,7 +848,7 @@ class SheetStore {
           columns: <_TemplateColumn>[
             _TemplateColumn(label: 'Fecha', type: 'date'),
             _TemplateColumn(label: 'Progresiva', type: 'number'),
-            _TemplateColumn(label: 'Punto de medicion', type: 'text'),
+            _TemplateColumn(label: 'Punto de medición', type: 'text'),
             _TemplateColumn(label: 'Potencial ON (V)', type: 'number'),
             _TemplateColumn(label: 'Potencial OFF (V)', type: 'number'),
             _TemplateColumn(label: 'IR drop (V)', type: 'number'),
@@ -890,7 +890,7 @@ class SheetStore {
               '0.21',
               'Despolarizado',
               'Obs',
-              'Revisar continuidad y repetir medicion.',
+              'Revisar continuidad y repetir medición.',
               'A. Rojas',
               '',
             ],
@@ -920,7 +920,7 @@ class SheetStore {
               'Presion descarga',
               '8.4 bar',
               'OK',
-              'Sin accion',
+              'Sin acción',
               'G. Molina',
               '',
             ],
@@ -938,7 +938,7 @@ class SheetStore {
         );
       case TemplateKind.checklist:
         return const _TemplateDefinition(
-          name: 'Inspeccion operativa de campo',
+          name: 'Inspección operativa de campo',
           columns: <_TemplateColumn>[
             _TemplateColumn(label: 'Fecha', type: 'date'),
             _TemplateColumn(label: 'Frente', type: 'text'),

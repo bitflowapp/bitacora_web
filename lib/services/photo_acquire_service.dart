@@ -139,7 +139,7 @@ class PhotoAcquireService {
     if (kIsWeb) {
       if (context == null) {
         return PhotoAcquireOutcome.blocked(
-            'Contexto no disponible para camara web.');
+            'Contexto no disponible para cámara web.');
       }
       final web = await captureFromWebCamera(context: context);
       return _mapWebCameraOutcome(web);
@@ -167,7 +167,7 @@ class PhotoAcquireService {
           ),
         );
       } catch (e) {
-        return PhotoAcquireOutcome.error('No se pudo abrir la camara: ');
+        return PhotoAcquireOutcome.error('No se pudo abrir la cámara: ');
       }
     }
 
@@ -348,7 +348,7 @@ class PhotoAcquireService {
         );
       case WebCameraCaptureStatus.error:
         return PhotoAcquireOutcome.error(
-            web.error ?? 'No se pudo abrir la camara.');
+            web.error ?? 'No se pudo abrir la cámara.');
     }
   }
 }

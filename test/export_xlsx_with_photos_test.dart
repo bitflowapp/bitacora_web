@@ -280,7 +280,7 @@ void main() {
     final bytes = await buildXlsxWithPhotos(
       columns: const ['Actividad'],
       rows: const [
-        ['Inspeccion de bomba'],
+        ['Inspección de bomba'],
       ],
       attachments: const [
         AttachmentRow(
@@ -396,7 +396,7 @@ void main() {
       columns: const ['Descripcion', 'Foto / Evidencia'],
       rows: const [
         ['Sin dano visible', '20'],
-        ['medicion inicial', '20'],
+        ['medición inicial', '20'],
       ],
       attachments: [
         AttachmentRow(
@@ -422,9 +422,9 @@ void main() {
           cellRef: 'A2',
           type: 'gps',
           fileName: '',
-          notes: 'Ubicacion -34.603722, -58.381592 - Precision 8 m',
+          notes: 'Ubicación -34.603722, -58.381592 - Precisión 8 m',
           relativePath: '',
-          cellValue: 'medicion inicial',
+          cellValue: 'medición inicial',
           linkTarget:
               'https://www.google.com/maps/search/?api=1&query=-34.603722,-58.381592',
           lat: -34.603722,

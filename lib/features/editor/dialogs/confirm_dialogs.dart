@@ -13,8 +13,8 @@ extension _EditorConfirmDialogs on _EditorScreenState {
       if (safeCell != null && safeCell.isNotEmpty) 'Celda: $safeCell.',
     ].join(' ');
     final message = detail.isEmpty
-        ? 'Esta accion elimina la evidencia del proyecto.'
-        : '$detail Esta accion elimina la evidencia del proyecto.';
+        ? 'Esta acción elimina la evidencia del proyecto.'
+        : '$detail Esta acción elimina la evidencia del proyecto.';
     final ok = await showAppModal<bool>(
       context: context,
       title: 'Eliminar evidencia',

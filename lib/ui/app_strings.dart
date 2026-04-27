@@ -23,7 +23,7 @@ class AppStrings {
   static const clearSearch = 'Limpiar busqueda';
   static const emptySheetsTitle = 'Crea tu primer relevamiento';
   static const emptySheetsBody =
-      'Empieza con una planilla tecnica o usa una plantilla con columnas reales para campo, evidencia y exportacion.';
+      'Empieza con una planilla técnica o usa una plantilla con columnas reales para campo, evidencia y exportación.';
   static const noResultsTitle = 'No encontramos esa planilla';
   static const deletedSheetToast = 'Planilla eliminada';
   static const renameSheetTitle = 'Renombrar planilla';
@@ -32,11 +32,11 @@ class AppStrings {
   static const deleteSheetTitle = 'Eliminar planilla';
 
   static String deleteSheetMessage(String title) {
-    return 'Eliminar "$title"? Esta accion no se puede deshacer.';
+    return 'Eliminar "$title"? Esta acción no se puede deshacer.';
   }
 
   static String noResultsBody(String query) {
-    return 'No hay resultados para "$query". Prueba con cliente, sector, punto de medicion o fecha.';
+    return 'No hay resultados para "$query". Prueba con cliente, sector, punto de medición o fecha.';
   }
 
   // Editor
@@ -45,7 +45,7 @@ class AppStrings {
   static const editorSearch = 'Buscar';
   static const editorExport = 'Exportar';
   static const editorBatchActions = 'Acciones';
-  static const editorDiagnostics = 'Diagnostico';
+  static const editorDiagnostics = 'Diagnóstico';
   static const editorCompute = 'Calcular';
   static const editorOptions = 'Opciones';
   static const editorDensity = 'Densidad';
@@ -61,7 +61,7 @@ class AppStrings {
   static const progressImportingBackup = 'Importando backup...';
   static const progressImportingAssets = 'Importando adjuntos...';
   static const progressExportingSheet = 'Exportando planilla...';
-  static const progressPreparingExport = 'Preparando exportacion...';
+  static const progressPreparingExport = 'Preparando exportación...';
   static const progressGeneratingFile = 'Generando archivo...';
   static const progressPackagingAssets = 'Empaquetando adjuntos...';
   static const progressWritingFile = 'Guardando archivo...';
@@ -72,7 +72,7 @@ class AppStrings {
   static const infoImportCancelled = 'Importacion cancelada.';
 
   // Diagnostics / Support
-  static const diagnosticsTitle = 'Diagnostico / Soporte';
+  static const diagnosticsTitle = 'Diagnóstico / Soporte';
   static const diagnosticsSummary = 'Resumen';
   static const diagnosticsReport = 'Informe';
   static const diagnosticsRecentErrors = 'Errores recientes';
@@ -116,7 +116,7 @@ class AppStrings {
   static const semEditorExport = 'Exportar planilla';
   static const semEditorSave = 'Guardar planilla';
   static const semEditorSearch = 'Buscar en planilla';
-  static const semEditorGps = 'Capturar ubicacion GPS';
+  static const semEditorGps = 'Capturar ubicación GPS';
   static const semEditorPhoto = 'Agregar foto';
   static const semEditorAudio = 'Grabar audio';
 }

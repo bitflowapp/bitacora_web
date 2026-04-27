@@ -116,7 +116,7 @@ class ExportXlsxService {
 
     await mailService.sendReport(
       to: to,
-      subject: subject ?? 'Reporte tecnico Bit Flow',
+      subject: subject ?? 'Reporte técnico Bit Flow',
       message: message ?? 'Adjunto XLSX generado desde Bit Flow.',
       fileName: '$base.xlsx',
       xlsxBytes: bytes,
@@ -375,7 +375,7 @@ class ExportXlsxService {
     required DateTime? createdAt,
   }) {
     final title = sheet.getRangeByIndex(1, 1);
-    title.setText('Ubicacion general de esta planilla');
+    title.setText('Ubicación general de esta planilla');
     title.cellStyle.bold = true;
     title.cellStyle.fontSize = 14;
 
@@ -401,14 +401,14 @@ class ExportXlsxService {
         mapsUrl,
       );
       link.textToDisplay = 'Abrir en Google Maps';
-      link.screenTip = 'Abrir ubicacion en Google Maps';
+      link.screenTip = 'Abrir ubicación en Google Maps';
 
       linkRange.cellStyle.fontColor = '#FF0000FF';
       linkRange.cellStyle.bold = true;
     } else {
       sheet
           .getRangeByIndex(4, 1)
-          .setText('Ubicacion no disponible en este reporte.');
+          .setText('Ubicación no disponible en este reporte.');
     }
 
     if (createdAt != null) {
@@ -440,7 +440,7 @@ class ExportXlsxService {
    - Hoja UBICACION  : punto general de la planilla y link a Google Maps.
    - Hoja INSTRUCCIONES: esta ayuda.
 
-3) Revision rapida
+3) Revisión rápida
    - Verifique fecha y hora de los registros.
    - Use la columna Fila en FOTOS para cruzar cada foto con PLANILLA.
    - Use Latitud / Longitud para ubicar los puntos en un mapa.

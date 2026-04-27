@@ -22,7 +22,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
     headers: <String>[
       'Fecha',
       'Progresiva',
-      'Punto de medicion',
+      'Punto de medición',
       'Potencial ON (V)',
       'Potencial OFF (V)',
       'IR drop (V)',
@@ -68,7 +68,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         '0.21',
         'Despolarizado',
         'Obs',
-        'Revisar continuidad y repetir medicion en contraprueba.',
+        'Revisar continuidad y repetir medición en contraprueba.',
         'A. Rojas',
         ''
       ],
@@ -127,7 +127,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
       ],
       <String>[
         '2026-04-21',
-        'Skid medicion',
+        'Skid medición',
         'PAT-SK-03',
         '1.9',
         'OK',
@@ -141,7 +141,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   DemoTemplateSpec(
     slug: 'relevamiento-evidencias',
     name: 'Relevamiento con evidencias',
-    sheetName: 'Demo - Relevamiento tecnico con evidencias',
+    sheetName: 'Demo - Relevamiento técnico con evidencias',
     headers: <String>[
       'Fecha',
       'Cliente',
@@ -179,7 +179,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'Caseta RTU',
         'Puerta cierra correctamente',
         'Baja',
-        'Sin accion. Mantener control mensual.',
+        'Sin acción. Mantener control mensual.',
         'N. Ruiz',
         ''
       ],
@@ -187,8 +187,8 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   ),
   DemoTemplateSpec(
     slug: 'campo',
-    name: 'Inspeccion de campo',
-    sheetName: 'Demo - Inspeccion operativa de campo',
+    name: 'Inspección de campo',
+    sheetName: 'Demo - Inspección operativa de campo',
     headers: <String>[
       'Fecha',
       'Frente',
@@ -257,7 +257,7 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         'Presion descarga',
         '8.4 bar',
         'OK',
-        'Sin accion',
+        'Sin acción',
         'G. Molina'
       ],
       <String>[
@@ -282,9 +282,9 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   ),
   DemoTemplateSpec(
     slug: 'inventario',
-    name: 'Inventario tecnico',
+    name: 'Inventario técnico',
     sheetName: 'Demo - Inventario de materiales de frente',
-    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicacion'],
+    headers: <String>['SKU', 'Item', 'Cantidad', 'Unidad', 'Ubicación'],
     rows: <List<String>>[
       <String>['MAT-001', 'Cable Cu desnudo 35mm2', '120', 'm', 'Deposito A'],
       <String>['MAT-014', 'Jabalina cobreada 5/8"', '18', 'u', 'Deposito B'],

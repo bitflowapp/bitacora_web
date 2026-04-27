@@ -38,7 +38,7 @@ class PrivacyScreen extends StatelessWidget {
                 ),
                 SizedBox(height: t.spacing.xs),
                 Text(
-                  'Los permisos se piden solo cuando usas camara, audio o ubicacion. Las planillas quedan en este dispositivo o navegador, segun plataforma.',
+                  'Los permisos se piden solo cuando usas cámara, audio o ubicación. Las planillas quedan en este dispositivo o navegador, según plataforma.',
                   style: t.text.bodyMedium?.copyWith(
                     color: t.colors.textSecondary,
                     height: 1.35,
@@ -58,13 +58,13 @@ class PrivacyScreen extends StatelessWidget {
             icon: Icons.privacy_tip_outlined,
             title: 'Permisos',
             body:
-                'Camara, microfono y ubicacion se solicitan al usar acciones que los requieren. Si no los usas, no se piden.',
+                'Cámara, micrófono y ubicación se solicitan al usar acciones que los requieren. Si no los usas, no se piden.',
           ),
           const _SectionBlock(
             icon: Icons.tune_rounded,
             title: 'Control del usuario',
             body:
-                'Puedes eliminar planillas, exportar respaldos y revocar permisos desde la configuracion del sistema.',
+                'Puedes eliminar planillas, exportar respaldos y revocar permisos desde la configuración del sistema.',
           ),
         ],
       ),

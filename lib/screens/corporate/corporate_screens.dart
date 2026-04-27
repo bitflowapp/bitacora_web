@@ -1264,7 +1264,7 @@ class _ProjectCard extends StatelessWidget {
           ),
           SizedBox(height: t.spacing.sm),
           Text(
-            project.description ?? project.fieldScope ?? 'Proyecto tecnico',
+            project.description ?? project.fieldScope ?? 'Proyecto técnico',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: t.text.bodySmall?.copyWith(

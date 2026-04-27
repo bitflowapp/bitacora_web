@@ -118,7 +118,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   }
 
   String _selectionLabel() {
-    if (selectedRow < 0 || selectedCol < 0) return 'Sin seleccion';
+    if (selectedRow < 0 || selectedCol < 0) return 'Sin selección';
     return 'Celda ${_columnLabel(selectedCol)}${selectedRow + 1}';
   }
 
@@ -382,7 +382,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                             ),
                             AppleToolbarItem(
                               icon: Icons.photo_camera_outlined,
-                              label: 'Camara',
+                              label: 'Cámara',
                               shortcut: 'P',
                               onTap: onPhoto,
                               enabled: sensorsEnabled,

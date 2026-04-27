@@ -51,7 +51,7 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
       error: 'insecure',
     );
     return WebCameraCaptureResult.blocked(
-      'Necesitas HTTPS para usar la camara.',
+      'Necesitas HTTPS para usar la cámara.',
     );
   }
 
@@ -73,7 +73,7 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
       error: 'no_media_devices',
     );
     return WebCameraCaptureResult.blocked(
-      'La camara no esta disponible en este navegador.',
+      'La cámara no está disponible en este navegador.',
     );
   }
 
@@ -81,7 +81,7 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
     final result = await showGeneralDialog<WebCameraCaptureResult>(
       context: context,
       barrierDismissible: false,
-      barrierLabel: 'Camara',
+      barrierLabel: 'Cámara',
       barrierColor: Colors.black.withOpacity(0.6),
       transitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (ctx, anim, sec) {
@@ -131,6 +131,6 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
       stage: 'error',
       error: e.toString(),
     );
-    return WebCameraCaptureResult.error('No se pudo abrir la camara: ');
+    return WebCameraCaptureResult.error('No se pudo abrir la cámara: ');
   }
 }

@@ -1881,7 +1881,7 @@ class _Pricing extends StatelessWidget {
                   bullets: const [
                     'Template PC y ajustes iniciales',
                     'Export XLSX/PDF/ZIP validado',
-                    'Revision del flujo con el equipo',
+                    'Revisión del flujo con el equipo',
                   ],
                 ),
               ),
@@ -2199,7 +2199,7 @@ class _Legal extends StatelessWidget {
         ),
         InkWell(
           onTap: () => context.go('/terms'),
-          child: Text('Terminos', style: style),
+          child: Text('Términos', style: style),
         ),
       ],
     );

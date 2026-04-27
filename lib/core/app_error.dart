@@ -162,9 +162,9 @@ class AppErrorMapper {
     if (flow == AppErrorFlow.attachmentPermission) {
       switch (kind) {
         case AppErrorKind.permissionDenied:
-          return 'No se pudo acceder a camara, galeria o microfono. Revisa permisos.';
+          return 'No se pudo acceder a cámara, galería o micrófono. Revisa permisos.';
         case AppErrorKind.insecureContext:
-          return 'Necesitas HTTPS para usar camara o microfono.';
+          return 'Necesitas HTTPS para usar cámara o micrófono.';
         case AppErrorKind.timeout:
           return 'La operacion demoro demasiado. Intenta de nuevo.';
         case AppErrorKind.invalidData:
@@ -174,7 +174,7 @@ class AppErrorMapper {
         case AppErrorKind.unavailable:
           return 'Esta funcion no esta disponible en este navegador.';
         case AppErrorKind.cancelled:
-          return 'Operacion cancelada.';
+          return 'Operación cancelada.';
         case AppErrorKind.unknown:
           return 'No se pudo completar el adjunto. Intenta de nuevo.';
       }
@@ -224,7 +224,7 @@ class AppErrorMapper {
         case AppErrorKind.storage:
           return 'No se pudo exportar por un problema de almacenamiento local.';
         case AppErrorKind.timeout:
-          return 'La exportacion demoro demasiado. Intenta de nuevo.';
+          return 'La exportación demoró demasiado. Intenta de nuevo.';
         case AppErrorKind.unavailable:
           return 'No se pudo exportar en este entorno.';
         case AppErrorKind.cancelled:

@@ -163,7 +163,7 @@ Future<void> main() async {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Reintenta la accion o vuelve al inicio. En modo demo, tus datos locales siguen en el navegador.',
+                                    'Reintenta la acción o vuelve al inicio. En modo demo, tus datos locales siguen en el navegador.',
                                     style: AppTypography.footnote.copyWith(
                                       color: bodyColor,
                                     ),

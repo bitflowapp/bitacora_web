@@ -7145,7 +7145,7 @@ class _EditorScreenState extends State<EditorScreen>
     _setCell(_selRow, _selCol, next);
     _bumpGridVersion();
     _showActionSnack(
-      'Ultimo valor aplicado en ${_headerLabel(_selCol)}.',
+      'Último valor aplicado en ${_headerLabel(_selCol)}.',
       isError: false,
       icon: Icons.history_rounded,
     );
@@ -8420,7 +8420,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       if (!mounted) return;
       _showActionSnack(
-        'Diagnostico de cola exportado.',
+        'Diagnóstico de cola exportado.',
         isError: false,
         icon: Icons.bug_report_outlined,
       );
@@ -8461,7 +8461,7 @@ class _EditorScreenState extends State<EditorScreen>
             if (_offlineLastError?.trim().isNotEmpty == true) ...[
               const SizedBox(height: 6),
               Text(
-                'Ultimo error: ${_offlineErrorMessage(_offlineLastError)}',
+                'Último error: ${_offlineErrorMessage(_offlineLastError)}',
                 style: TextStyle(
                   color: _palette(context).fgMuted,
                   fontSize: 12,
@@ -8645,7 +8645,7 @@ class _EditorScreenState extends State<EditorScreen>
             maxLength: 140,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'Ej: Inspeccion en poste 12',
+              hintText: 'Ej: Inspección en poste 12',
             ),
             onSubmitted: (value) => Navigator.of(ctx).pop(value.trim()),
           ),
@@ -8978,7 +8978,7 @@ class _EditorScreenState extends State<EditorScreen>
       await Clipboard.setData(ClipboardData(text: text));
       if (!mounted) return;
       _showActionSnack(
-        'Diagnostico copiado.',
+        'Diagnóstico copiado.',
         isError: false,
         icon: Icons.content_copy_rounded,
       );
@@ -9030,7 +9030,7 @@ class _EditorScreenState extends State<EditorScreen>
       case DiagnosticActionType.gps:
         return 'GPS';
       case DiagnosticActionType.photo:
-        return 'Camara/Fotos';
+        return 'Cámara/Fotos';
       case DiagnosticActionType.audio:
         return 'Microfono';
       case DiagnosticActionType.video:
@@ -9038,7 +9038,7 @@ class _EditorScreenState extends State<EditorScreen>
       case DiagnosticActionType.file:
         return 'Archivo';
       case DiagnosticActionType.location:
-        return 'Ubicacion';
+        return 'Ubicación';
     }
   }
 
@@ -9055,7 +9055,7 @@ class _EditorScreenState extends State<EditorScreen>
           backgroundColor: pal.menuBg,
           title: const Text('Abrir en Safari/Chrome'),
           content: const Text(
-            'Para usar Camara/Mic/GPS abri en Safari/Chrome.\n\n'
+            'Para usar Cámara/Mic/GPS abrí en Safari/Chrome.\n\n'
             'Los navegadores embebidos (WhatsApp/Instagram) bloquean permisos y guardado.',
           ),
           actions: [
@@ -9109,7 +9109,7 @@ class _EditorScreenState extends State<EditorScreen>
             'WhatsApp/Instagram:\n\n'
             '1) Toca el menu (tres puntos) o Compartir.\n'
             '2) Elegi "Abrir en navegador".\n'
-            '3) Volve a intentar Camara/Mic/GPS.\n\n'
+            '3) Volvé a intentar Cámara/Mic/GPS.\n\n'
             'iOS: preferi Safari.\n'
             'Android: preferi Chrome.',
           ),
@@ -14402,7 +14402,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
     await showAppModal<void>(
       context: context,
-      title: 'Revision de fila ${r + 1}',
+      title: 'Revisión de fila ${r + 1}',
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: SingleChildScrollView(
@@ -18411,7 +18411,7 @@ class _EditorScreenState extends State<EditorScreen>
       userMsg = 'Timeout obteniendo GPS.';
     } else if (lower.contains('no disponible') ||
         lower.contains('unavailable')) {
-      userMsg = 'Ubicacion no disponible.';
+      userMsg = 'Ubicación no disponible.';
     } else {
       userMsg = 'No se pudo obtener GPS. Revisa permisos y conexion.';
     }
@@ -18635,7 +18635,7 @@ class _EditorScreenState extends State<EditorScreen>
                   onTap: () async {
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
-                      actionLabel: 'Camara',
+                      actionLabel: 'Cámara',
                     )) {
                       return;
                     }
@@ -19351,7 +19351,7 @@ class _EditorScreenState extends State<EditorScreen>
               final mapsUrl =
                   'https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}';
               html.write('<div class=\"evidence-card\">');
-              html.write('<strong>Ubicacion GPS</strong>');
+              html.write('<strong>Ubicación GPS</strong>');
               html.write(
                 '${gps.lat.toStringAsFixed(6)}, ${gps.lng.toStringAsFixed(6)}<br>',
               );

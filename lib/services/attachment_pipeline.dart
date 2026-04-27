@@ -57,15 +57,15 @@ extension AttachmentFailureReasonCode on AttachmentFailureReason {
       case AttachmentFailureReason.unsupportedFormat:
         return 'El formato del adjunto no es compatible.';
       case AttachmentFailureReason.gestureBlocked:
-        return 'El navegador bloqueo la accion por gesto invalido.';
+        return 'El navegador bloqueó la acción por gesto inválido.';
       case AttachmentFailureReason.decoderFailed:
         return kind == AttachmentKind.photo
             ? 'No se pudo procesar la imagen, pero se guardo el original.'
             : 'No se pudo procesar la vista previa del adjunto.';
       case AttachmentFailureReason.permissionDenied:
-        return 'Permiso denegado para acceder a camara/microfono/archivos.';
+        return 'Permiso denegado para acceder a cámara/micrófono/archivos.';
       case AttachmentFailureReason.userCancel:
-        return 'Operacion cancelada por el usuario.';
+        return 'Operación cancelada por el usuario.';
       case AttachmentFailureReason.micDenied:
         return 'Permiso de microfono denegado.';
       case AttachmentFailureReason.micUnsupported:

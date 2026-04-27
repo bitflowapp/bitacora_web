@@ -6,5 +6,5 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
   required BuildContext context,
   double jpegQuality = 0.9,
 }) async {
-  return WebCameraCaptureResult.blocked('Camara web no disponible.');
+  return WebCameraCaptureResult.blocked('Cámara web no disponible.');
 }

@@ -431,7 +431,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (fromCamera &&
         _guardInsecureContext(
           DiagnosticActionType.photo,
-          actionLabel: 'Camara',
+          actionLabel: 'Cámara',
         )) {
       return;
     }
@@ -538,7 +538,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (fromCamera &&
         _guardInsecureContext(
           DiagnosticActionType.photo,
-          actionLabel: 'Camara',
+          actionLabel: 'Cámara',
         )) {
       return;
     }
@@ -1094,7 +1094,7 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('Editar titulo'),
+          title: const Text('Editar título'),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -3293,9 +3293,9 @@ extension _EditorAttachments on _EditorScreenState {
           content: Text(
             canOpenSettings
                 ? 'Parece que $sentence esta bloqueado de forma permanente. '
-                    'Abre configuracion para habilitarlo.'
+                    'Abre configuración para habilitarlo.'
                 : 'Parece que $sentence esta bloqueado. '
-                    'Habilitalo desde la configuracion del navegador o sistema.',
+                    'Habilítalo desde la configuración del navegador o sistema.',
           ),
           actions: [
             TextButton(
@@ -3310,7 +3310,7 @@ extension _EditorAttachments on _EditorScreenState {
                     final opened = await ph.openAppSettings();
                     if (!opened && mounted) {
                       _showActionSnack(
-                        'No se pudo abrir configuracion automaticamente.',
+                        'No se pudo abrir configuración automáticamente.',
                         isError: true,
                         icon: Icons.settings_outlined,
                       );
@@ -3322,7 +3322,7 @@ extension _EditorAttachments on _EditorScreenState {
                       operation: 'open_permission_settings',
                       stackTrace: st,
                       fallbackMessage:
-                          'No se pudo abrir configuracion automaticamente.',
+                          'No se pudo abrir configuración automáticamente.',
                       icon: Icons.settings_outlined,
                     );
                   }

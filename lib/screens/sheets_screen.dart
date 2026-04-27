@@ -270,7 +270,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
               SizedBox(height: t.spacing.sm),
               _OverlayActionTile(
                 icon: Icons.gavel_rounded,
-                label: 'Terminos',
+                label: 'Términos',
                 subtitle: 'Condiciones y alcance del servicio',
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
@@ -376,7 +376,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   _TemplateTile(
                     icon: Icons.auto_awesome_outlined,
                     title: 'Relevamiento con evidencias',
-                    subtitle: 'Cliente, sector, hallazgo, criticidad y accion',
+                    subtitle: 'Cliente, sector, hallazgo, criticidad y acción',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.plantilla),
                   ),
                   _TemplateTile(
@@ -389,12 +389,12 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   _TemplateTile(
                     icon: Icons.inventory_2_outlined,
                     title: 'Control operativo',
-                    subtitle: 'Equipo, control, valor, estado y accion',
+                    subtitle: 'Equipo, control, valor, estado y acción',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.inventario),
                   ),
                   _TemplateTile(
                     icon: Icons.check_circle_outline_rounded,
-                    title: 'Inspeccion de campo',
+                    title: 'Inspección de campo',
                     subtitle: 'Frente, actividad, estado y observaciones',
                     onTap: () => Navigator.of(ctx).pop(TemplateKind.checklist),
                   ),

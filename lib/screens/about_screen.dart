@@ -137,7 +137,7 @@ class _AboutScreenState extends State<AboutScreen> {
     );
     try {
       await Clipboard.setData(ClipboardData(text: text));
-      _showSnack('Diagnostico copiado al portapapeles.');
+      _showSnack('Diagnóstico copiado al portapapeles.');
     } catch (_) {
       _showSnack('No se pudo copiar el diagnostico.');
     }
@@ -312,7 +312,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Terminos'),
+                  title: const Text('Términos'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(

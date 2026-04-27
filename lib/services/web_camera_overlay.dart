@@ -307,7 +307,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Camara',
+                    'Cámara',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,

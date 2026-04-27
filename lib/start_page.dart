@@ -187,8 +187,8 @@ class _StartPageState extends State<StartPage> {
       <_PackTemplateSpec>[
     _PackTemplateSpec(
       id: 'campo_inspeccion_general',
-      pack: 'Campo/Inspeccion',
-      name: 'Inspeccion general',
+      pack: 'Campo/Inspección',
+      name: 'Inspección general',
       description: 'Checklist de campo con estados y responsables.',
       icon: CupertinoIcons.doc_text_search,
       tags: <String>['Campo', 'Control', 'Rapido'],
@@ -207,13 +207,13 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
     _PackTemplateSpec(
       id: 'campo_checklist_seguridad',
-      pack: 'Campo/Inspeccion',
+      pack: 'Campo/Inspección',
       name: 'Checklist seguridad',
       description: 'Verificacion de seguridad por item y fecha.',
       icon: CupertinoIcons.shield,
@@ -231,13 +231,13 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
     _PackTemplateSpec(
       id: 'campo_mantenimiento_rapido',
-      pack: 'Campo/Inspeccion',
+      pack: 'Campo/Inspección',
       name: 'Mantenimiento rapido',
       description: 'Tareas de mantenimiento con proxima fecha.',
       icon: CupertinoIcons.wrench,
@@ -256,7 +256,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -283,7 +283,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -307,7 +307,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', textContains: 'faltante'),
       ],
     ),
@@ -331,7 +331,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -355,7 +355,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -363,12 +363,12 @@ class _StartPageState extends State<StartPage> {
       id: 'gps_relevamiento_foto',
       pack: 'Relevamiento/GPS',
       name: 'Relevamiento foto',
-      description: 'Registro de ubicacion, estado y observacion.',
+      description: 'Registro de ubicación, estado y observación.',
       icon: CupertinoIcons.photo_on_rectangle,
-      tags: <String>['Relevamiento', 'Foto', 'Ubicacion'],
+      tags: <String>['Relevamiento', 'Foto', 'Ubicación'],
       columns: <_PackColumnSpec>[
         _PackColumnSpec(label: 'Fecha', type: 'date', required: true),
-        _PackColumnSpec(label: 'Ubicacion', type: 'text', required: true),
+        _PackColumnSpec(label: 'Ubicación', type: 'text', required: true),
         _PackColumnSpec(label: 'Estado', type: 'status', enumValues: <String>[
           'Pendiente',
           'Revisar',
@@ -380,7 +380,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Revisar'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Revisar'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -413,7 +413,7 @@ class _StartPageState extends State<StartPage> {
       ],
       views: <_PackViewPreset>[
         _PackViewPreset(name: 'Campo'),
-        _PackViewPreset(name: 'Revision', statusValue: 'Pendiente'),
+        _PackViewPreset(name: 'Revisión', statusValue: 'Pendiente'),
         _PackViewPreset(name: 'Urgentes', statusValue: 'Urgente'),
       ],
     ),
@@ -1125,7 +1125,7 @@ class _StartPageState extends State<StartPage> {
                       value: _CreateSheetChoice.inventario,
                       icon: CupertinoIcons.cube_box,
                       title: 'Inventario',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota.',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicación, Nota.',
                     ),
                     card(
                       value: _CreateSheetChoice.checklist,

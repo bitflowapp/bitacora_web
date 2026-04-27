@@ -38,11 +38,11 @@ class LocalCorporateRepository implements CorporateRepository {
       id: 'local_project_inspeccion',
       workspaceId: _workspaceId,
       code: 'INSP-003',
-      name: 'Inspeccion tecnica - Tramo Oeste',
+      name: 'Inspección técnica - Tramo Oeste',
       status: 'planning',
-      fieldScope: 'Inspeccion con evidencia',
+      fieldScope: 'Inspección con evidencia',
       description:
-          'Checklist tecnico, fotos, ubicacion y observaciones exportables.',
+          'Checklist técnico, fotos, ubicación y observaciones exportables.',
     ),
   ];
 

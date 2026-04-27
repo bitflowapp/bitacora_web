@@ -1,5 +1,5 @@
 enum CorporateRole {
-  tecnico('tecnico', 'Tecnico'),
+  tecnico('tecnico', 'Técnico'),
   supervisor('supervisor', 'Supervisor'),
   coordinador('coordinador', 'Coordinador'),
   admin('admin', 'Admin');
@@ -107,7 +107,7 @@ class Project {
     return Project(
       id: _readString(json['id']),
       workspaceId: _readString(json['workspace_id']),
-      name: _readString(json['name'], fallback: 'Proyecto tecnico'),
+      name: _readString(json['name'], fallback: 'Proyecto técnico'),
       code: _readNullableString(json['code']),
       description: _readNullableString(json['description']),
       fieldScope: _readNullableString(json['field_scope']),

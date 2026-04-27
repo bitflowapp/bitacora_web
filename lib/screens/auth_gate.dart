@@ -250,7 +250,7 @@ class _LicenseGateState extends State<_LicenseGate> {
                     if (widget.restoreWarning.trim().isNotEmpty) ...[
                       SizedBox(height: t.spacing.sm),
                       Text(
-                        'Aviso tecnico: ${widget.restoreWarning}',
+                        'Aviso técnico: ${widget.restoreWarning}',
                         style: t.text.bodySmall?.copyWith(
                           color: t.colors.textSecondary,
                         ),
@@ -288,4 +288,3 @@ class _LicenseGateState extends State<_LicenseGate> {
     );
   }
 }
-

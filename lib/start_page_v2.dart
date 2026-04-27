@@ -607,18 +607,18 @@ class _StartPageV2State extends State<StartPageV2> {
           (
             TemplateKind.plantilla,
             'Relevamiento con evidencias',
-            'Cliente, sector, hallazgo, criticidad y accion.',
+            'Cliente, sector, hallazgo, criticidad y acción.',
             Icons.auto_awesome_rounded,
           ),
           (
             TemplateKind.inventario,
             'Control operativo',
-            'Equipo, control, valor, estado y accion.',
+            'Equipo, control, valor, estado y acción.',
             Icons.inventory_2_rounded,
           ),
           (
             TemplateKind.checklist,
-            'Inspeccion de campo',
+            'Inspección de campo',
             'Frente, actividad, estado, observaciones y evidencia.',
             Icons.task_alt_rounded,
           ),
@@ -722,7 +722,7 @@ class _StartPageV2State extends State<StartPageV2> {
 
     for (final meta in _items.take(40)) {
       final title =
-          meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+          meta.title.trim().isEmpty ? 'Planilla sin título' : meta.title;
       actions.add(
         CommandAction(
           id: 'sheet_${meta.id}',
@@ -851,7 +851,7 @@ class _StartPageV2State extends State<StartPageV2> {
     final continueSubtitle = recent == null
         ? 'Planilla local en blanco.'
         : recent.title.trim().isEmpty
-            ? 'Ultimo archivo.'
+            ? 'Último archivo.'
             : recent.title;
 
     final templateSubtitle = _lastTemplate.isEmpty
@@ -985,7 +985,7 @@ class _StartPageV2State extends State<StartPageV2> {
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_rounded),
-                title: const Text('Terminos'),
+                title: const Text('Términos'),
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
             ],
@@ -1099,7 +1099,7 @@ class _StartPageV2State extends State<StartPageV2> {
               ),
               ListTile(
                 leading: const Icon(Icons.monitor_heart_rounded),
-                title: const Text('Diagnostico'),
+                title: const Text('Diagnóstico'),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   unawaited(
@@ -1310,7 +1310,7 @@ class _StartPageV2State extends State<StartPageV2> {
 
   String get _contextMessage {
     if (_items.isEmpty) return 'Listo para trabajar';
-    if (_items.length == 1) return 'Continua tu trabajo';
+    if (_items.length == 1) return 'Continúa tu trabajo';
     final recent = _items.take(3).length;
     return '$recent recientes listos';
   }
@@ -1473,7 +1473,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  title: 'Ultimos archivos',
+                                  title: 'Últimos archivos',
                                   subtitle: 'Retoma trabajos guardados',
                                 ),
                                 const SizedBox(height: 10),
@@ -2009,7 +2009,7 @@ class _SheetMiniRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final title =
-        meta.title.trim().isEmpty ? 'Planilla sin titulo' : meta.title;
+        meta.title.trim().isEmpty ? 'Planilla sin título' : meta.title;
     final rowBg = t.colors.accent.withValues(
       alpha: t.colors.isLight ? 0.055 : 0.08,
     );
