@@ -326,7 +326,7 @@ class _TopBar extends StatelessWidget {
       alignment: WrapAlignment.end,
       children: [
         _GhostButton(
-          label: isLight ? 'Noche' : 'Dia',
+          label: isLight ? 'Noche' : 'Día',
           palette: palette,
           onPressed: onToggleTheme,
         ),
@@ -994,26 +994,26 @@ class _QuickStart extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <_QuickStartAction>[
       _QuickStartAction(
-        icon: Icons.bolt_rounded,
-        title: 'Protección catódica',
-        subtitle: 'Demo completa: ON/OFF, IR drop, cupón y evidencia.',
-        cta: 'Abrir demo técnica',
-        onTap: onOpenDemo,
+        icon: Icons.add_chart_rounded,
+        title: 'Nueva hoja',
+        subtitle: 'Empezar un relevamiento, inspección o control desde cero.',
+        cta: 'Crear ahora',
+        onTap: onOpenApp,
         featured: true,
       ),
       _QuickStartAction(
-        icon: Icons.add_chart_rounded,
-        title: 'Nueva hoja',
-        subtitle: 'Empezar un relevamiento desde cero.',
-        cta: 'Crear ahora',
+        icon: Icons.history_rounded,
+        title: 'Mis planillas',
+        subtitle: 'Tus hojas recientes y favoritas, listas para continuar.',
+        cta: 'Abrir Bit Flow',
         onTap: onOpenApp,
       ),
       _QuickStartAction(
-        icon: Icons.history_rounded,
-        title: 'Seguir donde quedé',
-        subtitle: 'Tus hojas recientes y favoritas.',
-        cta: 'Abrir Bit Flow',
-        onTap: onOpenApp,
+        icon: Icons.bolt_rounded,
+        title: 'Ver demo',
+        subtitle: 'Ejemplo real: ON/OFF, IR drop, evidencia y exportación.',
+        cta: 'Abrir demo',
+        onTap: onOpenDemo,
       ),
       _QuickStartAction(
         icon: salesChannelLabel.startsWith('WhatsApp')

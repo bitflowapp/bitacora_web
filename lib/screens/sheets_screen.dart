@@ -1020,7 +1020,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'Dia',
+                  label: isLight ? 'Noche' : 'Día',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,

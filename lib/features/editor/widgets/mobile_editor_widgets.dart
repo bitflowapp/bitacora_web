@@ -992,22 +992,6 @@ class _MobileQuickActionsBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               AppleButton(
-                icon: Icons.description_outlined,
-                label: 'Formulario',
-                dense: true,
-                onPressed: onForm,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.layers_outlined,
-                label: 'Lote',
-                dense: true,
-                onPressed: onBatch,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
                 icon: Icons.my_location_rounded,
                 label: 'GPS',
                 dense: true,
@@ -1018,43 +1002,10 @@ class _MobileQuickActionsBar extends StatelessWidget {
               const SizedBox(width: 8),
               AppleButton(
                 icon: Icons.photo_camera_outlined,
-                label: 'Camara',
+                label: 'Cámara',
                 dense: true,
                 onPressed: onPhoto,
                 enabled: sensorsEnabled,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.videocam_outlined,
-                label: 'Grabar video',
-                dense: true,
-                onPressed: onVideo,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.mic_none_rounded,
-                label: 'Audio',
-                dense: true,
-                onPressed: onAudio,
-                enabled: sensorsEnabled,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.attach_file_rounded,
-                label: 'Archivo',
-                dense: true,
-                onPressed: onFile,
-                variant: AppleButtonVariant.tonal,
-              ),
-              const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.format_line_spacing_rounded,
-                label: 'Densidad',
-                dense: true,
-                onPressed: onDensity,
                 variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
@@ -1066,12 +1017,16 @@ class _MobileQuickActionsBar extends StatelessWidget {
                 variant: AppleButtonVariant.tonal,
               ),
               const SizedBox(width: 8),
-              AppleButton(
-                icon: Icons.ios_share_rounded,
-                label: 'Compartir',
-                dense: true,
-                onPressed: onShare,
-                variant: AppleButtonVariant.tonal,
+              _MoreActionsButton(
+                palette: palette,
+                sensorsEnabled: sensorsEnabled,
+                onForm: onForm,
+                onBatch: onBatch,
+                onVideo: onVideo,
+                onAudio: onAudio,
+                onFile: onFile,
+                onDensity: onDensity,
+                onShare: onShare,
               ),
             ],
           ),
@@ -1238,7 +1193,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 palette: palette,
                                 iconSize: 18,
                                 splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                               ),
                               _MobilePanelIconButton(
                                 icon: Icons.chevron_left_rounded,
@@ -1247,7 +1202,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 palette: palette,
                                 iconSize: 18,
                                 splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                               ),
                               _MobilePanelIconButton(
                                 icon: Icons.chevron_right_rounded,
@@ -1256,7 +1211,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 palette: palette,
                                 iconSize: 18,
                                 splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                               ),
                               _MobilePanelIconButton(
                                 icon: Icons.check_rounded,
@@ -1265,7 +1220,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 palette: palette,
                                 iconSize: 18,
                                 splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                               ),
                               _MobilePanelIconButton(
                                 icon: Icons.more_horiz_rounded,
@@ -1274,7 +1229,7 @@ class _MobileInlineEditorBar extends StatelessWidget {
                                 palette: palette,
                                 iconSize: 18,
                                 splashRadius: 16,
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                               ),
                             ],
                           ),
@@ -1614,6 +1569,240 @@ class _MobileDictationStatus extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ========================= More actions button + sheet ======================
+
+class _MoreActionsButton extends StatelessWidget {
+  const _MoreActionsButton({
+    required this.palette,
+    required this.sensorsEnabled,
+    required this.onForm,
+    required this.onBatch,
+    required this.onVideo,
+    required this.onAudio,
+    required this.onFile,
+    required this.onDensity,
+    required this.onShare,
+  });
+
+  final _SheetPalette palette;
+  final bool sensorsEnabled;
+  final VoidCallback onForm;
+  final VoidCallback onBatch;
+  final VoidCallback onVideo;
+  final VoidCallback onAudio;
+  final VoidCallback onFile;
+  final VoidCallback onDensity;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppleButton(
+      icon: Icons.more_horiz_rounded,
+      label: 'Más',
+      dense: true,
+      onPressed: () {
+        showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          barrierColor: Colors.black.withValues(
+            alpha: palette.isLight ? 0.16 : 0.40,
+          ),
+          useSafeArea: true,
+          isScrollControlled: true,
+          builder: (ctx) => _SecondaryActionsSheet(
+            sensorsEnabled: sensorsEnabled,
+            onForm: onForm,
+            onBatch: onBatch,
+            onVideo: onVideo,
+            onAudio: onAudio,
+            onFile: onFile,
+            onDensity: onDensity,
+            onShare: onShare,
+          ),
+        );
+      },
+      variant: AppleButtonVariant.tonal,
+    );
+  }
+}
+
+class _SecondaryActionsSheet extends StatelessWidget {
+  const _SecondaryActionsSheet({
+    required this.sensorsEnabled,
+    required this.onForm,
+    required this.onBatch,
+    required this.onVideo,
+    required this.onAudio,
+    required this.onFile,
+    required this.onDensity,
+    required this.onShare,
+  });
+
+  final bool sensorsEnabled;
+  final VoidCallback onForm;
+  final VoidCallback onBatch;
+  final VoidCallback onVideo;
+  final VoidCallback onAudio;
+  final VoidCallback onFile;
+  final VoidCallback onDensity;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
+    final colors = t.colors;
+
+    void run(VoidCallback fn) {
+      Navigator.of(context).pop();
+      AppHaptics.light();
+      fn();
+    }
+
+    final actions = <(IconData, String, String, VoidCallback, bool)>[
+      (
+        Icons.description_outlined,
+        'Formulario',
+        'Entrada guiada por campos',
+        onForm,
+        true
+      ),
+      (
+        Icons.layers_outlined,
+        'Acciones en lote',
+        'Operaciones sobre múltiples filas',
+        onBatch,
+        true
+      ),
+      (
+        Icons.videocam_outlined,
+        'Video',
+        'Grabar y adjuntar video a la celda',
+        onVideo,
+        sensorsEnabled
+      ),
+      (
+        Icons.mic_none_rounded,
+        'Audio',
+        'Grabar nota de voz',
+        onAudio,
+        sensorsEnabled
+      ),
+      (
+        Icons.attach_file_rounded,
+        'Adjuntar archivo',
+        'Cualquier tipo de archivo',
+        onFile,
+        true
+      ),
+      (
+        Icons.ios_share_rounded,
+        'Compartir',
+        'Enviar planilla por otra vía',
+        onShare,
+        true
+      ),
+      (
+        Icons.format_line_spacing_rounded,
+        'Densidad',
+        'Compacto, normal o espacioso',
+        onDensity,
+        true
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: colors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Más acciones',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+          ),
+          for (final (icon, label, subtitle, callback, enabled) in actions)
+            InkWell(
+              onTap: enabled ? () => run(callback) : null,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color:
+                            enabled ? colors.accentMuted : colors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 18,
+                        color: enabled ? colors.accent : colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: enabled
+                                  ? colors.textPrimary
+                                  : colors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 12,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          SizedBox(
+              height: math.max(MediaQuery.paddingOf(context).bottom, 12.0)),
+        ],
       ),
     );
   }

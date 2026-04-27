@@ -42,46 +42,45 @@ extension _EditorExportDialogs on _EditorScreenState {
             children: [
               Text(
                 'Formato',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: TextStyle(
+                  color: AppTheme.of(context).colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  ChoiceChip(
-                    label: const Text('XLSX'),
-                    selected: format == 'xlsx',
-                    onSelected: (_) => setModalState(() {
-                      format = 'xlsx';
-                    }),
+                  Expanded(
+                    child: AppButton(
+                      label: 'XLSX',
+                      variant: format == 'xlsx'
+                          ? AppButtonVariant.primary
+                          : AppButtonVariant.ghost,
+                      onPressed: () => setModalState(() => format = 'xlsx'),
+                    ),
                   ),
-                  ChoiceChip(
-                    label: const Text('PDF'),
-                    selected: format == 'pdf',
-                    onSelected: (_) => setModalState(() {
-                      format = 'pdf';
-                    }),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppButton(
+                      label: 'PDF',
+                      variant: format == 'pdf'
+                          ? AppButtonVariant.primary
+                          : AppButtonVariant.ghost,
+                      onPressed: () => setModalState(() => format = 'pdf'),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.55),
+                  color: AppTheme.of(context).colors.surfaceElevated,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.20),
+                    color: AppTheme.of(context).colors.border,
                   ),
                 ),
                 child: Row(
@@ -90,14 +89,18 @@ extension _EditorExportDialogs on _EditorScreenState {
                     Icon(
                       Icons.attachment_rounded,
                       size: 18,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: AppTheme.of(context).colors.accent,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Se incluyen siempre fotos, ubicaciones, audio, '
                         'transcripciones, videos y archivos adjuntos.',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: TextStyle(
+                          color: AppTheme.of(context).colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ],
@@ -106,7 +109,10 @@ extension _EditorExportDialogs on _EditorScreenState {
               const SizedBox(height: 6),
               Text(
                 'Archivo: $fileName',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: TextStyle(
+                  color: AppTheme.of(context).colors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 12),
               AppButton(
@@ -396,9 +402,8 @@ class _CloseAndSignModalBodyState extends State<_CloseAndSignModalBody> {
                 child: AppButton(
                   label: 'Cancelar',
                   variant: AppButtonVariant.ghost,
-                  onPressed: _submitting
-                      ? null
-                      : () => Navigator.of(context).pop(),
+                  onPressed:
+                      _submitting ? null : () => Navigator.of(context).pop(),
                 ),
               ),
               const SizedBox(width: 8),

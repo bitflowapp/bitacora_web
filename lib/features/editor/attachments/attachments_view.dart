@@ -33,7 +33,11 @@ class AttachmentsSheetHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '$count item(s)',
+          count == 0
+              ? 'Sin evidencia'
+              : count == 1
+                  ? '1 adjunto'
+                  : '$count adjuntos',
           style: TextStyle(
             color: palette.fgMuted,
             fontWeight: FontWeight.w700,

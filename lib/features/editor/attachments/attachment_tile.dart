@@ -124,19 +124,6 @@ class AttachmentTile extends StatelessWidget {
                   children: [
                     Semantics(
                       button: true,
-                      label: 'Ver adjunto',
-                      child: Tooltip(
-                        message: 'Ver',
-                        child: _MiniActionButton(
-                          icon: Icons.visibility_outlined,
-                          onPressed: onPreview,
-                          palette: palette,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Semantics(
-                      button: true,
                       label: 'Renombrar adjunto',
                       child: Tooltip(
                         message: 'Renombrar',
