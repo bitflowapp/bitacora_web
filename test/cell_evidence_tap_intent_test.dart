@@ -59,7 +59,73 @@ void main() {
     await tester.tap(find.text('Ver evidencia'));
     await tester.pumpAndSettle();
 
-    expect(find.text('GPS adjuntado a esta celda'), findsOneWidget);
+    expect(find.text('Ubicación GPS'), findsOneWidget);
+    expect(find.byTooltip('Copiar coordenadas'), findsOneWidget);
+    expect(find.byTooltip('Copiar link'), findsOneWidget);
+    expect(find.byTooltip('Abrir mapa'), findsOneWidget);
+  });
+
+  testWidgets('video evidence opens preview action instead of file fallback',
+      (tester) async {
+    final state = await pumpMobileEditor(tester, 'tap-intent-video-preview');
+    state.debugAddEvidenceFileToCell(
+      0,
+      0,
+      id: 'video_1',
+      filename: 'video.mov',
+      mime: 'video/quicktime',
+      storedRef: '',
+      size: 4096,
+    );
+    await tester.pump();
+
+    state.debugHandleCellTapForIntent(0, 0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver evidencia'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Video adjunto'), findsOneWidget);
+    expect(find.byTooltip('Ver video'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Ver video'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No se pudo previsualizar este video'), findsOneWidget);
+    expect(
+      find.text(
+        'Video adjunto, pero no se pudo previsualizar en este dispositivo.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('photo evidence with missing bytes shows professional fallback',
+      (tester) async {
+    final state = await pumpMobileEditor(tester, 'tap-intent-photo-fallback');
+    state.debugAddEvidenceFileToCell(
+      0,
+      0,
+      id: 'photo_1',
+      filename: 'foto.jpg',
+      mime: 'image/jpeg',
+      storedRef: '',
+      size: 2048,
+    );
+    await tester.pump();
+
+    state.debugHandleCellTapForIntent(0, 0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver evidencia'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Foto adjunta'), findsOneWidget);
+    expect(find.byTooltip('Ver foto'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Ver foto'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No se pudo previsualizar esta foto'), findsOneWidget);
+    expect(find.text('La evidencia sigue adjunta a la celda.'), findsOneWidget);
   });
 
   testWidgets('Editar celda from intent opens current editor without data loss',

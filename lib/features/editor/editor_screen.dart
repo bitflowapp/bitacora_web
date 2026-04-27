@@ -81,6 +81,7 @@ import 'package:bitacora_web/utils/viewport_insets.dart' as vv;
 import 'package:bitacora_web/widgets/apple_ui.dart';
 import 'package:bitacora_web/widgets/command_palette.dart';
 import 'package:bitacora_web/widgets/web_blob_image.dart';
+import 'package:bitacora_web/widgets/web_blob_video.dart';
 import 'package:bitacora_web/features/editor/widgets/trace_mode_overlay.dart';
 
 part 'editor_state_types.dart';

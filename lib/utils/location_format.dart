@@ -17,6 +17,21 @@ String formatLatLng(double lat, double lng, {int decimals = 6}) {
   return '${lat.toStringAsFixed(d)}, ${lng.toStringAsFixed(d)}';
 }
 
+String formatLatLngQuery(double lat, double lng, {int decimals = 6}) {
+  final d = decimals.clamp(5, 6);
+  return '${lat.toStringAsFixed(d)},${lng.toStringAsFixed(d)}';
+}
+
+String googleMapsSearchUrl(double lat, double lng, {int decimals = 6}) {
+  final query = formatLatLngQuery(lat, lng, decimals: decimals);
+  return 'https://www.google.com/maps/search/?api=1&query=$query';
+}
+
+String formatAccuracyMeters(double? accuracyM) {
+  if (accuracyM == null || !accuracyM.isFinite) return '';
+  return 'Precisión: ${accuracyM.toStringAsFixed(0)} m';
+}
+
 LocationWritePlan planLocationColumns(
   List<String> headers, {
   int? currentCol,

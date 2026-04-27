@@ -1221,15 +1221,15 @@ extension _EditorAttachments on _EditorScreenState {
   String _evidenceTypeLabel(PhotoAttachment photo) {
     final mime = photo.mime.trim();
     final name = photo.filename.trim();
-    if (_isVideoMime(mime, name)) return 'Video adjuntado a esta celda';
-    if (_isImageEvidence(photo)) return 'Foto adjuntada a esta celda';
-    return 'Archivo adjuntado a esta celda';
+    if (_isVideoMime(mime, name)) return 'Video adjunto';
+    if (_isImageEvidence(photo)) return 'Foto adjunta';
+    return 'Archivo adjunto';
   }
 
   String _evidenceOpenLabel(PhotoAttachment photo) {
     final mime = photo.mime.trim();
     final name = photo.filename.trim();
-    if (_isVideoMime(mime, name)) return 'Abrir video';
+    if (_isVideoMime(mime, name)) return 'Ver video';
     if (_isImageEvidence(photo)) return 'Ver foto';
     return 'Abrir archivo';
   }
@@ -1268,65 +1268,37 @@ extension _EditorAttachments on _EditorScreenState {
     await _saveExportBytes(name: name, mime: mime, bytes: bytes, share: false);
   }
 
-  Future<void> _openPhotoPreview(
+  Future<void> _openEvidencePreview(
     BuildContext context,
     PhotoAttachment photo,
   ) async {
-    final bytes = await _loadPhotoBytesFromAttachment(photo);
-    if (!context.mounted) return;
-    if (bytes == null || bytes.isEmpty) {
-      _showSnack('No se pudo previsualizar esta foto.', isError: true);
+    if (_isVideoMime(photo.mime, photo.filename)) {
+      await _openVideoPreview(context, photo);
       return;
     }
-    final previewable = _canPreviewPhoto(photo);
+    if (_isImageEvidence(photo)) {
+      await _openPhotoPreview(context, photo);
+      return;
+    }
+    await _openStoredEvidence(context, photo);
+  }
+
+  Future<void> _showEvidenceFallbackModal(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required PhotoAttachment photo,
+    required String actionLabel,
+  }) async {
+    if (!context.mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) {
-        if (!previewable) {
-          return AppModal(
-            title: 'Vista previa no disponible',
-            child:
-                const Text('Esta evidencia no tiene vista previa disponible.'),
-            actions: [
-              AppButton(
-                label: 'Cerrar',
-                variant: AppButtonVariant.ghost,
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-              AppButton(
-                label: 'Descargar',
-                variant: AppButtonVariant.secondary,
-                onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
-              ),
-            ],
-          );
-        }
-        // Image.memory + InteractiveViewer funciona en todas las plataformas
-        // (CanvasKit en web, skia en iOS/Android). Evita el ciclo de vida de
-        // blob URLs / HtmlElementView que fallaba en Safari/iPhone.
-        final preview = InteractiveViewer(
-          minScale: 0.8,
-          maxScale: 4,
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Center(
-              child: Text(
-                'No se pudo previsualizar esta foto.\nLa evidencia sigue adjunta a la celda.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        );
         return AppModal(
-          title: photo.filename.trim().isEmpty
-              ? 'Vista previa'
-              : photo.filename.trim(),
-          maxWidth: 960,
-          child: AttachmentPreviewModal(preview: preview),
+          title: title,
           actions: [
             AppButton(
-              label: 'Descargar',
+              label: actionLabel,
               variant: AppButtonVariant.secondary,
               onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
             ),
@@ -1336,6 +1308,159 @@ extension _EditorAttachments on _EditorScreenState {
               onPressed: () => Navigator.of(ctx).pop(),
             ),
           ],
+          child: Text(
+            message,
+            textAlign: TextAlign.start,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openPhotoPreview(
+    BuildContext context,
+    PhotoAttachment photo,
+  ) async {
+    final bytes = await _loadPhotoBytesFromAttachment(photo);
+    if (!context.mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      await _showEvidenceFallbackModal(
+        context,
+        title: 'No se pudo previsualizar esta foto',
+        message: 'La evidencia sigue adjunta a la celda.',
+        photo: photo,
+        actionLabel: 'Descargar foto',
+      );
+      return;
+    }
+    final previewable = _canPreviewPhoto(photo);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        if (!previewable) {
+          return AppModal(
+            title: 'Vista previa no disponible',
+            actions: [
+              AppButton(
+                label: 'Cerrar',
+                variant: AppButtonVariant.ghost,
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              AppButton(
+                label: 'Descargar foto',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+              ),
+            ],
+            child: const Text(
+              'No se pudo previsualizar esta foto.\nLa evidencia sigue adjunta a la celda.',
+            ),
+          );
+        }
+        final image = kIsWeb
+            ? WebBlobImage(
+                bytes: bytes,
+                mime: photo.mime,
+                fit: BoxFit.contain,
+              )
+            : Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Text(
+                    'No se pudo previsualizar esta foto.\nLa evidencia sigue adjunta a la celda.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+        final preview = InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 4,
+          child: image,
+        );
+        return AppModal(
+          title: 'Foto adjunta',
+          maxWidth: 960,
+          actions: [
+            AppButton(
+              label: 'Descargar foto',
+              variant: AppButtonVariant.secondary,
+              onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+            ),
+            AppButton(
+              label: 'Cerrar',
+              variant: AppButtonVariant.ghost,
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+          child: AttachmentPreviewModal(preview: preview),
+        );
+      },
+    );
+  }
+
+  Future<void> _openVideoPreview(
+    BuildContext context,
+    PhotoAttachment photo,
+  ) async {
+    final bytes = await _loadPhotoBytesFromAttachment(photo);
+    if (!context.mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      await _showEvidenceFallbackModal(
+        context,
+        title: 'No se pudo previsualizar este video',
+        message:
+            'Video adjunto, pero no se pudo previsualizar en este dispositivo.',
+        photo: photo,
+        actionLabel: 'Descargar video',
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final preview = kIsWeb
+            ? WebBlobVideo(bytes: bytes, mime: photo.mime)
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.play_circle_outline_rounded, size: 44),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Video adjunto, pero no se pudo previsualizar en este dispositivo.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'La evidencia sigue adjunta a la celda.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Theme.of(ctx).hintColor),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+        return AppModal(
+          title: 'Video adjunto',
+          maxWidth: 960,
+          actions: [
+            AppButton(
+              label: 'Descargar video',
+              variant: AppButtonVariant.secondary,
+              onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
+            ),
+            AppButton(
+              label: 'Cerrar',
+              variant: AppButtonVariant.ghost,
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+          child: AttachmentPreviewModal(preview: preview),
         );
       },
     );
@@ -1421,11 +1546,23 @@ extension _EditorAttachments on _EditorScreenState {
 
               Widget buildTile(PhotoAttachment p, int idx) {
                 final previewable = _canPreviewPhoto(p);
+                final isVideo = _isVideoMime(p.mime, p.filename);
                 final label = _photoCaptionFor(p);
                 final dateLabel =
                     '${p.addedAt.toLocal()} · ${_formatBytes(p.size)}';
 
                 Widget thumbWidget() {
+                  if (isVideo) {
+                    return Container(
+                      color: pal.cellBg,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.videocam_rounded,
+                        color: pal.fgMuted,
+                        size: 32,
+                      ),
+                    );
+                  }
                   if (!previewable) {
                     return Container(
                       color: pal.cellBg,
@@ -1500,12 +1637,14 @@ extension _EditorAttachments on _EditorScreenState {
                 final tile = AttachmentTile(
                   palette: pal,
                   thumb: thumbWidget(),
-                  typeIcon: previewable
-                      ? Icons.photo_rounded
-                      : Icons.insert_drive_file_outlined,
+                  typeIcon: isVideo
+                      ? Icons.videocam_rounded
+                      : previewable
+                          ? Icons.photo_rounded
+                          : Icons.insert_drive_file_outlined,
                   label: label,
                   dateLabel: dateLabel,
-                  onPreview: () => unawaited(_openPhotoPreview(ctx2, p)),
+                  onPreview: () => unawaited(_openEvidencePreview(ctx2, p)),
                   onRename: () =>
                       unawaited(_renamePhotoOnCell(ctx2, r, c, idx)),
                   onDelete: () => confirmDelete(p, idx),
@@ -1725,13 +1864,89 @@ extension _EditorAttachments on _EditorScreenState {
       );
       return;
     }
-    final payload = '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}';
-    await Clipboard.setData(ClipboardData(text: payload));
-    _showActionSnack(
-      'Coordenadas copiadas: $payload',
-      isError: false,
-      icon: Icons.content_copy_rounded,
-    );
+    final payload = formatLatLng(lat, lon);
+    try {
+      await Clipboard.setData(ClipboardData(text: payload));
+      _showActionSnack(
+        'Coordenadas copiadas',
+        isError: false,
+        icon: Icons.content_copy_rounded,
+      );
+    } catch (_) {
+      _showActionSnack(
+        'No se pudo copiar',
+        isError: true,
+        icon: Icons.content_copy_rounded,
+      );
+    }
+  }
+
+  Future<void> _copyGpsMapLinkForCell(int r, int c) async {
+    final meta = _cellMetaAt(r, c);
+    if (meta == null) return;
+    final coords = _coordsForMeta(meta);
+    final lat = coords.$1;
+    final lon = coords.$2;
+    if (lat == null || lon == null) {
+      _showActionSnack(
+        'Esta celda no tiene link de mapa para copiar.',
+        isError: true,
+        icon: Icons.link_rounded,
+      );
+      return;
+    }
+    try {
+      await Clipboard.setData(
+        ClipboardData(text: googleMapsSearchUrl(lat, lon)),
+      );
+      _showActionSnack(
+        'Link de mapa copiado',
+        isError: false,
+        icon: Icons.link_rounded,
+      );
+    } catch (_) {
+      _showActionSnack(
+        'No se pudo copiar',
+        isError: true,
+        icon: Icons.link_rounded,
+      );
+    }
+  }
+
+  Future<void> _openGpsMapForCell(int r, int c) async {
+    final meta = _cellMetaAt(r, c);
+    if (meta == null) return;
+    final coords = _coordsForMeta(meta);
+    final lat = coords.$1;
+    final lon = coords.$2;
+    if (lat == null || lon == null) {
+      _showActionSnack(
+        'Esta celda no tiene coordenadas para abrir.',
+        isError: true,
+        icon: Icons.map_outlined,
+      );
+      return;
+    }
+    try {
+      final opened = await launchUrl(
+        Uri.parse(googleMapsSearchUrl(lat, lon)),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        _showActionSnack(
+          'No se pudo abrir el mapa.',
+          isError: true,
+          icon: Icons.map_outlined,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showActionSnack(
+        'No se pudo abrir el mapa.',
+        isError: true,
+        icon: Icons.map_outlined,
+      );
+    }
   }
 
   void _deleteGpsFromCell(int r, int c) {
@@ -2241,11 +2456,7 @@ extension _EditorAttachments on _EditorScreenState {
                   sublabel: '$caption · $dateStr · $sizeStr',
                   primaryLabel: _evidenceOpenLabel(p),
                   primaryIcon: _evidenceOpenIcon(p),
-                  onPrimary: () => unawaited(
-                    isImage
-                        ? _openPhotoPreview(ctx2, p)
-                        : _openStoredEvidence(ctx2, p),
-                  ),
+                  onPrimary: () => unawaited(_openEvidencePreview(ctx2, p)),
                   onDelete: () => doDeletePhoto(idx),
                 );
               }
@@ -2278,9 +2489,8 @@ extension _EditorAttachments on _EditorScreenState {
               }
 
               Widget buildGpsRow(GpsMeta g) {
-                final coords =
-                    '${g.lat.toStringAsFixed(6)}, ${g.lng.toStringAsFixed(6)}';
-                final acc = '±${g.accuracyM.toStringAsFixed(1)} m';
+                final coords = formatLatLng(g.lat, g.lng);
+                final acc = formatAccuracyMeters(g.accuracyM);
                 return _EvidenceRow(
                   palette: pal,
                   thumb: Container(
@@ -2292,11 +2502,23 @@ extension _EditorAttachments on _EditorScreenState {
                       size: 28,
                     ),
                   ),
-                  label: 'GPS adjuntado a esta celda',
-                  sublabel: '$coords · $acc',
-                  primaryLabel: 'Copiar',
+                  label: 'Ubicación GPS',
+                  sublabel: acc.isEmpty ? coords : '$coords · $acc',
+                  primaryLabel: 'Copiar coordenadas',
                   primaryIcon: Icons.content_copy_rounded,
                   onPrimary: () => unawaited(_copyGpsCoordinatesForCell(r, c)),
+                  extraActions: [
+                    _EvidenceRowAction(
+                      icon: Icons.link_rounded,
+                      tooltip: 'Copiar link',
+                      onTap: () => unawaited(_copyGpsMapLinkForCell(r, c)),
+                    ),
+                    _EvidenceRowAction(
+                      icon: Icons.map_outlined,
+                      tooltip: 'Abrir mapa',
+                      onTap: () => unawaited(_openGpsMapForCell(r, c)),
+                    ),
+                  ],
                   onDelete: doDeleteGps,
                 );
               }
@@ -4602,6 +4824,20 @@ class _AttachmentsPhotoThumbState extends State<_AttachmentsPhotoThumb> {
       );
 }
 
+class _EvidenceRowAction {
+  const _EvidenceRowAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final Color? color;
+}
+
 /// Fila de evidencia en el manager unificado de adjuntos por celda.
 class _EvidenceRow extends StatelessWidget {
   const _EvidenceRow({
@@ -4612,6 +4848,7 @@ class _EvidenceRow extends StatelessWidget {
     required this.primaryLabel,
     required this.primaryIcon,
     required this.onPrimary,
+    this.extraActions = const <_EvidenceRowAction>[],
     this.onDelete,
   });
 
@@ -4622,11 +4859,28 @@ class _EvidenceRow extends StatelessWidget {
   final String primaryLabel;
   final IconData primaryIcon;
   final VoidCallback onPrimary;
+  final List<_EvidenceRowAction> extraActions;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final pal = palette;
+    final actions = <_EvidenceRowAction>[
+      _EvidenceRowAction(
+        icon: primaryIcon,
+        tooltip: primaryLabel,
+        onTap: onPrimary,
+        color: pal.accent,
+      ),
+      ...extraActions,
+      if (onDelete != null)
+        _EvidenceRowAction(
+          icon: Icons.delete_outline_rounded,
+          tooltip: 'Eliminar evidencia',
+          onTap: onDelete!,
+          color: pal.fgMuted,
+        ),
+    ];
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -4668,18 +4922,23 @@ class _EvidenceRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _iconAction(primaryIcon, primaryLabel, onPrimary, pal.accent),
-              if (onDelete != null)
-                _iconAction(
-                  Icons.delete_outline_rounded,
-                  'Eliminar evidencia',
-                  onDelete!,
-                  pal.fgMuted,
-                ),
-            ],
+          SizedBox(
+            width: 76,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              runAlignment: WrapAlignment.center,
+              spacing: 2,
+              runSpacing: 2,
+              children: [
+                for (final action in actions)
+                  _iconAction(
+                    action.icon,
+                    action.tooltip,
+                    action.onTap,
+                    action.color ?? pal.fgMuted,
+                  ),
+              ],
+            ),
           ),
         ],
       ),

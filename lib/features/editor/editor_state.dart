@@ -17810,6 +17810,41 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   @visibleForTesting
+  void debugAddEvidenceFileToCell(
+    int r,
+    int c, {
+    String id = 'debug_evidence',
+    String filename = 'debug.jpg',
+    String mime = 'image/jpeg',
+    String storedRef = 'mem:debug_evidence',
+    String thumbRef = '',
+    int size = 1024,
+  }) {
+    assert(() {
+      final ref = _cellRefAt(r, c);
+      if (ref == null) return true;
+      final current = _cellMeta[ref.key];
+      final attachment = PhotoAttachment(
+        id: id,
+        filename: filename,
+        mime: mime,
+        size: size,
+        storedRef: storedRef,
+        thumbRef: thumbRef,
+        addedAt: DateTime(2026, 4, 27),
+      );
+      final next = CellMeta(
+        gps: current?.gps,
+        photos: <PhotoAttachment>[...?current?.photos, attachment],
+        audios: current?.audios ?? const <AudioAttachment>[],
+      );
+      _setCellMetaEntry(r, c, next, markDirty: true);
+      _refreshCellAfterSave(r, c);
+      return true;
+    }());
+  }
+
+  @visibleForTesting
   String debugCellText(int r, int c) => _getCellText(r, c);
 
   @visibleForTesting
