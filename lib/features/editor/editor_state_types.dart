@@ -80,21 +80,29 @@ class _EditorLongOperationState {
   const _EditorLongOperationState({
     required this.message,
     required this.cancellable,
+    this.title,
+    this.detail,
     this.cancelRequested = false,
   });
 
   final String message;
   final bool cancellable;
+  final String? title;
+  final String? detail;
   final bool cancelRequested;
 
   _EditorLongOperationState copyWith({
     String? message,
     bool? cancellable,
+    String? title,
+    String? detail,
     bool? cancelRequested,
   }) {
     return _EditorLongOperationState(
       message: message ?? this.message,
       cancellable: cancellable ?? this.cancellable,
+      title: title ?? this.title,
+      detail: detail ?? this.detail,
       cancelRequested: cancelRequested ?? this.cancelRequested,
     );
   }

@@ -1,5 +1,10 @@
 part of '../editor_screen.dart';
 
+const String _kExportProgressTitle = 'Generando archivo…';
+const String _kExportProgressSubtitle = 'Preparando planilla y evidencias.';
+const String _kExportProgressDetail =
+    'Esto puede tardar unos segundos si hay fotos o videos.';
+
 class _PlanillaSignatureResult {
   _PlanillaSignatureResult({
     required this.pngBytes,
@@ -109,11 +114,12 @@ extension _EditorExportDialogs on _EditorScreenState {
                 variant: AppButtonVariant.primary,
                 onPressed: () {
                   Navigator.of(context).pop();
-                  unawaited(_setExportPresetPref(format));
-                  _triggerSheetExport(
-                    format: format,
-                    includeAttachments: true,
-                    share: false,
+                  unawaited(
+                    _triggerSheetExport(
+                      format: format,
+                      includeAttachments: true,
+                      share: false,
+                    ),
                   );
                 },
               ),
@@ -124,11 +130,12 @@ extension _EditorExportDialogs on _EditorScreenState {
                 variant: AppButtonVariant.secondary,
                 onPressed: () {
                   Navigator.of(context).pop();
-                  unawaited(_setExportPresetPref(format));
-                  _triggerSheetExport(
-                    format: format,
-                    includeAttachments: true,
-                    share: true,
+                  unawaited(
+                    _triggerSheetExport(
+                      format: format,
+                      includeAttachments: true,
+                      share: true,
+                    ),
                   );
                 },
               ),
@@ -176,26 +183,23 @@ extension _EditorExportDialogs on _EditorScreenState {
     );
   }
 
-  void _triggerSheetExport({
+  Future<void> _triggerSheetExport({
     required String format,
     required bool includeAttachments,
     required bool share,
-  }) {
-    unawaited(_setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx'));
+  }) async {
+    if (_longOperation != null) return;
+    await _setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx');
     if (format == 'pdf') {
-      unawaited(
-        _exportPdf(
-          includeAttachments: true,
-          share: share,
-        ),
+      await _exportPdf(
+        includeAttachments: true,
+        share: share,
       );
       return;
     }
-    unawaited(
-      _exportXlsxOnly(
-        includeAttachments: true,
-        share: share,
-      ),
+    await _exportXlsxOnly(
+      includeAttachments: true,
+      share: share,
     );
   }
 

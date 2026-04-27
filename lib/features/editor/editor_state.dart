@@ -8816,10 +8816,14 @@ class _EditorScreenState extends State<EditorScreen>
   void _beginLongOperation({
     required String message,
     required bool cancellable,
+    String? title,
+    String? detail,
   }) {
     final next = _EditorLongOperationState(
       message: message,
       cancellable: cancellable,
+      title: title,
+      detail: detail,
     );
     if (mounted) {
       setState(() => _longOperation = next);
@@ -11165,7 +11169,9 @@ class _EditorScreenState extends State<EditorScreen>
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 360),
                               child: LoadingState(
+                                title: _longOperation!.title,
                                 message: _longOperation!.message,
+                                detail: _longOperation!.detail,
                                 onCancel: (_longOperation!.cancellable &&
                                         !_longOperation!.cancelRequested)
                                     ? _requestLongOperationCancel
@@ -18272,9 +18278,16 @@ class _EditorScreenState extends State<EditorScreen>
   void debugShowOperationProgress({
     String message = AppStrings.progressPreparingExport,
     bool cancellable = true,
+    String? title,
+    String? detail,
   }) {
     assert(() {
-      _beginLongOperation(message: message, cancellable: cancellable);
+      _beginLongOperation(
+        message: message,
+        cancellable: cancellable,
+        title: title,
+        detail: detail,
+      );
       return true;
     }());
   }
@@ -18730,8 +18743,10 @@ class _EditorScreenState extends State<EditorScreen>
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
     _beginLongOperation(
-      message: AppStrings.progressPreparingExport,
-      cancellable: true,
+      title: _kExportProgressTitle,
+      message: _kExportProgressSubtitle,
+      detail: _kExportProgressDetail,
+      cancellable: false,
     );
     try {
       _throwIfLongOperationCancelled();
@@ -18804,8 +18819,10 @@ class _EditorScreenState extends State<EditorScreen>
     final canContinue = await _confirmExportWithValidationIfNeeded();
     if (!canContinue) return;
     _beginLongOperation(
-      message: AppStrings.progressPreparingExport,
-      cancellable: true,
+      title: _kExportProgressTitle,
+      message: _kExportProgressSubtitle,
+      detail: _kExportProgressDetail,
+      cancellable: false,
     );
     try {
       _throwIfLongOperationCancelled();

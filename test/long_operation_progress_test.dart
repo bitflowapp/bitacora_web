@@ -110,9 +110,31 @@ void main() {
 
     expect(state.debugOperationCancelRequested(), isTrue);
 
+    state.debugShowOperationProgress(
+      title: 'Generando archivo…',
+      message: 'Preparando planilla y evidencias.',
+      detail: 'Esto puede tardar unos segundos si hay fotos o videos.',
+      cancellable: false,
+    );
+    await tester.pump();
+
+    expect(find.text('Generando archivo…'), findsOneWidget);
+    expect(find.text('Preparando planilla y evidencias.'), findsOneWidget);
+    expect(
+      find.text('Esto puede tardar unos segundos si hay fotos o videos.'),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(LoadingState),
+        matching: find.text(AppStrings.cancel),
+      ),
+      findsNothing,
+    );
+
     state.debugClearOperationProgress();
     await tester.pump();
-    expect(find.text(AppStrings.progressPreparingExport), findsNothing);
+    expect(find.text('Generando archivo…'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
