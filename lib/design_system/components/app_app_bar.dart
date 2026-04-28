@@ -81,7 +81,8 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
                             Expanded(
                               child: Text(
                                 title!,
-                                style: AppTypography.headline.copyWith(color: label),
+                                style: AppTypography.headline
+                                    .copyWith(color: label),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -91,7 +92,8 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
                           Expanded(
                             child: Text(
                               title!,
-                              style: AppTypography.headline.copyWith(color: label),
+                              style:
+                                  AppTypography.headline.copyWith(color: label),
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,
                             ),

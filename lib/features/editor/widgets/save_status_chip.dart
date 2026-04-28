@@ -266,7 +266,7 @@ class _StatusChipShell extends StatelessWidget {
     return AnimatedContainer(
       duration: AppMotion.micro,
       curve: AppMotion.standardOut,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
@@ -274,8 +274,8 @@ class _StatusChipShell extends StatelessWidget {
         boxShadow: busy
             ? <BoxShadow>[
                 BoxShadow(
-                  color: fg.withValues(alpha: palette.isLight ? 0.12 : 0.24),
-                  blurRadius: 8,
+                  color: fg.withValues(alpha: palette.isLight ? 0.10 : 0.20),
+                  blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
               ]
@@ -286,23 +286,25 @@ class _StatusChipShell extends StatelessWidget {
         children: [
           if (busy)
             SizedBox(
-              width: 14,
-              height: 14,
+              width: 13,
+              height: 13,
               child: CircularProgressIndicator(
-                strokeWidth: 1.9,
+                strokeWidth: 1.8,
                 valueColor: AlwaysStoppedAnimation<Color>(fg),
               ),
             )
           else
-            Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 6),
+            Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 7),
           Text(
             label,
             style: TextStyle(
               color: fg,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               fontSize: 12,
               height: 1.05,
+              letterSpacing: 0.04,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],

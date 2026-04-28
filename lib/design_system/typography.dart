@@ -11,6 +11,19 @@ abstract final class AppTypography {
     'sans-serif',
   ];
 
+  // Monospace family for metadata, cell coordinates, timestamps and
+  // numeric data ("A1 · 47/120 filas", "Guardado 09:41").
+  static const String _mono = 'SFMono-Regular';
+  static const List<String> _monoFallback = [
+    'ui-monospace',
+    'SF Mono',
+    'JetBrains Mono',
+    'Menlo',
+    'Consolas',
+    'Liberation Mono',
+    'monospace',
+  ];
+
   // ── Apple HIG type scale ──────────────────────────────────────────────────
 
   /// Large Title — 34 pt / Bold. Screen-level headings (e.g. "Planillas").
@@ -116,5 +129,42 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w400,
     height: 1.364,
     letterSpacing: 0.06,
+  );
+
+  // ── Monospace metadata ───────────────────────────────────────────────────
+  // Tabular numbers for cell coordinates, IDs, counters, and inline metadata
+  // strips — gives the premium B2B feel and keeps columns visually aligned.
+
+  /// Mono — 12 pt. Default monospace metadata (counters, timestamps).
+  static const TextStyle metaMono = TextStyle(
+    fontFamily: _mono,
+    fontFamilyFallback: _monoFallback,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: 0.02,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Mono small — 11 pt. Inline metadata in tight strips (status bars).
+  static const TextStyle metaMonoSmall = TextStyle(
+    fontFamily: _mono,
+    fontFamilyFallback: _monoFallback,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: 0.04,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Mono coord — 12 pt / Semibold. Cell labels (A1, B27, AA12).
+  static const TextStyle coordMono = TextStyle(
+    fontFamily: _mono,
+    fontFamilyFallback: _monoFallback,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    height: 1,
+    letterSpacing: 0.04,
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 }

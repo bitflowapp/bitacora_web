@@ -424,7 +424,8 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'collaborate',
           label: 'Colaborar',
-          subtitle: 'Exportar/importar paquete y merge asincronico',
+          subtitle:
+              'Exportar e importar paquetes y combinar cambios al importar',
           icon: Icons.group_work_outlined,
           onSelected: () => unawaited(_openCollaborateFlowDialog()),
         ),
@@ -510,7 +511,7 @@ extension _EditorActions on _EditorScreenState {
           ),
           const SizedBox(height: 10),
           Text(
-            'Formato actual: snapshot completo con metadata colaborativa.',
+            'Incluye una copia completa de la planilla con todas las evidencias listas para combinar al importar.',
             style: TextStyle(color: _palette(context).fgMuted, fontSize: 12),
           ),
           const SizedBox(height: 14),

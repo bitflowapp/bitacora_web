@@ -26,7 +26,8 @@ class AppCard extends StatelessWidget {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(borderRadius),
       side: BorderSide(
-        color: divider.withValues(alpha: brightness == Brightness.light ? 0.6 : 0.4),
+        color: divider.withValues(
+            alpha: brightness == Brightness.light ? 0.6 : 0.4),
         width: 0.5,
       ),
     );
@@ -37,7 +38,8 @@ class AppCard extends StatelessWidget {
           color: bg,
           borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
-            color: divider.withValues(alpha: brightness == Brightness.light ? 0.6 : 0.4),
+            color: divider.withValues(
+                alpha: brightness == Brightness.light ? 0.6 : 0.4),
             width: 0.5,
           ),
         ),

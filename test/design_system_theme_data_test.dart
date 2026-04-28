@@ -15,11 +15,11 @@ void main() {
       expect(light.brightness, Brightness.light);
     });
 
-    test('scaffold background is Apple lightBg (#FFFFFF)', () {
+    test('scaffold background is Bit Flow lightBg (#FFFFFF)', () {
       expect(light.scaffoldBackgroundColor, AppColors.lightBg);
     });
 
-    test('primary color is Apple accentBlue (#007AFF)', () {
+    test('primary color is Bit Flow accentBlue (#2563EB)', () {
       expect(light.colorScheme.primary, AppColors.accentBlue);
     });
 
@@ -58,11 +58,11 @@ void main() {
       expect(dark.brightness, Brightness.dark);
     });
 
-    test('scaffold background is OLED black (#000000)', () {
+    test('scaffold background is Bit Flow premium dark (#0B0D10)', () {
       expect(dark.scaffoldBackgroundColor, AppColors.darkBg);
     });
 
-    test('primary color is Apple accentBlueDark (#0A84FF)', () {
+    test('primary color is Bit Flow accentBlueDark (#3A82F7)', () {
       expect(dark.colorScheme.primary, AppColors.accentBlueDark);
     });
 

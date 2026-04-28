@@ -72,7 +72,8 @@ class AppListTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: AppTypography.footnote.copyWith(color: secondaryLabel),
+                      style: AppTypography.footnote
+                          .copyWith(color: secondaryLabel),
                     ),
                   ],
                 ],

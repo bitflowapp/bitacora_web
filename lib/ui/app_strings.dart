@@ -14,15 +14,15 @@ class AppStrings {
   static const actions = 'Acciones';
 
   // Sheets
-  static const sheetsTitle = 'BitFlow';
+  static const sheetsTitle = 'Bit Flow';
   static const sheetsSearchHint = 'Buscar por nombre o ID... (Ctrl/Cmd+K o /)';
-  static const newSheet = 'Crear planilla';
+  static const newSheet = 'Nueva planilla';
   static const templates = 'Plantillas';
   static const openLast = 'Abrir ultima';
   static const clearSearch = 'Limpiar busqueda';
-  static const emptySheetsTitle = 'Todavia no hay planillas';
+  static const emptySheetsTitle = 'Tu workspace esta listo para empezar';
   static const emptySheetsBody =
-      'Crea tu primera planilla o arranca desde una plantilla para tus relevamientos.';
+      'Crea tu primera planilla o arranca desde una plantilla. Listo para campo en segundos.';
   static const noResultsTitle = 'Sin resultados';
   static const deletedSheetToast = 'Planilla eliminada';
   static const renameSheetTitle = 'Renombrar planilla';
@@ -51,11 +51,12 @@ class AppStrings {
   static const editorGpsMode = 'Modo GPS';
   static const editorShortcuts = 'Atajos';
   static const editorExportShare = 'Exportar / Compartir';
-  static const editorExportXlsx = 'Exportar XLSX';
-  static const editorExportZip = 'Exportar paquete (.bitflow.zip)';
+  static const editorExportXlsx = 'Exportar planilla XLSX';
+  static const editorExportZip =
+      'Exportar paquete con evidencias (.bitflow.zip)';
   static const editorShareZip = 'Compartir paquete';
-  static const editorBackupZip = 'Exportar backup legacy (ZIP)';
-  static const editorReportHtml = 'Reporte HTML (imprimible)';
+  static const editorBackupZip = 'Exportar copia completa (ZIP)';
+  static const editorReportHtml = 'Reporte PDF premium (HTML imprimible)';
   static const progressSaving = 'Guardando cambios...';
   static const progressImportingBackup = 'Importando backup...';
   static const progressImportingAssets = 'Importando adjuntos...';

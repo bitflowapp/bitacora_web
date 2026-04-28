@@ -31,7 +31,8 @@ class AppButton extends StatelessWidget {
 
     final minHeight = small ? 36.0 : AppSpacing.touchTarget;
     final hPad = small ? AppSpacing.md : AppSpacing.lg;
-    final textStyle = small ? AppTypography.subheadline : AppTypography.headline;
+    final textStyle =
+        small ? AppTypography.subheadline : AppTypography.headline;
 
     final child = loading
         ? SizedBox(
@@ -51,10 +52,12 @@ class AppButton extends StatelessWidget {
                     child: icon!,
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(label, style: textStyle.copyWith(color: _fgColor(brightness))),
+                  Text(label,
+                      style: textStyle.copyWith(color: _fgColor(brightness))),
                 ],
               )
-            : Text(label, style: textStyle.copyWith(color: _fgColor(brightness)));
+            : Text(label,
+                style: textStyle.copyWith(color: _fgColor(brightness)));
 
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppSpacing.xl),

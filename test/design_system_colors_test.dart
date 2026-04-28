@@ -8,21 +8,31 @@ void main() {
       expect(AppColors.lightBg, const Color(0xFFFFFFFF));
     });
 
-    test('dark background is OLED black', () {
-      expect(AppColors.darkBg, const Color(0xFF000000));
+    test('dark background is Bit Flow premium graphite #0B0D10', () {
+      expect(AppColors.darkBg, const Color(0xFF0B0D10));
     });
 
-    test('light accent is Apple systemBlue', () {
-      expect(AppColors.accentBlue, const Color(0xFF007AFF));
+    test('light accent is Bit Flow premium blue #2563EB', () {
+      expect(AppColors.accentBlue, const Color(0xFF2563EB));
     });
 
     test('dark accent differs from light accent', () {
-      expect(AppColors.accentBlueDark, const Color(0xFF0A84FF));
+      expect(AppColors.accentBlueDark, const Color(0xFF3A82F7));
       expect(AppColors.accentBlue, isNot(AppColors.accentBlueDark));
     });
 
-    test('dark secondary bg matches Apple #1C1C1E', () {
-      expect(AppColors.darkSecondaryBg, const Color(0xFF1C1C1E));
+    test('dark secondary bg is Bit Flow card surface #14171C', () {
+      expect(AppColors.darkSecondaryBg, const Color(0xFF14171C));
+    });
+
+    test('layered surfaces ascend brightness (bg < secondary < tertiary < elevated)',
+        () {
+      expect(AppColors.darkBg.computeLuminance(),
+          lessThan(AppColors.darkSecondaryBg.computeLuminance()));
+      expect(AppColors.darkSecondaryBg.computeLuminance(),
+          lessThan(AppColors.darkTertiaryBg.computeLuminance()));
+      expect(AppColors.darkTertiaryBg.computeLuminance(),
+          lessThan(AppColors.darkElevatedBg.computeLuminance()));
     });
   });
 
@@ -45,19 +55,19 @@ void main() {
       expect(ratio, greaterThanOrEqualTo(4.5));
     });
 
-    test('darkSecondaryLabel (#8E8E93) on darkBg (#000000) passes AA', () {
+    test('darkSecondaryLabel on darkBg passes AA', () {
       final ratio =
           contrastRatio(AppColors.darkSecondaryLabel, AppColors.darkBg);
       expect(ratio, greaterThanOrEqualTo(4.5));
     });
 
-    test('accentBlue (#007AFF) on lightBg — passes AA for large text (≥3:1)',
+    test('accentBlue (#2563EB) on lightBg — passes AA for large text (≥3:1)',
         () {
       final ratio = contrastRatio(AppColors.accentBlue, AppColors.lightBg);
       expect(ratio, greaterThanOrEqualTo(3.0));
     });
 
-    test('accentBlueDark (#0A84FF) on darkBg (#000000) passes AA', () {
+    test('accentBlueDark (#3A82F7) on darkBg passes AA', () {
       final ratio = contrastRatio(AppColors.accentBlueDark, AppColors.darkBg);
       expect(ratio, greaterThanOrEqualTo(4.5));
     });
