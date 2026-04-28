@@ -141,14 +141,14 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   DemoTemplateSpec(
     slug: 'relevamiento-evidencias',
     name: 'Relevamiento con evidencias',
-    sheetName: 'Demo - Relevamiento técnico con evidencias',
+    sheetName: 'Relevamiento técnico con evidencias',
     headers: <String>[
       'Fecha',
       'Cliente',
       'Sector',
       'Hallazgo',
       'Criticidad',
-      'Accion recomendada',
+      'Acción recomendada',
       'Responsable',
       'Foto / Evidencia'
     ],
@@ -157,20 +157,20 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
         '2026-04-20',
         'Operadora Norte',
         'Manifold 3',
-        'Etiqueta ilegible en valvula bypass',
+        'Etiqueta ilegible en válvula bypass',
         'Media',
-        'Reponer identificacion y fotografiar cierre.',
-        'S. Perez',
+        'Reponer identificación y fotografiar cierre.',
+        'S. Pérez',
         ''
       ],
       <String>[
         '2026-04-20',
         'Operadora Norte',
-        'Linea 6"',
-        'Soporte con corrosion superficial',
+        'Línea 6"',
+        'Soporte con corrosión superficial',
         'Media',
         'Lijar, pintar y registrar evidencia final.',
-        'S. Perez',
+        'S. Pérez',
         ''
       ],
       <String>[

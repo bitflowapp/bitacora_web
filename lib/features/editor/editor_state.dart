@@ -442,7 +442,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
-        : 'Sheet';
+        : 'Planilla';
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -6712,7 +6712,7 @@ class _EditorScreenState extends State<EditorScreen>
   String _selectionLabelForQuickActions() {
     if (_selRow < 0 || _selCol < 0) return 'Sin selección';
     final col = _headerLabel(_selCol);
-    return '$col | fila ${_selRow + 1}';
+    return 'Editando: $col · Fila ${_selRow + 1}';
   }
 
   int? _statusColumnForBatchActions() {
@@ -12316,7 +12316,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.vertical_align_bottom_rounded,
-        label: 'Rellenar',
+        label: 'Autocompletar',
         onTap: () => _fillDownColumn(r, c, count: _fillDownCount),
       ),
       _MobileAction(
@@ -14756,7 +14756,7 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Rellenar hacia abajo'),
+          title: const Text('Autocompletar hacia abajo'),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
@@ -22102,7 +22102,7 @@ Este paquete incluye:
     }
   }
 
-  String get _engineFallbackMessage => 'Modo local activo.';
+  String get _engineFallbackMessage => 'Local · Guardado en este dispositivo';
 
   Future<void> _retryEngineConnection() async {
     await _initEngineConnection(manualRetry: true);

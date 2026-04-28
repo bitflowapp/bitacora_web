@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'design_system/motion.dart';
-import 'design_system/spacing.dart';
 import 'design_system/typography.dart';
 import 'ui/app_tokens.dart';
 import 'screens/about_screen.dart';
@@ -17,6 +16,7 @@ import 'screens/diagnostics_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/terms_screen.dart';
+import 'services/demo_templates.dart';
 import 'services/export_xlsx_service.dart';
 import 'services/sheet_store.dart';
 import 'widgets/command_palette.dart';
@@ -310,19 +310,21 @@ class _StartPageV2State extends State<StartPageV2> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Nueva hoja',
+                      'Nuevo relevamiento',
                       style: TextStyle(
                         color: t.colors.textPrimary,
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '¿Cómo querés empezar?',
+                      'Configurá una planilla técnica para empezar rápido.',
                       style: TextStyle(
                         color: t.colors.textSecondary,
                         fontSize: 14,
+                        height: 1.35,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -420,6 +422,8 @@ class _StartPageV2State extends State<StartPageV2> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 14),
+                          _GridPreview(cols: cols, rows: rows),
                           const SizedBox(height: 16),
                           // Columnas
                           Text(
@@ -476,7 +480,7 @@ class _StartPageV2State extends State<StartPageV2> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Encabezados automáticos (Col 1, Col 2…)',
+                                  'Encabezados automáticos',
                                   style: TextStyle(
                                     color: t.colors.textSecondary,
                                     fontSize: 12,
@@ -517,7 +521,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                 ),
                               ),
                               child: Text(
-                                'Crear hoja — $cols cols · $rows filas',
+                                'Crear relevamiento — $cols cols · $rows filas',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1310,9 +1314,48 @@ class _StartPageV2State extends State<StartPageV2> {
 
   String get _contextMessage {
     if (_items.isEmpty) return 'Listo para trabajar';
-    if (_items.length == 1) return 'Continúa tu trabajo';
+    if (_items.length == 1) return 'Continuá tu trabajo';
     final recent = _items.take(3).length;
     return '$recent recientes listos';
+  }
+
+  int get _totalRecordedRows =>
+      _items.fold<int>(0, (sum, item) => sum + item.rows);
+
+  Future<void> _openDemoTemplateSpec(
+    DemoTemplateSpec spec, {
+    String? titleOverride,
+  }) async {
+    if (_busy) return;
+    _trackUsage('open_demo_template_${spec.slug}');
+    _setBusy(true, label: 'Abriendo demo técnica...');
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EditorScreen(
+            isLight: widget.isLight,
+            onToggleTheme: widget.onToggleTheme,
+            sheetId:
+                'demo_${spec.slug}_${DateTime.now().millisecondsSinceEpoch}',
+            initialName: titleOverride ?? spec.sheetName,
+            initialHeaders: spec.headers,
+            initialRows: spec.rows,
+          ),
+        ),
+      );
+    } finally {
+      _setBusy(false);
+      await _reloadSheets();
+    }
+  }
+
+  Future<void> _openTechnicalDemo() {
+    final spec = resolveDemoTemplateFromSlug('relevamiento-evidencias') ??
+        kDemoTemplateSpecs.first;
+    return _openDemoTemplateSpec(
+      spec,
+      titleOverride: 'Relevamiento técnico con evidencias',
+    );
   }
 
   @override
@@ -1382,37 +1425,37 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Nueva hoja',
-                      subtitle: 'Configurar y crear',
-                      icon: Icons.add_box_rounded,
+                      title: 'Nuevo relevamiento',
+                      subtitle: 'Configurá una planilla técnica',
+                      icon: Icons.add_chart_rounded,
                       shortcut: 'Ctrl/Cmd + N',
                       onTap: _showNewSheetDialog,
                       featured: true,
                     ),
                     _QuickActionData(
-                      title: 'Usar plantilla',
-                      subtitle: 'Técnicas listas',
+                      title: 'Usar plantilla técnica',
+                      subtitle: 'Inspección, PC, mantenimiento',
                       icon: Icons.dashboard_customize_rounded,
                       shortcut: 'Templates',
                       onTap: _showTemplateChooser,
                     ),
                     _QuickActionData(
-                      title: 'Seguir donde quedé',
+                      title: 'Continuar trabajo reciente',
                       subtitle: recent.isEmpty
-                          ? 'Sin hojas aún'
+                          ? 'Sin planillas todavía'
                           : recent.first.title.trim().isEmpty
-                              ? 'Última hoja'
+                              ? 'Última planilla'
                               : recent.first.title,
                       icon: Icons.history_rounded,
                       shortcut: 'Ctrl/Cmd + O',
                       onTap: _openMostRecent,
                     ),
                     _QuickActionData(
-                      title: 'Buscar',
-                      subtitle: 'Hojas y acciones',
-                      icon: Icons.search_rounded,
-                      shortcut: 'Ctrl/Cmd + K',
-                      onTap: _openQuickSearch,
+                      title: 'Demo técnica',
+                      subtitle: 'Operadora Norte · evidencias',
+                      icon: Icons.bolt_rounded,
+                      shortcut: 'Showcase',
+                      onTap: _openTechnicalDemo,
                     ),
                   ];
 
@@ -1434,18 +1477,20 @@ class _StartPageV2State extends State<StartPageV2> {
                               duration: AppMotion.slow,
                               children: [
                                 _Header(
-                                  message: _contextMessage,
-                                  subtitle:
-                                      'Relevamientos, inspecciones y control operativo',
+                                  statusLabel: _contextMessage,
+                                  sheetCount: _items.length,
+                                  rowsRecorded: _totalRecordedRows,
+                                  syncLabel: 'Local',
                                   onMore: _openMoreSheet,
+                                  onSearch: _openQuickSearch,
                                   onThemeToggle: widget.onToggleTheme,
                                   isLight: widget.isLight,
                                 ),
                                 const SizedBox(height: 18),
                                 _SectionTitle(
-                                  title: 'Acciones',
+                                  title: 'Empezar',
                                   subtitle:
-                                      'Empezar, continuar o buscar un relevamiento',
+                                      'Crear relevamiento, usar plantilla técnica o continuar trabajo',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1641,24 +1686,33 @@ class _StartPageV2State extends State<StartPageV2> {
 
 class _Header extends StatelessWidget {
   const _Header({
-    required this.message,
-    required this.subtitle,
+    required this.statusLabel,
+    required this.sheetCount,
+    required this.rowsRecorded,
+    required this.syncLabel,
     required this.onMore,
+    required this.onSearch,
     required this.onThemeToggle,
     required this.isLight,
   });
 
-  final String message;
-  final String subtitle;
+  final String statusLabel;
+  final int sheetCount;
+  final int rowsRecorded;
+  final String syncLabel;
   final VoidCallback onMore;
+  final VoidCallback onSearch;
   final VoidCallback onThemeToggle;
   final bool isLight;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final accentSoft = t.colors.accent.withValues(
+      alpha: t.colors.isLight ? 0.10 : 0.18,
+    );
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       decoration: BoxDecoration(
         color: t.colors.surfaceMuted,
         borderRadius: BorderRadius.circular(t.radii.xl),
@@ -1666,125 +1720,300 @@ class _Header extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
-              alpha: t.colors.isLight ? 0.06 : 0.22,
+              alpha: t.colors.isLight ? 0.06 : 0.28,
             ),
-            blurRadius: 28,
+            blurRadius: 32,
             offset: const Offset(0, 18),
           ),
         ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 620;
+          final compact = constraints.maxWidth < 640;
+
           final brand = Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: t.colors.textPrimary,
-                  borderRadius: BorderRadius.circular(t.radii.sm),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'BF',
-                  style: AppTypography.headline.copyWith(
-                    color: t.colors.bg,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Bit Flow',
-                      style: AppTypography.headline.copyWith(
-                        color: t.colors.textPrimary,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: Text(
-                        message,
-                        key: ValueKey<String>(message),
-                        style: AppTypography.subheadline.copyWith(
-                          color: t.colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: AppTypography.caption1.copyWith(
-                        color: t.colors.textSecondary,
-                      ),
+                  color: t.colors.accent,
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: [
+                    BoxShadow(
+                      color: t.colors.accent.withValues(alpha: 0.32),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.grid_view_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
+              const SizedBox(width: 12),
+              Text(
+                'Bit Flow',
+                style: AppTypography.title2.copyWith(
+                  color: t.colors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _StatusPill(label: statusLabel),
             ],
           );
 
-          final actions = Wrap(
+          final headline = Text(
+            'Planillas técnicas con evidencias en campo.',
+            style: AppTypography.title1.copyWith(
+              color: t.colors.textPrimary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.7,
+              height: 1.05,
+            ),
+          );
+
+          final subtitle = Text(
+            'Relevá, documentá y exportá inspecciones desde el celular.',
+            style: AppTypography.subheadline.copyWith(
+              color: t.colors.textSecondary,
+              height: 1.35,
+            ),
+          );
+
+          final metrics = Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                onPressed: onThemeToggle,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: t.colors.textPrimary,
-                  side: BorderSide(color: t.colors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(t.radii.xs),
-                  ),
-                ),
-                icon: Icon(
-                  isLight ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                  size: 18,
-                ),
-                label: const Text('Tema'),
+              _MetricChip(
+                icon: Icons.description_rounded,
+                label: 'Hojas',
+                value: '$sheetCount',
+                accentSoft: accentSoft,
               ),
-              FilledButton.icon(
-                onPressed: onMore,
-                style: FilledButton.styleFrom(
-                  backgroundColor: t.colors.textPrimary,
-                  foregroundColor: t.colors.bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(t.radii.xs),
-                  ),
-                ),
-                icon: const Icon(Icons.more_horiz_rounded, size: 18),
-                label: const Text('Mas'),
+              _MetricChip(
+                icon: Icons.layers_rounded,
+                label: 'Registros',
+                value: _formatCompactCount(rowsRecorded),
+                accentSoft: accentSoft,
+              ),
+              _MetricChip(
+                icon: Icons.cloud_done_rounded,
+                label: 'Sinc.',
+                value: syncLabel,
+                accentSoft: accentSoft,
               ),
             ],
           );
 
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                brand,
-                SizedBox(height: t.spacing.md),
-                actions,
-              ],
-            );
-          }
-
-          return Row(
+          final chromeActions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: compact ? WrapAlignment.start : WrapAlignment.end,
             children: [
-              Expanded(child: brand),
-              const SizedBox(width: AppSpacing.lg),
-              actions,
+              _GhostIconButton(
+                icon: Icons.search_rounded,
+                tooltip: 'Buscar',
+                onTap: onSearch,
+              ),
+              _GhostIconButton(
+                icon: isLight
+                    ? Icons.dark_mode_rounded
+                    : Icons.light_mode_rounded,
+                tooltip: isLight ? 'Modo noche' : 'Modo día',
+                onTap: onThemeToggle,
+              ),
+              _GhostIconButton(
+                icon: Icons.more_horiz_rounded,
+                tooltip: 'Más',
+                onTap: onMore,
+              ),
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (compact) ...[
+                brand,
+                const SizedBox(height: 12),
+                chromeActions,
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: brand),
+                    const SizedBox(width: 12),
+                    chromeActions,
+                  ],
+                ),
+              const SizedBox(height: 22),
+              headline,
+              const SizedBox(height: 10),
+              subtitle,
+              const SizedBox(height: 18),
+              metrics,
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+String _formatCompactCount(int n) {
+  if (n < 1000) return '$n';
+  if (n < 10000) {
+    final k = (n / 1000);
+    return '${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}k';
+  }
+  return '${(n / 1000).round()}k';
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final dot = t.colors.successFg;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: t.colors.successBg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: dot.withValues(alpha: t.colors.isLight ? 0.20 : 0.32),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: dot,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: AppTypography.caption1.copyWith(
+              color: t.colors.textPrimary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accentSoft,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color accentSoft;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: t.colors.surfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: t.colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: accentSoft,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 16, color: t.colors.accent),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTypography.caption2.copyWith(
+                  color: t.colors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              Text(
+                value,
+                style: AppTypography.subheadline.copyWith(
+                  color: t.colors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GhostIconButton extends StatelessWidget {
+  const _GhostIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: t.colors.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: t.colors.border),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 18, color: t.colors.textPrimary),
+          ),
+        ),
       ),
     );
   }
@@ -2289,6 +2518,80 @@ class _NewSheetConfig {
   final int rows;
   final bool autoHeaders;
   final bool fromTemplate;
+}
+
+class _GridPreview extends StatelessWidget {
+  const _GridPreview({required this.cols, required this.rows});
+
+  final int cols;
+  final int rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    const previewRows = 4;
+    final visibleRows = rows < previewRows ? rows : previewRows;
+    final headerColor = t.colors.surfaceElevated;
+    final altColor = t.colors.bg;
+    final lineColor = t.colors.border;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: lineColor),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (int c = 0; c < cols; c++) ...[
+                Expanded(
+                  child: Container(
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: headerColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                if (c < cols - 1) const SizedBox(width: 4),
+              ],
+            ],
+          ),
+          for (int r = 0; r < visibleRows; r++) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                for (int c = 0; c < cols; c++) ...[
+                  Expanded(
+                    child: Container(
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: r.isOdd ? altColor : t.colors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  if (c < cols - 1) const SizedBox(width: 4),
+                ],
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            '$cols cols · $rows filas',
+            style: AppTypography.caption2.copyWith(
+              color: t.colors.textSecondary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SegmentChip extends StatelessWidget {

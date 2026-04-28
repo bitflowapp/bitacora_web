@@ -95,31 +95,50 @@ class GridnoteTableStyle {
     final isLight = theme.brightness == Brightness.light;
     final accent = g.accent;
 
-    final cellBg = isLight ? AppColors.lightBg : AppColors.darkBg;
-    final headerBase =
-        isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
+    // Premium B2B table — base surfaces lifted off pure white/black,
+    // stronger jerarquía between header / row / alt row, delicate borders.
+    final cellBg = isLight
+        ? AppColors.lightBg
+        // Lift cells off OLED true black so empty cells don't read as a bug.
+        : AppColors.darkSecondaryBg;
+
+    final headerBase = isLight
+        // Slightly stronger header on light to separate from page bg.
+        ? AppColors.lightTertiaryBg
+        : AppColors.darkTertiaryBg;
     final headerBg = Color.alphaBlend(
-      accent.withValues(alpha: isLight ? 0.026 : 0.060),
+      accent.withValues(alpha: isLight ? 0.04 : 0.08),
       headerBase,
     );
+
     final zebraColor = Color.alphaBlend(
-      accent.withValues(alpha: isLight ? 0.014 : 0.050),
-      isLight ? AppColors.lightBg : AppColors.darkSecondaryBg,
+      accent.withValues(alpha: isLight ? 0.022 : 0.060),
+      isLight ? AppColors.lightSecondaryBg : AppColors.darkTertiaryBg,
     );
-    final gridLine = Color.alphaBlend(
-      accent.withValues(alpha: isLight ? 0.028 : 0.055),
-      g.divider.withValues(alpha: isLight ? 0.96 : 0.90),
-    );
+
+    // Borders: delicate but visible — premium feel, not hairline ghost.
+    final gridLine = isLight
+        ? Color.alphaBlend(
+            AppColors.lightOpaqueSeparator.withValues(alpha: 0.55),
+            AppColors.lightDivider,
+          )
+        : Color.alphaBlend(
+            AppColors.darkOpaqueSeparator.withValues(alpha: 0.45),
+            AppColors.darkDivider,
+          );
+
     final headerText = isLight
-        ? scheme.onSurface.withValues(alpha: 0.74)
-        : scheme.onSurface.withValues(alpha: 0.86);
+        ? scheme.onSurface.withValues(alpha: 0.78)
+        : scheme.onSurface.withValues(alpha: 0.90);
     final secondaryLabel = isLight
-        ? scheme.onSurface.withValues(alpha: 0.54)
+        ? scheme.onSurface.withValues(alpha: 0.58)
         : scheme.onSurfaceVariant;
-    final bodyText = scheme.onSurface.withValues(alpha: isLight ? 0.92 : 0.94);
-    final selectionBg = accent.withValues(alpha: isLight ? 0.10 : 0.18);
-    final hoverBg = accent.withValues(alpha: isLight ? 0.035 : 0.085);
-    final focusRing = accent.withValues(alpha: isLight ? 0.58 : 0.80);
+    final bodyText = scheme.onSurface.withValues(alpha: isLight ? 0.94 : 0.96);
+
+    // Selection: present but not aggressive. Slightly stronger in dark.
+    final selectionBg = accent.withValues(alpha: isLight ? 0.12 : 0.22);
+    final hoverBg = accent.withValues(alpha: isLight ? 0.045 : 0.10);
+    final focusRing = accent.withValues(alpha: isLight ? 0.62 : 0.85);
 
     return GridnoteTableStyle(
       zebra: true,
@@ -138,15 +157,15 @@ class GridnoteTableStyle {
         color: bodyText,
         fontWeight: FontWeight.w500,
         fontSize: 13.5,
-        height: 1.28,
+        height: 1.32,
         letterSpacing: -0.04,
       ),
       headerTextStyle: AppTypography.caption1.copyWith(
         color: headerText,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         fontSize: 11.5,
         height: 1.18,
-        letterSpacing: 0.42,
+        letterSpacing: 0.46,
       ),
     );
   }

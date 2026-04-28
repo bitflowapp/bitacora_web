@@ -510,8 +510,9 @@ class _SelectionQuickActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowsLabel =
-        selectedRowsCount <= 1 ? '1 fila' : '$selectedRowsCount filas';
+    final headerText = selectedRowsCount <= 1
+        ? selectionLabel
+        : '$selectedRowsCount filas seleccionadas';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
@@ -528,12 +529,12 @@ class _SelectionQuickActionsBar extends StatelessWidget {
             Flexible(
               flex: 0,
               child: Text(
-                '$rowsLabel · $selectionLabel',
+                headerText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: palette.fgMuted,
-                  fontWeight: FontWeight.w500,
+                  color: palette.fg,
+                  fontWeight: FontWeight.w600,
                   fontSize: 11.5,
                   letterSpacing: 0.1,
                 ),
@@ -555,7 +556,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                     _QuickChip(
                       palette: palette,
                       icon: Icons.vertical_align_bottom_rounded,
-                      label: 'Rellenar',
+                      label: 'Autocompletar',
                       onTap: onFillDown,
                     ),
                     _QuickChip(
@@ -744,47 +745,47 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tu planilla está vacía',
+            'Todavía no hay datos cargados',
             style: TextStyle(
               color: palette.fg,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.1,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Agrega un registro o pega una tabla desde Excel para empezar.',
+            'Agregá una fila o usá una plantilla técnica para empezar.',
             style: TextStyle(
               color: palette.fgMuted,
-              fontSize: 12.5,
+              fontSize: 13,
               fontWeight: FontWeight.w400,
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           AppButton(
             key: const ValueKey('empty-state-cta-new-record'),
-            label: 'Agregar registro',
+            label: 'Agregar fila',
             icon: Icons.add_rounded,
             variant: AppButtonVariant.primary,
             onPressed: onNewRecord,
           ),
           const SizedBox(height: 8),
           AppButton(
-            key: const ValueKey('empty-state-cta-smart-paste'),
-            label: 'Pegar desde Excel',
-            icon: Icons.table_chart_rounded,
+            key: const ValueKey('empty-state-cta-template'),
+            label: 'Usar plantilla técnica',
+            icon: Icons.grid_view_rounded,
             variant: AppButtonVariant.secondary,
-            onPressed: onSmartPaste,
+            onPressed: onUseTemplate,
           ),
           const SizedBox(height: 8),
           AppButton(
-            key: const ValueKey('empty-state-cta-template'),
-            label: 'Usar plantilla',
-            icon: Icons.grid_view_rounded,
+            key: const ValueKey('empty-state-cta-smart-paste'),
+            label: 'Pegar desde Excel',
+            icon: Icons.table_chart_rounded,
             variant: AppButtonVariant.ghost,
-            onPressed: onUseTemplate,
+            onPressed: onSmartPaste,
           ),
         ],
       ),

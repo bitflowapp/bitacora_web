@@ -328,7 +328,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'fill_down',
-          label: 'Rellenar hacia abajo',
+          label: 'Autocompletar hacia abajo',
           subtitle: 'Repetir valor de la celda activa',
           shortcut: 'Ctrl/Cmd+D',
           icon: Icons.vertical_align_bottom_rounded,
