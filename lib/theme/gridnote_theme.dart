@@ -173,6 +173,31 @@ class GridnoteTheme {
       scaffoldBackgroundColor: scaffold,
       cardColor: card,
       dividerColor: divider,
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStatePropertyAll(
+          accentMono.withAlpha(_a(light ? 0.10 : 0.18)),
+        ),
+        dataRowColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return accentMono.withAlpha(_a(light ? 0.13 : 0.22));
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return scheme.surfaceContainerHighest.withAlpha(
+              _a(light ? 0.45 : 0.30),
+            );
+          }
+          return null;
+        }),
+        headingTextStyle: textTheme.labelLarge?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+        dataTextStyle: textTheme.bodyMedium?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        dividerThickness: 0.7,
+      ),
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       pageTransitionsTheme: pageTransitions,
