@@ -610,7 +610,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         onTap: widget.onApplyValue,
       ),
       _QuickActionItem(
-        label: AppStrings.quickActionFillDown,
+        label: 'Autocompletar',
         icon: Icons.vertical_align_bottom_rounded,
         onTap: widget.onFillDown,
       ),
@@ -749,7 +749,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
 
   String _compactLabelFor(String label) {
     if (label == AppStrings.quickActionApplyValue) return 'Pegar';
-    if (label == AppStrings.quickActionFillDown) return 'Rellenar';
+    if (label == 'Autocompletar') return 'Auto';
     if (label == AppStrings.quickActionDuplicateRow) return 'Duplicar';
     if (label == AppStrings.quickActionAttachPhoto) return 'Foto';
     if (label == AppStrings.quickActionAttachGps) return 'GPS';

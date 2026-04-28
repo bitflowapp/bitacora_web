@@ -590,7 +590,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
-        : 'Hoja';
+        : 'Planilla';
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -14186,7 +14186,7 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Rellenar hacia abajo'),
+          title: const Text('Autocompletar hacia abajo'),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
@@ -21181,7 +21181,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _safeFile(String s) {
-    final t = s.trim().isEmpty ? 'Hoja' : s.trim();
+    final t = s.trim().isEmpty ? 'Planilla' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
