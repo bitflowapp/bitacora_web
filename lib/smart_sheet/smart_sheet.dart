@@ -300,8 +300,8 @@ class _SmartSheetState extends State<SmartSheet> {
                 decoration: BoxDecoration(
                   color: tableStyle.cellBg,
                   borderRadius: BorderRadius.circular(14),
-                  border:
-                      Border.all(color: tableStyle.gridLine.withOpacity(0.8)),
+                  border: Border.all(
+                      color: tableStyle.gridLine.withValues(alpha: 0.8)),
                   boxShadow: [
                     if (isLight)
                       const BoxShadow(

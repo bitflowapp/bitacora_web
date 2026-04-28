@@ -9082,7 +9082,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: pal.border.withOpacity(0.22),
+                                    color: pal.border.withValues(alpha: 0.22),
                                     blurRadius: 10,
                                     offset: const Offset(0, 3),
                                   ),
@@ -10078,8 +10078,8 @@ class _EditorScreenState extends State<EditorScreen>
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(
-                              pal.isLight ? 0.18 : 0.34,
+                            color: Colors.black.withValues(
+                              alpha: pal.isLight ? 0.18 : 0.34,
                             ),
                           ),
                           child: Center(

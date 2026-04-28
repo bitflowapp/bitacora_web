@@ -82,7 +82,7 @@ Future<WebCameraCaptureResult> captureFromWebCamera({
       context: context,
       barrierDismissible: false,
       barrierLabel: 'Camara',
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       transitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (ctx, anim, sec) {
         return WebCameraOverlay(jpegQuality: jpegQuality);

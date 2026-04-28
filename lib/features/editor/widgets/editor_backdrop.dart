@@ -16,7 +16,7 @@ class _WarmBackdrop extends StatelessWidget {
             center: const Alignment(-0.8, -0.7),
             radius: 1.2,
             colors: [
-              topTone.withOpacity(palette.isLight ? 0.34 : 0.42),
+              topTone.withValues(alpha: palette.isLight ? 0.34 : 0.42),
               Colors.transparent,
             ],
             stops: const [0.0, 1.0],
@@ -28,7 +28,7 @@ class _WarmBackdrop extends StatelessWidget {
               center: const Alignment(0.8, 0.6),
               radius: 1.3,
               colors: [
-                bottomTone.withOpacity(palette.isLight ? 0.30 : 0.38),
+                bottomTone.withValues(alpha: palette.isLight ? 0.30 : 0.38),
                 Colors.transparent,
               ],
               stops: const [0.0, 1.0],

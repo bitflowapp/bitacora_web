@@ -4425,7 +4425,8 @@ class _TopPillActions extends StatelessWidget {
             border: Border.all(color: border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(colors.isLight ? 0.08 : 0.45),
+                color: Colors.black
+                    .withValues(alpha: colors.isLight ? 0.08 : 0.45),
                 blurRadius: 16,
                 offset: const Offset(0, 10),
               ),
@@ -4678,10 +4679,12 @@ class _SummaryCard extends StatelessWidget {
           gradient: gradient,
           borderRadius: BorderRadius.circular(t.radii.lg),
           border: Border.all(
-              color: const Color(0xFFFFFFFF).withOpacity(0.18), width: 0.8),
+              color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
+              width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(t.colors.isLight ? 0.22 : 0.45),
+              color: Colors.black
+                  .withValues(alpha: t.colors.isLight ? 0.22 : 0.45),
               blurRadius: 16,
               offset: const Offset(0, 10),
             ),
@@ -4696,10 +4699,10 @@ class _SummaryCard extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFFFF).withOpacity(0.18),
+                  color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFFFFFFFF).withOpacity(0.18),
+                      color: const Color(0xFFFFFFFF).withValues(alpha: 0.18),
                       width: 1),
                 ),
                 child: Icon(icon, size: 18, color: const Color(0xFFFFFFFF)),

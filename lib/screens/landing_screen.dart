@@ -37,7 +37,7 @@ class LandingScreen extends StatelessWidget {
                         end: Alignment.bottomRight,
                         colors: [
                           tokens.colors.bg,
-                          tokens.colors.surfaceMuted.withOpacity(0.55),
+                          tokens.colors.surfaceMuted.withValues(alpha: 0.55),
                         ],
                       ),
                     ),
