@@ -2719,7 +2719,7 @@ class _EditorScreenState extends State<EditorScreen>
           itemBuilder: (ctx, index) {
             final template = _columnTemplates[index];
             final subtitle =
-                '${template.prefsByLabel.length} columnas · ${_formatDateTimeShort(template.savedAt.toLocal())}';
+                '${template.prefsByLabel.length} columnas Ã‚Â· ${_formatDateTimeShort(template.savedAt.toLocal())}';
             return ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -2779,7 +2779,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
     if (parts.isEmpty) return 'Sin filtros';
-    return parts.join(' · ');
+    return parts.join(' Ã‚Â· ');
   }
 
   void _applySavedViewColumns(
@@ -2962,7 +2962,7 @@ class _EditorScreenState extends State<EditorScreen>
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Nombre',
-                  hintText: 'Ej: Revisión urgente',
+                  hintText: 'Ej: RevisiÃƒÂ³n urgente',
                 ),
               ),
               const SizedBox(height: 10),
@@ -3844,7 +3844,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == '1' ||
         value == 'true' ||
         value == 'si' ||
-        value == 'sí' ||
+        value == 'sÃƒÂ­' ||
         value == 'ok' ||
         value == 'x') {
       return true;
@@ -4707,7 +4707,7 @@ class _EditorScreenState extends State<EditorScreen>
         final col = (action.col ?? _selCol) + 1;
         final count = action.count ?? 1;
         final value = action.value ?? '';
-        return 'Rellenar desde F$row/C$col x$count = "$value"';
+        return 'Autocompletar desde F$row/C$col x$count = "$value"';
       case FlowBotActionType.addRow:
         final count = (action.count ?? 1).clamp(1, 500);
         final hasAssignments = (action.value ?? '').trim().isNotEmpty;
@@ -8919,7 +8919,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: _InlineMetaChip(
                                   palette: pal,
                                   icon: Icons.visibility_rounded,
-                                  label: 'Modo Zen activo · Mostrar barra',
+                                  label: 'Modo Zen activo Ã‚Â· Mostrar barra',
                                   onTap: () => unawaited(_setZenMode(false)),
                                 ),
                               ),
@@ -11056,7 +11056,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
       _MobileAction(
         icon: Icons.vertical_align_bottom_rounded,
-        label: 'Rellenar',
+        label: 'Autocompletar',
         onTap: () => _fillDownColumn(r, c, count: _fillDownCount),
       ),
       _MobileAction(
@@ -13580,7 +13580,7 @@ class _EditorScreenState extends State<EditorScreen>
               leading: const Icon(Icons.grid_view_rounded),
               title: Text(spec.name),
               subtitle: Text(
-                '${spec.headers.length} columnas · ${spec.rows.length} filas demo',
+                '${spec.headers.length} columnas Ã‚Â· ${spec.rows.length} filas demo',
               ),
               onTap: () => Navigator.of(context).pop(spec),
             ),
@@ -13957,13 +13957,13 @@ class _EditorScreenState extends State<EditorScreen>
     final lower = raw.trim().toLowerCase();
     if (lower.isEmpty) return '';
     final map = <String, String>{
-      'á': 'a',
-      'é': 'e',
-      'í': 'i',
-      'ó': 'o',
-      'ú': 'u',
-      'ü': 'u',
-      'ñ': 'n',
+      'ÃƒÂ¡': 'a',
+      'ÃƒÂ©': 'e',
+      'ÃƒÂ­': 'i',
+      'ÃƒÂ³': 'o',
+      'ÃƒÂº': 'u',
+      'ÃƒÂ¼': 'u',
+      'ÃƒÂ±': 'n',
     };
     final sb = StringBuffer();
     for (final rune in lower.runes) {
@@ -14582,7 +14582,8 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 child: Text(
                                   previewRows[i]
-                                      .map((cell) => cell.isEmpty ? '·' : cell)
+                                      .map((cell) =>
+                                          cell.isEmpty ? 'Ã‚Â·' : cell)
                                       .join(' | '),
                                   style: TextStyle(
                                     color: pal.fg,
@@ -15779,7 +15780,7 @@ class _EditorScreenState extends State<EditorScreen>
                               event.origin,
                               if (event.row != null && event.col != null)
                                 _cellLabelRc(event.row!, event.col!),
-                            ].join(' · ');
+                            ].join(' Ã‚Â· ');
                             return ListTile(
                               tileColor: _palette(ctx).hintBg,
                               shape: RoundedRectangleBorder(
@@ -15915,7 +15916,7 @@ class _EditorScreenState extends State<EditorScreen>
         primary.filename.trim().isEmpty ? 'Adjunto' : primary.filename.trim();
     final safeMime = primary.mime.trim().toLowerCase();
     final typeLabel = _inlineAttachmentTypeLabel(safeMime, safeName);
-    final subtitle = '$typeLabel · ${_formatBytes(primary.size)}';
+    final subtitle = '$typeLabel Ã‚Â· ${_formatBytes(primary.size)}';
 
     return _CellInlinePreviewData(
       title: safeName,
@@ -17896,7 +17897,7 @@ class _EditorScreenState extends State<EditorScreen>
             cell: cellLabel,
             kind: 'GPS',
             caption:
-                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
+                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' Ã‚Â· ${gps.source}' : ''}',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
             mapUrl: mapUrl,
             thumb: null,
@@ -18009,7 +18010,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             pw.SizedBox(height: 2),
             pw.Text(
-              'Version: $appVersion · Build: $buildId',
+              'Version: $appVersion Ã‚Â· Build: $buildId',
               style: const pw.TextStyle(fontSize: 9),
             ),
             pw.SizedBox(height: 8),
@@ -18124,7 +18125,7 @@ class _EditorScreenState extends State<EditorScreen>
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                '${item.kind} · ${item.cell}',
+                                '${item.kind} Ã‚Â· ${item.cell}',
                                 style: pw.TextStyle(
                                   fontSize: 8.5,
                                   fontWeight: pw.FontWeight.bold,
@@ -19863,7 +19864,7 @@ Este paquete incluye:
   }
 
   String _safeFile(String s) {
-    final t = s.trim().isEmpty ? 'Sheet' : s.trim();
+    final t = s.trim().isEmpty ? 'Planilla' : s.trim();
     return t.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
@@ -19913,8 +19914,7 @@ Este paquete incluye:
     }
   }
 
-  String get _engineFallbackMessage =>
-      'Engine no disponible. Modo local activo.';
+  String get _engineFallbackMessage => 'Local Â· Guardado en este dispositivo.';
 
   Future<void> _retryEngineConnection() async {
     await _initEngineConnection(manualRetry: true);

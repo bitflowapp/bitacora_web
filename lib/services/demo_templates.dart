@@ -16,6 +16,53 @@ class DemoTemplateSpec {
 
 const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   DemoTemplateSpec(
+    slug: 'relevamiento-evidencias',
+    name: 'Relevamiento tecnico',
+    sheetName: 'Relevamiento tecnico con evidencias',
+    headers: <String>[
+      'Fecha',
+      'Cliente / Obra',
+      'Sector',
+      'Estado',
+      'Observaciones',
+      'Evidencias'
+    ],
+    rows: <List<String>>[
+      <String>[
+        '2026-04-20',
+        'Operadora Norte',
+        'Manifold 3',
+        'Revisado',
+        'Potencial dentro de rango',
+        '2 fotos'
+      ],
+      <String>[
+        '2026-04-20',
+        'Operadora Norte',
+        'Linea 6"',
+        'Pendiente',
+        'Verificar conexion',
+        '1 foto'
+      ],
+      <String>[
+        '2026-04-21',
+        'Operadora Norte',
+        'Caseta RTU',
+        'Observado',
+        'Relevar continuidad y puesta a tierra',
+        '3 fotos'
+      ],
+      <String>[
+        '2026-04-21',
+        'Operadora Norte',
+        'Cruce canal',
+        'Revisado',
+        'Sin desvio critico',
+        '1 foto'
+      ],
+    ],
+  ),
+  DemoTemplateSpec(
     slug: 'campo',
     name: 'Campo',
     sheetName: 'Demo Campo',
@@ -76,6 +123,9 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
 
 DemoTemplateSpec? resolveDemoTemplateFromSlug(String? slug) {
   final normalized = (slug ?? '').trim().toLowerCase();
+  if (normalized == 'evidencias') {
+    return resolveDemoTemplateFromSlug('relevamiento-evidencias');
+  }
   if (normalized.isEmpty) return null;
   for (final spec in kDemoTemplateSpecs) {
     if (spec.slug == normalized) return spec;

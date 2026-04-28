@@ -291,8 +291,8 @@ class _StartPageV2State extends State<StartPageV2> {
             <(TemplateKind kind, String title, String subtitle, IconData icon)>[
           (
             TemplateKind.plantilla,
-            'Plantilla base',
-            'Actividad, detalle, estado, responsable.',
+            'Relevamiento tecnico',
+            'Fecha, cliente, sector, estado y evidencias.',
             Icons.auto_awesome_rounded,
           ),
           (
@@ -372,8 +372,8 @@ class _StartPageV2State extends State<StartPageV2> {
     final actions = <CommandAction>[
       CommandAction(
         id: 'create_blank',
-        label: 'Nueva planilla',
-        subtitle: 'Crear una planilla vacia y abrir editor',
+        label: 'Nuevo relevamiento',
+        subtitle: 'Configurar una planilla tecnica y abrir editor',
         shortcut: 'Ctrl/Cmd + N',
         icon: Icons.add_box_rounded,
         onSelected: () => unawaited(_createBlankSheet()),
@@ -388,7 +388,7 @@ class _StartPageV2State extends State<StartPageV2> {
       ),
       CommandAction(
         id: 'template',
-        label: 'Automatizar tarea',
+        label: 'Usar plantilla tecnica',
         subtitle: 'Crear desde sugerencia o template',
         icon: Icons.auto_fix_high_rounded,
         onSelected: () => unawaited(_openAutomationSheet()),
@@ -535,7 +535,7 @@ class _StartPageV2State extends State<StartPageV2> {
         : 'Ultimo archivo: ${recent.title.trim().isEmpty ? recent.id : recent.title}.';
 
     final templateSubtitle = _lastTemplate.isEmpty
-        ? 'Ideal para relevamientos repetitivos.'
+        ? 'Ideal para relevamientos tecnicos repetitivos.'
         : 'Ultima plantilla usada: $_lastTemplate.';
 
     return <_AutomationSuggestion>[
@@ -556,7 +556,7 @@ class _StartPageV2State extends State<StartPageV2> {
         },
       ),
       _AutomationSuggestion(
-        title: 'Crear nueva medicion',
+        title: 'Demo tecnica',
         subtitle: '$templateSubtitle Uso: $templateCount',
         icon: Icons.straighten_rounded,
         onTap: () => _createTemplateSheet(TemplateKind.resistividades),
@@ -1055,8 +1055,8 @@ class _StartPageV2State extends State<StartPageV2> {
                   final isWide = constraints.maxWidth >= 960;
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
-                      title: 'Nueva planilla',
-                      subtitle: 'Empieza en blanco',
+                      title: 'Nuevo relevamiento',
+                      subtitle: 'Planilla tecnica en blanco',
                       icon: Icons.add_box_rounded,
                       shortcut: 'Ctrl/Cmd + N',
                       onTap: _createBlankSheet,
@@ -1076,8 +1076,8 @@ class _StartPageV2State extends State<StartPageV2> {
                       onTap: _openQuickSearch,
                     ),
                     _QuickActionData(
-                      title: 'Automatizar tarea',
-                      subtitle: 'Sugerencias inteligentes',
+                      title: 'Usar plantilla tecnica',
+                      subtitle: 'Relevamientos y mediciones',
                       icon: Icons.auto_fix_high_rounded,
                       shortcut: 'Smart',
                       onTap: _openAutomationSheet,
@@ -1103,7 +1103,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                   palette: palette,
                                   message: _contextMessage,
                                   subtitle:
-                                      'Centro de control rapido para trabajo diario',
+                                      'Planillas tecnicas con evidencias en campo.',
                                   onMore: _openMoreSheet,
                                   onThemeToggle: widget.onToggleTheme,
                                   isLight: widget.isLight,
@@ -1111,9 +1111,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                 const SizedBox(height: 18),
                                 _SectionTitle(
                                   palette: palette,
-                                  title: 'Acciones rapidas',
+                                  title: 'Empezar',
                                   subtitle:
-                                      'Solo 4 acciones clave para arrancar en segundos',
+                                      'Nuevo relevamiento, plantillas y trabajo reciente en segundos',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1771,7 +1771,7 @@ class _ShortcutStrip extends StatelessWidget {
         runSpacing: 10,
         children: const [
           _ShortcutItem(combo: 'Ctrl/Cmd + K', label: 'Quick Search'),
-          _ShortcutItem(combo: 'Ctrl/Cmd + N', label: 'Nueva planilla'),
+          _ShortcutItem(combo: 'Ctrl/Cmd + N', label: 'Nuevo relevamiento'),
           _ShortcutItem(combo: 'Ctrl/Cmd + O', label: 'Abrir reciente'),
         ],
       ),
