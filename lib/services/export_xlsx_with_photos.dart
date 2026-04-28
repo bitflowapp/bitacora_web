@@ -222,7 +222,7 @@ Future<Uint8List> buildXlsxWithPhotos({
     final Map<int, List<EmbeddedPhoto>> embeddedByRow = {};
     final Set<int> embeddedCols = <int>{};
     if (useEmbedded) {
-      for (final item in embeddedPhotos!) {
+      for (final item in embeddedPhotos) {
         if (item.bytes.isEmpty) continue;
         if (item.rowIndex < 0 || item.colIndex < 0) continue;
         embeddedByRow

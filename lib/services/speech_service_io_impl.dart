@@ -123,8 +123,8 @@ class SpeechService implements SpeechPort {
     Timer? to;
 
     Future<void> finish([String? value]) async {
-      if (to != null && to!.isActive) {
-        to!.cancel();
+      if (to != null && to.isActive) {
+        to.cancel();
       }
       if (_isListening) {
         try {

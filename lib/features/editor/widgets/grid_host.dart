@@ -1138,7 +1138,6 @@ class _PhotosCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumbBytes = decodeThumb(thumbB64);
-    final hasThumb = thumbBytes != null;
     return Row(
       children: [
         InkWell(
@@ -1154,11 +1153,11 @@ class _PhotosCell extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        if (hasThumb)
+        if (thumbBytes != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Image.memory(
-              thumbBytes!,
+              thumbBytes,
               width: 26,
               height: 26,
               fit: BoxFit.cover,
@@ -1168,7 +1167,7 @@ class _PhotosCell extends StatelessWidget {
               gaplessPlayback: true,
             ),
           ),
-        if (hasThumb) const SizedBox(width: 6),
+        if (thumbBytes != null) const SizedBox(width: 6),
         Expanded(
           child: Text(
             count == 0 ? '0' : '$count',

@@ -159,7 +159,7 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
   _GpsStatus _status = _GpsStatus.initializing;
 
   bool _followUser = true;
-  double _zoom = 16.0;
+  final double _zoom = 16.0;
   bool _gpsStarted = false;
   bool _gpsRequestInFlight = false;
   bool _needsUserAction = false;

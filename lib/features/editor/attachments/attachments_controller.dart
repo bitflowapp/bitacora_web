@@ -1832,7 +1832,7 @@ extension _EditorAttachments on _EditorScreenState {
                         metaRow(
                           'Lat/Lon',
                           hasGps
-                              ? '${lat!.toStringAsFixed(6)}, ${lon!.toStringAsFixed(6)}'
+                              ? '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}'
                               : '-',
                         ),
                         metaRow(
