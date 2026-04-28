@@ -326,7 +326,7 @@ class _AppState extends State<App> {
             _BootSplash(
               isLight: _isLight,
               onToggleTheme: _toggleTheme,
-              subtitle: 'Inicializandoâ€¦',
+              subtitle: 'Inicializando...',
             ),
           );
         }
@@ -574,7 +574,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         _PillButton(
-                          label: isLight ? 'Noche' : 'DÃ­a',
+                          label: isLight ? 'Noche' : 'Dia',
                           outlined: true,
                           onPressed: onToggleTheme,
                         ),

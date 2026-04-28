@@ -234,7 +234,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Palette (Ctrl/Cmd+K / rayo) Â· Smart paste + Undo Â· Exportar',
+                  'Palette (Ctrl/Cmd+K / rayo) - Smart paste + Undo - Exportar',
                   style: TextStyle(
                     color: palette.fgMuted,
                     fontSize: 11.3,
@@ -519,7 +519,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Acciones rapidas Ã‚Â· $rowsLabel Ã‚Â· $selectionLabel',
+              'Acciones rapidas - $rowsLabel - $selectionLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

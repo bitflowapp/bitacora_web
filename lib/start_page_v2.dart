@@ -1122,7 +1122,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                   physics: const NeverScrollableScrollPhysics(),
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10,
-                                  childAspectRatio: isWide ? 1.5 : 1.25,
+                                  childAspectRatio: isWide ? 1.5 : 0.95,
                                   children: [
                                     for (final action in quickActions)
                                       _QuickActionTile(
@@ -1366,9 +1366,10 @@ class _Header extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.xl),
         border: Border.all(color: palette.border),
       ),
-      child: Row(
-        children: [
-          Container(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final mark = Container(
             width: 42,
             height: 42,
             decoration: BoxDecoration(
@@ -1385,44 +1386,45 @@ class _Header extends StatelessWidget {
                 letterSpacing: -0.2,
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bit Flow',
-                  style: AppTypography.headline.copyWith(
+          );
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bit Flow',
+                style: AppTypography.headline.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: Text(
+                  message,
+                  key: ValueKey<String>(message),
+                  maxLines: compact ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.subheadline.copyWith(
                     color: palette.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: Text(
-                    message,
-                    key: ValueKey<String>(message),
-                    style: AppTypography.subheadline.copyWith(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+              ),
+              Text(
+                subtitle,
+                maxLines: compact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.caption1.copyWith(
+                  color: palette.textSecondary,
                 ),
-                Text(
-                  subtitle,
-                  style: AppTypography.caption1.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Wrap(
+              ),
+            ],
+          );
+          final actions = Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: onThemeToggle,
@@ -1452,8 +1454,35 @@ class _Header extends StatelessWidget {
                 label: const Text('Mas'),
               ),
             ],
-          ),
-        ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    mark,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: copy),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              mark,
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(child: copy),
+              const SizedBox(width: AppSpacing.lg),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1533,47 +1562,62 @@ class _QuickActionTile extends StatelessWidget {
       borderColor: palette.border,
       disabled: disabled,
       onTap: () => unawaited(data.onTap()),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 150;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: palette.accentSoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(data.icon, color: palette.accent),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: palette.accentSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(data.icon, color: palette.accent),
+                  ),
+                  if (!compact)
+                    _ShortcutBadge(
+                      palette: palette,
+                      label: data.shortcut,
+                    ),
+                ],
               ),
-              const Spacer(),
-              _ShortcutBadge(
-                palette: palette,
-                label: data.shortcut,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontFamily: 'SF Pro Text',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    data.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontFamily: 'SF Pro Text',
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-          const Spacer(),
-          Text(
-            data.title,
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              fontFamily: 'SF Pro Text',
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            data.subtitle,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 12,
-              fontFamily: 'SF Pro Text',
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1807,12 +1851,17 @@ class _ShortcutItem extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.75),
-              fontFamily: 'SF Pro Text',
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color:
+                    theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.75),
+                fontFamily: 'SF Pro Text',
+              ),
             ),
           ),
         ],
