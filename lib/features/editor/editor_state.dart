@@ -14996,7 +14996,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       try {
         var processed = 0;
-        for (final header in headerChanges) {
+        for (var i = 0; i < headerChanges.length; i++) {
           _throwIfLongOperationCancelled();
           processed++;
           if (processed % chunkCells == 0 || processed == totalOps) {

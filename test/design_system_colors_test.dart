@@ -25,7 +25,8 @@ void main() {
       expect(AppColors.darkSecondaryBg, const Color(0xFF14171C));
     });
 
-    test('layered surfaces ascend brightness (bg < secondary < tertiary < elevated)',
+    test(
+        'layered surfaces ascend brightness (bg < secondary < tertiary < elevated)',
         () {
       expect(AppColors.darkBg.computeLuminance(),
           lessThan(AppColors.darkSecondaryBg.computeLuminance()));

@@ -538,7 +538,8 @@ class GridnoteTableStyle {
     final isLight = g.material.brightness == Brightness.light;
     final divider = g.divider;
 
-    final headerBg = isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
+    final headerBg =
+        isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
     final cellBg = isLight ? AppColors.lightBg : AppColors.darkBg;
     final label = isLight ? AppColors.lightLabel : AppColors.darkLabel;
     final secondaryLabel = isLight

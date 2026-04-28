@@ -43,8 +43,7 @@ void main() {
     });
 
     test('filledButton min height is 44pt (touch target)', () {
-      final size = light.filledButtonTheme.style?.minimumSize
-          ?.resolve({}) as Size?;
+      final size = light.filledButtonTheme.style?.minimumSize?.resolve({});
       expect(size?.height, greaterThanOrEqualTo(44));
     });
   });

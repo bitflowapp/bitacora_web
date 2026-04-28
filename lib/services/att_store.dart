@@ -66,7 +66,7 @@ class AttStore {
     if (raw == null) return const [];
     return raw
         .cast<Map>()
-        .map((e) => Attachment.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map((e) => Attachment.fromJson(Map<String, dynamic>.from(e)))
         .toList(growable: false);
   }
 

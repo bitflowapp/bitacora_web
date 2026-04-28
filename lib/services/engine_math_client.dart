@@ -76,7 +76,7 @@ class EngineMathClient {
       if (decoded is! Map) {
         throw const FormatException('JSON no es objeto');
       }
-      data = Map<String, dynamic>.from(decoded as Map);
+      data = Map<String, dynamic>.from(decoded);
     } catch (_) {
       throw EngineMathException(
         'Respuesta inválida del engine (HTTP ${res.statusCode}).',

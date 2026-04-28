@@ -7,7 +7,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:html' as html;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 class KeyboardInsetsController with WidgetsBindingObserver {

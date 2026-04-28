@@ -2,8 +2,6 @@
 // Store unificado de adjuntos (fotos) con referencias estables.
 
 import 'dart:async';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 
 import '../models/cell_ref.dart';

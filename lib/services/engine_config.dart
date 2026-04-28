@@ -52,10 +52,10 @@ class EngineConfig {
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    '.trycloudflare.com',   // Cloudflare tunnels
-    '.ngrok-free.app',      // ngrok free-tier tunnels
+    '.trycloudflare.com', // Cloudflare tunnels
+    '.ngrok-free.app', // ngrok free-tier tunnels
     '.ngrok.io',
-    '.loca.lt',             // localtunnel
+    '.loca.lt', // localtunnel
   ];
 
   /// Returns true if [url]'s host is on the allowlist.

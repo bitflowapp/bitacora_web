@@ -75,7 +75,8 @@ void main() {
       ];
       for (var i = 0; i < sizes.length - 1; i++) {
         expect(sizes[i], greaterThan(sizes[i + 1]),
-            reason: 'index $i (${sizes[i]}) should be > index ${i + 1} (${sizes[i + 1]})');
+            reason:
+                'index $i (${sizes[i]}) should be > index ${i + 1} (${sizes[i + 1]})');
       }
     });
 

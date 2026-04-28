@@ -7,8 +7,6 @@
 // La app sólo sube bytes del XLSX.
 
 import 'dart:convert' show HtmlEscape, HtmlEscapeMode;
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 
 import 'cloud_mailer.dart';
@@ -85,9 +83,8 @@ class MailReportService {
     final safeFileName = _sanitizeXlsxFileName(fileName);
 
     // Aseguramos Uint8List sin copiar si ya viene así.
-    final Uint8List bytes = xlsxBytes is Uint8List
-        ? (xlsxBytes as Uint8List)
-        : Uint8List.fromList(xlsxBytes);
+    final Uint8List bytes =
+        xlsxBytes is Uint8List ? xlsxBytes : Uint8List.fromList(xlsxBytes);
 
     // Metadata opcional para logs del backend (si CloudMailer lo soporta).
     // Si tu CloudMailer.sendXlsx no acepta estos campos, eliminá esta sección.

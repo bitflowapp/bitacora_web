@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 
 typedef PhotoPathReader = Future<Uint8List?> Function(String path);
