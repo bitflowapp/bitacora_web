@@ -19,7 +19,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'mobile-compact-mode',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['A', ''],
             <String>['B', ''],
@@ -56,7 +56,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'mobile-zen-mode',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['A', ''],
             <String>['B', ''],
@@ -103,7 +103,7 @@ void main() {
         },
         home: const EditorScreen(
           sheetId: 'mobile-compact-text-scale',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['A', ''],
             <String>['B', ''],

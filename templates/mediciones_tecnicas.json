@@ -1,0 +1,12 @@
+﻿{
+  "slug": "mediciones-tecnicas",
+  "name": "Mediciones tecnicas",
+  "sheetName": "Mediciones Tecnicas",
+  "headers": ["Fecha", "Punto", "Parametro", "Lectura", "Unidad", "Limite", "Estado"],
+  "rows": [
+    ["2026-03-02", "P-01", "Resistencia", "4.3", "Ohm", "5.0", "=IF(D1<=F1, \"OK\", \"CHECK\")"],
+    ["2026-03-02", "P-02", "Resistencia", "5.8", "Ohm", "5.0", "=IF(D2<=F2, \"OK\", \"CHECK\")"],
+    ["2026-03-02", "P-03", "Resistencia", "4.9", "Ohm", "5.0", "=IF(D3<=F3, \"OK\", \"CHECK\")"],
+    ["2026-03-02", "PROM", "Lectura promedio", "=ROUND(AVERAGE(D1:D3),2)", "Ohm", "", ""]
+  ]
+}

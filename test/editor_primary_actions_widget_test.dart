@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'primary-actions-test',
-          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Photos'],
+          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Fotos'],
         ),
       ),
     );

@@ -1,8 +1,7 @@
 part of '../editor_screen.dart';
 
-class SaveStatusChip extends StatelessWidget {
-  const SaveStatusChip({
-    super.key,
+class _SaveStatusChip extends StatelessWidget {
+  const _SaveStatusChip({
     required this.palette,
     required this.status,
   });
@@ -58,7 +57,7 @@ class SaveStatusChip extends StatelessWidget {
       case EditorSaveState.saving:
         return 'Guardando...';
       case EditorSaveState.dirty:
-        return 'Sin guardar';
+        return 'Sin guardar...';
       case EditorSaveState.saved:
         final d = snap.savedAt;
         if (d == null) return 'Guardado';
@@ -114,9 +113,8 @@ class SaveStatusChip extends StatelessWidget {
   }
 }
 
-class SyncStatusChip extends StatelessWidget {
-  const SyncStatusChip({
-    super.key,
+class _SyncStatusChip extends StatelessWidget {
+  const _SyncStatusChip({
     required this.palette,
     required this.status,
     this.onTap,
@@ -176,11 +174,11 @@ class SyncStatusChip extends StatelessWidget {
   String _labelFor(OfflineSyncSnapshot snap) {
     switch (snap.state) {
       case OfflineSyncState.offline:
-        return 'Offline / Pendiente sync';
+        return 'Sin conexión / Pendiente de sincronización';
       case OfflineSyncState.pending:
         final pending = snap.pendingCount;
-        if (pending > 1) return 'Pendiente sync ($pending)';
-        return 'Pendiente sync';
+        if (pending > 1) return 'Pendiente de sincronización ($pending)';
+        return 'Pendiente de sincronización';
       case OfflineSyncState.syncing:
         return 'Sincronizando...';
       case OfflineSyncState.synced:
@@ -266,7 +264,7 @@ class _StatusChipShell extends StatelessWidget {
     return AnimatedContainer(
       duration: AppMotion.micro,
       curve: AppMotion.standardOut,
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
@@ -274,8 +272,8 @@ class _StatusChipShell extends StatelessWidget {
         boxShadow: busy
             ? <BoxShadow>[
                 BoxShadow(
-                  color: fg.withValues(alpha: palette.isLight ? 0.10 : 0.20),
-                  blurRadius: 10,
+                  color: fg.withValues(alpha: palette.isLight ? 0.12 : 0.24),
+                  blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
               ]
@@ -286,25 +284,23 @@ class _StatusChipShell extends StatelessWidget {
         children: [
           if (busy)
             SizedBox(
-              width: 13,
-              height: 13,
+              width: 14,
+              height: 14,
               child: CircularProgressIndicator(
-                strokeWidth: 1.8,
+                strokeWidth: 1.9,
                 valueColor: AlwaysStoppedAnimation<Color>(fg),
               ),
             )
           else
-            Icon(icon, size: 13, color: fg),
-          const SizedBox(width: 7),
+            Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
               color: fg,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w800,
               fontSize: 12,
               height: 1.05,
-              letterSpacing: 0.04,
-              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],

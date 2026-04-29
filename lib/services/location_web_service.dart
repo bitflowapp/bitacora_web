@@ -40,10 +40,7 @@ class LocationWebService {
   LocationWebService._();
   static final LocationWebService I = LocationWebService._();
 
-  LocationWebConfig _config = const LocationWebConfig();
-
-  LocationWebConfig get config => _config;
-  set config(LocationWebConfig v) => _config = v;
+  LocationWebConfig config = const LocationWebConfig();
 
   /// Fix simple: una sola lectura con timeout.
   /// - Web: navigator.geolocation directo (user-activation friendly).
@@ -151,7 +148,7 @@ class LocationWebService {
   // -------------------- Maps / Share / Clipboard (Web) --------------------
 
   Uri mapsUri(double lat, double lng, {MapsProvider? provider}) {
-    final p = provider ?? _config.provider;
+    final p = provider ?? config.provider;
 
     switch (p) {
       case MapsProvider.google:
@@ -175,7 +172,7 @@ class LocationWebService {
 
   Future<bool> openInMaps(double lat, double lng,
       {MapsProvider? provider}) async {
-    final p = provider ?? _config.provider;
+    final p = provider ?? config.provider;
 
     // 1) Intento principal
     final primary = mapsUri(lat, lng, provider: p);
@@ -184,7 +181,7 @@ class LocationWebService {
     if (okPrimary) return true;
 
     // 2) Fallback: si es Google y está habilitado, caemos a OSM
-    if (p == MapsProvider.google && _config.fallbackToOsmIfGoogleFails) {
+    if (p == MapsProvider.google && config.fallbackToOsmIfGoogleFails) {
       final fallback = mapsUri(lat, lng, provider: MapsProvider.osm);
       return launchUrl(fallback, mode: LaunchMode.platformDefault);
     }

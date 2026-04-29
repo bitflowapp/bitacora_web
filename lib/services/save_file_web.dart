@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'dart:html' as html;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 
 Future<String> saveBytes(String fileName, List<int> bytes) async {
   final blob =

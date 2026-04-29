@@ -132,7 +132,7 @@ class EngineConfig {
 
       if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
 
-      final map = jsonDecode(resp.body);
+      final map = jsonDecode(utf8.decode(resp.bodyBytes));
       if (map is! Map) return null;
 
       final engineUrl = map['engine_url'];

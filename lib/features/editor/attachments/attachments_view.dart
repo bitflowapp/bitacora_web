@@ -1,8 +1,8 @@
 part of '../editor_screen.dart';
 
 // UI principal del panel de adjuntos.
-class AttachmentsSheetHeader extends StatelessWidget {
-  const AttachmentsSheetHeader({
+class _AttachmentsSheetHeader extends StatelessWidget {
+  const _AttachmentsSheetHeader({
     required this.palette,
     required this.title,
     required this.count,

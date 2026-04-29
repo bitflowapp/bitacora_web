@@ -1,9 +1,28 @@
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 // ignore: uri_does_not_exist
-import 'dart:js_util' as js_util;
+import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 
 class WebCapabilitiesImpl {
   static bool get isSecureContext => html.window.isSecureContext == true;
+
+  static bool isMobileWebUi({double? shortestSide}) {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    final uaMobile = ua.contains('iphone') ||
+        ua.contains('ipad') ||
+        ua.contains('ipod') ||
+        ua.contains('android');
+
+    double? shortest = shortestSide;
+    if (shortest == null || shortest <= 0) {
+      final width = html.window.innerWidth;
+      final height = html.window.innerHeight;
+      if (width != null && height != null && width > 0 && height > 0) {
+        shortest = (width < height ? width : height).toDouble();
+      }
+    }
+    final compactViewport = shortest != null && shortest > 0 && shortest < 600;
+    return uaMobile || compactViewport;
+  }
 
   static bool get isStandalone {
     try {
@@ -75,8 +94,13 @@ class WebCapabilitiesImpl {
 
   static bool get isOnline => html.window.navigator.onLine == true;
 
-  static bool get geolocationAvailable =>
-      html.window.navigator.geolocation != null;
+  static bool get geolocationAvailable {
+    try {
+      return js_util.hasProperty(html.window.navigator, 'geolocation');
+    } catch (_) {
+      return false;
+    }
+  }
 
   static bool get mediaRecorderSupported {
     try {

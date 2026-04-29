@@ -110,6 +110,9 @@ Bitacora_Release_*.zip
 # Logs
 *.log
 error.log
+.tmp_*
+*.tmp
+/logs/*
 
 # Generated web bundles
 build_web/
@@ -145,3 +148,14 @@ dist/
 node_modules/
 tools/clawbot-whatsapp/node_modules/
 
+# Local agent/session workspace files
+.openclaw/
+logs/
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+memory/

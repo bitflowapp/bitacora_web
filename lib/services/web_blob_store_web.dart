@@ -1,11 +1,9 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: uri_does_not_exist
-import 'dart:indexed_db' as idb;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:typed_data';
 import 'dart:async';
-// ignore: uri_does_not_exist
-import 'dart:js_util' as js_util;
+import 'dart:developer' as developer;
+import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 
 import 'web_blob_store.dart';
 
@@ -15,17 +13,23 @@ class WebBlobStoreImpl implements WebBlobStore {
   static const _cacheName = 'bf_blob_store_cache_v1';
   static const _cachePathPrefix = '/_bitflow_blob_cache/';
 
-  idb.Database? _db;
+  dynamic _db;
   final Map<String, WebBlobRecord> _mem = {};
+  String? _lastSaveReason;
+  String? _lastSaveStore;
 
-  Future<idb.Database?> _ensureDb() async {
+  @override
+  String? get lastSaveReason => _lastSaveReason;
+  String? get lastSaveStore => _lastSaveStore;
+
+  Future<dynamic> _ensureDb() async {
     if (_db != null) return _db;
     try {
       _db = await html.window.indexedDB!.open(
         _dbName,
         version: 1,
         onUpgradeNeeded: (e) {
-          final db = (e.target as idb.Request).result as idb.Database;
+          final db = (e.target as dynamic).result;
           db.createObjectStore(_storeName);
         },
       );
@@ -43,6 +47,8 @@ class WebBlobStoreImpl implements WebBlobStore {
     required String mime,
     required int size,
   }) async {
+    _lastSaveReason = null;
+    _lastSaveStore = null;
     html.Blob blob;
     if (source is html.Blob) {
       blob = source;
@@ -52,6 +58,18 @@ class WebBlobStoreImpl implements WebBlobStore {
       blob = html.Blob(<Object>[], mime);
     }
     final now = DateTime.now();
+    void debugLogSaveDecision(String store, String? reasonCode) {
+      assert(() {
+        final reason =
+            (reasonCode ?? '').trim().isEmpty ? 'none' : reasonCode!.trim();
+        developer.log(
+          '[web-blob] save bytes=$size store=$store reason=$reason',
+          name: 'bitflow.web_blob',
+        );
+        return true;
+      }());
+    }
+
     final recordMap = <String, dynamic>{
       'blob': blob,
       'name': name,
@@ -67,6 +85,8 @@ class WebBlobStoreImpl implements WebBlobStore {
         final store = tx.objectStore(_storeName);
         await store.put(recordMap, key);
         await tx.completed;
+        _lastSaveStore = 'indexeddb';
+        debugLogSaveDecision('indexeddb', null);
         return WebBlobRecord(
           key: key,
           name: name,
@@ -76,10 +96,14 @@ class WebBlobStoreImpl implements WebBlobStore {
           blob: blob,
           storageMode: 'indexeddb',
           sessionOnly: false,
+          storageReason: null,
         );
-      } catch (_) {
+      } catch (e) {
+        _lastSaveReason = _classifyStorageReason(e);
         // fallthrough to Cache API
       }
+    } else {
+      _lastSaveReason = 'storage_blocked';
     }
 
     final cacheSaved = await _saveToCache(
@@ -91,6 +115,12 @@ class WebBlobStoreImpl implements WebBlobStore {
       createdAtIso: now.toIso8601String(),
     );
     if (cacheSaved) {
+      final finalReasonCode = (_lastSaveReason ?? '').trim().isEmpty
+          ? 'unknown_storage_error'
+          : _lastSaveReason!;
+      _lastSaveReason = finalReasonCode;
+      _lastSaveStore = 'cache';
+      debugLogSaveDecision('cache', finalReasonCode);
       return WebBlobRecord(
         key: key,
         name: name,
@@ -100,10 +130,17 @@ class WebBlobStoreImpl implements WebBlobStore {
         blob: blob,
         storageMode: 'cache',
         sessionOnly: false,
+        storageReason: finalReasonCode,
       );
     }
 
     // Fallback RAM
+    final finalReasonCode = (_lastSaveReason ?? '').trim().isEmpty
+        ? 'unknown_storage_error'
+        : _lastSaveReason!;
+    _lastSaveReason = finalReasonCode;
+    _lastSaveStore = 'ram';
+    debugLogSaveDecision('ram', finalReasonCode);
     final rec = WebBlobRecord(
       key: key,
       name: name,
@@ -113,6 +150,7 @@ class WebBlobStoreImpl implements WebBlobStore {
       blob: blob,
       storageMode: 'ram',
       sessionOnly: true,
+      storageReason: finalReasonCode,
     );
     _mem[key] = rec;
     return rec;
@@ -146,6 +184,7 @@ class WebBlobStoreImpl implements WebBlobStore {
             blob: blob,
             storageMode: 'indexeddb',
             sessionOnly: false,
+            storageReason: null,
           );
         }
       } catch (_) {
@@ -168,11 +207,17 @@ class WebBlobStoreImpl implements WebBlobStore {
   }) async {
     try {
       final caches = html.window.caches;
-      if (caches == null) return false;
+      if (caches == null) {
+        _lastSaveReason ??= 'storage_blocked';
+        return false;
+      }
       final cache = _requireJsObject(await caches.open(_cacheName));
       final responseCtor =
           js_util.getProperty<Object?>(js_util.globalThis, 'Response');
-      if (responseCtor == null) return false;
+      if (responseCtor == null) {
+        _lastSaveReason ??= 'storage_blocked';
+        return false;
+      }
       final response = js_util.callConstructor<Object>(
         responseCtor,
         <Object?>[blob],
@@ -185,7 +230,8 @@ class WebBlobStoreImpl implements WebBlobStore {
         ),
       );
       return true;
-    } catch (_) {
+    } catch (e) {
+      _lastSaveReason = _classifyStorageReason(e);
       return false;
     }
   }
@@ -221,6 +267,7 @@ class WebBlobStoreImpl implements WebBlobStore {
         blob: blob,
         storageMode: 'cache',
         sessionOnly: false,
+        storageReason: null,
       );
     } catch (_) {
       return null;
@@ -311,5 +358,28 @@ class WebBlobStoreImpl implements WebBlobStore {
       throw StateError('null_js_value');
     }
     return value;
+  }
+
+  String _classifyStorageReason(Object error) {
+    final lower = error.toString().toLowerCase();
+    if (lower.contains('quota') ||
+        lower.contains('quotaexceeded') ||
+        lower.contains('insufficient storage')) {
+      return 'quota_exceeded';
+    }
+    if (lower.contains('private') ||
+        lower.contains('incognito') ||
+        lower.contains('session') ||
+        lower.contains('notallowederror') ||
+        lower.contains('securityerror')) {
+      return 'storage_session_only';
+    }
+    if (lower.contains('indexeddb') ||
+        lower.contains('blocked') ||
+        lower.contains('invalidstateerror') ||
+        lower.contains('null_js_value')) {
+      return 'storage_blocked';
+    }
+    return 'unknown_storage_error';
   }
 }

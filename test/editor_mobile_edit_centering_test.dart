@@ -27,7 +27,7 @@ void main() {
             'Col A',
             'Col B',
             'Col C',
-            'Photos',
+            'Fotos',
           ],
           initialRows: rows,
         ),
@@ -47,8 +47,14 @@ void main() {
         find.byKey(const ValueKey('mobileInlineEditorField')), findsOneWidget);
     expect(find.byKey(const ValueKey('editor-grid-root')), findsOneWidget);
 
-    final panelSize = tester
-        .getSize(find.byKey(const ValueKey('mobile-inline-editor-panel')));
+    final panelFinder = find.ancestor(
+      of: find.byKey(const ValueKey('mobileInlineEditorField')),
+      matching: find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == 'GlassSurface',
+      ),
+    );
+    expect(panelFinder, findsOneWidget);
+    final panelSize = tester.getSize(panelFinder);
     final screenH =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
     expect(panelSize.height, lessThan(screenH * 0.6));

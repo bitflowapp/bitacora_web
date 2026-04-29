@@ -28,9 +28,8 @@ Future<void> sendMailWithFile({
   try {
     final qp = <String, String>{
       if (subject != null && subject.isNotEmpty) 'subject': subject,
-      'body': ((body == null || body.isEmpty) ? '' : body) +
-          '\n\nArchivo: ' +
-          filePath,
+      'body':
+          '${(body == null || body.isEmpty) ? '' : body}\n\nArchivo: $filePath',
     };
     final uri = Uri(scheme: 'mailto', path: to ?? '', queryParameters: qp);
     if (await canLaunchUrl(uri)) {
@@ -40,7 +39,12 @@ Future<void> sendMailWithFile({
   } catch (_) {}
 
   try {
-    await Share.shareXFiles([XFile(filePath)],
-        subject: subject, text: body ?? '');
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(filePath)],
+        subject: subject,
+        text: body ?? '',
+      ),
+    );
   } catch (_) {}
 }

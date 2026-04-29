@@ -136,7 +136,7 @@ class AppConfig {
         final uri = Uri.base.resolve('config.json');
         final resp = await http.get(uri).timeout(const Duration(seconds: 2));
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
-          final decoded = jsonDecode(resp.body);
+          final decoded = jsonDecode(utf8.decode(resp.bodyBytes));
           if (decoded is Map<String, dynamic>) data = decoded;
         }
       } catch (_) {}

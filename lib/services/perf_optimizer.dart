@@ -381,8 +381,6 @@ class PerfOptimizer {
   }
 
   static void _publishStats() {
-    // Evitamos spam si nadie escucha.
-    if (!stats.hasListeners) return;
     stats.value = _snapshot();
   }
 

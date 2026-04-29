@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'dart:html' as html;
-
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import '../models/table_state.dart';
 
 class LocalStore {

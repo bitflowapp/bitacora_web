@@ -36,10 +36,10 @@ Color _mix(Color a, Color b, double t) {
   int lerpInt(int x, int y) => x + ((y - x) * tt).round();
 
   return Color.fromARGB(
-    lerpInt(a.alpha, b.alpha),
-    lerpInt(a.red, b.red),
-    lerpInt(a.green, b.green),
-    lerpInt(a.blue, b.blue),
+    lerpInt((a.a * 255).round() & 0xff, (b.a * 255).round() & 0xff),
+    lerpInt((a.r * 255).round() & 0xff, (b.r * 255).round() & 0xff),
+    lerpInt((a.g * 255).round() & 0xff, (b.g * 255).round() & 0xff),
+    lerpInt((a.b * 255).round() & 0xff, (b.b * 255).round() & 0xff),
   );
 }
 
@@ -103,8 +103,6 @@ class GridnoteTheme {
     final overlayFocusRing = accentMono.withAlpha(_a(light ? 0.20 : 0.30));
 
     // Tonos secundarios para headers/variants.
-    final surfaceVariant =
-        light ? const Color(0xFFF2F2F4) : const Color(0xFF1A1A1E);
     final onSurfaceVariant =
         (light ? const Color(0xFF111827) : const Color(0xFFE5E7EB))
             .withAlpha(_a(light ? 0.78 : 0.82));
@@ -112,10 +110,8 @@ class GridnoteTheme {
     final scheme = baseScheme.copyWith(
       primary: accentMono,
       secondary: accentMono,
-      background: scaffold,
       surface: card,
       surfaceContainerHighest: card,
-      surfaceVariant: surfaceVariant,
       onSurfaceVariant: onSurfaceVariant,
       outline: divider.withAlpha(_a(light ? 0.90 : 0.70)),
       outlineVariant: divider.withAlpha(_a(light ? 0.86 : 0.60)),
@@ -178,6 +174,31 @@ class GridnoteTheme {
       scaffoldBackgroundColor: scaffold,
       cardColor: card,
       dividerColor: divider,
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStatePropertyAll(
+          accentMono.withAlpha(_a(light ? 0.10 : 0.18)),
+        ),
+        dataRowColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return accentMono.withAlpha(_a(light ? 0.13 : 0.22));
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return scheme.surfaceContainerHighest.withAlpha(
+              _a(light ? 0.45 : 0.30),
+            );
+          }
+          return null;
+        }),
+        headingTextStyle: textTheme.labelLarge?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+        dataTextStyle: textTheme.bodyMedium?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        dividerThickness: 0.7,
+      ),
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       pageTransitionsTheme: pageTransitions,
@@ -388,7 +409,7 @@ class GridnoteTheme {
         shape: pillShape,
         side: BorderSide(color: divider.withAlpha(_a(light ? 0.78 : 0.55))),
         backgroundColor:
-            scheme.surfaceVariant.withAlpha(_a(light ? 0.65 : 0.55)),
+            scheme.surfaceContainerHighest.withAlpha(_a(light ? 0.65 : 0.55)),
         selectedColor: accentMono.withAlpha(_a(light ? 0.10 : 0.16)),
         labelStyle: textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,

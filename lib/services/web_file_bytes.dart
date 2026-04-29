@@ -3,9 +3,8 @@
 // data:URL (base64). Siempre prioriza devolver bytes cuando file.size > 0.
 
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: uri_does_not_exist, avoid_web_libraries_in_flutter
-import 'dart:js_util' as js_util;
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';

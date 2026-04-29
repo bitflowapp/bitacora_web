@@ -1,6 +1,144 @@
 part of '../editor_screen.dart';
 
 extension _EditorAttachments on _EditorScreenState {
+  static const String _kDirtyAttachmentsOutboxKind =
+      DefaultOutboxExecutor.kindSyncDirtyAttachments;
+
+  Future<void> _enqueueDirtyAttachmentsSync() async {
+    final enqueued = await OutboxStore.instance
+        .ensureQueuedKind(_kDirtyAttachmentsOutboxKind);
+    if (enqueued) {
+      SyncCoordinator.instance.kick();
+    }
+    await _refreshOutboxBadgeCounts();
+  }
+
+  Future<void> _enqueueAttachmentUpload({
+    required String attachmentId,
+    required CellRef targetRef,
+    required String storedRef,
+  }) async {
+    await _attachmentStore.registerLocalAttachment(
+      attachmentId: attachmentId,
+      sheetId: widget.sheetId,
+      cellKey: targetRef.compactKey,
+      storedRef: storedRef,
+    );
+
+    final enqueued = await OutboxStore.instance.ensureQueuedAttachmentUpload(
+      attachmentId,
+      <String, dynamic>{
+        'attachmentId': attachmentId,
+        'sheetId': widget.sheetId,
+        'cellKey': targetRef.compactKey,
+      },
+    );
+
+    if (enqueued) {
+      await _attachmentStore.markUploadQueued(
+        attachmentId,
+        sheetId: widget.sheetId,
+        cellKey: targetRef.compactKey,
+        storedRef: storedRef,
+      );
+      SyncCoordinator.instance.kick();
+    }
+
+    await _refreshOutboxBadgeCounts();
+  }
+
+  ({
+    String label,
+    IconData icon,
+    Color color,
+    bool canRetry,
+    String? error,
+  }) _uploadUiForInfo(AttachmentUploadInfo? info, _SheetPalette pal) {
+    if (info?.isUploaded == true) {
+      return (
+        label: 'Listo',
+        icon: Icons.check_circle_rounded,
+        color: pal.accent,
+        canRetry: false,
+        error: null,
+      );
+    }
+
+    final status = AttachmentStore.normalizeUploadStatus(
+      info?.uploadStatus ?? AttachmentStore.uploadStatusQueued,
+    );
+
+    switch (status) {
+      case AttachmentStore.uploadStatusUploading:
+        return (
+          label: 'Subiendoâ€¦',
+          icon: Icons.cloud_upload_rounded,
+          color: pal.accent,
+          canRetry: false,
+          error: null,
+        );
+      case AttachmentStore.uploadStatusUploaded:
+        return (
+          label: 'Listo',
+          icon: Icons.check_circle_rounded,
+          color: pal.accent,
+          canRetry: false,
+          error: null,
+        );
+      case AttachmentStore.uploadStatusError:
+        return (
+          label: 'Error',
+          icon: Icons.error_outline_rounded,
+          color: Colors.redAccent,
+          canRetry: true,
+          error: info?.lastError,
+        );
+      case AttachmentStore.uploadStatusLocal:
+      case AttachmentStore.uploadStatusQueued:
+      default:
+        return (
+          label: 'En cola',
+          icon: Icons.schedule_rounded,
+          color: pal.fgMuted,
+          canRetry: false,
+          error: null,
+        );
+    }
+  }
+
+  Future<void> _retryAttachmentUpload({
+    required String attachmentId,
+    required CellRef targetRef,
+    required String storedRef,
+  }) async {
+    final normalizedId = attachmentId.trim();
+    if (normalizedId.isEmpty) return;
+
+    final current = await _attachmentStore.getUploadInfo(normalizedId);
+    final resolvedStoredRef = storedRef.trim().isNotEmpty
+        ? storedRef.trim()
+        : (current?.storedRef ?? '').trim();
+
+    await _attachmentStore.markUploadQueued(
+      normalizedId,
+      sheetId: widget.sheetId,
+      cellKey: targetRef.compactKey,
+      storedRef: resolvedStoredRef,
+    );
+
+    await OutboxStore.instance.ensureQueuedAttachmentUpload(
+      normalizedId,
+      <String, dynamic>{
+        'attachmentId': normalizedId,
+        'sheetId': widget.sheetId,
+        'cellKey': targetRef.compactKey,
+      },
+    );
+
+    SyncCoordinator.instance.kick();
+    await _refreshOutboxBadgeCounts();
+  }
+
   Future<void> _startPhotoFlowForCell(int r, int c) async {
     if (_rows.isEmpty || _headers.isEmpty) return;
     final target = await _ensurePhotoTargetCell(r, c);
@@ -12,7 +150,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · esperando seleccion',
+      'Destino ${_cellLabelForRef(ref)} | esperando seleccion',
       target: ref,
     );
 
@@ -21,7 +159,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (picked == null) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · cancelado',
+        'Destino ${_cellLabelForRef(ref)} | cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -50,7 +188,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · seleccion multiple',
+      'Destino ${_cellLabelForRef(ref)} | seleccion multiple',
       target: ref,
     );
 
@@ -60,7 +198,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (batch.cancelled) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · cancelado',
+        'Destino ${_cellLabelForRef(ref)} | cancelado',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -69,7 +207,7 @@ extension _EditorAttachments on _EditorScreenState {
     if (!batch.ok) {
       _photoFlowActive = false;
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · error',
+        'Destino ${_cellLabelForRef(ref)} | error',
         target: ref,
       );
       _clearPhotoFlowStatusSoon();
@@ -87,7 +225,7 @@ extension _EditorAttachments on _EditorScreenState {
     final results = batch.results;
     for (int i = 0; i < results.length; i++) {
       _updatePhotoFlowStatus(
-        'Destino ${_cellLabelForRef(ref)} · procesando ${i + 1}/${results.length}',
+        'Destino ${_cellLabelForRef(ref)} | procesando ${i + 1}/${results.length}',
         target: ref,
       );
       await _processPhotoOutcome(
@@ -100,7 +238,7 @@ extension _EditorAttachments on _EditorScreenState {
 
     _photoFlowActive = false;
     _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} · ${results.length} foto(s) agregada(s)',
+      'Destino ${_cellLabelForRef(ref)} | ${results.length} foto(s) agregada(s)',
       target: ref,
     );
     _clearPhotoFlowStatusSoon();
@@ -235,7 +373,7 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.doc:
         return 'No se pudo adjuntar el archivo. Causa: $reason.';
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicacion. Causa: $reason.';
+        return 'No se pudo guardar la ubicaciÃ³n. Causa: $reason.';
     }
   }
 
@@ -292,20 +430,6 @@ extension _EditorAttachments on _EditorScreenState {
     final stackText = stackTrace?.toString().trim() ?? '';
     if (stackText.isNotEmpty) lines.add('stack=$stackText');
     return lines.join('\n');
-  }
-
-  String _photoStoredRefFrom(StoredPhoto stored) {
-    final path = stored.path.trim();
-    if (path.isNotEmpty) {
-      if (path.startsWith('key:') || path.startsWith('mem:')) {
-        return path;
-      }
-      return 'file:$path';
-    }
-    if (stored.dataB64.trim().isNotEmpty) {
-      return 'b64:${stored.dataB64}';
-    }
-    return '';
   }
 
   String _photoPathFromRef(String storedRef) {
@@ -397,78 +521,6 @@ extension _EditorAttachments on _EditorScreenState {
     });
   }
 
-  void _startPhotoPickFromGesture({
-    required int r,
-    required int c,
-    required bool fromCamera,
-    required BuildContext sheetContext,
-  }) {
-    if (r < 0 || r >= _rows.length) return;
-    if (c < 0 || c >= _headers.length) return;
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
-    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
-    if (fromCamera &&
-        _guardInsecureContext(
-          DiagnosticActionType.photo,
-          actionLabel: 'Camara',
-        )) {
-      return;
-    }
-
-    _photoFlowActive = true;
-    _updatePhotoFlowStatus(
-      'Destino ${_cellLabelForRef(ref)} \u00b7 esperando seleccion',
-      target: ref,
-    );
-
-    final future = fromCamera
-        ? PhotoAcquireService.I.captureFromCamera(context: context)
-        : PhotoAcquireService.I.pickFromGallery();
-
-    unawaited(_handlePhotoOutcome(
-      future,
-      ref,
-      fromCamera: fromCamera,
-      sheetContext: sheetContext,
-    ));
-  }
-
-  Future<void> _handlePhotoOutcome(
-    Future<PhotoAcquireOutcome> future,
-    CellRef targetRef, {
-    required bool fromCamera,
-    BuildContext? sheetContext,
-  }) async {
-    final outcome = await future;
-    if (!mounted) return;
-
-    if (fromCamera &&
-        _isIosWeb &&
-        (outcome.cancelled || outcome.blocked || outcome.isError)) {
-      final fallbackOutcome = await _offerGalleryFallback();
-      if (!mounted) return;
-      if (fallbackOutcome != null) {
-        await _handlePhotoOutcomeResult(fallbackOutcome, targetRef);
-        if (sheetContext != null && mounted && sheetContext.mounted) {
-          if (Navigator.of(sheetContext).canPop()) {
-            Navigator.of(sheetContext).pop();
-          }
-        }
-        _photoFlowActive = false;
-        return;
-      }
-    }
-
-    await _handlePhotoOutcomeResult(outcome, targetRef);
-    if (sheetContext != null && mounted && sheetContext.mounted) {
-      if (Navigator.of(sheetContext).canPop()) {
-        Navigator.of(sheetContext).pop();
-      }
-    }
-    _photoFlowActive = false;
-  }
-
   Future<PhotoAcquireOutcome?> _offerGalleryFallback() async {
     if (!mounted) return null;
     final future = await showDialog<Future<PhotoAcquireOutcome>>(
@@ -478,9 +530,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la camara'),
+          title: const Text('No se pudo abrir la cÃ¡mara'),
           content: const Text(
-            'No se pudo capturar desde camara. ¿Queres elegir desde galeria?',
+            'No se pudo capturar desde cÃ¡mara. Â¿QuerÃ©s elegir desde galerÃ­a?',
           ),
           actions: [
             TextButton(
@@ -502,78 +554,35 @@ extension _EditorAttachments on _EditorScreenState {
     return await future;
   }
 
-  Future<void> _pickPhotoForCell(int r, int c,
-      {bool fromCamera = false}) async {
-    if (r < 0 || r >= _rows.length) return;
-    if (c < 0 || c >= _headers.length) return;
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
+  ExportFlowOutcome _classifyPhotoPickerOutcome(Object errorOrMessage) =>
+      classifyExportFlowOutcome(errorOrMessage);
 
-    if (_guardInAppBrowser(DiagnosticActionType.photo)) return;
-    if (fromCamera &&
-        _guardInsecureContext(
-          DiagnosticActionType.photo,
-          actionLabel: 'Camara',
-        )) {
-      return;
+  bool _handlePhotoPickerClassifiedMessage(
+    ExportFlowOutcome outcome, {
+    required String unsupportedMessage,
+    required String unsupportedOperation,
+  }) {
+    if (outcome == ExportFlowOutcome.cancelled) {
+      _showActionSnack(
+        'Cancelado por el usuario.',
+        isError: false,
+        icon: Icons.photo_outlined,
+      );
+      return true;
     }
-
-    if (fromCamera) {
-      final preflightOk = await _runPermissionPreflight(
-        storageKey: _kPrefCameraRationaleSeen,
-        permissionLabel: 'camara',
-        rationaleTitle: 'Permiso de camara',
-        rationaleMessage:
-            'Usamos la camara para adjuntar evidencia a la celda seleccionada. '
-            'Las fotos quedan en tu almacenamiento local.',
-        permission: ph.Permission.camera,
-      );
-      if (!preflightOk) return;
-      if (!mounted) return;
-    }
-
-    try {
-      final future = fromCamera
-          ? PhotoAcquireService.I.captureFromCamera(context: context)
-          : PhotoAcquireService.I.pickFromGallery();
-      await _handlePhotoOutcome(future, ref, fromCamera: fromCamera);
-      return;
-    } catch (e, st) {
-      DiagnosticsLog.I.record(
-        type: DiagnosticActionType.photo,
-        ok: false,
-        message: 'photo_error $e',
-      );
-      DiagnosticsLog.I.updatePhotoAttempt(
-        stage: 'error',
-        error: e.toString(),
-        stack: st.toString(),
-      );
-      _reportFlowError(
-        e,
+    if (outcome == ExportFlowOutcome.unsupported) {
+      _reportFlowErrorMessage(
+        unsupportedMessage,
         flow: AppErrorFlow.attachmentPermission,
-        operation: 'photo_pick_for_cell',
-        stackTrace: st,
-        fallbackMessage: _photoMessageForCause('unknown'),
+        operation: unsupportedOperation,
+        fallbackMessage:
+            'Adjuntar foto no esta disponible en este dispositivo.',
         icon: Icons.photo_outlined,
         diagnosticType: DiagnosticActionType.photo,
       );
-      return;
+      return true;
     }
-  }
-
-  Future<void> _handlePhotoOutcomeResult(
-    PhotoAcquireOutcome outcome,
-    CellRef targetRef, {
-    bool fromCamera = false,
-    int? replaceIndex,
-  }) {
-    return _processPhotoOutcome(
-      outcome,
-      targetRef,
-      fromCamera: fromCamera,
-      replaceIndex: replaceIndex,
-    );
+    return false;
   }
 
   Future<void> _processPhotoOutcome(
@@ -589,6 +598,7 @@ extension _EditorAttachments on _EditorScreenState {
           _isIosWeb &&
           (outcome.cancelled || outcome.blocked || outcome.isError)) {
         final fallbackOutcome = await _offerGalleryFallback();
+        if (!mounted) return;
         if (fallbackOutcome != null) {
           currentOutcome = fallbackOutcome;
         }
@@ -614,7 +624,7 @@ extension _EditorAttachments on _EditorScreenState {
         );
         _showActionSnack(
           'Cancelado por el usuario.',
-          isError: true,
+          isError: false,
           icon: Icons.photo_outlined,
         );
         return;
@@ -640,13 +650,40 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a camara o galeria desde este navegador.',
+              'No se pudo acceder a cÃ¡mara o galerÃ­a desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
       }
       if (!currentOutcome.ok) {
         final rawMsg = currentOutcome.error ?? 'No se pudo obtener la foto.';
+        final classified = _classifyPhotoPickerOutcome(rawMsg);
+        if (classified != ExportFlowOutcome.failed) {
+          final cancelled = classified == ExportFlowOutcome.cancelled;
+          _updatePhotoFlowStatus(
+            cancelled
+                ? 'Destino $label Â· cancelado'
+                : 'Destino $label Â· no disponible',
+            target: targetRef,
+          );
+          _clearPhotoFlowStatusSoon();
+          DiagnosticsLog.I.record(
+            type: DiagnosticActionType.photo,
+            ok: false,
+            message:
+                cancelled ? 'photo_cancelled' : 'photo_unsupported $rawMsg',
+          );
+          DiagnosticsLog.I.updatePhotoAttempt(
+            stage: cancelled ? 'cancelled' : 'unsupported',
+            error: rawMsg,
+          );
+          _handlePhotoPickerClassifiedMessage(
+            classified,
+            unsupportedMessage: rawMsg,
+            unsupportedOperation: 'photo_outcome_unsupported',
+          );
+          return;
+        }
         final lower = rawMsg.toLowerCase();
         final readFail = lower.contains('empty_bytes') ||
             lower.contains('leer la imagen') ||
@@ -800,7 +837,9 @@ extension _EditorAttachments on _EditorScreenState {
             }
             storageLabel = save.storageLabel;
             storageKey = save.storageKey;
-            if (storageLabel == 'ram' || save.sessionOnly) {
+            if ((kIsWeb && storageLabel != 'indexeddb') ||
+                storageLabel == 'ram' ||
+                save.sessionOnly) {
               _warnStorageFallbackOnce('foto');
             }
             DiagnosticsLog.I.updatePhotoAttempt(
@@ -853,6 +892,13 @@ extension _EditorAttachments on _EditorScreenState {
                 replaceIndex: replaceIndex)) {
               throw Exception('bind_failed: cell_missing');
             }
+            unawaited(
+              _enqueueAttachmentUpload(
+                attachmentId: attachment.id,
+                targetRef: targetRef,
+                storedRef: storedRef,
+              ),
+            );
 
             DiagnosticsLog.I.updatePhotoAttempt(
               stage: 'meta_attached',
@@ -989,6 +1035,7 @@ extension _EditorAttachments on _EditorScreenState {
         audios: current.audios,
       );
       _setCellMetaEntryRef(ref, next, markDirty: true);
+      unawaited(_enqueueDirtyAttachmentsSync());
       _refreshCellAfterSaveRef(ref);
       if (previous.storedRef.trim().isNotEmpty) {
         unawaited(_attachmentStore.delete(previous.storedRef));
@@ -1006,25 +1053,9 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current?.audios ?? const <AudioAttachment>[],
     );
     _setCellMetaEntryRef(ref, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSaveRef(ref);
     return true;
-  }
-
-  void _addPhotoToCell(int r, int c, PhotoAttachment attachment) {
-    final ref = _cellRefAt(r, c);
-    if (ref == null) return;
-    final current = _cellMeta[ref.key];
-    final photos = <PhotoAttachment>[
-      ...?current?.photos,
-      attachment,
-    ];
-    final next = CellMeta(
-      gps: current?.gps,
-      photos: photos,
-      audios: current?.audios ?? const <AudioAttachment>[],
-    );
-    _setCellMetaEntry(r, c, next, markDirty: true);
-    _refreshCellAfterSave(r, c);
   }
 
   Future<void> _deletePhotoFromCell(int r, int c, int index) async {
@@ -1042,6 +1073,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
 
     if (photo.storedRef.trim().isNotEmpty) {
@@ -1104,6 +1136,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1124,6 +1157,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: current.audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1224,7 +1258,6 @@ extension _EditorAttachments on _EditorScreenState {
               : photo.mime.trim();
           return AppModal(
             title: 'Adjunto guardado',
-            child: Text('Guardado sin vista previa (mime=$mimeLabel).'),
             actions: [
               AppButton(
                 label: 'Cerrar',
@@ -1237,6 +1270,7 @@ extension _EditorAttachments on _EditorScreenState {
                 onPressed: () => unawaited(_downloadPhotoAttachment(photo)),
               ),
             ],
+            child: Text('Guardado sin vista previa (mime=$mimeLabel).'),
           );
         }
         final preview = kIsWeb
@@ -1261,7 +1295,6 @@ extension _EditorAttachments on _EditorScreenState {
               ? 'Vista previa'
               : photo.filename.trim(),
           maxWidth: 960,
-          child: AttachmentPreviewModal(preview: preview),
           actions: [
             AppButton(
               label: 'Descargar',
@@ -1274,6 +1307,7 @@ extension _EditorAttachments on _EditorScreenState {
               onPressed: () => Navigator.of(ctx).pop(),
             ),
           ],
+          child: AttachmentPreviewModal(preview: preview),
         );
       },
     );
@@ -1338,7 +1372,7 @@ extension _EditorAttachments on _EditorScreenState {
                 final previewable = _canPreviewPhoto(p);
                 final label = _photoCaptionFor(p);
                 final dateLabel =
-                    '${p.addedAt.toLocal()} · ${_formatBytes(p.size)}';
+                    '${p.addedAt.toLocal()} | ${_formatBytes(p.size)}';
 
                 Widget thumbWidget() {
                   if (!previewable) {
@@ -1415,43 +1449,69 @@ extension _EditorAttachments on _EditorScreenState {
                   );
                 }
 
-                final tile = AttachmentTile(
-                  palette: pal,
-                  thumb: thumbWidget(),
-                  typeIcon: previewable
-                      ? Icons.photo_rounded
-                      : Icons.insert_drive_file_outlined,
-                  label: label,
-                  dateLabel: dateLabel,
-                  onPreview: () => unawaited(_openPhotoPreview(ctx2, p)),
-                  onRename: () =>
-                      unawaited(_renamePhotoOnCell(ctx2, r, c, idx)),
-                  onDelete: () => confirmDelete(p, idx),
-                );
+                return FutureBuilder<AttachmentUploadInfo?>(
+                  future: _attachmentStore.getUploadInfo(p.id),
+                  builder: (ctxStatus, statusSnap) {
+                    final uploadUi = _uploadUiForInfo(statusSnap.data, pal);
 
-                return DragTarget<int>(
-                  onWillAccept: (from) => from != null && from != idx,
-                  onAccept: (from) {
-                    _reorderPhotoOnCell(r, c, from, idx);
-                    setSheetState(() {});
-                  },
-                  builder: (ctx3, candidate, rejected) {
-                    final isTarget = candidate.isNotEmpty;
-                    return AnimatedScale(
-                      scale: isTarget ? 1.02 : 1.0,
-                      duration: const Duration(milliseconds: 120),
-                      child: LongPressDraggable<int>(
-                        data: idx,
-                        feedback: SizedBox(
-                          width: 160,
-                          child: Opacity(opacity: 0.85, child: tile),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.35,
-                          child: tile,
-                        ),
-                        child: tile,
-                      ),
+                    Future<void> handleRetry() async {
+                      final ref = _cellRefAt(r, c);
+                      if (ref == null) return;
+                      await _retryAttachmentUpload(
+                        attachmentId: p.id,
+                        targetRef: ref,
+                        storedRef: p.storedRef,
+                      );
+                      if (!mounted) return;
+                      setSheetState(() {});
+                    }
+
+                    final tile = _AttachmentTile(
+                      palette: pal,
+                      thumb: thumbWidget(),
+                      typeIcon: previewable
+                          ? Icons.photo_rounded
+                          : Icons.insert_drive_file_outlined,
+                      label: label,
+                      dateLabel: dateLabel,
+                      uploadStatusLabel: uploadUi.label,
+                      uploadStatusIcon: uploadUi.icon,
+                      uploadStatusColor: uploadUi.color,
+                      uploadError: uploadUi.error,
+                      onRetryUpload: uploadUi.canRetry
+                          ? () => unawaited(handleRetry())
+                          : null,
+                      onPreview: () => unawaited(_openPhotoPreview(ctx2, p)),
+                      onRename: () =>
+                          unawaited(_renamePhotoOnCell(ctx2, r, c, idx)),
+                      onDelete: () => confirmDelete(p, idx),
+                    );
+
+                    return DragTarget<int>(
+                      onWillAcceptWithDetails: (details) => details.data != idx,
+                      onAcceptWithDetails: (details) {
+                        _reorderPhotoOnCell(r, c, details.data, idx);
+                        setSheetState(() {});
+                      },
+                      builder: (ctx3, candidate, rejected) {
+                        final isTarget = candidate.isNotEmpty;
+                        return AnimatedScale(
+                          scale: isTarget ? 1.02 : 1.0,
+                          duration: const Duration(milliseconds: 120),
+                          child: LongPressDraggable<int>(
+                            data: idx,
+                            feedback: SizedBox(
+                              width: 160,
+                              child: Opacity(opacity: 0.85, child: tile),
+                            ),
+                            childWhenDragging: Opacity(
+                              opacity: 0.35,
+                              child: tile,
+                            ),
+                            child: tile,
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -1484,7 +1544,7 @@ extension _EditorAttachments on _EditorScreenState {
                     ),
                     child: Column(
                       children: [
-                        AttachmentsSheetHeader(
+                        _AttachmentsSheetHeader(
                           palette: pal,
                           title: 'Evidencias - ${CellKey(r, c).a1}',
                           count: photos.length,
@@ -1631,6 +1691,7 @@ extension _EditorAttachments on _EditorScreenState {
       ),
       markDirty: true,
     );
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -1949,7 +2010,44 @@ extension _EditorAttachments on _EditorScreenState {
         'mpeg',
       ],
     );
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        if (!mounted) return;
+        _showActionSnack(
+          'Adjuntar video cancelado.',
+          isError: false,
+          icon: Icons.videocam_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowErrorMessage(
+          'video_open_picker_unsupported',
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'video_open_picker',
+          fallbackMessage:
+              'Adjuntar video no esta disponible en este dispositivo.',
+          icon: Icons.videocam_rounded,
+          diagnosticType: DiagnosticActionType.video,
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'video_open_picker',
+        stackTrace: st,
+        fallbackMessage: 'No se pudo abrir el selector para adjuntar video.',
+        icon: Icons.videocam_rounded,
+        diagnosticType: DiagnosticActionType.video,
+      );
+      return;
+    }
+    if (!mounted) return;
     await _attachGenericFileToCell(
       ref,
       picked: xf,
@@ -1987,7 +2085,44 @@ extension _EditorAttachments on _EditorScreenState {
         'zip',
       ],
     );
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = classifyExportFlowOutcome(e);
+      if (outcome == ExportFlowOutcome.cancelled) {
+        if (!mounted) return;
+        _showActionSnack(
+          'Adjuntar archivo cancelado.',
+          isError: false,
+          icon: Icons.attach_file_rounded,
+        );
+        return;
+      }
+      if (outcome == ExportFlowOutcome.unsupported) {
+        _reportFlowErrorMessage(
+          'file_open_picker_unsupported',
+          flow: AppErrorFlow.attachmentPermission,
+          operation: 'file_open_picker',
+          fallbackMessage:
+              'Adjuntar archivo no esta disponible en este dispositivo.',
+          icon: Icons.attach_file_rounded,
+          diagnosticType: DiagnosticActionType.file,
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'file_open_picker',
+        stackTrace: st,
+        fallbackMessage: 'No se pudo abrir el selector para adjuntar archivo.',
+        icon: Icons.attach_file_rounded,
+        diagnosticType: DiagnosticActionType.file,
+      );
+      return;
+    }
+    if (!mounted) return;
     await _attachGenericFileToCell(
       ref,
       picked: xf,
@@ -2012,7 +2147,7 @@ extension _EditorAttachments on _EditorScreenState {
       if (picked == null) {
         _showActionSnack(
           'Adjuntar $sourceLabel cancelado.',
-          isError: true,
+          isError: false,
           icon: icon,
         );
         return;
@@ -2109,7 +2244,9 @@ extension _EditorAttachments on _EditorScreenState {
               throw Exception('storage_blocked: ${kind.name}_store_failed');
             }
             storageLabel = save.storageLabel;
-            if (storageLabel == 'ram' || save.sessionOnly) {
+            if ((kIsWeb && storageLabel != 'indexeddb') ||
+                storageLabel == 'ram' ||
+                save.sessionOnly) {
               _warnStorageFallbackOnce(sourceLabel);
             }
             return save.storedRef;
@@ -2138,6 +2275,13 @@ extension _EditorAttachments on _EditorScreenState {
             if (!_applyPhotoToRef(target, att)) {
               throw Exception('bind_failed: cell_missing');
             }
+            unawaited(
+              _enqueueAttachmentUpload(
+                attachmentId: att.id,
+                targetRef: target,
+                storedRef: storedRef,
+              ),
+            );
           },
         ),
       );
@@ -2260,7 +2404,9 @@ extension _EditorAttachments on _EditorScreenState {
     if (key.isEmpty) return '';
     if (key.startsWith('file:') ||
         key.startsWith('key:') ||
-        key.startsWith('mem:')) return key;
+        key.startsWith('mem:')) {
+      return key;
+    }
     final hasSlash = key.contains('\\') || key.contains('/');
     if (key.contains(':') && !hasSlash) return 'key:$key';
     return hasSlash ? 'file:$key' : 'key:$key';
@@ -2434,7 +2580,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                 },
-                child: const Text('Abrir configuración'),
+                child: const Text('Abrir configuraciÃ³n'),
               ),
           ],
         );
@@ -2473,9 +2619,44 @@ extension _EditorAttachments on _EditorScreenState {
         );
       },
     );
-    if (pickFile != true) return false;
+    if (!mounted) return false;
+    if (pickFile != true) {
+      _handleAudioPickerClassifiedMessage(ExportFlowOutcome.cancelled);
+      return true;
+    }
     await _attachAudioFromFile(ref);
     return true;
+  }
+
+  ExportFlowOutcome _classifyAudioPickerOutcome(Object errorOrMessage) =>
+      classifyExportFlowOutcome(errorOrMessage);
+
+  bool _handleAudioPickerClassifiedMessage(
+    ExportFlowOutcome outcome, {
+    String? unsupportedMessage,
+    String? unsupportedOperation,
+  }) {
+    if (outcome == ExportFlowOutcome.cancelled) {
+      _showActionSnack(
+        'Adjuntar audio cancelado.',
+        isError: false,
+        icon: Icons.audiotrack_rounded,
+      );
+      return true;
+    }
+    if (outcome == ExportFlowOutcome.unsupported) {
+      _reportFlowErrorMessage(
+        unsupportedMessage ?? 'audio_open_picker_unsupported',
+        flow: AppErrorFlow.attachmentPermission,
+        operation: unsupportedOperation ?? 'audio_open_picker',
+        fallbackMessage:
+            'Adjuntar audio desde archivo no esta disponible en este dispositivo.',
+        icon: Icons.audiotrack_rounded,
+        diagnosticType: DiagnosticActionType.audio,
+      );
+      return true;
+    }
+    return false;
   }
 
   Future<void> _attachAudioFromFile(CellRef ref) async {
@@ -2499,14 +2680,35 @@ extension _EditorAttachments on _EditorScreenState {
       ],
     );
 
-    final xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    XFile? xf;
+    try {
+      xf = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    } catch (e, st) {
+      final outcome = _classifyAudioPickerOutcome(e);
+      if (outcome != ExportFlowOutcome.failed) {
+        if (!mounted) return;
+        _handleAudioPickerClassifiedMessage(
+          outcome,
+          unsupportedMessage: 'audio_open_picker_unsupported',
+          unsupportedOperation: 'audio_open_picker',
+        );
+        return;
+      }
+      _reportFlowError(
+        e,
+        flow: AppErrorFlow.attachmentPermission,
+        operation: 'audio_open_picker',
+        stackTrace: st,
+        fallbackMessage:
+            'No se pudo abrir el selector para adjuntar audio desde archivo.',
+        icon: Icons.audiotrack_rounded,
+        diagnosticType: DiagnosticActionType.audio,
+      );
+      return;
+    }
     if (!mounted) return;
     if (xf == null) {
-      _showActionSnack(
-        'Adjuntar audio cancelado.',
-        isError: true,
-        icon: Icons.audiotrack_rounded,
-      );
+      _handleAudioPickerClassifiedMessage(ExportFlowOutcome.cancelled);
       return;
     }
 
@@ -2588,6 +2790,8 @@ extension _EditorAttachments on _EditorScreenState {
     final usedSource =
         source == 'record' ? AttachmentSource.record : AttachmentSource.files;
     String? storageKey;
+    String? audioStorageLabel;
+    String? audioStorageReason;
     int storedSize = recording.bytes?.lengthInBytes ?? 0;
 
     final pipeline = await _attachmentPipeline.run<RecordedAudio>(
@@ -2611,8 +2815,35 @@ extension _EditorAttachments on _EditorScreenState {
           storedSize = stored.bytesLength;
           storageKey = stored.storageKey;
           final storedRef = _audioStoredRefFrom(stored);
-          if (storedRef.startsWith('mem:')) {
-            _warnStorageFallbackOnce('audio');
+          if (kIsWeb) {
+            try {
+              final dynamic audioStore = _audioStore;
+              final dynamic lastStore = audioStore.lastSaveStore;
+              final dynamic lastReason = audioStore.lastSaveReason;
+              if (lastStore is String && lastStore.trim().isNotEmpty) {
+                audioStorageLabel = lastStore.trim();
+              }
+              if (lastReason is String && lastReason.trim().isNotEmpty) {
+                audioStorageReason = lastReason.trim();
+              }
+            } catch (_) {}
+          }
+          final normalizedStore =
+              (audioStorageLabel ?? '').trim().toLowerCase();
+          final resolvedStore = normalizedStore.isEmpty
+              ? (storedRef.startsWith('mem:') ? 'mem' : 'unknown')
+              : normalizedStore;
+          final normalizedReason = (audioStorageReason ?? '').trim();
+          final resolvedReason = normalizedReason.isEmpty
+              ? 'unknown_storage_error'
+              : normalizedReason.toLowerCase();
+          final degradedStore = resolvedStore != 'indexeddb';
+          if (degradedStore || storedRef.startsWith('mem:')) {
+            _warnStorageFallbackOnce(
+              'audio',
+              reasonCode: resolvedReason,
+              storageLabel: resolvedStore,
+            );
           }
           return storedRef;
         },
@@ -2631,6 +2862,13 @@ extension _EditorAttachments on _EditorScreenState {
             throw Exception('bind_failed: cell_missing');
           }
           _addAudioToCell(idx.r, idx.c, attachment);
+          unawaited(
+            _enqueueAttachmentUpload(
+              attachmentId: attachment.id,
+              targetRef: target,
+              storedRef: storedRef,
+            ),
+          );
         },
       ),
     );
@@ -2746,10 +2984,10 @@ extension _EditorAttachments on _EditorScreenState {
 
     final preflightOk = await _runPermissionPreflight(
       storageKey: _kPrefMicrophoneRationaleSeen,
-      permissionLabel: 'microfono',
-      rationaleTitle: 'Permiso de microfono',
+      permissionLabel: 'micrÃ³fono',
+      rationaleTitle: 'Permiso de micrÃ³fono',
       rationaleMessage:
-          'Usamos el microfono para grabar notas de voz en la celda activa. '
+          'Usamos el micrÃ³fono para grabar notas de voz en la celda activa. '
           'Los audios quedan en tu almacenamiento local.',
       permission: ph.Permission.microphone,
     );
@@ -2844,6 +3082,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: audios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
@@ -2862,6 +3101,7 @@ extension _EditorAttachments on _EditorScreenState {
       audios: nextAudios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
 
     if (_playingAudioId == audio.id) {
@@ -2927,12 +3167,13 @@ extension _EditorAttachments on _EditorScreenState {
       audios: nextAudios,
     );
     _setCellMetaEntry(r, c, next, markDirty: true);
+    unawaited(_enqueueDirtyAttachmentsSync());
     _refreshCellAfterSave(r, c);
   }
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('Detén la grabación para reproducir.', isError: false);
+      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
       return;
     }
 
@@ -2969,91 +3210,187 @@ extension _EditorAttachments on _EditorScreenState {
     showAppModal<void>(
       context: context,
       title: 'Audios - ${CellKey(r, c).a1}',
-      child: SizedBox(
-        height: math.min(MediaQuery.sizeOf(context).height * 0.6, 420),
-        child: ListView.separated(
-          itemCount: audios.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (ctx2, idx) {
-            final a = audios[idx];
-            final playing = _playingAudioId == a.id;
-            return Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: pal.headerBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: pal.border, width: pal.hairline),
-              ),
-              child: Row(
-                children: [
-                  Tooltip(
-                    message: playing ? 'Detener' : 'Reproducir',
-                    child: IconButton(
-                      onPressed: () => unawaited(_playAudioAttachment(a)),
-                      icon: Icon(
-                        playing
-                            ? Icons.stop_circle_rounded
-                            : Icons.play_circle_fill_rounded,
-                        color: pal.accent,
+      child: StatefulBuilder(
+        builder: (ctxModal, setModalState) {
+          return SizedBox(
+            height: math.min(MediaQuery.sizeOf(context).height * 0.6, 420),
+            child: ListView.separated(
+              itemCount: audios.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (ctx2, idx) {
+                final a = audios[idx];
+                final playing = _playingAudioId == a.id;
+                return FutureBuilder<AttachmentUploadInfo?>(
+                  future: _attachmentStore.getUploadInfo(a.id),
+                  builder: (ctxStatus, statusSnap) {
+                    final uploadUi = _uploadUiForInfo(statusSnap.data, pal);
+
+                    Future<void> handleRetry() async {
+                      final ref = _cellRefAt(r, c);
+                      if (ref == null) return;
+                      await _retryAttachmentUpload(
+                        attachmentId: a.id,
+                        targetRef: ref,
+                        storedRef: a.storedRef,
+                      );
+                      if (!mounted) return;
+                      setModalState(() {});
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: pal.headerBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: pal.border, width: pal.hairline),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(Icons.audiotrack_rounded, color: pal.fgMuted),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Tooltip(
-                          message: a.filename,
-                          child: Text(
-                            a.filename,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: pal.fg,
-                              fontWeight: FontWeight.w800,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Tooltip(
+                                message: playing ? 'Detener' : 'Reproducir',
+                                child: IconButton(
+                                  onPressed: () =>
+                                      unawaited(_playAudioAttachment(a)),
+                                  icon: Icon(
+                                    playing
+                                        ? Icons.stop_circle_rounded
+                                        : Icons.play_circle_fill_rounded,
+                                    color: pal.accent,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(Icons.audiotrack_rounded,
+                                  color: pal.fgMuted),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Tooltip(
+                                      message: a.filename,
+                                      child: Text(
+                                        a.filename,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: pal.fg,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatDuration(
+                                        Duration(milliseconds: a.durationMs),
+                                      ),
+                                      style: TextStyle(
+                                        color: pal.fgMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Tooltip(
+                                message: 'Renombrar',
+                                child: IconButton(
+                                  onPressed: () => unawaited(
+                                      _renameAudioOnCell(ctx2, r, c, idx)),
+                                  icon: Icon(Icons.edit_rounded,
+                                      color: pal.fgMuted),
+                                ),
+                              ),
+                              Tooltip(
+                                message: 'Eliminar',
+                                child: IconButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx2).pop();
+                                    unawaited(_deleteAudioFromCell(r, c, idx));
+                                  },
+                                  icon: Icon(Icons.delete_outline_rounded,
+                                      color: pal.fgMuted),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: pal.hintBg,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: pal.border,
+                                    width: pal.hairline,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      uploadUi.icon,
+                                      size: 13,
+                                      color: uploadUi.color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      uploadUi.label,
+                                      style: TextStyle(
+                                        color: uploadUi.color,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (uploadUi.canRetry)
+                                TextButton.icon(
+                                  onPressed: () => unawaited(handleRetry()),
+                                  icon: const Icon(Icons.refresh_rounded,
+                                      size: 16),
+                                  label: const Text('Reintentar'),
+                                  style: TextButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if ((uploadUi.error ?? '').trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                uploadUi.error!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: pal.fgMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDuration(
-                            Duration(milliseconds: a.durationMs),
-                          ),
-                          style: TextStyle(
-                            color: pal.fgMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Renombrar',
-                    child: IconButton(
-                      onPressed: () =>
-                          unawaited(_renameAudioOnCell(ctx2, r, c, idx)),
-                      icon: Icon(Icons.edit_rounded, color: pal.fgMuted),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Eliminar',
-                    child: IconButton(
-                      onPressed: () {
-                        Navigator.of(ctx2).pop();
-                        unawaited(_deleteAudioFromCell(r, c, idx));
-                      },
-                      icon: Icon(Icons.delete_outline_rounded,
-                          color: pal.fgMuted),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          );
+        },
       ),
       actions: [
         AppButton(
@@ -3173,7 +3510,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Smoke Test (GPS/Foto/Audio)',
+            label: 'Prueba rÃ¡pida (GPS/Foto/Audio)',
             icon: Icons.science_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {

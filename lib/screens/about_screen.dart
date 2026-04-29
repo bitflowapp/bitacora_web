@@ -220,7 +220,7 @@ class _AboutScreenState extends State<AboutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _InfoRow(label: 'Version', value: localVersion),
+                _InfoRow(label: 'Versión', value: localVersion),
                 SizedBox(height: t.spacing.sm),
                 _InfoRow(label: 'Build', value: localBuild),
                 SizedBox(height: t.spacing.sm),

@@ -104,6 +104,14 @@ class BitflowEngineClient {
     return Uri.parse('$normalizedBase$normalizedPath');
   }
 
+  String _decodeUtf8Body(http.Response response) {
+    try {
+      return utf8.decode(response.bodyBytes);
+    } catch (_) {
+      return response.body;
+    }
+  }
+
   Future<Map<String, dynamic>> _postJson(
     Uri uri,
     Map<String, Object?> payload,
@@ -127,15 +135,16 @@ class BitflowEngineClient {
       );
     }
 
+    final String bodyString = _decodeUtf8Body(response);
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw BitflowEngineException(
-        'Error HTTP desde BitFlow Engine: ${response.body}',
+        'Error HTTP desde BitFlow Engine: $bodyString',
         statusCode: response.statusCode,
       );
     }
 
     // Decode robusto (acentos, caracteres especiales, etc.).
-    final String bodyString = utf8.decode(response.bodyBytes);
 
     final dynamic decoded;
     try {
@@ -161,7 +170,7 @@ class BitflowEngineClient {
   ///
   /// - [sheetId]: identificador lógico de la hoja (obra/campaña).
   /// - [headers]: encabezados de la tabla (títulos de columnas).
-  /// - [rows]: filas de datos (List<List<String>> normalmente).
+  /// - [rows]: filas de datos (`List<List<String>>` normalmente).
   /// - [operation]: "calc", "tank_anodes", "cathodic_analyze",
   ///                "grounding_analyze", "cp_design_current", etc.
   /// - [focusRow]/[focusCol]: celda activa en la UI (opcional).

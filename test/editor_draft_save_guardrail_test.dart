@@ -20,7 +20,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: sheetId,
-          initialHeaders: ['Col 1', 'Photos'],
+          initialHeaders: ['Col 1', 'Fotos'],
           initialRows: [
             ['valor inicial', ''],
           ],

@@ -139,7 +139,7 @@ _ExportMatrix _extractExportMatrix(Map<String, dynamic> root) {
   );
 }
 
-/// Extensión para Map<String, dynamic> que devuelve headers/rows
+/// Extensión para `Map<String, dynamic>` que devuelve headers/rows
 /// listos para exportar a XLSX.
 ///
 /// Uso típico:

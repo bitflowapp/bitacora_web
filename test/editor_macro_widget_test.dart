@@ -18,7 +18,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'macro-offline-widget-test',
-          initialHeaders: <String>['Fecha', 'Estado', 'Photos'],
+          initialHeaders: <String>['Fecha', 'Estado', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', '', ''],
             <String>['', '', ''],

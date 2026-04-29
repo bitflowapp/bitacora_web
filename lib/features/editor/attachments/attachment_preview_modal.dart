@@ -2,6 +2,7 @@ part of '../editor_screen.dart';
 
 class AttachmentPreviewModal extends StatelessWidget {
   const AttachmentPreviewModal({
+    super.key,
     required this.preview,
   });
 

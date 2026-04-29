@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## [1.3.1] - 2026-03-03
+
+Release
+- Daily driver + hardening + polish copy.
+- Fix StartPage hero backdrop artifact (web+iOS Safari).
+- Hotfix iOS web: eliminate StartPage background bleed/wallpaper.
+
+## [1.3.0] - 2026-02-28
+
+Release
+- Version comercial estable para despliegue Flutter Web (`1.3.0+4`).
+- Packaging web profesional con metadatos SEO/social, loading de arranque pulido y branding BitFlow consistente.
+- Home orientada a cliente con bloque visible Pro/Licencia, CTA comercial configurable y soporte customer-facing.
+- Demo mode de primer uso mejorado: carga de ejemplo reversible para no ensuciar datos reales.
+
+Quality
+- `flutter analyze` en cero issues y budget CI endurecido para bloquear regresiones.
+- Script de entrega repetible para Windows: `scripts/release_web.ps1` (pub get + analyze + test + build).
+
+## [1.2.6-rc.1] - 2026-02-28
+
+Added
+- Nuevos componentes UI base: `AppTable` y `AppErrorState` para estandarizar tabla y errores.
+- `docs/quickstart.md` (guia corta para usuario final).
+- `LICENSE` comercial (all rights reserved).
+
+Changed
+- Home (`StartPage`) con estados de inicializacion mas claros, acceso visible a `Soporte` y `Version`.
+- Landing comercial con estado `loading` y manejo de configuracion incompleta (`error/empty`) con CTA.
+- About rediseñada con design system (cards, botones pill, tabla minimalista de version/build) y boton de feedback.
+- README actualizado para entrega cliente (install/run/build/deploy/troubleshooting).
+
+Quality
+- Validacion de regresion: tests de onboarding y About pasando.
+- Build web release verificado en entorno local.
+
 ## [1.2.5] - 2026-02-13
 
 Added

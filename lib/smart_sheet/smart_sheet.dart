@@ -21,12 +21,12 @@ class SmartSheet extends StatefulWidget {
   final String sheetName;
 
   const SmartSheet({
-    Key? key,
+    super.key,
     required this.theme,
     required this.initialHeaders,
     required this.initialRows,
     this.sheetName = 'Hoja inteligente',
-  }) : super(key: key);
+  });
 
   @override
   State<SmartSheet> createState() => _SmartSheetState();

@@ -107,7 +107,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'save',
           label: 'Guardar',
-          subtitle: 'Persistir cambios locales y sincronizacion',
+          subtitle: 'Persistir cambios locales y sincronización',
           shortcut: 'Ctrl/Cmd+S',
           icon: Icons.check_circle_outline_rounded,
           onSelected: () => unawaited(_saveLocalNow()),
@@ -130,7 +130,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'jump_to',
-          label: 'Jump to...',
+          label: 'Ir a…',
           subtitle: 'Ir rapido por fila o ID',
           shortcut: 'Ctrl/Cmd+J',
           icon: Icons.pin_drop_outlined,
@@ -215,7 +215,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'templates',
           label: 'Plantillas',
-          subtitle: 'Abrir galeria de plantillas demo',
+          subtitle: 'Abrir galeria de plantillas profesionales',
           icon: Icons.grid_view_rounded,
           onSelected: () => unawaited(_openDemoTemplateSheet()),
         ),
@@ -223,6 +223,7 @@ extension _EditorActions on _EditorScreenState {
           id: 'duplicate_row',
           label: 'Duplicar fila activa',
           subtitle: activeCell,
+          shortcut: 'Ctrl/Cmd+D',
           icon: Icons.copy_all_outlined,
           onSelected: _runDuplicateActiveRowAction,
         ),
@@ -314,11 +315,32 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'fill_down',
-          label: 'Rellenar hacia abajo',
+          label: 'Autocompletar hacia abajo',
           subtitle: 'Repetir valor de la celda activa',
-          shortcut: 'Ctrl/Cmd+D',
+          shortcut: 'Ctrl/Cmd+Shift+D',
           icon: Icons.vertical_align_bottom_rounded,
           onSelected: () => unawaited(_runFillDownForSelection()),
+        ),
+        CommandAction(
+          id: 'auto_sum_column',
+          label: 'Autosuma de columna',
+          subtitle: 'Inserta SUM de filas previas en celda activa',
+          icon: Icons.calculate_rounded,
+          onSelected: _applyAutoSumForSelection,
+        ),
+        CommandAction(
+          id: 'suggest_formulas',
+          label: 'Sugerir funciones',
+          subtitle: 'SUM, AVERAGE, IF, ROUND, NOW segun contexto',
+          icon: Icons.lightbulb_outline_rounded,
+          onSelected: () => unawaited(_suggestFormulaForSelection()),
+        ),
+        CommandAction(
+          id: 'totals_row',
+          label: 'Crear fila de totales',
+          subtitle: 'Genera formulas de total al final de la tabla',
+          icon: Icons.functions_rounded,
+          onSelected: _insertTotalsRowAutomation,
         ),
         CommandAction(
           id: 'open_attachments',
@@ -354,7 +376,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'open_queue',
           label: 'Abrir cola offline',
-          subtitle: 'Ver pendientes y reintentar sync',
+          subtitle: 'Ver pendientes y reintentar sincronización',
           shortcut: 'Ctrl/Cmd+Shift+L',
           icon: Icons.sync_alt_rounded,
           onSelected: () => unawaited(_openOfflineQueueDialog()),
@@ -424,8 +446,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'collaborate',
           label: 'Colaborar',
-          subtitle:
-              'Exportar e importar paquetes y combinar cambios al importar',
+          subtitle: 'Exportar/importar paquete y merge asincronico',
           icon: Icons.group_work_outlined,
           onSelected: () => unawaited(_openCollaborateFlowDialog()),
         ),
@@ -511,7 +532,7 @@ extension _EditorActions on _EditorScreenState {
           ),
           const SizedBox(height: 10),
           Text(
-            'Incluye una copia completa de la planilla con todas las evidencias listas para combinar al importar.',
+            'Formato actual: snapshot completo con metadata colaborativa.',
             style: TextStyle(color: _palette(context).fgMuted, fontSize: 12),
           ),
           const SizedBox(height: 14),

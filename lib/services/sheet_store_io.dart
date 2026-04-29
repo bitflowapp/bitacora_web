@@ -6,6 +6,7 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bitacora_web/core/i18n/app_strings.dart';
 
 import '../models/table_state.dart';
 
@@ -30,6 +31,9 @@ enum TemplateKind {
   resistividades,
   inventario,
   checklist,
+  controlGastos,
+  seguimientoProyectos,
+  medicionesTecnicas,
 }
 
 class _TemplateColumn {
@@ -57,10 +61,12 @@ class _TemplateDefinition {
   const _TemplateDefinition({
     required this.name,
     required this.columns,
+    this.seedRows = const <List<String>>[],
   });
 
   final String name;
   final List<_TemplateColumn> columns;
+  final List<List<String>> seedRows;
 
   List<String> headersWithPhotos(String photosHeader) {
     return <String>[
@@ -81,6 +87,15 @@ class _TemplateDefinition {
 
   List<List<String>> initialRows(int count) {
     final headersLen = columns.length + 1; // +Photos
+    if (seedRows.isNotEmpty) {
+      return seedRows.map((source) {
+        final row = List<String>.filled(headersLen, '');
+        for (int i = 0; i < source.length && i < columns.length; i++) {
+          row[i] = source[i];
+        }
+        return row;
+      }).toList(growable: false);
+    }
     return List<List<String>>.generate(count, (_) {
       final row = List<String>.filled(headersLen, '');
       for (int i = 0; i < columns.length; i++) {
@@ -102,7 +117,7 @@ class SheetStore {
   static const String _legacyTitleSuffix = ':title';
   static const String _legacyIndexKey = 'sheets:index';
 
-  static const String _photosHeader = 'Photos';
+  static const String _photosHeader = AppStrings.photos;
   static const String _photosColId = 'col_photos';
   static int _sheetIdSeed = 0;
 
@@ -357,6 +372,48 @@ class SheetStore {
     prefs.setString('$_legacyPrefix$id$_legacyTitleSuffix', newTitle.trim());
   }
 
+  static String duplicate(String sourceId, {String? nameOverride}) {
+    final raw = loadRaw(sourceId);
+    if (raw == null || raw.trim().isEmpty) {
+      return createNew();
+    }
+
+    Map<String, dynamic>? sourceModel;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        sourceModel = Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {
+      sourceModel = null;
+    }
+
+    sourceModel ??= () {
+      final legacy = TableState.fromJsonString(raw);
+      if (legacy == null) return null;
+      return <String, dynamic>{
+        'name': '',
+        'savedAt': legacy.savedAt.toIso8601String(),
+        'headers': legacy.headers,
+        'rows': legacy.rows,
+      };
+    }();
+
+    if (sourceModel == null) return createNew();
+
+    final normalized = normalizeModel(sourceModel);
+    final existingName = (normalized['name'] ?? '').toString().trim();
+    final requestedName = (nameOverride ?? '').trim();
+    final copyName = requestedName.isNotEmpty
+        ? requestedName
+        : (existingName.isNotEmpty
+            ? 'Copia de $existingName'
+            : 'Copia ${DateTime.now().toIso8601String().substring(0, 10)}');
+    normalized['name'] = copyName;
+    normalized['savedAt'] = DateTime.now().toIso8601String();
+    return createFromModel(normalized);
+  }
+
   static String createNew() {
     final id = _nextSheetId();
     final headers = _defaultHeaders();
@@ -559,7 +616,7 @@ class SheetStore {
             _TemplateColumn(
                 label: 'Cantidad', type: 'number', defaultValue: '1'),
             _TemplateColumn(label: 'Unidad', type: 'text', defaultValue: 'u'),
-            _TemplateColumn(label: 'Ubicacion', type: 'text'),
+            _TemplateColumn(label: 'Ubicación', type: 'text'),
             _TemplateColumn(label: 'Nota', type: 'text'),
           ],
         );
@@ -577,6 +634,158 @@ class SheetStore {
             ),
             _TemplateColumn(label: 'Fecha', type: 'date'),
             _TemplateColumn(label: 'Comentario', type: 'text'),
+          ],
+        );
+      case TemplateKind.controlGastos:
+        return const _TemplateDefinition(
+          name: 'Control de gastos',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Categoria', type: 'text'),
+            _TemplateColumn(label: 'Descripcion', type: 'text'),
+            _TemplateColumn(label: 'Monto', type: 'number'),
+            _TemplateColumn(label: 'Metodo', type: 'text'),
+            _TemplateColumn(
+                label: 'Estado', type: 'status', defaultValue: 'OK'),
+          ],
+          seedRows: <List<String>>[
+            <String>[
+              '2026-03-01',
+              'Movilidad',
+              'Combustible',
+              '42000',
+              'Tarjeta',
+              'OK',
+            ],
+            <String>[
+              '2026-03-01',
+              'Comidas',
+              'Almuerzo equipo',
+              '18500',
+              'Efectivo',
+              'OK',
+            ],
+            <String>[
+              '2026-03-02',
+              'Materiales',
+              'Ferreteria',
+              '63800',
+              'Transferencia',
+              'OK',
+            ],
+            <String>['2026-03-03', 'TOTAL', '', '=SUM(D1:D3)', '', ''],
+          ],
+        );
+      case TemplateKind.seguimientoProyectos:
+        return const _TemplateDefinition(
+          name: 'Seguimiento de proyectos',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Proyecto', type: 'text'),
+            _TemplateColumn(label: 'Responsable', type: 'text'),
+            _TemplateColumn(label: 'Inicio', type: 'date'),
+            _TemplateColumn(label: 'Fin objetivo', type: 'date'),
+            _TemplateColumn(label: '% Avance', type: 'number'),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
+            _TemplateColumn(label: 'Notas', type: 'text'),
+          ],
+          seedRows: <List<String>>[
+            <String>[
+              'Pipeline Norte',
+              'Ana',
+              '2026-02-10',
+              '2026-04-30',
+              '45',
+              'OK',
+              'Bajo',
+            ],
+            <String>[
+              'SCADA Planta',
+              'Luis',
+              '2026-01-20',
+              '2026-05-15',
+              '62',
+              'Obs',
+              'Medio',
+            ],
+            <String>[
+              'Relevamiento RTU',
+              'Marta',
+              '2026-03-01',
+              '2026-03-25',
+              '30',
+              'Urgente',
+              'Alto',
+            ],
+            <String>[
+              'Backlog interno',
+              'PMO',
+              '2026-02-01',
+              '2026-03-31',
+              '=ROUND(AVERAGE(E1:E3),0)',
+              '',
+              '',
+            ],
+          ],
+        );
+      case TemplateKind.medicionesTecnicas:
+        return const _TemplateDefinition(
+          name: 'Mediciones tecnicas',
+          columns: <_TemplateColumn>[
+            _TemplateColumn(label: 'Fecha', type: 'date'),
+            _TemplateColumn(label: 'Punto', type: 'text'),
+            _TemplateColumn(label: 'Parametro', type: 'text'),
+            _TemplateColumn(label: 'Lectura', type: 'number'),
+            _TemplateColumn(label: 'Unidad', type: 'text'),
+            _TemplateColumn(label: 'Tolerancia', type: 'number'),
+            _TemplateColumn(
+              label: 'Estado',
+              type: 'status',
+              defaultValue: 'OK',
+              options: <String>['OK', 'Obs', 'Urgente'],
+            ),
+          ],
+          seedRows: <List<String>>[
+            <String>[
+              '2026-03-02',
+              'P-01',
+              'Resistencia',
+              '4.3',
+              'Ohm',
+              '5.0',
+              '=IF(D1<=F1, "OK", "CHECK")',
+            ],
+            <String>[
+              '2026-03-02',
+              'P-02',
+              'Resistencia',
+              '5.8',
+              'Ohm',
+              '5.0',
+              '=IF(D2<=F2, "OK", "CHECK")',
+            ],
+            <String>[
+              '2026-03-02',
+              'P-03',
+              'Resistencia',
+              '4.9',
+              'Ohm',
+              '5.0',
+              '=IF(D3<=F3, "OK", "CHECK")',
+            ],
+            <String>[
+              '2026-03-02',
+              'PROM',
+              'Lectura promedio',
+              '=ROUND(AVERAGE(D1:D3),2)',
+              'Ohm',
+              '',
+              '',
+            ],
           ],
         );
     }

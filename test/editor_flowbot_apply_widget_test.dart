@@ -20,7 +20,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'flowbot-empty-apply-test',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', ''],
           ],
@@ -51,7 +51,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'flowbot-widget-test',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>['', ''],
           ],
@@ -92,7 +92,7 @@ void main() {
             'Estado',
             'Progresiva',
             'Observaciones',
-            'Photos',
+            'Fotos',
           ],
           initialRows: <List<String>>[
             <String>['', '', '', '', ''],

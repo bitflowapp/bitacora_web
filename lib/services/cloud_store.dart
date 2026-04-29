@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../models/table_state.dart';
+import 'firestore_sheet_store.dart';
+import 'sheet_store.dart';
 
 class CloudStore {
   static const String _baseUrl = 'https://tu-backend.com/api';
@@ -52,5 +54,30 @@ class CloudStore {
         ));
       await req.send();
     } catch (_) {}
+  }
+
+  static Future<void> syncPendingNow() async {
+    await SheetStore.init();
+    final sheets = SheetStore.list();
+    for (final sheet in sheets) {
+      final raw = SheetStore.loadRaw(sheet.id);
+      if (raw == null || raw.trim().isEmpty) continue;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        throw const FormatException('sheet_payload_not_map');
+      }
+
+      final data = decoded.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+
+      await FirestoreSheetStore.instance.saveSheet(
+        sheetId: sheet.id,
+        data: data,
+        name: sheet.title,
+        deviceInfo: 'outbox_sync_v1',
+      );
+    }
   }
 }

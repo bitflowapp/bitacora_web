@@ -69,7 +69,7 @@ class EngineMathClient {
       );
     }
 
-    final bodyText = res.body;
+    final bodyText = utf8.decode(res.bodyBytes);
     Map<String, dynamic> data;
     try {
       final decoded = jsonDecode(bodyText);

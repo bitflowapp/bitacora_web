@@ -213,7 +213,6 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final wide = constraints.maxWidth > 880;

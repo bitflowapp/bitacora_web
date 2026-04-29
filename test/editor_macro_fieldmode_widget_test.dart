@@ -21,7 +21,7 @@ void main() {
       MaterialApp(
         home: EditorScreen(
           sheetId: sheetId,
-          initialHeaders: const <String>['Fecha', 'Estado', 'Photos'],
+          initialHeaders: const <String>['Fecha', 'Estado', 'Fotos'],
           initialRows: const <List<String>>[
             <String>['', '', ''],
             <String>['', '', ''],

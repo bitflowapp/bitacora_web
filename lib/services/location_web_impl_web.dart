@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 
 import 'package:flutter/foundation.dart';
 
@@ -11,13 +11,10 @@ Future<LocationFix> browserCurrentPosition({
   Duration maximumAge = Duration.zero,
 }) async {
   final geo = html.window.navigator.geolocation;
-  if (geo == null) {
-    throw const LocationException(
-        'Geolocalización no soportada en este navegador.');
-  }
   if (html.window.isSecureContext != true) {
     throw const LocationException(
-        'Geolocalización requiere HTTPS (o localhost).');
+      'Geolocalización requiere HTTPS (o localhost).',
+    );
   }
 
   try {
@@ -58,7 +55,8 @@ Future<LocationFix> browserCurrentPosition({
     switch (err.code) {
       case html.PositionError.PERMISSION_DENIED:
         throw const LocationException(
-            'Permiso de ubicación denegado. Ajustes > Safari > Ubicación.');
+          'Permiso de ubicación denegado. Ajustes > Safari > Ubicación.',
+        );
       case html.PositionError.POSITION_UNAVAILABLE:
         throw const LocationException('Ubicación no disponible.');
       case html.PositionError.TIMEOUT:
@@ -68,5 +66,15 @@ Future<LocationFix> browserCurrentPosition({
     }
   } on TimeoutException {
     throw TimeoutException('Timeout navegador obteniendo ubicación.');
+  } catch (e) {
+    if (e is LocationException || e is TimeoutException) {
+      rethrow;
+    }
+    if (kDebugMode) {
+      debugPrint('[web-gps] unexpected error: $e');
+    }
+    throw const LocationException(
+      'No pudimos obtener la ubicación. Verificá permisos y volvé a intentar.',
+    );
   }
 }

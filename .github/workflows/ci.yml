@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Analyze budget (baseline 0)
+        env:
+          ANALYZE_BASELINE: "0"
+        run: dart scripts/analyze_budget.dart
+
+      - name: Test
+        run: flutter test
+
+      - name: Build web
+        run: flutter build web --release

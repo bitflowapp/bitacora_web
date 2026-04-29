@@ -4,6 +4,12 @@ extension _EditorShortcuts on _EditorScreenState {
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    final isCmd = HardwareKeyboard.instance.isMetaPressed;
+    final isCtrl = HardwareKeyboard.instance.isControlPressed;
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
+    final isMod = isCmd || isCtrl;
+
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       if (_gpsPickingTarget) {
         _cancelGpsPick();
@@ -19,6 +25,13 @@ extension _EditorShortcuts on _EditorScreenState {
       }
     }
 
+    if (isMod &&
+        event.logicalKey == LogicalKeyboardKey.enter &&
+        (_cellEditorEntry != null || _mobileEditorOpen)) {
+      _commitActiveEditors();
+      return KeyEventResult.handled;
+    }
+
     final focus = FocusManager.instance.primaryFocus;
     if (focus?.context?.widget is EditableText) {
       return KeyEventResult.ignored;
@@ -27,12 +40,6 @@ extension _EditorShortcuts on _EditorScreenState {
     if (_cellEditorEntry != null || _mobileEditorOpen) {
       return KeyEventResult.ignored;
     }
-
-    final isCmd = HardwareKeyboard.instance.isMetaPressed;
-    final isCtrl = HardwareKeyboard.instance.isControlPressed;
-    final isShift = HardwareKeyboard.instance.isShiftPressed;
-    final isAlt = HardwareKeyboard.instance.isAltPressed;
-    final isMod = isCmd || isCtrl;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       _moveSel(dRow: 1);
@@ -145,6 +152,11 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyD) {
+      _runDuplicateActiveRowAction();
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && isShift && event.logicalKey == LogicalKeyboardKey.keyD) {
       unawaited(_runFillDownForSelection());
       return KeyEventResult.handled;
     }
@@ -170,6 +182,11 @@ extension _EditorShortcuts on _EditorScreenState {
     }
 
     if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
+      unawaited(_openCommandPalette());
+      return KeyEventResult.handled;
+    }
+
+    if (isMod && event.logicalKey == LogicalKeyboardKey.slash) {
       unawaited(_openCommandPalette());
       return KeyEventResult.handled;
     }

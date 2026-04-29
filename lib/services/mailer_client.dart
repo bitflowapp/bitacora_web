@@ -53,18 +53,29 @@ Future<({bool ok, String? id, String? error})> sendXlsxViaMailer({
       body: body,
     );
 
+    final bodyText = _decodeUtf8Body(r);
+
     if (r.statusCode == 200) {
-      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      final j = jsonDecode(bodyText) as Map<String, dynamic>;
       return (ok: true, id: j['id'] as String?, error: null);
     } else {
       // el server devuelve {"error": "..."} en body
       String? msg;
       try {
-        msg = (jsonDecode(r.body) as Map<String, dynamic>)['error']?.toString();
+        msg =
+            (jsonDecode(bodyText) as Map<String, dynamic>)['error']?.toString();
       } catch (_) {}
       return (ok: false, id: null, error: msg ?? 'HTTP ${r.statusCode}');
     }
   } catch (e) {
     return (ok: false, id: null, error: e.toString());
+  }
+}
+
+String _decodeUtf8Body(http.Response response) {
+  try {
+    return utf8.decode(response.bodyBytes);
+  } catch (_) {
+    return response.body;
   }
 }

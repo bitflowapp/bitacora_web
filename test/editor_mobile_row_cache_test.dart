@@ -24,7 +24,7 @@ void main() {
       MaterialApp(
         home: EditorScreen(
           sheetId: 'mobile-lazy-controllers',
-          initialHeaders: const <String>['Notas', 'Photos'],
+          initialHeaders: const <String>['Notas', 'Fotos'],
           initialRows: rows,
         ),
       ),

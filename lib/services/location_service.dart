@@ -100,7 +100,7 @@ class LocationFix {
         altitudeMeters: _numOrNull(p.altitude),
         speedMps: _numOrNull(p.speed),
         headingDeg: _numOrNull(p.heading),
-        timestamp: p.timestamp ?? DateTime.now(),
+        timestamp: p.timestamp,
         source: source,
       );
 
@@ -324,9 +324,8 @@ class LocationService {
       if (last == null) return null;
 
       final ts = last.timestamp;
-      if (ts == null && requireTimestamp) return null;
-
-      final when = ts ?? DateTime.fromMillisecondsSinceEpoch(0);
+      if (requireTimestamp && ts.millisecondsSinceEpoch <= 0) return null;
+      final when = ts;
       final age = DateTime.now().difference(when);
       if (age.isNegative || age > maxAge) {
         _emitEvent('lastKnown_too_old', {
@@ -340,7 +339,9 @@ class LocationService {
         last,
         rejectMocked: rejectMocked,
         maxAccuracyMeters: maxAccuracyMeters,
-      )) return null;
+      )) {
+        return null;
+      }
 
       final fix = LocationFix.fromPosition(last, source: 'lastKnown');
       _promoteCacheIfNeeded(fix, sourceForStatus: 'lastKnown');
@@ -625,7 +626,9 @@ class LocationService {
           p,
           rejectMocked: rejectMocked,
           maxAccuracyMeters: rejectAboveAccuracyMeters,
-        )) return;
+        )) {
+          return;
+        }
 
         final fix = LocationFix.fromPosition(p, source: 'stream(shared)');
 
@@ -730,7 +733,7 @@ class LocationService {
       await completer.future;
     } finally {
       _internalTaps.remove(tap);
-      timer?.cancel();
+      timer.cancel();
 
       // Si lo arrancamos “solo para refinar” y no hay listeners, apagalo.
       final hasListeners = _sharedController?.hasListener ?? false;
@@ -846,7 +849,9 @@ class LocationService {
         p,
         rejectMocked: rejectMocked,
         maxAccuracyMeters: rejectAboveAccuracyMeters,
-      )) continue;
+      )) {
+        continue;
+      }
 
       final fix = LocationFix.fromPosition(p, source: 'stream');
       final lastForOutlier = _lastSeenFix ?? _cache.value;
@@ -933,7 +938,7 @@ class LocationService {
 
       return await completer.future;
     } finally {
-      timer?.cancel();
+      timer.cancel();
       await sub?.cancel();
     }
   }

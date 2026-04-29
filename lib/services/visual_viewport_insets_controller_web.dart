@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:html' as html;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';

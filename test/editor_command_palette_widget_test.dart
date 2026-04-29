@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'command-palette-test',
-          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Photos'],
+          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Fotos'],
           initialRows: <List<String>>[
             <String>['2026-02-13', 'OK', '1200', ''],
           ],

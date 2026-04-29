@@ -1,4 +1,4 @@
-import 'dart:html' as html;
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:typed_data';
 
 class SaveBytes {

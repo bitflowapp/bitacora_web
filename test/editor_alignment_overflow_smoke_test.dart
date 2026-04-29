@@ -24,7 +24,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'align-overflow-smoke',
-          initialHeaders: <String>['Notas', 'Photos'],
+          initialHeaders: <String>['Notas', 'Fotos'],
           initialRows: <List<String>>[
             <String>[longText, ''],
           ],

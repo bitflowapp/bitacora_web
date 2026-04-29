@@ -27,6 +27,7 @@ Future<void> showCommandPalette(
   String title = 'Acciones',
 }) async {
   final queryCtl = TextEditingController();
+  final listCtl = ScrollController();
 
   List<CommandAction> filter(String q) {
     if (q.isEmpty) return actions;
@@ -46,7 +47,6 @@ Future<void> showCommandPalette(
       barrierColor: Colors.black.withValues(alpha: 0.22),
       transitionDuration: AppMotion.modal,
       pageBuilder: (ctx, _, __) {
-        final listCtl = ScrollController();
         var selected = 0;
         var results = filter('');
 
@@ -290,6 +290,7 @@ Future<void> showCommandPalette(
   } finally {
     await Future<void>.delayed(AppMotion.modal);
     queryCtl.dispose();
+    listCtl.dispose();
   }
 }
 

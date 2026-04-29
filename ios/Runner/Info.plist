@@ -55,5 +55,7 @@
 	<string>BitFlow puede guardar exportaciones en tu fototeca cuando lo solicitas.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>BitFlow usa tu ubicacion para registrar coordenadas en el relevamiento activo.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>BitFlow usa Face ID para desbloquear el acceso rapido de forma segura.</string>
 </dict>
 </plist>

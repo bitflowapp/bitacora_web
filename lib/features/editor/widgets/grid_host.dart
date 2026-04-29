@@ -43,7 +43,6 @@ _GridMetrics _gridMetricsFor(_GridDensity density) {
         indexFontSize: 13.8,
       );
     case _GridDensity.normal:
-    default:
       return const _GridMetrics(
         rowH: 61,
         headerH: 56,
@@ -452,11 +451,11 @@ class _GridView extends StatelessWidget {
         border: Border(
           right: BorderSide(
             color: palette.gridBorder,
-            width: math.max(palette.hairline, 0.55).toDouble(),
+            width: math.max(palette.hairline, 1).toDouble(),
           ),
           bottom: BorderSide(
             color: palette.gridBorder,
-            width: math.max(palette.hairline, 0.55).toDouble(),
+            width: math.max(palette.hairline, 1).toDouble(),
           ),
         ),
       ),
@@ -464,7 +463,7 @@ class _GridView extends StatelessWidget {
         '#',
         style: TextStyle(
           color: palette.headerText,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w900,
           fontSize: metrics.indexFontSize,
         ),
       ),
@@ -503,7 +502,7 @@ class _HeaderCell extends StatelessWidget {
         text.trim().isEmpty ? (isPhotos ? kPhotosHeader : '') : text.trim();
     final radius = BorderRadius.zero;
     final borderColor = palette.gridBorder;
-    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final cell = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -538,7 +537,7 @@ class _HeaderCell extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   fontSize: metrics.headerFontSize,
                   height: 1.05,
-                  letterSpacing: 0.02,
+                  letterSpacing: 0.1,
                 ),
               ),
             ),
@@ -573,10 +572,12 @@ class _RowIndexCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final neutralRing = palette.focusRing;
+    final neutralRing = palette.focusRing.withValues(
+      alpha: palette.isLight ? 0.65 : 0.78,
+    );
     final bg = selected ? palette.selectionFill : palette.indexBg;
     final radius = BorderRadius.zero;
-    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -718,9 +719,7 @@ class _DataCell extends StatelessWidget {
         baseBg;
     final invalidBg = Color.lerp(
           baseBg,
-          const Color(0xFFFF3B30).withValues(
-            alpha: palette.isLight ? 0.08 : 0.18,
-          ),
+          palette.cellText.withValues(alpha: palette.isLight ? 0.08 : 0.16),
           0.58,
         ) ??
         baseBg;
@@ -732,8 +731,8 @@ class _DataCell extends StatelessWidget {
                 ? rowSelectedBg
                 : (invalid ? invalidBg : (searchHit ? searchBg : baseBg))));
 
-    final invalidBorder = const Color(0xFFFF3B30).withValues(
-      alpha: palette.isLight ? 0.46 : 0.70,
+    final invalidBorder = palette.cellText.withValues(
+      alpha: palette.isLight ? 0.35 : 0.56,
     );
     final borderColor = focus
         ? palette.selectionBorder
@@ -744,7 +743,7 @@ class _DataCell extends StatelessWidget {
                     alpha: palette.isLight ? 0.52 : 0.7,
                   )
                 : palette.gridBorder));
-    final lineWidth = math.max(palette.hairline, 0.55).toDouble();
+    final lineWidth = math.max(palette.hairline, 0.85).toDouble();
 
     final radius = BorderRadius.zero;
 
@@ -776,7 +775,7 @@ class _DataCell extends StatelessWidget {
                       border: Border.all(
                         color:
                             invalid ? invalidBorder : palette.selectionBorder,
-                        width: palette.isLight ? 1.25 : 1.4,
+                        width: 1.5,
                       ),
                     )
                   : null,
@@ -921,7 +920,7 @@ class _DataCell extends StatelessWidget {
     final displayText = text.trim().isNotEmpty
         ? text
         : (!isPhotos && inline != null
-            ? '${inline.title} · ${inline.subtitle}'
+            ? '${inline.title} | ${inline.subtitle}'
             : ' ');
     final content = isPhotos
         ? _PhotosCell(
@@ -944,8 +943,8 @@ class _DataCell extends StatelessWidget {
                     color: palette.cellText,
                     fontSize: metrics.cellFontSize,
                     height: 1.1,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    letterSpacing: selected ? -0.10 : 0,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    letterSpacing: selected ? -0.12 : -0.04,
                   ),
                 ),
               ),
@@ -1138,6 +1137,7 @@ class _PhotosCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumbBytes = decodeThumb(thumbB64);
+    final hasThumb = thumbBytes != null;
     return Row(
       children: [
         InkWell(
@@ -1153,7 +1153,7 @@ class _PhotosCell extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        if (thumbBytes != null)
+        if (hasThumb)
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Image.memory(
@@ -1167,13 +1167,13 @@ class _PhotosCell extends StatelessWidget {
               gaplessPlayback: true,
             ),
           ),
-        if (thumbBytes != null) const SizedBox(width: 6),
+        if (hasThumb) const SizedBox(width: 6),
         Expanded(
           child: Text(
             count == 0 ? '0' : '$count',
             style: TextStyle(
               color: palette.fg,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
               height: 1.05,
             ),
           ),

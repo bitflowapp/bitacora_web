@@ -22,7 +22,7 @@ void main() {
         home: Scaffold(
           body: EditorScreen(
             sheetId: 'export_gating_sheet',
-            initialHeaders: <String>['Actividad', 'Estado', 'Photos'],
+            initialHeaders: <String>['Actividad', 'Estado', 'Fotos'],
             initialRows: <List<String>>[
               <String>['', '', ''],
             ],
@@ -39,6 +39,7 @@ void main() {
 
     expect(find.text('Hay errores de validacion'), findsOneWidget);
     expect(find.text('Exportar igual'), findsOneWidget);
-    expect(find.text('Ir a errores'), findsOneWidget);
+    expect(find.text('Copiar errores'), findsOneWidget);
+    expect(find.text('Ir a primera fila con error'), findsOneWidget);
   });
 }

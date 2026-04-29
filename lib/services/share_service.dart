@@ -46,8 +46,12 @@ class ShareService {
 
     // DESKTOP (o fallback mobile) → compartir archivo, y si falla, mailto con ruta
     try {
-      await Share.shareXFiles([XFile(savedPathOrName)],
-          text: 'Bitácora - Exportación');
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(savedPathOrName)],
+          text: 'BitFlow - Exportacion',
+        ),
+      );
     } catch (_) {
       final uri = Uri(
         scheme: 'mailto',

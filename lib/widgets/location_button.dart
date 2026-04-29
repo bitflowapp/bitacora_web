@@ -118,21 +118,21 @@ class _LocationSheetState extends State<_LocationSheet> {
                     onPressed: (_geo == null || _busy)
                         ? null
                         : () async {
+                            final messenger = ScaffoldMessenger.of(context);
                             setState(() => _busy = true);
                             await RowGeoStore.I.clear(
                               widget.sheetId,
                               widget.row,
                             );
                             await _load();
-                            if (mounted) {
-                              setState(() => _busy = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Ubicación eliminada'),
-                                  duration: Duration(milliseconds: 1400),
-                                ),
-                              );
-                            }
+                            if (!mounted) return;
+                            setState(() => _busy = false);
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Ubicación eliminada'),
+                                duration: Duration(milliseconds: 1400),
+                              ),
+                            );
                           },
                     icon: const Icon(Icons.delete_outline),
                   ),
@@ -209,10 +209,10 @@ class _LocationSheetState extends State<_LocationSheet> {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      'Precisión: ${_geo!.accuracyM?.toStringAsFixed(1) ?? '-'} m • ${_geo!.ts}',
+                      'Precisión: ${_geo!.accuracyM?.toStringAsFixed(1) ?? '-'} m | ${_geo!.ts}',
                     ),
                     trailing: IconButton(
-                      tooltip: 'Abrir en Maps',
+                      tooltip: 'Abrir en mapa',
                       icon: const Icon(Icons.map_outlined),
                       onPressed: () async {
                         await LocationWebService.I.openInMaps(

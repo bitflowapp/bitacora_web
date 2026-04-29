@@ -1,24 +1,10 @@
 part of '../editor_screen.dart';
 
 extension _EditorExportDialogs on _EditorScreenState {
-  String _exportPresetLabel(String preset) {
-    switch (preset) {
-      case 'xlsx':
-        return 'Planilla XLSX';
-      case 'zip':
-        return 'Paquete ZIP';
-      case 'pdf':
-      default:
-        return 'Reporte PDF';
-    }
-  }
-
   Future<void> _openExportMenu() async {
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    var format = _lastExportPreset == 'xlsx' || _lastExportPreset == 'zip'
-        ? _lastExportPreset
-        : 'pdf';
+    var format = _lastExportPreset == 'xlsx' ? 'xlsx' : 'pdf';
     var includeAttachments = true;
 
     await showAppModal<void>(
@@ -56,20 +42,13 @@ extension _EditorExportDialogs on _EditorScreenState {
                       format = 'pdf';
                     }),
                   ),
-                  ChoiceChip(
-                    label: const Text('ZIP'),
-                    selected: format == 'zip',
-                    onSelected: (_) => setModalState(() {
-                      format = 'zip';
-                    }),
-                  ),
                 ],
               ),
               const SizedBox(height: 10),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Incluir adjuntos'),
-                subtitle: const Text('Fotos, audio y GPS incluidos.'),
+                subtitle: const Text('Fotos, audio y GPS en el export.'),
                 value: includeAttachments,
                 onChanged: (value) {
                   setModalState(() => includeAttachments = value);
@@ -77,9 +56,7 @@ extension _EditorExportDialogs on _EditorScreenState {
               ),
               const SizedBox(height: 6),
               Text(
-                format == 'zip'
-                    ? 'Archivo: paquete Bit Flow con evidencias'
-                    : 'Archivo: $fileName',
+                'Archivo: $fileName',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
@@ -133,11 +110,7 @@ extension _EditorExportDialogs on _EditorScreenState {
     required bool includeAttachments,
     required bool share,
   }) {
-    unawaited(_setExportPresetPref(format));
-    if (format == 'zip') {
-      unawaited(_exportZipBundle(share: share));
-      return;
-    }
+    unawaited(_setExportPresetPref(format == 'pdf' ? 'pdf' : 'xlsx'));
     if (format == 'pdf') {
       unawaited(
         _exportPdf(

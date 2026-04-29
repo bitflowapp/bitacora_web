@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'empty-state-test',
-          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Photos'],
+          initialHeaders: <String>['Fecha', 'Estado', 'Progresiva', 'Fotos'],
           initialRows: <List<String>>[],
         ),
       ),

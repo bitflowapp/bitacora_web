@@ -1,7 +1,7 @@
 part of '../editor_screen.dart';
 
-class AttachmentTile extends StatelessWidget {
-  const AttachmentTile({
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({
     required this.palette,
     required this.thumb,
     required this.typeIcon,
@@ -10,6 +10,11 @@ class AttachmentTile extends StatelessWidget {
     required this.onPreview,
     required this.onRename,
     required this.onDelete,
+    this.uploadStatusLabel,
+    this.uploadStatusIcon,
+    this.uploadStatusColor,
+    this.uploadError,
+    this.onRetryUpload,
   });
 
   final _SheetPalette palette;
@@ -20,6 +25,11 @@ class AttachmentTile extends StatelessWidget {
   final VoidCallback onPreview;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final String? uploadStatusLabel;
+  final IconData? uploadStatusIcon;
+  final Color? uploadStatusColor;
+  final String? uploadError;
+  final VoidCallback? onRetryUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +129,43 @@ class AttachmentTile extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
+                if ((uploadStatusLabel ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        uploadStatusIcon ?? Icons.schedule_rounded,
+                        size: 13,
+                        color: uploadStatusColor ?? palette.fgMuted,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          uploadStatusLabel!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: uploadStatusColor ?? palette.fgMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if ((uploadError ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    uploadError!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.fgMuted,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -162,6 +209,21 @@ class AttachmentTile extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (onRetryUpload != null) ...[
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: onRetryUpload,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Reintentar'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

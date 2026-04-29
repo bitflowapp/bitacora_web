@@ -1,0 +1,14 @@
+﻿{
+  "slug": "control-gastos",
+  "name": "Control de gastos",
+  "sheetName": "Control de Gastos",
+  "headers": ["Fecha", "Categoria", "Descripcion", "Monto", "Medio", "Estado"],
+  "rows": [
+    ["2026-03-01", "Movilidad", "Combustible", "42000", "Tarjeta", "OK"],
+    ["2026-03-01", "Comidas", "Almuerzo equipo", "18500", "Efectivo", "OK"],
+    ["2026-03-02", "Materiales", "Ferreteria", "63800", "Transferencia", "OK"],
+    ["2026-03-02", "Servicios", "Mensajeria", "9200", "Tarjeta", "Obs"],
+    ["2026-03-03", "Viaticos", "Taxi cliente", "12600", "Efectivo", "OK"],
+    ["2026-03-03", "TOTAL", "", "=SUM(D1:D5)", "", ""]
+  ]
+}

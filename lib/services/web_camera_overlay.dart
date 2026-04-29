@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 import 'dart:typed_data';
 import 'dart:ui_web' as ui;
 
@@ -107,8 +107,8 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
     try {
       await completer.future.timeout(const Duration(seconds: 2));
     } catch (_) {
-      metaSub?.cancel();
-      canPlaySub?.cancel();
+      metaSub.cancel();
+      canPlaySub.cancel();
     }
   }
 
@@ -215,9 +215,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
 
       Uint8List? bytes;
       final blob = await canvas.toBlob('image/jpeg', widget.jpegQuality);
-      if (blob != null) {
-        bytes = await _blobToBytes(blob);
-      }
+      bytes = await _blobToBytes(blob);
 
       bytes ??=
           _dataUrlToBytes(canvas.toDataUrl('image/jpeg', widget.jpegQuality));

@@ -162,16 +162,26 @@ class FotoCleanClient {
       body: body,
     );
 
+    final bodyText = _decodeUtf8Body(resp);
+
     if (resp.statusCode == 401) {
       throw Exception('Unauthorized: revisá x-api-key');
     }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
       throw Exception(
-          'HTTP ${resp.statusCode}: ${resp.body.isNotEmpty ? resp.body : 'sin cuerpo'}');
+          'HTTP ${resp.statusCode}: ${bodyText.isNotEmpty ? bodyText : 'sin cuerpo'}');
     }
 
-    final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(bodyText) as Map<String, dynamic>;
     return OptimizedBatch.fromJson(decoded);
+  }
+
+  static String _decodeUtf8Body(http.Response res) {
+    try {
+      return utf8.decode(res.bodyBytes);
+    } catch (_) {
+      return res.body;
+    }
   }
 
   void close() {

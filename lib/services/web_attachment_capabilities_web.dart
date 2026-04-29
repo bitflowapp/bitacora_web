@@ -1,6 +1,6 @@
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+import 'package:bitacora_web/web/html_compat.dart' as html;
 // ignore: uri_does_not_exist
-import 'dart:js_util' as js_util;
+import 'package:bitacora_web/web/js_interop_compat.dart' as js_util;
 
 import 'web_attachment_capabilities.dart';
 import 'web_capabilities.dart';

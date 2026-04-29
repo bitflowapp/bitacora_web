@@ -14,6 +14,7 @@ class WebBlobRecord {
     this.blob,
     this.storageMode = 'ram',
     this.sessionOnly = false,
+    this.storageReason,
   });
 
   final String key;
@@ -25,6 +26,7 @@ class WebBlobRecord {
   final Object? blob; // html.Blob en web
   final String storageMode; // indexeddb | cache | ram
   final bool sessionOnly;
+  final String? storageReason; // quota_exceeded | storage_session_only | ...
 }
 
 abstract class WebBlobStore {
@@ -49,4 +51,7 @@ abstract class WebBlobStore {
 
   Future<void> download(String key,
       {required String name, required String mime});
+
+  /// Último motivo clasificado de fallback/error de guardado (best effort).
+  String? get lastSaveReason => null;
 }

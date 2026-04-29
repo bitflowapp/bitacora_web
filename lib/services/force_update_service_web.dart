@@ -1,20 +1,53 @@
 import 'dart:async';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
+
+import 'package:bitacora_web/web/html_compat.dart' as html;
 
 import 'force_update_service.dart';
 
 class ForceUpdateServiceImpl implements ForceUpdateService {
   @override
-  Future<ForceUpdateResult> forceUpdate() async {
+  Future<bool> hasWebCacheArtifacts() async {
+    try {
+      final sw = html.window.navigator.serviceWorker;
+      if (sw != null) {
+        final regs = await sw.getRegistrations();
+        if (regs.isNotEmpty) return true;
+      }
+    } catch (_) {}
+
+    try {
+      final caches = html.window.caches;
+      if (caches != null) {
+        final keys = await caches.keys();
+        if (keys.isNotEmpty) return true;
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
+  @override
+  Future<void> reloadWithCacheBust(String cacheBustValue) async {
+    final raw = cacheBustValue.trim();
+    final bust =
+        raw.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : raw;
+    final path = html.window.location.pathname ?? '/';
+    html.window.location.href = '$path?v=${Uri.encodeQueryComponent(bust)}';
+  }
+
+  @override
+  Future<ForceUpdateResult> forceUpdate({String? cacheBustValue}) async {
     final messages = <String>[];
     try {
       final sw = html.window.navigator.serviceWorker;
       if (sw != null) {
         final regs = await sw.getRegistrations();
-        for (final reg in regs) {
-          await reg.unregister();
+        if (regs.isNotEmpty) {
+          await Future.wait(regs.map((reg) => reg.unregister()));
+          messages.add('Service Worker eliminado (${regs.length}).');
+        } else {
+          messages.add('Service Worker sin registros activos.');
         }
-        messages.add('Service Worker eliminado.');
       } else {
         messages.add('Service Worker no disponible.');
       }
@@ -26,10 +59,12 @@ class ForceUpdateServiceImpl implements ForceUpdateService {
       final caches = html.window.caches;
       if (caches != null) {
         final keys = await caches.keys();
-        for (final key in keys) {
-          await caches.delete(key);
+        if (keys.isNotEmpty) {
+          await Future.wait(keys.map((key) => caches.delete(key)));
+          messages.add('Caches limpiados (${keys.length}).');
+        } else {
+          messages.add('CacheStorage sin entradas activas.');
         }
-        messages.add('Caches limpiados.');
       } else {
         messages.add('CacheStorage no disponible.');
       }
@@ -37,12 +72,9 @@ class ForceUpdateServiceImpl implements ForceUpdateService {
       messages.add('Error limpiando caches: $e');
     }
 
-    // Forzar reload con cache-busting
     try {
-      final uri = html.window.location;
-      final base = uri.href.split('#').first;
-      final bust = DateTime.now().millisecondsSinceEpoch;
-      html.window.location.replace('$base?reload=$bust');
+      await reloadWithCacheBust(cacheBustValue ?? '');
+      messages.add('Recarga solicitada.');
     } catch (_) {}
 
     return ForceUpdateResult(

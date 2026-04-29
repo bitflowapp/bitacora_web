@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'smart-paste-preview-test',
-          initialHeaders: <String>['Col A', 'Col B', 'Photos'],
+          initialHeaders: <String>['Col A', 'Col B', 'Fotos'],
           initialRows: <List<String>>[
             <String>['legacy-a', 'legacy-b', ''],
             <String>['legacy-c', 'legacy-d', ''],

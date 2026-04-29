@@ -24,7 +24,7 @@ extension _EditorDialogs on _EditorScreenState {
               SwitchListTile(
                 value: dateDefault,
                 onChanged: (value) => setModalState(() => dateDefault = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Fecha: completar con hoy al crear fila'),
                 subtitle: const Text('Aplica en columnas Fecha/Hora'),
               ),
@@ -32,7 +32,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: statusDefault,
                 onChanged: (value) =>
                     setModalState(() => statusDefault = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Estado: default OK'),
                 subtitle: const Text('Aplica en columnas Estado'),
               ),
@@ -40,7 +40,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: autoIncrement,
                 onChanged: (value) =>
                     setModalState(() => autoIncrement = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('ID/Progresiva: autoincrement'),
                 subtitle: const Text(
                   'Toma el ultimo valor numerico y suma +1',
@@ -50,7 +50,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: inlinePreviews,
                 onChanged: (value) =>
                     setModalState(() => inlinePreviews = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Previews en celdas'),
                 subtitle: const Text(
                   'Muestra miniaturas inline (puede usar mas memoria en grillas grandes).',
@@ -60,7 +60,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: mobileCompactMode,
                 onChanged: (value) =>
                     setModalState(() => mobileCompactMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Modo compacto (mobile auto-hide)'),
                 subtitle: const Text(
                   'Oculta header al hacer scroll para maximizar la grilla.',
@@ -69,7 +69,7 @@ extension _EditorDialogs on _EditorScreenState {
               SwitchListTile(
                 value: zenMode,
                 onChanged: (value) => setModalState(() => zenMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Modo Zen'),
                 subtitle: const Text(
                   'Oculta la barra superior hasta salir de Zen.',
@@ -79,7 +79,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: mobileFocusCellMode,
                 onChanged: (value) =>
                     setModalState(() => mobileFocusCellMode = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('Focus cell mode (mobile)'),
                 subtitle: const Text(
                   'Al editar, centra la celda activa sin reflow pesado.',
@@ -89,7 +89,7 @@ extension _EditorDialogs on _EditorScreenState {
                 value: flowBotUseLocalLlm,
                 onChanged: (value) =>
                     setModalState(() => flowBotUseLocalLlm = value),
-                activeColor: _palette(ctx).accent,
+                activeThumbColor: _palette(ctx).accent,
                 title: const Text('FlowBot Local LLM (sin API)'),
                 subtitle: Text(
                   _flowBotLocalModelPath.trim().isEmpty
@@ -163,9 +163,10 @@ extension _EditorDialogs on _EditorScreenState {
           ),
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+K', label: 'Paleta de comandos'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+/', label: 'Paleta de comandos'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+S', label: 'Guardar'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+F', label: 'Buscar inline'),
-          _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Jump to fila/ID'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+J', label: 'Ir a fila/ID'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Z', label: 'Deshacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Y', label: 'Rehacer'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+Z', label: 'Toggle modo Zen'),
@@ -176,6 +177,11 @@ extension _EditorDialogs on _EditorScreenState {
           ),
           SizedBox(height: 6),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+N', label: 'Crear fila'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+D', label: 'Duplicar fila'),
+          _ShortcutLine(
+            shortcut: 'Ctrl/Cmd+Shift+D',
+            label: 'Rellenar hacia abajo',
+          ),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+B', label: 'Aplicar valor'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+R', label: 'FlowBot'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+E', label: 'Centrar celda activa'),
@@ -195,6 +201,7 @@ extension _EditorDialogs on _EditorScreenState {
           _ShortcutLine(shortcut: 'Ctrl/Cmd+G', label: 'Adjuntar GPS'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+P', label: 'Adjuntar foto'),
           _ShortcutLine(shortcut: 'Ctrl/Cmd+Shift+A', label: 'Audio en celda'),
+          _ShortcutLine(shortcut: 'Ctrl/Cmd+Enter', label: 'Confirmar celda'),
           _ShortcutLine(shortcut: 'Enter', label: 'Editar o confirmar'),
           _ShortcutLine(shortcut: 'Esc', label: 'Cerrar/Cancelar'),
           SizedBox(height: 10),
@@ -222,24 +229,28 @@ extension _EditorDialogs on _EditorScreenState {
     final picked = await showAppModal<_GridDensity>(
       context: context,
       title: AppStrings.editorDensity,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final d in _GridDensity.values)
-            RadioListTile<_GridDensity>(
-              value: d,
-              groupValue: _gridDensity,
-              onChanged: (v) => Navigator.of(context).pop(v),
-              activeColor: _palette(context).accent,
-              title: Text(
-                _densityLabel(d),
-                style: TextStyle(
-                  color: _palette(context).fg,
-                  fontWeight: FontWeight.w700,
+      child: RadioGroup<_GridDensity>(
+        groupValue: _gridDensity,
+        onChanged: (value) {
+          if (value != null) Navigator.of(context).pop(value);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final d in _GridDensity.values)
+              RadioListTile<_GridDensity>(
+                value: d,
+                activeColor: _palette(context).accent,
+                title: Text(
+                  _densityLabel(d),
+                  style: TextStyle(
+                    color: _palette(context).fg,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       actions: [
         AppButton(
@@ -262,30 +273,34 @@ extension _EditorDialogs on _EditorScreenState {
     final picked = await showAppModal<_GpsWriteMode>(
       context: context,
       title: AppStrings.editorGpsMode,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final mode in _GpsWriteMode.values)
-            RadioListTile<_GpsWriteMode>(
-              dense: true,
-              value: mode,
-              groupValue: _gpsWriteMode,
-              onChanged: (v) => Navigator.of(context).pop(v),
-              title: Text(
-                _gpsModeLabel(mode),
-                style: TextStyle(
-                  color: _palette(context).fg,
-                  fontWeight: FontWeight.w700,
+      child: RadioGroup<_GpsWriteMode>(
+        groupValue: _gpsWriteMode,
+        onChanged: (value) {
+          if (value != null) Navigator.of(context).pop(value);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final mode in _GpsWriteMode.values)
+              RadioListTile<_GpsWriteMode>(
+                dense: true,
+                value: mode,
+                title: Text(
+                  _gpsModeLabel(mode),
+                  style: TextStyle(
+                    color: _palette(context).fg,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                subtitle: Text(
+                  _gpsModeDesc(mode),
+                  style:
+                      TextStyle(color: _palette(context).fgMuted, fontSize: 12),
+                ),
+                activeColor: _palette(context).accent,
               ),
-              subtitle: Text(
-                _gpsModeDesc(mode),
-                style:
-                    TextStyle(color: _palette(context).fgMuted, fontSize: 12),
-              ),
-              activeColor: _palette(context).accent,
-            ),
-        ],
+          ],
+        ),
       ),
       actions: [
         AppButton(

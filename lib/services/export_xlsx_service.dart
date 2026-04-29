@@ -13,6 +13,7 @@
 import 'dart:typed_data';
 
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:bitacora_web/services/formula_engine.dart';
 
 import 'mail_report_service.dart';
 import 'export_xlsx_with_photos.dart';
@@ -176,7 +177,7 @@ class ExportXlsxService {
     try {
       final sheetPlanilla = workbook.worksheets[0]..name = safeSheetName;
       final sheetFotos = workbook.worksheets[1]..name = 'FOTOS';
-      final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACION';
+      final sheetUbicacion = workbook.worksheets[2]..name = 'UBICACIÓN';
       final sheetInstrucciones = workbook.worksheets[3]..name = 'INSTRUCCIONES';
 
       _buildPlanillaSheet(
@@ -259,7 +260,7 @@ class ExportXlsxService {
     for (int r = 0; r < saneRows.length; r++) {
       final row = saneRows[r];
       for (int c = 0; c < colCount; c++) {
-        sheet.getRangeByIndex(r + 2, c + 1).setText(row[c]);
+        _setPlanillaCellValue(sheet, r + 2, c + 1, row[c]);
       }
     }
 
@@ -388,7 +389,7 @@ class ExportXlsxService {
       sheet.getRangeByIndex(4, 1).setText(latStr);
       sheet.getRangeByIndex(4, 2).setText(lngStr);
 
-      sheet.getRangeByIndex(6, 1).setText('Ver en Google Maps');
+      sheet.getRangeByIndex(6, 1).setText('Ver en mapa de Google');
 
       final mapsUrl = 'https://www.google.com/maps?q=$latStr,$lngStr';
 
@@ -399,8 +400,8 @@ class ExportXlsxService {
         xlsio.HyperlinkType.url,
         mapsUrl,
       );
-      link.textToDisplay = 'Abrir en Google Maps';
-      link.screenTip = 'Abrir ubicación en Google Maps';
+      link.textToDisplay = 'Abrir en mapa de Google';
+      link.screenTip = 'Abrir ubicación en mapa de Google';
 
       linkRange.cellStyle.fontColor = '#FF0000FF';
       linkRange.cellStyle.bold = true;
@@ -496,6 +497,31 @@ class ExportXlsxService {
       }
       return row;
     }).toList();
+  }
+
+  static void _setPlanillaCellValue(
+    xlsio.Worksheet sheet,
+    int row,
+    int col,
+    String raw,
+  ) {
+    final trimmed = raw.trim();
+    final cell = sheet.getRangeByIndex(row, col);
+    if (FormulaEngine.isFormula(trimmed)) {
+      cell.setFormula(trimmed);
+      return;
+    }
+    final number = double.tryParse(trimmed.replaceAll(',', '.'));
+    if (number != null && RegExp(r'^-?\d+(?:[.,]\d+)?$').hasMatch(trimmed)) {
+      cell.setNumber(number);
+      return;
+    }
+    final date = DateTime.tryParse(trimmed);
+    if (date != null) {
+      cell.setDateTime(date);
+      return;
+    }
+    cell.setText(raw);
   }
 }
 

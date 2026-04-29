@@ -46,6 +46,10 @@ class _AnimatedVideoBackgroundState extends State<AnimatedVideoBackground>
 
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      debugPrint('[bg-layer] AnimatedVideoBackground build');
+      return true;
+    }());
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 

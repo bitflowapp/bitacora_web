@@ -12,6 +12,7 @@ import '../core/diagnostics_report_formatter.dart';
 import '../services/app_error_reporter.dart';
 import '../services/build_info.dart';
 import '../services/diagnostics_log.dart';
+import '../services/force_update_service.dart';
 import '../services/save_file.dart';
 import '../ui/app_strings.dart';
 
@@ -72,7 +73,12 @@ class DiagnosticsScreen extends StatefulWidget {
       name: fileName,
       mimeType: mimeType,
     );
-    await Share.shareXFiles([file], subject: fileName);
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [file],
+        subject: fileName,
+      ),
+    );
   }
 
   static Future<DiagnosticsAppInfo> _loadAppInfoFromPlatform() async {
@@ -181,6 +187,17 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         ),
                       ],
                     ),
+                    if (kIsWeb) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: CupertinoButton(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          onPressed: _forceRefreshWebApp,
+                          child: const Text('Actualizar app (limpiar cache)'),
+                        ),
+                      ),
+                    ],
                     if ((_feedback ?? '').trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -274,6 +291,27 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _forceRefreshWebApp() async {
+    try {
+      final result = await ForceUpdateService.I.forceUpdate();
+      if (!mounted) return;
+      _setFeedback(
+        result.message.trim().isEmpty
+            ? 'Recargando app...'
+            : result.message.trim(),
+      );
+    } catch (error, stackTrace) {
+      _recordDiagnosticsFailure(
+        error,
+        operation: 'diagnostics_force_refresh',
+        fallbackMessage: 'No se pudo forzar la actualización web.',
+        stackTrace: stackTrace,
+      );
+      if (!mounted) return;
+      _setFeedback('No se pudo forzar la actualización web.');
+    }
   }
 
   Future<void> _copyReport(List<AppErrorEvent> events) async {

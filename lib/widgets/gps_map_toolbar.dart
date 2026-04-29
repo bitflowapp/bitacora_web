@@ -252,7 +252,7 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
   }
 
   void _processPosition(Position position) {
-    final timestamp = position.timestamp ?? DateTime.now();
+    final timestamp = position.timestamp;
     final rawAccuracy = position.accuracy;
     final accuracy =
         rawAccuracy <= 0 ? _filterConfig.referenceAccuracyMeters : rawAccuracy;
@@ -437,7 +437,7 @@ class _GpsMapToolbarState extends State<GpsMapToolbar> {
     if (acc <= 0) return base;
 
     final accStr = acc.toStringAsFixed(0);
-    return '$base · ±$accStr m';
+    return '$base | ±$accStr m';
   }
 
   void _openFullScreenMap() {

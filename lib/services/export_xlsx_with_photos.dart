@@ -14,6 +14,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:bitacora_web/services/formula_engine.dart';
 
 const String _kExportVersion = 'bitflow_xlsx_v2';
 const String _kAppVersion =
@@ -558,10 +559,16 @@ void _buildAttachmentsSheet(
   xlsio.Workbook workbook, {
   required List<AttachmentRow> attachments,
 }) {
-  final sheet = workbook.worksheets.addWithName('Attachments');
+  final sheet = workbook.worksheets.addWithName('Adjuntos');
   sheet.showGridlines = false;
 
-  const headers = ['CellRef', 'Type', 'FileName', 'Notes', 'Path'];
+  const headers = [
+    'Referencia de celda',
+    'Tipo',
+    'Nombre de archivo',
+    'Notas',
+    'Ruta',
+  ];
 
   for (int c = 0; c < headers.length; c++) {
     sheet.getRangeByIndex(1, c + 1).setText(headers[c]);
@@ -635,6 +642,10 @@ int _photosCount({
 
 void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
   final trimmed = v.trim();
+  if (FormulaEngine.isFormula(trimmed)) {
+    sheet.getRangeByIndex(r, c).setFormula(trimmed);
+    return;
+  }
   final numVal = double.tryParse(trimmed);
   if (numVal != null && RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(trimmed)) {
     sheet.getRangeByIndex(r, c).setNumber(numVal);

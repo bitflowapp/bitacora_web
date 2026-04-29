@@ -6,6 +6,9 @@ class WebBlobStoreImpl implements WebBlobStore {
   final Map<String, WebBlobRecord> _mem = {};
 
   @override
+  String? get lastSaveReason => null;
+
+  @override
   Future<void> delete(String key) async {
     _mem.remove(key);
   }

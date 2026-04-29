@@ -17,7 +17,7 @@ void main() {
       const MaterialApp(
         home: EditorScreen(
           sheetId: 'mobile-palette-button-test',
-          initialHeaders: <String>['Col A', 'Col B', 'Photos'],
+          initialHeaders: <String>['Col A', 'Col B', 'Fotos'],
           initialRows: <List<String>>[
             <String>['a', 'b', ''],
           ],

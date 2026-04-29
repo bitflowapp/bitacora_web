@@ -244,7 +244,7 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
                 gradient: isDisabled
                     ? LinearGradient(
                         colors: [
-                          c.surfaceVariant.withValues(alpha: 0.6),
+                          c.surfaceContainerHighest.withValues(alpha: 0.6),
                           c.surface.withValues(alpha: 0.6),
                         ],
                         begin: Alignment.topLeft,
@@ -262,7 +262,7 @@ class _SpeechMicButtonState extends State<SpeechMicButton>
                           )
                         : LinearGradient(
                             colors: [
-                              c.surfaceVariant,
+                              c.surfaceContainerHighest,
                               c.surface,
                             ],
                             begin: Alignment.topLeft,

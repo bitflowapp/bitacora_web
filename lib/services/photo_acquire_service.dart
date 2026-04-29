@@ -281,11 +281,13 @@ class PhotoAcquireService {
   }
 
   String _cameraNameFallback() {
-    return 'camera_.jpg';
+    final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
+    return 'camera_$ts.jpg';
   }
 
   String _galleryNameFallback() {
-    return 'gallery_.jpg';
+    final ts = DateTime.now().toIso8601String().replaceAll(':', '-');
+    return 'gallery_$ts.jpg';
   }
 
   String _guessMime(String name) {

@@ -147,10 +147,12 @@ class SpeechService implements SpeechPort {
 
       await _speech.listen(
         localeId: localeId ?? _currentLocale,
-        listenMode: stt.ListenMode.dictation,
-        partialResults: true,
-        cancelOnError: true,
         listenFor: autoTimeout,
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: true,
+        ),
         onResult: (r) {
           final text = r.recognizedWords.trim();
           if (text.isNotEmpty) {

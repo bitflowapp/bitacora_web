@@ -13,7 +13,7 @@ void main() {
     final backup = <String, Object>{
       'name': 'Recovered',
       'savedAt': '2026-02-07T10:00:00.000Z',
-      'headers': <String>['A', 'Photos'],
+      'headers': <String>['A', 'Fotos'],
       'colIds': <String>['col_a', 'col_photos'],
       'rows': <Map<String, Object>>[
         <String, Object>{
