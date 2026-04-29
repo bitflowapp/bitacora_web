@@ -18,8 +18,11 @@ class AppStrings {
   static const quickActionApplyValue = 'Pegar valor';
   static const quickActionFillDown = 'Rellenar';
   static const quickActionDuplicateRow = 'Duplicar fila';
-  static const quickActionAttachPhoto = 'Adjuntar foto';
-  static const quickActionAttachGps = 'Adjuntar GPS';
+  static const quickActionAttachPhoto = 'Foto';
+  static const quickActionAttachGps = 'GPS';
+  static const quickActionFieldStatus = 'Estado';
+  static const quickActionFieldPriority = 'Prioridad';
+  static const quickActionObservation = 'Observación';
   static const quickActionGoTo = 'Ir a...';
 
   // Sheets
@@ -60,10 +63,10 @@ class AppStrings {
   static const editorGpsMode = 'Modo GPS';
   static const editorShortcuts = 'Atajos';
   static const editorExportShare = 'Exportar / Compartir';
-  static const editorExportXlsx = 'Exportar XLSX';
-  static const editorExportZip = 'Exportar paquete (.bitflow.zip)';
+  static const editorExportXlsx = 'Exportar Excel';
+  static const editorExportZip = 'Paquete con evidencias';
   static const editorShareZip = 'Compartir paquete';
-  static const editorBackupZip = 'Exportar backup legacy (ZIP)';
+  static const editorBackupZip = 'Copia exportable';
   static const editorReportHtml = 'Reporte HTML (imprimible)';
   static const progressSaving = 'Guardando cambios...';
   static const progressImportingBackup = 'Importando backup...';

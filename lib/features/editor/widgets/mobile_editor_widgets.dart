@@ -262,7 +262,7 @@ class _EditorFirstRunTourBanner extends StatelessWidget {
                 icon: Icons.ios_share_rounded,
                 title: '3) Exportar',
                 body:
-                    'Cuando cierres la carga, exporta en XLSX o PDF desde el menu.',
+                    'Cuando cierres la carga, exportá Excel o PDF desde el menú.',
               ),
             ],
             const SizedBox(height: 8),
@@ -573,6 +573,7 @@ class _SelectionQuickActionsBar extends StatefulWidget {
     required this.selectionLabel,
     required this.selectedRowsCount,
     required this.canMarkStatus,
+    required this.canMarkPriority,
     required this.onApplyValue,
     required this.onFillDown,
     required this.onDuplicateRows,
@@ -580,12 +581,16 @@ class _SelectionQuickActionsBar extends StatefulWidget {
     required this.onAttachGps,
     required this.onJumpTo,
     required this.onMarkStatus,
+    required this.onMarkPriority,
+    required this.onAddObservation,
+    required this.onExport,
   });
 
   final _SheetPalette palette;
   final String selectionLabel;
   final int selectedRowsCount;
   final bool canMarkStatus;
+  final bool canMarkPriority;
   final VoidCallback onApplyValue;
   final VoidCallback onFillDown;
   final VoidCallback onDuplicateRows;
@@ -593,6 +598,9 @@ class _SelectionQuickActionsBar extends StatefulWidget {
   final VoidCallback onAttachGps;
   final VoidCallback onJumpTo;
   final ValueChanged<String> onMarkStatus;
+  final ValueChanged<String> onMarkPriority;
+  final VoidCallback onAddObservation;
+  final VoidCallback onExport;
 
   @override
   State<_SelectionQuickActionsBar> createState() =>
@@ -604,6 +612,51 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
 
   List<_QuickActionItem> _buildActions() {
     return <_QuickActionItem>[
+      _QuickActionItem(
+        label: AppStrings.quickActionAttachPhoto,
+        icon: Icons.photo_camera_outlined,
+        variant: AppButtonVariant.primary,
+        onTap: widget.onAttachPhoto,
+      ),
+      _QuickActionItem(
+        label: AppStrings.quickActionAttachGps,
+        icon: Icons.my_location_rounded,
+        onTap: widget.onAttachGps,
+      ),
+      if (widget.canMarkStatus)
+        _QuickActionItem(
+          label: AppStrings.quickActionFieldStatus,
+          icon: Icons.flag_outlined,
+          onTap: () => unawaited(
+            _openFieldChoiceSheet(
+              title: AppStrings.quickActionFieldStatus,
+              values: _kFieldStatusValues,
+              onPicked: widget.onMarkStatus,
+            ),
+          ),
+        ),
+      if (widget.canMarkPriority)
+        _QuickActionItem(
+          label: AppStrings.quickActionFieldPriority,
+          icon: Icons.priority_high_rounded,
+          onTap: () => unawaited(
+            _openFieldChoiceSheet(
+              title: AppStrings.quickActionFieldPriority,
+              values: _kFieldPriorityValues,
+              onPicked: widget.onMarkPriority,
+            ),
+          ),
+        ),
+      _QuickActionItem(
+        label: AppStrings.quickActionObservation,
+        icon: Icons.notes_rounded,
+        onTap: widget.onAddObservation,
+      ),
+      _QuickActionItem(
+        label: AppStrings.editorExport,
+        icon: Icons.ios_share_rounded,
+        onTap: widget.onExport,
+      ),
       _QuickActionItem(
         label: AppStrings.quickActionApplyValue,
         icon: Icons.format_color_text_rounded,
@@ -620,22 +673,55 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         onTap: widget.onDuplicateRows,
       ),
       _QuickActionItem(
-        label: AppStrings.quickActionAttachPhoto,
-        icon: Icons.photo_camera_outlined,
-        onTap: widget.onAttachPhoto,
-      ),
-      _QuickActionItem(
-        label: AppStrings.quickActionAttachGps,
-        icon: Icons.my_location_rounded,
-        onTap: widget.onAttachGps,
-      ),
-      _QuickActionItem(
         label: AppStrings.quickActionGoTo,
         icon: Icons.pin_drop_outlined,
         variant: AppButtonVariant.ghost,
         onTap: widget.onJumpTo,
       ),
     ];
+  }
+
+  Future<void> _openFieldChoiceSheet({
+    required String title,
+    required List<String> values,
+    required ValueChanged<String> onPicked,
+  }) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final priority = title == AppStrings.quickActionFieldPriority;
+        return ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            ListTile(
+              title: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: const Text('Aplicar al registro seleccionado'),
+            ),
+            for (final value in values)
+              SizedBox(
+                height: 52,
+                child: ListTile(
+                  leading: Icon(
+                    priority
+                        ? Icons.priority_high_rounded
+                        : Icons.flag_outlined,
+                  ),
+                  title: Text(value),
+                  onTap: () => Navigator.of(sheetContext).pop(value),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+    if (picked == null) return;
+    onPicked(picked);
   }
 
   Future<void> _openMoreActionsSheet(List<_QuickActionItem> actions) async {
@@ -753,6 +839,10 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     if (label == AppStrings.quickActionDuplicateRow) return 'Duplicar';
     if (label == AppStrings.quickActionAttachPhoto) return 'Foto';
     if (label == AppStrings.quickActionAttachGps) return 'GPS';
+    if (label == AppStrings.quickActionFieldStatus) return 'Estado';
+    if (label == AppStrings.quickActionFieldPriority) return 'Prioridad';
+    if (label == AppStrings.quickActionObservation) return 'Obs';
+    if (label == AppStrings.editorExport) return 'Exportar';
     if (label == AppStrings.quickActionGoTo) return 'Ir a';
     if (label == AppStrings.more) return 'Más';
     return label;
@@ -773,7 +863,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
         const safeSeparator = ' | ';
         final quickActionsHeader =
             '${AppStrings.quickActions}$safeSeparator$rowsLabel';
-        final pinnedCount = 4;
+        final pinnedCount = 6;
         final pinnedActions = actions.take(pinnedCount).toList(growable: false);
         final moreActions = actions.skip(pinnedCount).toList(growable: false);
         final compactMoreActions = _buildCompactMoreActions(moreActions);
@@ -899,11 +989,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      for (final status in const <String>[
-                        'OK',
-                        'Obs',
-                        'Urgente'
-                      ])
+                      for (final status in _kFieldStatusValues)
                         AppButton(
                           label: status,
                           icon: Icons.flag_outlined,
@@ -927,21 +1013,22 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     final out = <_QuickActionItem>[...actions];
     if (widget.canMarkStatus) {
       out.addAll(<_QuickActionItem>[
-        _QuickActionItem(
-          label: 'Marcar OK',
-          icon: Icons.flag_outlined,
-          onTap: () => widget.onMarkStatus('OK'),
-        ),
-        _QuickActionItem(
-          label: 'Marcar Obs',
-          icon: Icons.flag_outlined,
-          onTap: () => widget.onMarkStatus('Obs'),
-        ),
-        _QuickActionItem(
-          label: 'Marcar Urgente',
-          icon: Icons.flag_outlined,
-          onTap: () => widget.onMarkStatus('Urgente'),
-        ),
+        for (final status in _kFieldStatusValues)
+          _QuickActionItem(
+            label: 'Marcar $status',
+            icon: Icons.flag_outlined,
+            onTap: () => widget.onMarkStatus(status),
+          ),
+      ]);
+    }
+    if (widget.canMarkPriority) {
+      out.addAll(<_QuickActionItem>[
+        for (final priority in _kFieldPriorityValues)
+          _QuickActionItem(
+            label: 'Prioridad $priority',
+            icon: Icons.priority_high_rounded,
+            onTap: () => widget.onMarkPriority(priority),
+          ),
       ]);
     }
     return out;

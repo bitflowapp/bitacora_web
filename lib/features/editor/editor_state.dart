@@ -96,6 +96,21 @@ const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
 
 enum _PhotoSourceAction { camera, gallery, file }
 
+enum _ObservationQuickResult { save, saveNext }
+
+const List<String> _kFieldStatusValues = <String>[
+  'OK',
+  'Atención',
+  'Crítico',
+  'Pendiente',
+];
+
+const List<String> _kFieldPriorityValues = <String>[
+  'Alta',
+  'Media',
+  'Baja',
+];
+
 const String _kPrefZenMode = 'bitflow.editor.zen_mode.v1';
 const String _kPrefMobileFocusCellMode =
     'bitflow.editor.mobile_focus_cell_mode.v1';
@@ -1842,7 +1857,14 @@ class _EditorScreenState extends State<EditorScreen>
   // _handleEditorPopGuard cuando hay trabajo pendiente.
   Future<void> _navigateBackToSheets() async {
     if (!mounted) return;
-    if (!Navigator.of(context).canPop()) return;
+    if (!Navigator.of(context).canPop()) {
+      _showActionSnack(
+        'Mis planillas no está disponible desde esta vista.',
+        isError: false,
+        icon: Icons.view_list_rounded,
+      );
+      return;
+    }
     await Navigator.of(context).maybePop();
   }
 
@@ -4115,7 +4137,7 @@ class _EditorScreenState extends State<EditorScreen>
       final enums = pref?.enumValues ?? const <String>[];
       if (enums.isNotEmpty) return enums;
     }
-    return const <String>['OK', 'Obs', 'Urgente'];
+    return _kFieldStatusValues;
   }
 
   DateTime? _parseDateCellValue(String raw) {
@@ -6799,36 +6821,87 @@ class _EditorScreenState extends State<EditorScreen>
     return '$col | fila ${_selRow + 1}';
   }
 
+  String _fieldColumnKey(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ñ', 'n');
+  }
+
+  int? _firstColumnMatchingHeader(Iterable<String> terms) {
+    if (_headers.length <= 1) return null;
+    final normalizedTerms = terms.map(_fieldColumnKey).toList(growable: false);
+    for (int c = 0; c < _headers.length - 1; c++) {
+      final header = _fieldColumnKey(_headerLabel(c));
+      for (final term in normalizedTerms) {
+        if (header.contains(term)) return c;
+      }
+    }
+    return null;
+  }
+
   int? _statusColumnForBatchActions() {
     final dataCols = _headers.length - 1;
     for (int c = 0; c < dataCols; c++) {
       if (_colType(c) == _ColType.status) return c;
     }
-    return null;
+    return _firstColumnMatchingHeader(const <String>[
+      'estado',
+      'status',
+      'situacion',
+    ]);
   }
 
-  Future<void> _applyStatusToSelectedRows(String status) async {
-    final rows = _batchTargetRows();
-    if (rows.isEmpty || _headers.length < 2) return;
-    final statusCol = _statusColumnForBatchActions();
-    if (statusCol == null) {
-      _showActionSnack(
-        'No se encontro columna Estado.',
-        isError: true,
-        icon: Icons.flag_outlined,
-      );
-      return;
-    }
+  int? _priorityColumnForBatchActions() {
+    return _firstColumnMatchingHeader(const <String>[
+      'prioridad',
+      'priority',
+      'criticidad',
+      'riesgo',
+    ]);
+  }
 
-    final normalized = _normalizeCellValueForColumn(statusCol, status);
-    _rememberValueForColumn(statusCol, normalized);
+  int? _observationColumnForBatchActions() {
+    return _firstColumnMatchingHeader(const <String>[
+      'observacion',
+      'observaciones',
+      'obs',
+      'comentario',
+      'comentarios',
+      'nota',
+      'notas',
+      'detalle',
+    ]);
+  }
+
+  Future<void> _applyValueToRows({
+    required Iterable<int> rows,
+    required int col,
+    required String value,
+    required String fieldLabel,
+    required IconData icon,
+  }) async {
+    final targets = rows
+        .where((r) => r >= 0 && r < _rows.length)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+    if (targets.isEmpty || col < 0 || col >= _headers.length - 1) return;
+
+    final normalized = _normalizeCellValueForColumn(col, value);
+    _rememberValueForColumn(col, normalized);
     final refsToClear = <_CellRef>[];
     var changed = 0;
-    for (final r in rows) {
-      if (r < 0 || r >= _rows.length) continue;
-      if (_rows[r].cells[statusCol] == normalized) continue;
-      _rows[r].cells[statusCol] = normalized;
-      refsToClear.add(_CellRef(r, statusCol));
+    for (final r in targets) {
+      if (_rows[r].cells[col] == normalized) continue;
+      _rows[r].cells[col] = normalized;
+      refsToClear.add(_CellRef(r, col));
       changed++;
     }
 
@@ -6836,33 +6909,288 @@ class _EditorScreenState extends State<EditorScreen>
       _showActionSnack(
         'Sin cambios para aplicar.',
         isError: false,
-        icon: Icons.flag_outlined,
+        icon: icon,
       );
       return;
     }
 
     _clearCellDrafts(refsToClear);
     _setSelection(
-      rows.first,
-      statusCol,
+      targets.first,
+      col,
       preserveRowSelection: true,
       blink: true,
     );
     _markDirty(snapshot: true);
     AppHaptics.light();
     _showActionSnack(
-      'Estado "$normalized" aplicado a $changed fila(s).',
+      '$fieldLabel "$normalized" aplicado a $changed registro(s).',
       isError: false,
-      icon: Icons.flag_outlined,
+      icon: icon,
     );
     _addHistoryEvent(
-      type: 'batch_status',
-      message: 'Aplicar Estado "$normalized" a $changed fila(s)',
-      origin: 'quick_action',
-      row: rows.first,
-      col: statusCol,
+      type: 'field_quick_value',
+      message: 'Aplicar $fieldLabel "$normalized" a $changed registro(s)',
+      origin: 'field_quick_action',
+      row: targets.first,
+      col: col,
       afterValue: normalized,
     );
+  }
+
+  Future<void> _applyValueToSelectedRows({
+    required int? col,
+    required String value,
+    required String fieldLabel,
+    required IconData icon,
+    required String missingMessage,
+  }) async {
+    final rows = _batchTargetRows();
+    if (rows.isEmpty || _headers.length < 2) return;
+    if (col == null) {
+      _showActionSnack(
+        missingMessage,
+        isError: true,
+        icon: icon,
+      );
+      return;
+    }
+    await _applyValueToRows(
+      rows: rows,
+      col: col,
+      value: value,
+      fieldLabel: fieldLabel,
+      icon: icon,
+    );
+  }
+
+  Future<void> _applyStatusToSelectedRows(String status) async {
+    await _applyValueToSelectedRows(
+      col: _statusColumnForBatchActions(),
+      value: status,
+      fieldLabel: 'Estado',
+      icon: Icons.flag_outlined,
+      missingMessage: 'No se encontró columna Estado.',
+    );
+  }
+
+  Future<void> _applyPriorityToSelectedRows(String priority) async {
+    await _applyValueToSelectedRows(
+      col: _priorityColumnForBatchActions(),
+      value: priority,
+      fieldLabel: 'Prioridad',
+      icon: Icons.priority_high_rounded,
+      missingMessage: 'No se encontró columna Prioridad.',
+    );
+  }
+
+  Future<void> _applyStatusToRow(int row, String status) async {
+    final statusCol = _statusColumnForBatchActions();
+    if (statusCol == null) {
+      _showActionSnack(
+        'No se encontró columna Estado.',
+        isError: true,
+        icon: Icons.flag_outlined,
+      );
+      return;
+    }
+    await _applyValueToRows(
+      rows: <int>[row],
+      col: statusCol,
+      value: status,
+      fieldLabel: 'Estado',
+      icon: Icons.flag_outlined,
+    );
+  }
+
+  Future<void> _applyPriorityToRow(int row, String priority) async {
+    final priorityCol = _priorityColumnForBatchActions();
+    if (priorityCol == null) {
+      _showActionSnack(
+        'No se encontró columna Prioridad.',
+        isError: true,
+        icon: Icons.priority_high_rounded,
+      );
+      return;
+    }
+    await _applyValueToRows(
+      rows: <int>[row],
+      col: priorityCol,
+      value: priority,
+      fieldLabel: 'Prioridad',
+      icon: Icons.priority_high_rounded,
+    );
+  }
+
+  int? _quickObservationColumn() {
+    final explicit = _observationColumnForBatchActions();
+    if (explicit != null) return explicit;
+    if (_selCol >= 0 &&
+        _selCol < _headers.length - 1 &&
+        _colType(_selCol) == _ColType.text) {
+      return _selCol;
+    }
+    return _firstTextLikeColumn();
+  }
+
+  Future<void> _openQuickObservationForSelection() async {
+    final rows = _batchTargetRows();
+    final col = _quickObservationColumn();
+    if (rows.isEmpty || col == null || col >= _headers.length - 1) {
+      _showActionSnack(
+        'No hay columna de observación disponible.',
+        isError: true,
+        icon: Icons.notes_rounded,
+      );
+      return;
+    }
+
+    final controller = TextEditingController(
+      text: rows.length == 1 ? _getCellText(rows.first, col) : '',
+    );
+    final focus = FocusNode(debugLabel: 'QuickObservationFocus');
+    final result = await showModalBottomSheet<_ObservationQuickResult>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Agregar observación',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                rows.length == 1
+                    ? 'Registro ${rows.first + 1} - ${_headerLabel(col)}'
+                    : '${rows.length} registros seleccionados',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                focusNode: focus,
+                autofocus: true,
+                minLines: 4,
+                maxLines: 8,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  hintText: 'Escribí la observación del relevamiento...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  AppButton(
+                    label: AppStrings.cancel,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                  AppButton(
+                    label: 'Guardar',
+                    icon: Icons.check_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => Navigator.of(sheetContext)
+                        .pop(_ObservationQuickResult.save),
+                  ),
+                  if (rows.length == 1 && rows.first < _rows.length - 1)
+                    AppButton(
+                      label: 'Guardar y siguiente',
+                      icon: Icons.arrow_downward_rounded,
+                      variant: AppButtonVariant.primary,
+                      onPressed: () => Navigator.of(sheetContext)
+                          .pop(_ObservationQuickResult.saveNext),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    final text = controller.text.trim();
+    controller.dispose();
+    focus.dispose();
+    if (!mounted || result == null) return;
+    if (text.isEmpty) {
+      _showActionSnack(
+        'Observación vacía. No se aplicaron cambios.',
+        isError: false,
+        icon: Icons.notes_rounded,
+      );
+      return;
+    }
+
+    await _applyValueToRows(
+      rows: rows,
+      col: col,
+      value: text,
+      fieldLabel: 'Observación',
+      icon: Icons.notes_rounded,
+    );
+    if (!mounted) return;
+    if (result == _ObservationQuickResult.saveNext && rows.length == 1) {
+      final next = (rows.first + 1).clamp(0, _rows.length - 1);
+      _setSelectionAndRefreshGrid(next, col, blink: true);
+    }
+  }
+
+  Future<void> _openFieldChoiceForRow({
+    required int row,
+    required String title,
+    required List<String> values,
+    required ValueChanged<String> onPicked,
+  }) async {
+    if (row < 0 || row >= _rows.length) return;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            ListTile(
+              title: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text('Registro ${row + 1}'),
+            ),
+            for (final value in values)
+              SizedBox(
+                height: 52,
+                child: ListTile(
+                  leading: Icon(
+                    title == 'Prioridad'
+                        ? Icons.priority_high_rounded
+                        : Icons.flag_outlined,
+                  ),
+                  title: Text(value),
+                  onTap: () => Navigator.of(sheetContext).pop(value),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+    if (!mounted || picked == null) return;
+    onPicked(picked);
   }
 
   String _reviewActorName() {
@@ -7404,7 +7732,7 @@ class _EditorScreenState extends State<EditorScreen>
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final status in const <String>['OK', 'Obs', 'Urgente'])
+                for (final status in _kFieldStatusValues)
                   AppButton(
                     label: status,
                     icon: Icons.flag_outlined,
@@ -7621,7 +7949,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (_guardInsecureContext(DiagnosticActionType.gps)) return;
     if (kIsWeb && !WebCapabilities.geolocationAvailable) {
       _showActionSnack(
-        'GPS no disponible en este navegador.',
+        'No se pudo obtener GPS en este navegador.',
         isError: true,
         icon: Icons.gps_off_rounded,
       );
@@ -9569,6 +9897,8 @@ class _EditorScreenState extends State<EditorScreen>
             !keyboardVisible &&
             (_selRow >= 0 && _selCol >= 0);
         final canMarkSelectionStatus = _statusColumnForBatchActions() != null;
+        final canMarkSelectionPriority =
+            _priorityColumnForBatchActions() != null;
         final displayColumns = _displayColumnIndexes();
         final visibleRows = _visibleRowIndexes();
         final visibleRowModels = _visibleRowModels();
@@ -9783,12 +10113,9 @@ class _EditorScreenState extends State<EditorScreen>
                                         _openMobileHeaderMenu(context, pal),
                                     onOpenOfflineQueue: _openOfflineQueueDialog,
                                     lastLocalSavedAt: _lastSavedAt,
-                                    onBackToSheets:
-                                        Navigator.of(context).canPop()
-                                            ? () => unawaited(
-                                                  _navigateBackToSheets(),
-                                                )
-                                            : null,
+                                    onBackToSheets: () => unawaited(
+                                      _navigateBackToSheets(),
+                                    ),
                                   ),
                                 ),
                                 secondChild: RepaintBoundary(
@@ -9799,12 +10126,9 @@ class _EditorScreenState extends State<EditorScreen>
                                     selectedCol: _selCol,
                                     onMenu: () =>
                                         _openMobileHeaderMenu(context, pal),
-                                    onBackToSheets:
-                                        Navigator.of(context).canPop()
-                                            ? () => unawaited(
-                                                  _navigateBackToSheets(),
-                                                )
-                                            : null,
+                                    onBackToSheets: () => unawaited(
+                                      _navigateBackToSheets(),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -10095,6 +10419,8 @@ class _EditorScreenState extends State<EditorScreen>
                                         selectedRowsCount:
                                             _batchTargetRows().length,
                                         canMarkStatus: canMarkSelectionStatus,
+                                        canMarkPriority:
+                                            canMarkSelectionPriority,
                                         onApplyValue: () =>
                                             unawaited(_promptBatchApplyValue()),
                                         onFillDown: () => unawaited(
@@ -10122,6 +10448,14 @@ class _EditorScreenState extends State<EditorScreen>
                                         onMarkStatus: (value) => unawaited(
                                           _applyStatusToSelectedRows(value),
                                         ),
+                                        onMarkPriority: (value) => unawaited(
+                                          _applyPriorityToSelectedRows(value),
+                                        ),
+                                        onAddObservation: () => unawaited(
+                                          _openQuickObservationForSelection(),
+                                        ),
+                                        onExport: () =>
+                                            unawaited(_openExportMenu()),
                                       ),
                                     )
                                   : const SizedBox.shrink(
@@ -11968,7 +12302,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   List<_MobileAction> _mobileActionsForCell(int r, int c) {
     if (c == _headers.length - 1) return const [];
-    return [
+    final actions = <_MobileAction>[
       _MobileAction(
         icon: Icons.schedule_rounded,
         label: 'Ahora',
@@ -12000,6 +12334,42 @@ class _EditorScreenState extends State<EditorScreen>
         onTap: () => _openPhotosSheetForCell(r, c),
       ),
       _MobileAction(
+        icon: Icons.my_location_outlined,
+        label: 'GPS',
+        onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
+      ),
+      if (_statusColumnForBatchActions() != null)
+        _MobileAction(
+          icon: Icons.flag_outlined,
+          label: 'Estado',
+          onTap: () => unawaited(
+            _openFieldChoiceForRow(
+              row: r,
+              title: 'Estado',
+              values: _kFieldStatusValues,
+              onPicked: (value) => unawaited(_applyStatusToRow(r, value)),
+            ),
+          ),
+        ),
+      if (_priorityColumnForBatchActions() != null)
+        _MobileAction(
+          icon: Icons.priority_high_rounded,
+          label: 'Prioridad',
+          onTap: () => unawaited(
+            _openFieldChoiceForRow(
+              row: r,
+              title: 'Prioridad',
+              values: _kFieldPriorityValues,
+              onPicked: (value) => unawaited(_applyPriorityToRow(r, value)),
+            ),
+          ),
+        ),
+      _MobileAction(
+        icon: Icons.notes_rounded,
+        label: 'Observación',
+        onTap: () => unawaited(_openQuickObservationForSelection()),
+      ),
+      _MobileAction(
         icon: Icons.videocam_outlined,
         label: 'Video',
         onTap: () => unawaited(_attachVideoForCell(r, c)),
@@ -12023,16 +12393,12 @@ class _EditorScreenState extends State<EditorScreen>
         },
       ),
       _MobileAction(
-        icon: Icons.my_location_outlined,
-        label: 'GPS -> Pegar',
-        onTap: () => unawaited(_requestGpsForCell(r, c, forceWriteText: true)),
-      ),
-      _MobileAction(
         icon: Icons.map_outlined,
         label: 'Mapa',
         onTap: () => unawaited(_openMapsForCell(r, c)),
       ),
     ];
+    return actions;
   }
 
   void _handleMobileFocusChange() {
@@ -12206,9 +12572,56 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Fotos de esta celda'),
+                  title: const Text('Agregar evidencia'),
+                  subtitle: const Text('Fototeca, cámara o archivo'),
                   onTap: () {
                     _startCellPhotoPickFromSheet(row, _mobileCol);
+                  },
+                ),
+              if (row >= 0 && _statusColumnForBatchActions() != null)
+                ListTile(
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('Marcar estado'),
+                  subtitle: const Text('OK, Atención, Crítico o Pendiente'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(
+                      _openFieldChoiceForRow(
+                        row: row,
+                        title: 'Estado',
+                        values: _kFieldStatusValues,
+                        onPicked: (value) =>
+                            unawaited(_applyStatusToRow(row, value)),
+                      ),
+                    );
+                  },
+                ),
+              if (row >= 0 && _priorityColumnForBatchActions() != null)
+                ListTile(
+                  leading: const Icon(Icons.priority_high_rounded),
+                  title: const Text('Marcar prioridad'),
+                  subtitle: const Text('Alta, Media o Baja'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(
+                      _openFieldChoiceForRow(
+                        row: row,
+                        title: 'Prioridad',
+                        values: _kFieldPriorityValues,
+                        onPicked: (value) =>
+                            unawaited(_applyPriorityToRow(row, value)),
+                      ),
+                    );
+                  },
+                ),
+              if (row >= 0)
+                ListTile(
+                  leading: const Icon(Icons.notes_rounded),
+                  title: const Text('Agregar observación'),
+                  subtitle: const Text('Texto libre del relevamiento'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(_openQuickObservationForSelection());
                   },
                 ),
               if (row >= 0)
@@ -12262,7 +12675,8 @@ class _EditorScreenState extends State<EditorScreen>
               if (row >= 0)
                 ListTile(
                   leading: const Icon(Icons.my_location_outlined),
-                  title: const Text('GPS -> Pegar en esta celda'),
+                  title: const Text('Agregar ubicación GPS'),
+                  subtitle: const Text('Guardar coordenadas en este registro'),
                   onTap: () {
                     unawaited(
                       _requestGpsForCell(row, _mobileCol, forceWriteText: true),
@@ -18089,7 +18503,7 @@ class _EditorScreenState extends State<EditorScreen>
     final detail =
         '${formatLatLng(fix.lat, fix.lng)} +/-${fix.accuracyM.toStringAsFixed(0)}m';
     final msg =
-        'Guardado en celda $cellLabel (GPS $detail${wroteText ? '' : ', solo metadata'})';
+        'Ubicación agregada en $cellLabel (GPS $detail${wroteText ? '' : ', sin escribir texto'})';
     _engineStatus = msg;
     _engineStatusIsError = false;
     DiagnosticsLog.I.record(
@@ -18117,14 +18531,14 @@ class _EditorScreenState extends State<EditorScreen>
     if (lower.contains('https')) {
       userMsg = 'GPS requiere HTTPS o localhost.';
     } else if (lower.contains('deneg')) {
-      userMsg = 'Permiso de ubicacion denegado. Habilitalo en Ajustes.';
+      userMsg = 'Activá permisos de ubicación y reintentá GPS.';
     } else if (lower.contains('timeout')) {
-      userMsg = 'Timeout obteniendo GPS.';
+      userMsg = 'No se pudo obtener GPS a tiempo. Reintentar GPS.';
     } else if (lower.contains('no disponible') ||
         lower.contains('unavailable')) {
-      userMsg = 'Ubicacion no disponible.';
+      userMsg = 'Ubicación no disponible. Reintentar GPS.';
     } else {
-      userMsg = 'No se pudo obtener GPS. Revisa permisos y conexion.';
+      userMsg = 'No se pudo obtener GPS. Revisá permisos y conexión.';
     }
 
     _engineStatus = userMsg;
@@ -18399,7 +18813,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 ListTile(
                   leading: Icon(Icons.photo_library_outlined, color: pal.fg),
-                  title: const Text('Elegir de galería'),
+                  title: const Text('Fototeca'),
                   subtitle: const Text('Abrir fototeca'),
                   onTap: () async {
                     try {
@@ -18430,7 +18844,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 ListTile(
                   leading: Icon(Icons.attach_file_rounded, color: pal.fg),
-                  title: const Text('Adjuntar archivo'),
+                  title: const Text('Seleccionar archivo'),
                   subtitle: const Text('PDF, imagen u otro documento'),
                   onTap: () {
                     Navigator.of(ctx).pop((

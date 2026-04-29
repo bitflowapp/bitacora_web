@@ -976,12 +976,12 @@ extension _EditorAttachments on _EditorScreenState {
       );
       final sizeLabel = _formatBytes(fileSize);
       _showActionSnack(
-        'Foto guardada en celda $label ($sizeLabel).',
+        'Evidencia agregada en $label ($sizeLabel).',
         isError: false,
         icon: Icons.photo_outlined,
       );
       _updatePhotoFlowStatus(
-        'Destino $label \u00b7 guardada',
+        'Destino $label \u00b7 evidencia agregada',
         target: targetRef,
       );
       _clearPhotoFlowStatusSoon();
