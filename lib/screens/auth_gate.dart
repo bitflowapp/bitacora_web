@@ -1,13 +1,29 @@
+// lib/screens/auth_gate.dart
+//
+// Offline-first access gate.
+// By default Bit Flow opens with a local session so field work is never blocked.
+// Commercial builds can enable a local license wall with:
+//   --dart-define=BITFLOW_REQUIRE_LICENSE=true
+//   --dart-define=BITFLOW_LICENSE_KEY=<customer-key>
+
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/biometric_auth_service.dart';
-import 'login_screen.dart';
-import 'biometric_lock_screen.dart';
 import '../services/auth_service.dart';
-import '../services/runtime_flags.dart';
-import '../services/secure_kv.dart';
+import '../ui/ui.dart';
+
+const bool _kRequireLicense = bool.fromEnvironment(
+  'BITFLOW_REQUIRE_LICENSE',
+  defaultValue: false,
+);
+const String _kExpectedLicenseKey = String.fromEnvironment(
+  'BITFLOW_LICENSE_KEY',
+  defaultValue: '',
+);
+const String _kLicensePrefKey = 'bitflow.license.accepted_key.v1';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -21,209 +37,82 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
+class _AuthGateState extends State<AuthGate> {
   bool _ready = false;
+  bool _licenseAccepted = !_kRequireLicense;
   String _error = '';
-  bool _locked = false;
-  bool _lockOnOpen = false;
-  bool _isMobileBioSupported = false;
-  bool _hasPromptedForBiometric = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    if (RuntimeFlags.isAuthRequired) {
-      AuthService.I.user.addListener(_onUserChanged);
-    }
     _boot();
   }
 
-  @override
-  void dispose() {
-    if (RuntimeFlags.isAuthRequired) {
-      AuthService.I.user.removeListener(_onUserChanged);
-    }
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!RuntimeFlags.isAuthRequired) return;
-
-    if (state == AppLifecycleState.resumed) {
-      _refreshLockState();
-      _maybePromptBiometricEnable();
-      return;
-    }
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      _lockForBackgroundIfNeeded();
-    }
-  }
-
   Future<void> _boot() async {
-    if (!RuntimeFlags.isAuthRequired) {
-      if (!mounted) return;
-      setState(() {
-        _ready = true;
-        _error = '';
-        _locked = false;
-      });
-      return;
-    }
-
     String err = '';
     try {
       await AuthService.I.init().timeout(const Duration(seconds: 4));
-      await BiometricAuthService.I.init();
-      _isMobileBioSupported = BiometricAuthService.I.isSupportedPlatform &&
-          BiometricAuthService.I.canCheckBiometrics &&
-          BiometricAuthService.I.availableBiometrics.isNotEmpty;
-      _lockOnOpen = await SecureKv.I.readBool(SecureKvKeys.bioLockOnOpen);
-      await _refreshLockState();
-      await _maybePromptBiometricEnable();
+
+      if (AuthService.I.currentUser == null) {
+        await AuthService.I.signInAsGuest().timeout(const Duration(seconds: 2));
+      }
     } catch (e) {
       err = '$e';
+      try {
+        if (AuthService.I.currentUser == null) {
+          await AuthService.I.signInAsGuest();
+        }
+      } catch (_) {}
     }
 
+    final licenseAccepted = await _isLicenseAccepted();
     if (!mounted) return;
     setState(() {
       _ready = true;
+      _licenseAccepted = licenseAccepted;
       _error = err;
     });
   }
 
-  void _onUserChanged() {
-    _refreshLockState();
-    _maybePromptBiometricEnable();
+  Future<bool> _isLicenseAccepted() async {
+    if (!_kRequireLicense) return true;
+    final expected = _kExpectedLicenseKey.trim();
+    if (expected.isEmpty) return false;
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kLicensePrefKey)?.trim() == expected;
   }
 
-  Future<void> _refreshLockState() async {
-    final hasSession = AuthService.I.currentUser != null;
-    final shouldLock = hasSession && _lockOnOpen && _isMobileBioSupported;
-    if (!mounted) return;
-    setState(() {
-      if (!hasSession) {
-        _locked = false;
-        _hasPromptedForBiometric = false;
-      } else if (shouldLock) {
-        _locked = true;
-      } else {
-        _locked = false;
-      }
-    });
-  }
-
-  void _lockForBackgroundIfNeeded() {
-    final hasSession = AuthService.I.currentUser != null;
-    if (!hasSession || !_lockOnOpen || !_isMobileBioSupported) return;
-    if (!mounted) return;
-    setState(() => _locked = true);
-  }
-
-  void _unlockAfterBiometric() {
-    if (!mounted) return;
-    setState(() => _locked = false);
-  }
-
-  Future<void> _usePasswordFallback() async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await AuthService.I.signOut();
-      if (!mounted) return;
-      setState(() => _locked = false);
-    } catch (e) {
-      if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('No se pudo volver al login: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _maybePromptBiometricEnable() async {
-    if (!mounted || _hasPromptedForBiometric) return;
-    final user = AuthService.I.currentUser;
-    if (user == null || !_isMobileBioSupported) return;
-
-    final alreadyEnabled =
-        await SecureKv.I.readBool(SecureKvKeys.bioEnabled, defaultValue: false);
-    if (alreadyEnabled) return;
-
-    _hasPromptedForBiometric = true;
-    if (!mounted) return;
-
-    final bioLabel = BiometricAuthService.I.getBiometricLabel();
-    final shouldEnable = await showModalBottomSheet<bool>(
-      context: context,
-      isDismissible: true,
-      enableDrag: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Activar acceso rapido',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Podes usar $bioLabel para entrar y bloquear la app al abrir.',
-                  style: const TextStyle(fontSize: 16, height: 1.35),
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: const Text('Activar'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: const Text('Ahora no'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (shouldEnable != true) return;
-    await SecureKv.I.writeBool(SecureKvKeys.bioEnabled, true);
-    await SecureKv.I.writeBool(SecureKvKeys.bioLockOnOpen, true);
-    _lockOnOpen = true;
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Acceso rapido activado con bloqueo al abrir.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<bool> _activateLicense(String input) async {
+    final expected = _kExpectedLicenseKey.trim();
+    if (expected.isEmpty || input.trim() != expected) return false;
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kLicensePrefKey, expected);
+    if (!mounted) return true;
+    setState(() => _licenseAccepted = true);
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!RuntimeFlags.isAuthRequired) {
-      return widget.child;
-    }
-
     if (!_ready) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_licenseAccepted) {
+      return _LicenseGate(
+        expectedKeyMissing: _kExpectedLicenseKey.trim().isEmpty,
+        restoreWarning: kReleaseMode ? '' : _error,
+        onSubmit: _activateLicense,
+        onRetry: () {
+          if (!mounted) return;
+          setState(() {
+            _ready = false;
+            _error = '';
+          });
+          unawaited(_boot());
+        },
       );
     }
 
@@ -231,70 +120,261 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       children: [
         ValueListenableBuilder<AuthUser?>(
           valueListenable: AuthService.I.user,
-          builder: (context, user, _) {
-            if (user == null) return const LoginScreen();
-            if (_locked) {
-              return BiometricLockScreen(
-                onUnlocked: _unlockAfterBiometric,
-                onUsePassword: () {
-                  _usePasswordFallback();
-                },
-                child: widget.child,
-              );
-            }
-            return widget.child;
-          },
+          builder: (context, user, _) => widget.child,
         ),
-        if (_error.trim().isNotEmpty)
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 860),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).dividerColor.withValues(alpha: 0.5),
+        if (_error.trim().isNotEmpty && !kReleaseMode)
+          _AccessWarningBanner(
+            message: _error,
+            onDismiss: () {
+              if (!mounted) return;
+              setState(() => _error = '');
+            },
+            onRetry: () {
+              if (!mounted) return;
+              setState(() {
+                _ready = false;
+                _error = '';
+              });
+              unawaited(_boot());
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _LicenseGate extends StatefulWidget {
+  const _LicenseGate({
+    required this.expectedKeyMissing,
+    required this.restoreWarning,
+    required this.onSubmit,
+    required this.onRetry,
+  });
+
+  final bool expectedKeyMissing;
+  final String restoreWarning;
+  final Future<bool> Function(String input) onSubmit;
+  final VoidCallback onRetry;
+
+  @override
+  State<_LicenseGate> createState() => _LicenseGateState();
+}
+
+class _LicenseGateState extends State<_LicenseGate> {
+  final TextEditingController _controller = TextEditingController();
+  bool _submitting = false;
+  String _message = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (widget.expectedKeyMissing) {
+      setState(() {
+        _message =
+            'Esta build requiere licencia, pero no trae clave configurada.';
+      });
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _message = '';
+    });
+    final ok = await widget.onSubmit(_controller.text);
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _message = ok ? '' : 'Clave de licencia invalida.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Scaffold(
+      backgroundColor: t.colors.bg,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Padding(
+              padding: EdgeInsets.all(t.spacing.lg),
+              child: AppCard(
+                padding: EdgeInsets.all(t.spacing.xl),
+                radius: t.radii.xl,
+                color: t.colors.surfaceElevated,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: t.colors.accentMuted,
+                        borderRadius: BorderRadius.circular(t.radii.lg),
+                      ),
+                      child: Icon(
+                        Icons.verified_user_outlined,
+                        color: t.colors.accent,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Error de autenticacion: $_error',
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                    SizedBox(height: t.spacing.md),
+                    Text(
+                      'Activar Bit Flow',
+                      style: t.text.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    SizedBox(height: t.spacing.xs),
+                    Text(
+                      'Ingresa la clave provista para este equipo. La activacion queda guardada localmente.',
+                      style: t.text.bodyMedium?.copyWith(
+                        color: t.colors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                    SizedBox(height: t.spacing.lg),
+                    AppTextField(
+                      controller: _controller,
+                      enabled: !_submitting && !widget.expectedKeyMissing,
+                      label: 'Clave de licencia',
+                      hint: 'bitflow-...',
+                      obscureText: true,
+                      autofocus: true,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submit(),
+                    ),
+                    if (_message.trim().isNotEmpty) ...[
+                      SizedBox(height: t.spacing.sm),
+                      Text(
+                        _message,
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.dangerFg,
+                          fontWeight: FontWeight.w700,
                         ),
-                        TextButton(
-                          onPressed: () {
-                            if (!mounted) return;
-                            setState(() => _error = '');
-                          },
-                          child: const Text('Ocultar'),
+                      ),
+                    ],
+                    if (widget.restoreWarning.trim().isNotEmpty) ...[
+                      SizedBox(height: t.spacing.sm),
+                      Text(
+                        'Aviso tecnico: ${widget.restoreWarning}',
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: t.spacing.lg),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AppButton(
+                          label: 'Activar',
+                          icon: Icons.lock_open_rounded,
+                          loading: _submitting,
+                          fullWidth: true,
+                          onPressed: _submitting ? null : _submit,
+                        ),
+                        SizedBox(height: t.spacing.sm),
+                        Align(
+                          alignment: Alignment.center,
+                          child: AppButton(
+                            label: 'Reintentar',
+                            variant: AppButtonVariant.ghost,
+                            onPressed: _submitting ? null : widget.onRetry,
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AccessWarningBanner extends StatelessWidget {
+  const _AccessWarningBanner({
+    required this.message,
+    required this.onDismiss,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onDismiss;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color:
+                        Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      blurRadius: 16,
+                      offset: Offset(0, 8),
+                      color: Color(0x22000000),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Sesion local recuperada: $message',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: onDismiss,
+                      child: const Text('Ocultar'),
+                    ),
+                    const SizedBox(width: 6),
+                    TextButton(
+                      onPressed: onRetry,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -5,6 +5,12 @@
 .pub-cache/
 build/
 
+# Local assistant/tooling caches
+.claude/
+.codex_home/
+.wwebjs_cache/
+.clawbot-whatsapp-session/
+
 # Flutter plugins (generated)
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -79,6 +85,7 @@ linux/
 *.bak_*
 *.focus_bak*
 *.pre_focus_fix
+*_backup.patch
 _backups/
 
 # Flutter tool state
@@ -87,6 +94,8 @@ _backups/
 
 .gh-pages/
 
+
+*.zip
 
 lib_dart.zip
 
@@ -135,6 +144,10 @@ _legacy/tmp_20260206/
 docs/bitflow/downloads/BitFlow.apk
 dist/
 
+# Node dependencies
+node_modules/
+tools/clawbot-whatsapp/node_modules/
+
 # Local agent/session workspace files
 .openclaw/
 logs/
@@ -146,4 +159,3 @@ SOUL.md
 TOOLS.md
 USER.md
 memory/
-

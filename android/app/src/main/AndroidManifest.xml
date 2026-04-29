@@ -22,7 +22,7 @@
         android:required="false" />
 
     <application
-        android:label="bitacora_web"
+        android:label="Bit Flow"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

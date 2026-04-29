@@ -1,13 +1,9 @@
 // lib/theme/gridnote_theme.dart
 import 'package:flutter/material.dart';
 
-/// Gridnote — Theme Controller + Apple Premium Theme
-///
-/// Objetivo:
-// - Look Apple “premium” (cálido, limpio, sin tinta Material fuerte)
-// - Botones píldora, cards suaves, bordes sutiles, overlays controlados
-// - Soporte claro/oscuro consistente
-// - Estilo de tabla/grilla derivado (zebra + líneas finas)
+import 'package:bitacora_web/design_system/colors.dart';
+import 'package:bitacora_web/design_system/theme_data.dart';
+import 'package:bitacora_web/design_system/typography.dart';
 
 class GridnoteThemeController extends ChangeNotifier {
   GridnoteThemeController({bool light = true}) : _light = light;
@@ -64,21 +60,26 @@ class GridnoteTheme {
   final Color accent;
 
   static GridnoteTheme build(bool light) {
-    // Acento iOS-like.
+    final material = light ? AppThemeBuilder.light() : AppThemeBuilder.dark();
+    return GridnoteTheme(
+      material: material,
+      scaffold: material.scaffoldBackgroundColor,
+      card: material.cardColor,
+      divider: material.dividerColor,
+      accent: light ? AppColors.accentBlue : AppColors.accentBlueDark,
+    );
+  }
+
+  // ignore: unused_element
+  static GridnoteTheme _buildLegacy(bool light) {
     final accentMono =
         light ? const Color(0xFF0D0D0F) : const Color(0xFFF3F3F3);
-
-    // “Warm Apple” (beige/arena) para que se sienta premium.
-    // Si querés más frío, cambiá scaffoldLight a 0xFFF5F5F7 y listo.
     const scaffoldLight = Color(0xFFF5F5F7);
     const scaffoldDark = Color(0xFF0A0A0C);
-
     const cardLight = Color(0xFFFFFFFF);
     const cardDark = Color(0xFF121214);
-
     const dividerLight = Color(0xFFE5E7EB);
     const dividerDark = Color(0xFF2B2B31);
-
     final brightness = light ? Brightness.light : Brightness.dark;
 
     final baseScheme = ColorScheme.fromSeed(
@@ -558,24 +559,28 @@ class GridnoteTableStyle {
     final isLight = g.material.brightness == Brightness.light;
     final divider = g.divider;
 
-    final headerBg = isLight
-        ? const Color(0xFFF7F7F9) // cálido, premium
-        : const Color(0xFF0F172A);
-
-    final cellBg = g.card;
+    final headerBg =
+        isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
+    final cellBg = isLight ? AppColors.lightBg : AppColors.darkBg;
+    final label = isLight ? AppColors.lightLabel : AppColors.darkLabel;
+    final secondaryLabel = isLight
+        ? AppColors.lightSecondaryLabel.withValues(alpha: 0.6)
+        : AppColors.darkSecondaryLabel;
 
     return GridnoteTableStyle(
       zebra: true,
-      zebraColor: divider.withAlpha(_a(isLight ? 0.10 : 0.18)),
+      zebraColor: divider.withValues(alpha: isLight ? 0.10 : 0.18),
       headerBg: headerBg,
-      headerText: isLight ? const Color(0xFF111827) : const Color(0xFFF9FAFB),
-      gridLine: divider.withAlpha(_a(isLight ? 0.88 : 0.62)),
+      headerText: label,
+      gridLine: divider.withValues(alpha: isLight ? 0.88 : 0.62),
       cellBg: cellBg,
-      cellTextStyle: g.material.textTheme.bodyMedium?.copyWith(
-        fontWeight: FontWeight.w500,
+      cellTextStyle: AppTypography.body.copyWith(
+        color: label,
+        fontWeight: FontWeight.w400,
       ),
-      headerTextStyle: g.material.textTheme.titleSmall?.copyWith(
-        fontWeight: FontWeight.w800,
+      headerTextStyle: AppTypography.footnote.copyWith(
+        color: secondaryLabel,
+        fontWeight: FontWeight.w600,
         letterSpacing: 0.12,
       ),
     );

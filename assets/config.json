@@ -1,11 +1,11 @@
 {
-  "brandName": "Bitacora Pro",
-  "brandTagline": "Bitacora operativa con evidencias en 1 lugar.",
-  "contactEmail": "ventas@tuempresa.com",
-  "contactWhatsApp": "+5491122334455",
-  "whatsappMessage": "Hola! Quiero una demo de Bitacora Pro.",
-  "pricingBasic": "USD 19 / mes",
-  "pricingPro": "USD 49 / mes",
+  "brandName": "Bit Flow",
+  "brandTagline": "Planillas dinamicas con GPS, fotos, audio y export Excel/PDF. Offline-first para equipos de campo.",
+  "contactEmail": "ventas@bitflow.app",
+  "contactWhatsApp": "",
+  "whatsappMessage": "Hola! Quiero conocer Bit Flow.",
+  "pricingBasic": "Piloto pago",
+  "pricingPro": "Equipo de campo",
   "pricingEnterprise": "A medida",
-  "pricingNote": "Licencia local sin servidor. Soporte y actualizaciones opcionales."
+  "pricingNote": "Licencia local con soporte de implementacion y actualizaciones opcionales."
 }

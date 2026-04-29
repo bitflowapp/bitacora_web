@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,10 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/app_config.dart';
 import '../services/build_info.dart';
 import '../ui/ui.dart';
-
-const bool _kShowDebugBadge =
-    bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
-        bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
@@ -26,33 +21,8 @@ class LandingScreen extends StatelessWidget {
     return FutureBuilder<AppConfig>(
       future: AppConfig.load(),
       builder: (context, snapshot) {
-        final tokens = context.tokens;
-        final isLoading = snapshot.connectionState != ConnectionState.done &&
-            !snapshot.hasData;
-
-        if (isLoading) {
-          return Scaffold(
-            backgroundColor: tokens.colors.bg,
-            body: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: const LoadingState(
-                      message: 'Preparando demo comercial...',
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
         final config = snapshot.data ?? AppConfig.defaults();
-        final hasConfigError = snapshot.hasError;
-        final hasContactChannels = config.contactEmail.trim().isNotEmpty ||
-            config.contactWhatsApp.trim().isNotEmpty;
+        final tokens = context.tokens;
 
         return Scaffold(
           backgroundColor: tokens.colors.bg,
@@ -89,32 +59,10 @@ class LandingScreen extends StatelessWidget {
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'Bit Flow'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
-                            if (hasConfigError) ...[
-                              const SizedBox(height: 16),
-                              AppErrorState(
-                                compact: true,
-                                title: 'Configuracion comercial incompleta',
-                                message:
-                                    'Se cargaron valores por defecto para no frenar la demo.',
-                                actionLabel: 'Ir a la app',
-                                onAction: () => context.go('/app'),
-                              ),
-                            ],
-                            if (!hasContactChannels) ...[
-                              const SizedBox(height: 16),
-                              EmptyState(
-                                title: 'Falta canal de contacto',
-                                message:
-                                    'Configura email o WhatsApp para recibir consultas desde la landing.',
-                                actionLabel: 'Abrir aplicacion',
-                                onAction: () => context.go('/app'),
-                                icon: Icons.support_agent_outlined,
-                              ),
-                            ],
                             const SizedBox(height: 36),
                             _HeroSection(
                               config: config,
@@ -159,6 +107,8 @@ class LandingScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 52),
                             _CtaBand(
+                              showWhatsApp:
+                                  config.contactWhatsApp.trim().isNotEmpty,
                               onPrimary: () => context.go('/app'),
                               onWhatsApp: () => _launchWhatsApp(config),
                             ),
@@ -166,7 +116,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'FAQ',
                               subtitle:
-                                  'Respuestas rápidas para decidir sin dudas.',
+                                  'Respuestas rapidas para decidir sin dudas.',
                             ),
                             const SizedBox(height: 18),
                             const _FaqList(),
@@ -206,7 +156,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bit Flow',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -226,7 +176,7 @@ class _TopNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppTopBar(
       title: brand,
-      subtitle: 'Bitácora operativa sin conexión',
+      subtitle: 'Planillas de campo offline',
       leading: Icon(
         Icons.grid_view_rounded,
         color: context.tokens.colors.textPrimary,
@@ -263,7 +213,6 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final wide = constraints.maxWidth > 880;
@@ -271,64 +220,23 @@ class _HeroSection extends StatelessWidget {
           direction: wide ? Axis.horizontal : Axis.vertical,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: wide ? 6 : 0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bitácora operativa con evidencias en un solo lugar',
-                    style: t.text.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    config.brandTagline.isNotEmpty
-                        ? config.brandTagline
-                        : 'Registros, fotos, audio y GPS con exportación inmediata. Todo sin conexión, listo para auditorías.',
-                    style: t.text.bodyLarge?.copyWith(
-                      color: t.colors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      AppButton(
-                        label: 'Probar ahora',
-                        variant: AppButtonVariant.primary,
-                        onPressed: onPrimary,
-                      ),
-                      AppButton(
-                        label: 'WhatsApp',
-                        variant: AppButtonVariant.secondary,
-                        onPressed: onWhatsApp,
-                      ),
-                      AppButton(
-                        label: 'Email',
-                        variant: AppButtonVariant.ghost,
-                        onPressed: onEmail,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const [
-                      _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
-                      _Tag('Reporte imprimible'),
-                      _Tag('Sin servidores'),
-                    ],
-                  ),
-                ],
+            if (wide)
+              Expanded(
+                flex: 6,
+                child: _HeroCopy(
+                  config: config,
+                  onPrimary: onPrimary,
+                  onWhatsApp: onWhatsApp,
+                  onEmail: onEmail,
+                ),
+              )
+            else
+              _HeroCopy(
+                config: config,
+                onPrimary: onPrimary,
+                onWhatsApp: onWhatsApp,
+                onEmail: onEmail,
               ),
-            ),
             if (wide) const SizedBox(width: 26),
             if (wide)
               Expanded(
@@ -342,6 +250,81 @@ class _HeroSection extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _HeroCopy extends StatelessWidget {
+  const _HeroCopy({
+    required this.config,
+    required this.onPrimary,
+    required this.onWhatsApp,
+    required this.onEmail,
+  });
+
+  final AppConfig config;
+  final VoidCallback onPrimary;
+  final VoidCallback onWhatsApp;
+  final VoidCallback onEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Planillas de campo con evidencias en un solo lugar',
+          style: t.text.displaySmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          config.brandTagline.isNotEmpty
+              ? config.brandTagline
+              : 'Registros, fotos, audio y GPS con exportacion inmediata. Todo offline, listo para auditorias.',
+          style: t.text.bodyLarge?.copyWith(
+            color: t.colors.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            AppButton(
+              label: 'Probar ahora',
+              variant: AppButtonVariant.primary,
+              onPressed: onPrimary,
+            ),
+            if (config.contactWhatsApp.trim().isNotEmpty)
+              AppButton(
+                label: 'WhatsApp',
+                variant: AppButtonVariant.secondary,
+                onPressed: onWhatsApp,
+              ),
+            AppButton(
+              label: 'Email',
+              variant: AppButtonVariant.ghost,
+              onPressed: onEmail,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: const [
+            _Tag('Offline real'),
+            _Tag('Backup ZIP'),
+            _Tag('Reporte imprimible'),
+            _Tag('Sin servidores'),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -380,7 +363,7 @@ class _PreviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tu equipo ve la misma información, con trazabilidad y exportación inmediata.',
+            'Tu equipo ve la misma informacion, con trazabilidad y exportacion inmediata.',
             style: t.text.bodyMedium?.copyWith(
               color: t.colors.textSecondary,
             ),
@@ -404,7 +387,7 @@ class _BenefitsGrid extends StatelessWidget {
             icon: Icons.photo_camera_back_outlined,
           ),
           const _BenefitCard(
-            title: 'Sin conexión real',
+            title: 'Offline real',
             desc: 'Funciona sin internet. Exporta e importa cuando quieras.',
             icon: Icons.offline_bolt_outlined,
           ),
@@ -724,7 +707,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bit Flow',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -771,7 +754,7 @@ class _PriceCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '- $f',
+                '• $f',
                 style: t.text.bodyMedium?.copyWith(
                   color: t.colors.textSecondary,
                 ),
@@ -785,10 +768,12 @@ class _PriceCard extends StatelessWidget {
 
 class _CtaBand extends StatelessWidget {
   const _CtaBand({
+    required this.showWhatsApp,
     required this.onPrimary,
     required this.onWhatsApp,
   });
 
+  final bool showWhatsApp;
   final VoidCallback onPrimary;
   final VoidCallback onWhatsApp;
 
@@ -800,7 +785,7 @@ class _CtaBand extends StatelessWidget {
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final wide = constraints.maxWidth > 720;
-          final intro = Column(
+          final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -821,9 +806,8 @@ class _CtaBand extends StatelessWidget {
           return Flex(
             direction: wide ? Axis.horizontal : Axis.vertical,
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              if (wide) Expanded(child: intro) else intro,
+              if (wide) Expanded(child: copy) else copy,
               const SizedBox(height: 14, width: 14),
               Wrap(
                 spacing: 12,
@@ -834,11 +818,12 @@ class _CtaBand extends StatelessWidget {
                     variant: AppButtonVariant.primary,
                     onPressed: onPrimary,
                   ),
-                  AppButton(
-                    label: 'WhatsApp',
-                    variant: AppButtonVariant.secondary,
-                    onPressed: onWhatsApp,
-                  ),
+                  if (showWhatsApp)
+                    AppButton(
+                      label: 'WhatsApp',
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onWhatsApp,
+                    ),
                 ],
               ),
             ],
@@ -912,7 +897,6 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final showDebugBadge = kDebugMode || _kShowDebugBadge;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -924,19 +908,17 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bit Flow' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
-              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitacora.local' : config.contactEmail}',
+              'Soporte: ${config.contactEmail.isEmpty ? 'soporte@bitflow.app' : config.contactEmail}',
               style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
             ),
-            if (showDebugBadge)
-              Text(
-                BuildInfo.stamp,
-                style:
-                    t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
-              ),
+            Text(
+              BuildInfo.stamp,
+              style: t.text.bodySmall?.copyWith(color: t.colors.textSecondary),
+            ),
             TextButton(
               onPressed: () => context.go('/privacy'),
               child: const Text('Privacidad'),

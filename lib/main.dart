@@ -4,38 +4,23 @@ import 'dart:ui' show PointerDeviceKind, PlatformDispatcher;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
-import 'core/sync/sync_bootstrap.dart';
 import 'screens/auth_gate.dart';
 import 'screens/editor_screen.dart';
 import 'screens/editor_perf_harness_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/legal_screen.dart';
-import 'screens/shared_sheet_screen.dart';
-import 'start_page.dart';
+import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
-import 'services/auto_update_service.dart';
 import 'services/sheet_store.dart';
 import 'services/engine_math_client.dart'; // si lo seguis usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
-import 'services/runtime_flags.dart';
-import 'services/bitflow_product_service.dart';
-import 'services/bitflow_payment_service.dart';
-import 'services/app_decor_policy.dart';
-import 'widgets/app_background_shell.dart';
+import 'widgets/animated_video_background.dart';
 import 'ui/ui_theme.dart';
-
-const String kBuildBadgeId =
-    String.fromEnvironment('BUILD_ID', defaultValue: '');
-const bool kShowDebugBadge =
-    bool.fromEnvironment('SHOW_DEBUG_BADGE', defaultValue: false) ||
-        bool.fromEnvironment('SHOW_BUILD_BADGE', defaultValue: false);
-bool _demoNoticeDismissedInSession = false;
 
 Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   // Soporta Web iPhone / Android / Desktop. En nativo suele no venir query param, pero no rompe.
@@ -45,12 +30,17 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
   final url = raw.trim();
   if (url.isEmpty) return;
 
-  try {
-    // 1) Si tu app todavia usa EngineMathClient en otros lugares, mantenemos este override.
-    await EngineMathClient().setBaseUrl(url);
+  // Security: reject hosts not on the allowlist in release builds.
+  if (!engine_cfg.EngineConfig.isAllowedEngineHost(url)) {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('[main] ?engine= host not on allowlist, ignoring: $url');
+    }
+    return;
+  }
 
-    // 2) Y tambien persistimos para el EngineConfig (engine_client.dart),
-    //    asi el EditorScreen grande usa el mismo baseUrl.
+  try {
+    await EngineMathClient().setBaseUrl(url);
     await EngineConfig.instance.setOverride(url);
 
     final normalized = engine_cfg.EngineConfig.normalize(url);
@@ -76,18 +66,6 @@ Future<void> _applyEngineBaseUrlOverrideFromUrl() async {
 Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-
-    if (kIsWeb) {
-      try {
-        final autoUpdater = AutoUpdateService.I;
-        await autoUpdater.maybeAutoUpdateOnStartup(
-          timeout: const Duration(milliseconds: 1500),
-        );
-        if (autoUpdater.reloadTriggered) return;
-      } catch (_) {
-        // Silent by design: never block startup.
-      }
-    }
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
@@ -138,7 +116,7 @@ Future<void> main() async {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Gridnote - Error',
+                          'Bit Flow — Error',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -209,9 +187,7 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
 
-    final platformBrightness =
-        SchedulerBinding.instance.platformDispatcher.platformBrightness;
-    _isLight = platformBrightness != Brightness.dark;
+    _isLight = false;
 
     // No bloqueamos el primer frame: boot asincrono + watchdog.
     _startBoot();
@@ -265,41 +241,8 @@ class _AppState extends State<App> {
     }
 
     try {
-      await initSyncLayer().timeout(const Duration(seconds: 4));
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[boot] Sync layer init failed: $e');
-      }
-    }
-
-    try {
       await AppErrorReporter.I.init().timeout(const Duration(seconds: 2));
     } catch (_) {}
-
-    try {
-      await BitFlowProductService.I
-          .ensureInitialized(
-            firebaseAvailable: firebaseOk,
-            enforcePaidFeatures: true,
-          )
-          .timeout(const Duration(seconds: 4));
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[boot] Product layer init failed: ');
-      }
-    }
-
-    if (firebaseOk) {
-      try {
-        await BitFlowPaymentService.I
-            .handleCheckoutReturn(Uri.base)
-            .timeout(const Duration(seconds: 3));
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[boot] Payment return hook failed: $e');
-        }
-      }
-    }
     // EngineConfig en background: no bloquea primera pintura.
     unawaited(_initEngineConfigNonBlocking());
 
@@ -333,41 +276,20 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     final lightTheme = UiTheme.light();
     final darkTheme = UiTheme.dark();
-    final shouldShowBadge = kDebugMode || kShowDebugBadge;
-    final disableDecorativeBackground =
-        AppDecorPolicy.disableDecorativeBackground;
-    final bootBackgroundColor = (_isLight
-            ? lightTheme.scaffoldBackgroundColor
-            : darkTheme.scaffoldBackgroundColor)
-        .withValues(alpha: 1);
-
-    Widget wrapWithBuildBadge(Widget child) {
-      if (!shouldShowBadge) return child;
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          child,
-          const _BuildBadge(),
-        ],
-      );
-    }
 
     Widget buildBoot(Widget child) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Bitacora Web',
+        title: 'Bit Flow',
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
         scrollBehavior: const _AppScrollBehavior(),
-        builder: (context, child) {
-          return wrapWithBuildBadge(child ?? const SizedBox.shrink());
-        },
-        home: AppBackgroundShell(
-          disableDecorativeBackground: disableDecorativeBackground,
-          backgroundColor: bootBackgroundColor,
-          debugLayerName: 'boot',
-          child: child,
+        home: AnimatedVideoBackground(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: child,
+          ),
         ),
       );
     }
@@ -431,14 +353,11 @@ class _AppState extends State<App> {
 
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          title: 'Bitacora Web',
+          title: 'Bit Flow',
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: _isLight ? ThemeMode.light : ThemeMode.dark,
           scrollBehavior: const _AppScrollBehavior(),
-          builder: (context, child) {
-            return wrapWithBuildBadge(child ?? const SizedBox.shrink());
-          },
           routerConfig: _router!,
         );
       },
@@ -447,35 +366,15 @@ class _AppState extends State<App> {
 
   GoRouter _buildRouter(_BootStatus status) {
     return GoRouter(
-      initialLocation: RuntimeFlags.openHomeDirectly ? '/app' : '/',
+      initialLocation: '/',
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) {
-            if (RuntimeFlags.openHomeDirectly) {
-              final template = resolveDemoTemplateFromSlug(
-                state.uri.queryParameters['template'],
-              );
-              return _AppHome(
-                isLight: _isLight,
-                onToggleTheme: _toggleTheme,
-                firebaseOk: status.firebaseOk,
-                initialTemplate: template,
-              );
-            }
-            return buildRootPageForUri(
-              uri: state.uri,
-              isLight: _isLight,
-              onToggleTheme: _toggleTheme,
-              firebaseOk: status.firebaseOk,
-            );
-          },
-        ),
-        GoRoute(
-          path: '/landing',
-          builder: (context, state) => LandingScreen(
+          builder: (context, state) => buildRootPageForUri(
+            uri: state.uri,
             isLight: _isLight,
             onToggleTheme: _toggleTheme,
+            firebaseOk: status.firebaseOk,
           ),
         ),
         GoRoute(
@@ -484,40 +383,6 @@ class _AppState extends State<App> {
             isLight: _isLight,
             onToggleTheme: _toggleTheme,
             firebaseOk: status.firebaseOk,
-          ),
-        ),
-        GoRoute(
-          path: '/app/sheet/:sheetId',
-          builder: (context, state) {
-            final rawId = state.pathParameters['sheetId'] ?? '';
-            final sheetId = Uri.decodeComponent(rawId).trim();
-            final initialName = state.uri.queryParameters['name']?.trim();
-
-            final home = _AppHome(
-              isLight: _isLight,
-              onToggleTheme: _toggleTheme,
-              firebaseOk: status.firebaseOk,
-              initialSheetId: sheetId.isEmpty ? null : sheetId,
-              initialSheetName: (initialName == null || initialName.isEmpty)
-                  ? null
-                  : initialName,
-            );
-
-            return PopScope(
-              onPopInvokedWithResult: (didPop, _) {
-                if (didPop) return;
-                context.go('/app');
-              },
-              child: home,
-            );
-          },
-        ),
-        GoRoute(
-          path: '/shared/:shareId',
-          builder: (context, state) => SharedSheetScreen(
-            shareId: (state.pathParameters['shareId'] ?? '').trim(),
-            isLight: _isLight,
-            onToggleTheme: _toggleTheme,
           ),
         ),
         GoRoute(
@@ -576,55 +441,28 @@ Widget buildRootPageForUri({
   );
 }
 
-class _AppHome extends StatefulWidget {
+class _AppHome extends StatelessWidget {
   const _AppHome({
     required this.isLight,
     required this.onToggleTheme,
     required this.firebaseOk,
     this.initialTemplate,
-    this.initialSheetId,
-    this.initialSheetName,
   });
+
   final bool isLight;
   final VoidCallback onToggleTheme;
   final bool firebaseOk;
   final DemoTemplateSpec? initialTemplate;
-  final String? initialSheetId;
-  final String? initialSheetName;
-  @override
-  State<_AppHome> createState() => _AppHomeState();
-}
-
-class _AppHomeState extends State<_AppHome> {
-  void _dismissDemoNotice() {
-    setState(() => _demoNoticeDismissedInSession = true);
-  }
 
   @override
   Widget build(BuildContext context) {
-    Widget withOptionalAuth(Widget child) {
-      if (!widget.firebaseOk || !RuntimeFlags.isAuthRequired) return child;
-      return AuthGate(child: child);
-    }
-
     final home = () {
-      if (widget.initialSheetId != null &&
-          widget.initialSheetId!.trim().isNotEmpty) {
-        return withOptionalAuth(
-          EditorScreen(
-            isLight: widget.isLight,
-            onToggleTheme: widget.onToggleTheme,
-            sheetId: widget.initialSheetId!.trim(),
-            initialName: widget.initialSheetName,
-          ),
-        );
-      }
-      if (widget.initialTemplate != null) {
-        final template = widget.initialTemplate!;
-        return withOptionalAuth(
-          EditorScreen(
-            isLight: widget.isLight,
-            onToggleTheme: widget.onToggleTheme,
+      if (initialTemplate != null) {
+        final template = initialTemplate!;
+        return AuthGate(
+          child: EditorScreen(
+            isLight: isLight,
+            onToggleTheme: onToggleTheme,
             sheetId:
                 'demo_${template.slug}_${DateTime.now().millisecondsSinceEpoch}',
             initialName: template.sheetName,
@@ -633,73 +471,31 @@ class _AppHomeState extends State<_AppHome> {
           ),
         );
       }
-      return withOptionalAuth(
-        StartPage(
-          isLight: widget.isLight,
-          onToggleTheme: widget.onToggleTheme,
+      return AuthGate(
+        child: StartPageV2(
+          isLight: isLight,
+          onToggleTheme: onToggleTheme,
         ),
       );
     }();
-    final notices = <_TopNoticeItem>[
-      if (!widget.firebaseOk)
-        const _TopNoticeItem(
+
+    final body = AnimatedVideoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: home,
+      ),
+    );
+
+    if (firebaseOk) return body;
+    return Stack(
+      children: [
+        body,
+        const _TopNotice(
           message: 'Firebase no inicio. Modo offline habilitado.',
         ),
-      if (!RuntimeFlags.isAuthRequired && !_demoNoticeDismissedInSession)
-        _TopNoticeItem(
-          message: 'Modo demo activo: login deshabilitado temporalmente.',
-          dismissible: true,
-          onDismiss: _dismissDemoNotice,
-        ),
-    ];
-    final disableDecorativeBackground =
-        AppDecorPolicy.disableDecorativeBackground;
-    final homeBody = Column(
-      children: [
-        if (notices.isNotEmpty)
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: Column(
-                  children: [
-                    for (final notice in notices)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _TopNotice(
-                          message: notice.message,
-                          dismissible: notice.dismissible,
-                          onDismiss: notice.onDismiss,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        Expanded(child: home),
       ],
     );
-    return AppBackgroundShell(
-      disableDecorativeBackground: disableDecorativeBackground,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      debugLayerName: 'home-shell',
-      child: homeBody,
-    );
   }
-}
-
-class _TopNoticeItem {
-  const _TopNoticeItem({
-    required this.message,
-    this.dismissible = false,
-    this.onDismiss,
-  });
-  final String message;
-  final bool dismissible;
-  final VoidCallback? onDismiss;
 }
 
 class _BootSplash extends StatelessWidget {
@@ -767,7 +563,7 @@ class _BootSplash extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Gridnote',
+                            'Bit Flow',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.2,
@@ -775,7 +571,7 @@ class _BootSplash extends StatelessWidget {
                           ),
                         ),
                         _PillButton(
-                          label: isLight ? 'Noche' : 'D\u00EDa',
+                          label: isLight ? 'Noche' : 'Dia',
                           outlined: true,
                           onPressed: onToggleTheme,
                         ),
@@ -919,101 +715,50 @@ class _PillButton extends StatelessWidget {
 }
 
 class _TopNotice extends StatelessWidget {
-  const _TopNotice({
-    required this.message,
-    this.dismissible = false,
-    this.onDismiss,
-  });
+  const _TopNotice({required this.message});
+
   final String message;
-  final bool dismissible;
-  final VoidCallback? onDismiss;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: cs.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 16,
-            offset: Offset(0, 8),
-            color: Color(0x22000000),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline_rounded, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-          if (dismissible && onDismiss != null) ...[
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: onDismiss,
-              icon: const Icon(Icons.close_rounded, size: 18),
-              tooltip: 'Cerrar aviso',
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-              splashRadius: 16,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _BuildBadge extends StatelessWidget {
-  const _BuildBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final mq = MediaQuery.maybeOf(context);
-    final shortestSide = mq?.size.shortestSide ?? 1024;
-    final hideOnCompactUi = shortestSide < 700;
-    if (hideOnCompactUi) {
-      return const SizedBox.shrink();
-    }
-
-    final theme = Theme.of(context);
-    final label = kBuildBadgeId.trim().isEmpty
-        ? (kDebugMode ? 'build dev' : 'build')
-        : 'build ${kBuildBadgeId.trim()}';
-
-    return IgnorePointer(
-      child: SafeArea(
-        child: Align(
-          alignment: Alignment.topRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 10, top: 10),
-            child: DecoratedBox(
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withValues(alpha: 0.74),
-                borderRadius: BorderRadius.circular(999),
+                color: cs.surface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: theme.dividerColor.withValues(alpha: 0.35)),
-              ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.1,
-                  ),
+                  color: theme.dividerColor.withValues(alpha: 0.5),
                 ),
+                boxShadow: const [
+                  BoxShadow(
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                    color: Color(0x22000000),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

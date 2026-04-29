@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,7 +81,7 @@ class _AboutScreenState extends State<AboutScreen> {
     }
 
     _showSnack(
-      'En iPhone/iPad usa Safari y selecciona Compartir -> Añadir a inicio.',
+      'En iPhone/iPad usa Safari y selecciona Compartir -> Anadir a inicio.',
     );
   }
 
@@ -136,9 +137,9 @@ class _AboutScreenState extends State<AboutScreen> {
     );
     try {
       await Clipboard.setData(ClipboardData(text: text));
-      _showSnack('Diagnóstico copiado al portapapeles.');
+      _showSnack('Diagnostico copiado al portapapeles.');
     } catch (_) {
-      _showSnack('No se pudo copiar el diagnóstico.');
+      _showSnack('No se pudo copiar el diagnostico.');
     }
   }
 
@@ -152,20 +153,6 @@ class _AboutScreenState extends State<AboutScreen> {
     }
   }
 
-  Future<void> _sendFeedbackEmail() async {
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'soporte@bitflow.app',
-      queryParameters: const <String, String>{
-        'subject': 'Feedback BitFlow',
-      },
-    );
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened) {
-      _showSnack('No se pudo abrir el correo de soporte.');
-    }
-  }
-
   void _showSnack(String message) {
     if (!mounted) return;
     final text = message.trim();
@@ -175,108 +162,98 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = context.tokens;
+    final t = context.tokens;
     final localVersion = _lastCheck?.localVersion ?? '...';
     final localBuild = _lastCheck?.localBuildNumber ?? '...';
     final localBuildId = _lastCheck?.localBuildId ?? BuildInfo.buildIdLabel;
     final remoteVersion = _lastCheck?.remoteVersion ?? '';
     final remoteBuildId = _lastCheck?.remoteBuildId ?? '';
     final updateAvailable = _lastCheck?.updateAvailable ?? false;
-    final diagnosticsRows = <_AboutValueRow>[
-      _AboutValueRow(label: 'Versión', value: localVersion),
-      _AboutValueRow(label: 'Build', value: localBuild),
-      _AboutValueRow(label: 'BuildId', value: localBuildId),
-      _AboutValueRow(label: 'Stamp', value: BuildInfo.stamp),
-      _AboutValueRow(
-        label: 'Hoja',
-        value: (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
-      ),
-      _AboutValueRow(
-        label: 'Filas/Cols',
-        value:
-            '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
-      ),
-      if (remoteVersion.isNotEmpty)
-        _AboutValueRow(label: 'Remota', value: remoteVersion),
-      if (remoteBuildId.isNotEmpty)
-        _AboutValueRow(label: 'BuildId remoto', value: remoteBuildId),
-    ];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text(AboutScreen.routeTitle)),
+    return AppShell(
+      title: AboutScreen.routeTitle,
+      subtitle: 'Version, soporte y diagnostico de Bit Flow.',
+      leading: const _BackControl(),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
-          Text(
-            'BitFlow',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Bitácoras técnicas con foco en rapidez, claridad y confiabilidad.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
-            ),
-          ),
-          const SizedBox(height: 20),
           AppCard(
+            padding: EdgeInsets.all(t.spacing.lg),
+            color: t.colors.surfaceElevated,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SectionHeader(
-                  title: 'Versión y estado',
-                  subtitle: updateAvailable
-                      ? 'Hay una actualización lista para instalar.'
-                      : 'Aplicación al día.',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: updateAvailable
-                          ? tokens.colors.warningBg
-                          : tokens.colors.successBg,
-                      borderRadius: BorderRadius.circular(tokens.radii.pill),
-                      border: Border.all(
-                        color: updateAvailable
-                            ? tokens.colors.borderStrong
-                            : tokens.colors.border,
-                      ),
-                    ),
-                    child: Text(
-                      updateAvailable ? 'Actualización disponible' : 'OK',
-                      style: tokens.text.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: tokens.colors.textPrimary,
-                      ),
-                    ),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: t.colors.accentMuted,
+                    borderRadius: BorderRadius.circular(t.radii.lg),
+                  ),
+                  child: Icon(
+                    Icons.grid_view_rounded,
+                    color: t.colors.accent,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(height: 14),
-                AppTable<_AboutValueRow>(
-                  columns: [
-                    AppTableColumn.text(
-                      label: 'Dato',
-                      minWidth: 180,
-                      value: (row) => row.label,
-                    ),
-                    AppTableColumn.text(
-                      label: 'Valor',
-                      minWidth: 280,
-                      value: (row) => row.value,
-                    ),
-                  ],
-                  rows: diagnosticsRows,
+                SizedBox(height: t.spacing.md),
+                Text(
+                  'Bit Flow',
+                  style: t.text.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: t.spacing.xs),
+                Text(
+                  'Planillas tecnicas con foco en rapidez, claridad y confiabilidad.',
+                  style: t.text.bodyLarge?.copyWith(
+                    color: t.colors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: t.spacing.md),
+          AppCard(
+            padding: EdgeInsets.all(t.spacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _InfoRow(label: 'Versión', value: localVersion),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'Build', value: localBuild),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'BuildId', value: localBuildId),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(label: 'Stamp', value: BuildInfo.stamp),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(
+                  label: 'Hoja',
+                  value:
+                      (_sheetName ?? '').trim().isEmpty ? 'n/a' : _sheetName!,
+                ),
+                SizedBox(height: t.spacing.sm),
+                _InfoRow(
+                  label: 'Filas/Cols',
+                  value:
+                      '${_sheetRows?.toString() ?? 'n/a'} / ${_sheetCols?.toString() ?? 'n/a'}',
+                ),
+                if (remoteVersion.isNotEmpty || remoteBuildId.isNotEmpty) ...[
+                  SizedBox(height: t.spacing.md),
+                  Divider(height: 1, color: t.colors.border),
+                  SizedBox(height: t.spacing.sm),
+                  if (remoteVersion.isNotEmpty)
+                    _InfoRow(label: 'Remota', value: remoteVersion),
+                  if (remoteVersion.isNotEmpty && remoteBuildId.isNotEmpty)
+                    SizedBox(height: t.spacing.sm),
+                  if (remoteBuildId.isNotEmpty)
+                    _InfoRow(label: 'BuildId remoto', value: remoteBuildId),
+                ],
+                SizedBox(height: t.spacing.md),
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: t.spacing.sm,
+                  runSpacing: t.spacing.sm,
                   children: [
                     AppButton(
                       label:
@@ -289,28 +266,36 @@ class _AboutScreenState extends State<AboutScreen> {
                     AppButton(
                       label: 'Actualizar',
                       icon: Icons.system_update_rounded,
-                      variant: AppButtonVariant.primary,
+                      variant: AppButtonVariant.secondary,
                       onPressed: updateAvailable ? _applyUpdate : null,
                     ),
                     AppButton(
-                      label: 'Copiar diagnóstico',
+                      label: 'Copiar diagnostico',
                       icon: Icons.content_copy_rounded,
                       variant: AppButtonVariant.ghost,
                       onPressed: _copyDiagnostics,
                     ),
-                    AppButton(
-                      label: 'Feedback',
-                      icon: Icons.mail_outline_rounded,
-                      variant: AppButtonVariant.ghost,
-                      onPressed: _sendFeedbackEmail,
-                    ),
                   ],
+                ),
+                SizedBox(height: t.spacing.sm),
+                Text(
+                  updateAvailable
+                      ? 'Actualizacion disponible.'
+                      : 'Sin actualizaciones pendientes.',
+                  style: t.text.bodySmall?.copyWith(
+                    color: updateAvailable
+                        ? t.colors.accent
+                        : t.colors.textSecondary,
+                    fontWeight:
+                        updateAvailable ? FontWeight.w800 : FontWeight.w600,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: t.spacing.md),
           AppCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
                 ListTile(
@@ -327,7 +312,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Términos'),
+                  title: const Text('Terminos'),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -343,20 +328,19 @@ class _AboutScreenState extends State<AboutScreen> {
                   onTap: _openIssues,
                 ),
                 const Divider(height: 1),
-                const ListTile(
-                  leading: Icon(Icons.support_agent_outlined),
-                  title: Text('Contacto'),
-                  subtitle: Text('soporte@bitflow.app'),
+                const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: _InfoRow(
+                    label: 'Contacto',
+                    value: 'soporte@bitflow.app',
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('Licencias'),
-            subtitle: const Text('Ver licencias de terceros'),
+          SizedBox(height: t.spacing.sm),
+          AppCard(
+            padding: EdgeInsets.zero,
             onTap: () {
               showLicensePage(
                 context: context,
@@ -364,6 +348,11 @@ class _AboutScreenState extends State<AboutScreen> {
                 applicationVersion: BuildInfo.stamp,
               );
             },
+            child: const ListTile(
+              leading: Icon(Icons.description_outlined),
+              title: Text('Licencias'),
+              subtitle: Text('Ver licencias de terceros'),
+            ),
           ),
         ],
       ),
@@ -371,8 +360,50 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 }
 
-class _AboutValueRow {
-  const _AboutValueRow({required this.label, required this.value});
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
   final String label;
   final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 122,
+          child: Text(
+            label,
+            style: t.text.labelLarge?.copyWith(
+              color: t.colors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: t.text.bodyMedium?.copyWith(
+              color: t.colors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BackControl extends StatelessWidget {
+  const _BackControl();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Navigator.of(context).canPop()) return const SizedBox.shrink();
+    return CupertinoNavigationBarBackButton(
+      onPressed: () => Navigator.of(context).maybePop(),
+    );
+  }
 }

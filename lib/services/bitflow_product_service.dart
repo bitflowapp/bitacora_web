@@ -36,9 +36,8 @@ class BitFlowProductService {
   bool get isInitialized => _initialized;
   bool get firebaseAvailable => _firebaseAvailable;
   bool get cloudSyncEnabled => _cloudBackend != null;
-  String? get currentUserId => _firebaseAvailable
-      ? FirebaseAuth.instance.currentUser?.uid
-      : null;
+  String? get currentUserId =>
+      _firebaseAvailable ? FirebaseAuth.instance.currentUser?.uid : null;
 
   BitFlowWorkspaceService get workspaces => BitFlowWorkspaceService.I;
   BitFlowFeatureService get features => BitFlowFeatureService.I;
@@ -66,7 +65,8 @@ class BitFlowProductService {
     await features.init(enforcePaidFeatures: enforcePaidFeatures);
     await _localBackend.init();
     await workspaces.init();
-    await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
+    await workspaces
+        .reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
 
     if (_firebaseAvailable) {
       _cloudBackend = FirestoreBitFlowStorageBackend();
@@ -114,8 +114,8 @@ class BitFlowProductService {
   void _applyEntitlement(Map<String, dynamic>? data, {required User user}) {
     final isPremium = data?['isPremium'] == true;
     final trialEndsAt = (data?['trialEndsAt'] as Timestamp?)?.toDate().toUtc();
-    final trialActive = trialEndsAt != null &&
-        DateTime.now().toUtc().isBefore(trialEndsAt);
+    final trialActive =
+        trialEndsAt != null && DateTime.now().toUtc().isBefore(trialEndsAt);
     final providerName = (data?['billingProvider'] ?? '').toString();
     final provider = BitFlowPaymentProvider.values.where(
       (value) => value.name == providerName,
@@ -148,7 +148,8 @@ class BitFlowProductService {
       return sheets.toList(growable: false);
     }
     return sheets
-        .where((sheet) => workspaces.workspaceForSheet(sheet.id) == currentWorkspace.id)
+        .where((sheet) =>
+            workspaces.workspaceForSheet(sheet.id) == currentWorkspace.id)
         .toList(growable: false);
   }
 
@@ -161,9 +162,11 @@ class BitFlowProductService {
     }
 
     syncBusy.value = true;
-    syncStatus.value = reason == 'auth' ? 'Syncing account...' : 'Syncing now...';
+    syncStatus.value =
+        reason == 'auth' ? 'Syncing account...' : 'Syncing now...';
     try {
-      await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
+      await workspaces
+          .reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
       await workspaces.importFromCloud(userId: userId);
       await workspaces.exportToCloud(userId: userId);
 
@@ -188,7 +191,8 @@ class BitFlowProductService {
       for (final remote in remoteSheets) {
         final local = localById[remote.sheetId];
         if (local == null || remote.updatedAt.isAfter(local.updatedAt)) {
-          await _localBackend.saveSheet(remote.copyWith(origin: _localBackend.label));
+          await _localBackend
+              .saveSheet(remote.copyWith(origin: _localBackend.label));
         }
       }
 
@@ -206,7 +210,8 @@ class BitFlowProductService {
       firebaseAvailable: _firebaseAvailable,
       enforcePaidFeatures: _paidFeatureEnforcement,
     );
-    await workspaces.reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
+    await workspaces
+        .reconcileSheets(SheetStore.list().map((sheet) => sheet.id));
     final record = await _localBackend.loadSheet(sheetId);
     if (record == null) return;
     await _localBackend.refreshShareSnapshots(record);
@@ -247,7 +252,8 @@ class BitFlowProductService {
     );
     if (!features.isEnabled(BitFlowFeature.sharing)) {
       throw StateError(
-        features.featureBlockedReason(BitFlowFeature.sharing) ?? 'sharing_locked',
+        features.featureBlockedReason(BitFlowFeature.sharing) ??
+            'sharing_locked',
       );
     }
     final localRecord = await _localBackend.loadSheet(meta.id);

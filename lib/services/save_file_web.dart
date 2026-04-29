@@ -1,5 +1,7 @@
 import 'dart:typed_data';
-import 'package:bitacora_web/web/html_compat.dart' as html;Future<String> saveBytes(String fileName, List<int> bytes) async {
+import 'package:bitacora_web/web/html_compat.dart' as html;
+
+Future<String> saveBytes(String fileName, List<int> bytes) async {
   final blob =
       html.Blob([Uint8List.fromList(bytes)], 'application/octet-stream');
   final url = html.Url.createObjectUrlFromBlob(blob);

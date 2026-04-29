@@ -1,5 +1,5 @@
 ﻿name: bitacora_web
-description: "BitÃƒÂ¡cora web: hoja tipo Excel con experiencia tipo Apple."
+description: "Bit Flow — Planillas dinámicas para ingenieros en campo. GPS, fotos, export Excel/PDF. Offline-first."
 publish_to: "none"
 version: 1.3.1+11
 
@@ -17,9 +17,9 @@ dependencies:
   # Utilidades
   intl: 0.20.2
   collection: ^1.18.0
-  image: ^4.2.0       # Para convertir HEIC/WEBP a JPEG en exportaciÃƒÂ³n
+  image: ^4.2.0       # Para convertir HEIC/WEBP a JPEG en exportacion
 
-  # NavegaciÃƒÂ³n
+  # Navegacion
   go_router: ^16.3.0
 
   # Estado / preferencias
@@ -35,7 +35,7 @@ dependencies:
   syncfusion_flutter_xlsio: ^31.2.4
   pdf: ^3.11.3
 
-  # Archivos / exportaciÃƒÂ³n
+  # Archivos / exportacion
   file_selector: ^1.0.4
   file_saver: ^0.3.1
   csv: ^6.0.0
@@ -60,12 +60,12 @@ dependencies:
   speech_to_text: ^7.3.0
   permission_handler: ^11.3.1
 
-  # GPS / ubicaciÃƒÂ³n
+  # GPS / ubicacion
   geolocator: ^12.0.0
   flutter_map: ^7.0.0
   latlong2: ^0.9.0
 
-  # DiagnÃƒÂ³stico (opcional)
+  # Diagnostico (opcional)
   sentry_flutter: ^9.7.0
   package_info_plus: ^9.0.0
 
@@ -75,7 +75,7 @@ dependencies:
   dio_web_adapter: ^2.1.1
   web: ^1.1.1
 
-  # Firebase (dejados solo si usÃƒÂ¡s Firestore en otra parte)
+  # Firebase (dejados solo si usas Firestore en otra parte)
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.1
   cloud_firestore: ^6.1.0
@@ -101,4 +101,3 @@ flutter:
     - assets/config.example.json
     - assets/sfx/
     # - assets/video/gridnote_cells_loop.mp4
-

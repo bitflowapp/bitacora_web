@@ -19,7 +19,8 @@ class BitFlowWorkspaceService {
 
   final ValueNotifier<List<BitFlowWorkspace>> workspaces =
       ValueNotifier<List<BitFlowWorkspace>>(<BitFlowWorkspace>[]);
-  final ValueNotifier<String?> currentWorkspaceId = ValueNotifier<String?>(null);
+  final ValueNotifier<String?> currentWorkspaceId =
+      ValueNotifier<String?>(null);
 
   SharedPreferences? _prefs;
   final Map<String, String> _sheetAssignments = <String, String>{};
@@ -53,7 +54,8 @@ class BitFlowWorkspaceService {
 
     final rawWorkspaces = prefs.getString(_prefsWorkspaces) ?? '[]';
     final rawAssignments = prefs.getString(_prefsSheetAssignments) ?? '{}';
-    final wantedCurrent = (prefs.getString(_prefsCurrentWorkspace) ?? '').trim();
+    final wantedCurrent =
+        (prefs.getString(_prefsCurrentWorkspace) ?? '').trim();
 
     final decodedWorkspaces = <BitFlowWorkspace>[];
     try {
@@ -116,9 +118,8 @@ class BitFlowWorkspaceService {
 
     workspaces.value = List<BitFlowWorkspace>.unmodifiable(decodedWorkspaces);
     final fallbackCurrent = decodedWorkspaces.first.id;
-    currentWorkspaceId.value = wantedCurrent.isNotEmpty
-        ? wantedCurrent
-        : fallbackCurrent;
+    currentWorkspaceId.value =
+        wantedCurrent.isNotEmpty ? wantedCurrent : fallbackCurrent;
 
     await _persistLocal();
   }
@@ -136,7 +137,8 @@ class BitFlowWorkspaceService {
       _prefsSheetAssignments,
       jsonEncode(_sheetAssignments),
     );
-    final current = currentWorkspaceId.value ?? currentWorkspace?.id ?? 'personal';
+    final current =
+        currentWorkspaceId.value ?? currentWorkspace?.id ?? 'personal';
     await prefs.setString(_prefsCurrentWorkspace, current);
   }
 
@@ -156,8 +158,12 @@ class BitFlowWorkspaceService {
       }
     }
 
-    final known = knownSheetIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
-    final stale = _sheetAssignments.keys.where((id) => !known.contains(id)).toList();
+    final known = knownSheetIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final stale =
+        _sheetAssignments.keys.where((id) => !known.contains(id)).toList();
     if (stale.isNotEmpty) {
       for (final id in stale) {
         _sheetAssignments.remove(id);
@@ -230,7 +236,8 @@ class BitFlowWorkspaceService {
     await init();
     final list = workspaces.value;
     if (list.length <= 1) return;
-    final target = list.where((workspace) => workspace.id != workspaceId).toList();
+    final target =
+        list.where((workspace) => workspace.id != workspaceId).toList();
     if (target.isEmpty) return;
     final fallback = target.firstWhere(
       (workspace) => workspace.isDefault,
@@ -267,7 +274,8 @@ class BitFlowWorkspaceService {
     await _persistLocal();
   }
 
-  Future<void> duplicateAssignment(String sourceSheetId, String targetSheetId) async {
+  Future<void> duplicateAssignment(
+      String sourceSheetId, String targetSheetId) async {
     await init();
     _sheetAssignments[targetSheetId] = workspaceForSheet(sourceSheetId);
     await _persistLocal();

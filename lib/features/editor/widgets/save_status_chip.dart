@@ -308,4 +308,3 @@ class _StatusChipShell extends StatelessWidget {
     );
   }
 }
-

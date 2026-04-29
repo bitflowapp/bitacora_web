@@ -125,6 +125,10 @@ class SheetStore {
     _prefs = await SharedPreferences.getInstance();
   }
 
+  static Object? get lastWriteError => null;
+
+  static Future<void> flushPendingWrites() async {}
+
   static String _sheetKey(String id) => '$_sheetPrefix$id';
 
   static String? loadRaw(String id) {
@@ -419,7 +423,7 @@ class SheetStore {
     );
 
     final model = <String, dynamic>{
-      'name': '',
+      'name': 'Nuevo relevamiento',
       'savedAt': DateTime.now().toIso8601String(),
       'headers': headers,
       'colIds': colIds,
@@ -641,7 +645,8 @@ class SheetStore {
             _TemplateColumn(label: 'Descripcion', type: 'text'),
             _TemplateColumn(label: 'Monto', type: 'number'),
             _TemplateColumn(label: 'Metodo', type: 'text'),
-            _TemplateColumn(label: 'Estado', type: 'status', defaultValue: 'OK'),
+            _TemplateColumn(
+                label: 'Estado', type: 'status', defaultValue: 'OK'),
           ],
           seedRows: <List<String>>[
             <String>[

@@ -1,7 +1,6 @@
 // lib/services/photo_acquire_service.dart
 // Servicio unificado para capturar/seleccionar fotos (mobile + web/desktop).
 
-
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';

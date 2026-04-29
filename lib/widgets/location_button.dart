@@ -171,8 +171,10 @@ class _LocationSheetState extends State<_LocationSheet> {
                       Icon(
                         Icons.location_off,
                         size: 40,
-                        color: theme.iconTheme.color?.withValues(alpha: 
-                            theme.brightness == Brightness.dark ? 0.7 : 0.5),
+                        color: theme.iconTheme.color?.withValues(
+                            alpha: theme.brightness == Brightness.dark
+                                ? 0.7
+                                : 0.5),
                       ),
                       const SizedBox(height: 6),
                       Text(

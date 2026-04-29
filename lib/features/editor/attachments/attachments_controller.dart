@@ -1,4 +1,4 @@
-﻿part of '../editor_screen.dart';
+part of '../editor_screen.dart';
 
 extension _EditorAttachments on _EditorScreenState {
   static const String _kDirtyAttachmentsOutboxKind =
@@ -585,7 +585,6 @@ extension _EditorAttachments on _EditorScreenState {
     return false;
   }
 
-
   Future<void> _processPhotoOutcome(
     PhotoAcquireOutcome outcome,
     CellRef targetRef, {
@@ -1059,7 +1058,6 @@ extension _EditorAttachments on _EditorScreenState {
     return true;
   }
 
-
   Future<void> _deletePhotoFromCell(int r, int c, int index) async {
     final ref = _cellRefAt(r, c);
     if (ref == null) return;
@@ -1490,8 +1488,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
 
                     return DragTarget<int>(
-                      onWillAcceptWithDetails: (details) =>
-                          details.data != idx,
+                      onWillAcceptWithDetails: (details) => details.data != idx,
                       onAcceptWithDetails: (details) {
                         _reorderPhotoOnCell(r, c, details.data, idx);
                         setSheetState(() {});

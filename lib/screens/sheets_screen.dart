@@ -1,4 +1,4 @@
-﻿// lib/screens/sheets_screen.dart
+// lib/screens/sheets_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,7 +12,7 @@ import 'editor_screen.dart';
 import 'privacy_screen.dart';
 import 'terms_screen.dart';
 
-enum _SheetAction { open, pinToggle, rename, duplicate, delete }
+enum _SheetAction { open, pinToggle, rename, delete }
 
 class _FocusSearchIntent extends Intent {
   const _FocusSearchIntent();
@@ -145,13 +145,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
     list.sort(
-        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // mÃ¡s reciente arriba
+        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // más reciente arriba
     setState(() {
       _items = list;
       _loading = false;
     });
 
-    // Limpieza: si borraron planillas, eliminamos pins huÃ©rfanos.
+    // Limpieza: si borraron planillas, eliminamos pins huérfanos.
     if (_pinsLoaded) {
       final ids = list.map((e) => e.id).toSet();
       final orphan = _pinnedIds.where((id) => !ids.contains(id)).toList();
@@ -164,6 +164,22 @@ class _SheetsScreenState extends State<SheetsScreen> {
   }
 
   Future<void> _handleRefresh() async => _loadSheets();
+
+  Future<bool> _flushSheetStoreOrNotify() async {
+    try {
+      await SheetStore.flushPendingWrites();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo guardar el cambio local: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
+  }
 
   List<SheetMeta> get _filtered {
     final q = _query.toLowerCase();
@@ -245,7 +261,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('DiagnÃ³stico / Soporte'),
+                title: const Text('Diagnóstico / Soporte'),
                 onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
               ListTile(
@@ -291,6 +307,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
   Future<void> _newBlank() async {
     _hapticLight();
     final id = SheetStore.createNew();
+    if (!await _flushSheetStoreOrNotify()) return;
     if (!mounted) return;
     await _open(id);
   }
@@ -298,6 +315,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
   Future<void> _newFromTemplate(TemplateKind kind) async {
     _hapticLight();
     final id = SheetStore.createFromTemplate(kind);
+    if (!await _flushSheetStoreOrNotify()) return;
     if (!mounted) return;
     await _open(id);
   }
@@ -353,83 +371,58 @@ class _SheetsScreenState extends State<SheetsScreen> {
           );
         }
 
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Galeria de templates',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: Row(
+                children: [
+                  Text(
+                    'Galeria de templates',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
+                ],
+              ),
+            ),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.18,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              children: [
+                tile(
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'Plantilla base',
+                  subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                  value: TemplateKind.plantilla,
                 ),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.18,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                  children: [
-                    tile(
-                      icon: Icons.auto_awesome_outlined,
-                      title: 'Plantilla base',
-                      subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
-                      value: TemplateKind.plantilla,
-                    ),
-                    tile(
-                      icon: Icons.table_rows,
-                      title: 'Relevamiento resistividades',
-                      subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
-                      value: TemplateKind.resistividades,
-                    ),
-                    tile(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Inventario simple',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
-                      value: TemplateKind.inventario,
-                    ),
-                    tile(
-                      icon: Icons.check_circle_outline,
-                      title: 'Checklist diario',
-                      subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
-                      value: TemplateKind.checklist,
-                    ),
-                    tile(
-                      icon: Icons.payments_outlined,
-                      title: 'Control de gastos',
-                      subtitle: 'Fecha, Categoria, Descripcion, Monto, Metodo',
-                      value: TemplateKind.controlGastos,
-                    ),
-                    tile(
-                      icon: Icons.account_tree_outlined,
-                      title: 'Seguimiento de proyectos',
-                      subtitle: 'Proyecto, Responsable, inicio/fin, avance y estado',
-                      value: TemplateKind.seguimientoProyectos,
-                    ),
-                    tile(
-                      icon: Icons.straighten_rounded,
-                      title: 'Mediciones tecnicas',
-                      subtitle: 'Punto, parametro, lectura, tolerancia y estado',
-                      value: TemplateKind.medicionesTecnicas,
-                    ),
-                  ],
+                tile(
+                  icon: Icons.table_rows,
+                  title: 'Relevamiento resistividades',
+                  subtitle: 'Fecha, Progresiva, 1m, 3m, 5m, Observaciones',
+                  value: TemplateKind.resistividades,
+                ),
+                tile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Inventario simple',
+                  subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                  value: TemplateKind.inventario,
+                ),
+                tile(
+                  icon: Icons.check_circle_outline,
+                  title: 'Checklist diario',
+                  subtitle: 'Tarea, Responsable, Estado, Fecha, Comentario',
+                  value: TemplateKind.checklist,
                 ),
               ],
             ),
-          ),
+          ],
         );
       },
     );
@@ -441,31 +434,30 @@ class _SheetsScreenState extends State<SheetsScreen> {
   Future<void> _renameSheet(SheetMeta it) async {
     final controller = TextEditingController(text: it.title);
 
-    final result = await showDialog<String>(
+    final result = await showAppModal<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.renameSheetTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            labelText: AppStrings.renameSheetNameLabel,
-            hintText: AppStrings.renameSheetNameHint,
-          ),
-          onSubmitted: (value) => Navigator.of(context).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(AppStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text(AppStrings.save),
-          ),
-        ],
+      title: AppStrings.renameSheetTitle,
+      barrierDismissible: true,
+      child: AppTextField(
+        controller: controller,
+        label: AppStrings.renameSheetNameLabel,
+        hint: AppStrings.renameSheetNameHint,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (value) => Navigator.of(context).pop(value),
       ),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppButton(
+          label: AppStrings.save,
+          icon: Icons.check_rounded,
+          onPressed: () => Navigator.of(context).pop(controller.text),
+        ),
+      ],
     );
 
     controller.dispose();
@@ -475,41 +467,39 @@ class _SheetsScreenState extends State<SheetsScreen> {
     if (newTitle.isEmpty) return;
 
     SheetStore.rename(it.id, newTitle);
+    if (!await _flushSheetStoreOrNotify()) return;
     _loadSheets();
     _hapticSelect();
-  }
-
-  Future<void> _duplicateSheet(SheetMeta it) async {
-    final duplicatedId = SheetStore.duplicate(it.id);
-    _loadSheets();
-    _hapticSelect();
-    await _open(duplicatedId);
   }
 
   Future<void> _deleteWithConfirm(SheetMeta it) async {
     final title = it.title.isNotEmpty ? it.title : 'Planilla ${it.id}';
 
-    final ok = await showDialog<bool>(
+    final ok = await showAppModal<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.deleteSheetTitle),
-        content: Text(AppStrings.deleteSheetMessage(title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.delete),
-          ),
-        ],
-      ),
+      title: AppStrings.deleteSheetTitle,
+      barrierDismissible: true,
+      child: Text(AppStrings.deleteSheetMessage(title)),
+      actions: [
+        AppButton(
+          label: AppStrings.cancel,
+          variant: AppButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppButton(
+          label: AppStrings.delete,
+          icon: Icons.delete_outline_rounded,
+          variant: AppButtonVariant.destructive,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
     );
 
     if (!mounted || ok != true) return;
 
     SheetStore.delete(it.id);
+    if (!await _flushSheetStoreOrNotify()) return;
+    if (!mounted) return;
     _removePinnedIfNeeded(it.id);
     _loadSheets();
 
@@ -571,12 +561,6 @@ class _SheetsScreenState extends State<SheetsScreen> {
             ),
             Divider(height: 1, thickness: 0.8, color: divider),
             actionTile(
-              icon: Icons.copy_all_rounded,
-              label: 'Duplicar',
-              value: _SheetAction.duplicate,
-            ),
-            Divider(height: 1, thickness: 0.8, color: divider),
-            actionTile(
               icon: Icons.delete_outline,
               label: AppStrings.delete,
               value: _SheetAction.delete,
@@ -616,10 +600,6 @@ class _SheetsScreenState extends State<SheetsScreen> {
         ),
         const PopupMenuItem(
             value: _SheetAction.rename, child: Text(AppStrings.rename)),
-        const PopupMenuItem(
-          value: _SheetAction.duplicate,
-          child: Text('Duplicar'),
-        ),
         const PopupMenuDivider(),
         const PopupMenuItem(
             value: _SheetAction.delete, child: Text(AppStrings.delete)),
@@ -640,9 +620,6 @@ class _SheetsScreenState extends State<SheetsScreen> {
         break;
       case _SheetAction.rename:
         await _renameSheet(it);
-        break;
-      case _SheetAction.duplicate:
-        await _duplicateSheet(it);
         break;
       case _SheetAction.delete:
         await _deleteWithConfirm(it);
@@ -672,14 +649,14 @@ class _SheetsScreenState extends State<SheetsScreen> {
     if (_items.isEmpty) return 'Sin planillas guardadas todavia';
 
     final last = _lastUpdatedSheet;
-    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : 'â€”';
+    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '—';
     final pins = _pinnedIds.length;
 
     // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas | $pins fijadas | Ãšltima: $lastLabel';
+      return '${_items.length} planillas · $pins fijadas · Última: $lastLabel';
     }
-    return '${_items.length} planillas | Ãšltima: $lastLabel';
+    return '${_items.length} planillas · Última: $lastLabel';
   }
 
   @override
@@ -755,7 +732,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
       final t = Theme.of(context);
-      final text = count == null ? label : '$label | $count';
+      final text = count == null ? label : '$label · $count';
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
@@ -1007,7 +984,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'DÃ­a',
+                  label: isLight ? 'Noche' : 'Día',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,
@@ -1239,7 +1216,7 @@ class _SheetCardState extends State<_SheetCard> {
         ? widget.meta.title
         : 'Planilla ${widget.meta.id}';
     final details =
-        'Actualizada: ${widget.updatedLabel} | Filas: ${widget.meta.rows}';
+        'Actualizada: ${widget.updatedLabel} · Filas: ${widget.meta.rows}';
 
     return AnimatedScale(
       scale: _pressed ? 0.988 : 1.0,
@@ -1364,8 +1341,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bg = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-      theme.brightness == Brightness.dark ? 0.55 : 0.70,
+    final bg = theme.colorScheme.surfaceContainerHighest.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
     );
 
     return AnimatedScale(
@@ -1415,8 +1392,8 @@ class _PillIcon extends StatelessWidget {
 
     final bg = filled
         ? c.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14)
-        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-            theme.brightness == Brightness.dark ? 0.55 : 0.70,
+        : theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
           );
 
     return Container(
@@ -1519,4 +1496,3 @@ class _NoResults extends StatelessWidget {
     );
   }
 }
-

@@ -216,7 +216,7 @@ class _WebCameraOverlayState extends State<WebCameraOverlay> {
       Uint8List? bytes;
       final blob = await canvas.toBlob('image/jpeg', widget.jpegQuality);
       bytes = await _blobToBytes(blob);
-    
+
       bytes ??=
           _dataUrlToBytes(canvas.toDataUrl('image/jpeg', widget.jpegQuality));
 

@@ -1,4 +1,5 @@
-import 'package:bitacora_web/web/html_compat.dart' as html;import 'dart:typed_data';
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'dart:typed_data';
 
 class SaveBytes {
   static Future<bool> save({

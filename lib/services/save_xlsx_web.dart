@@ -1,6 +1,7 @@
 // lib/services/save_xlsx_web.dart
 import 'dart:typed_data';
 import 'package:bitacora_web/web/html_compat.dart' as html;
+
 /// Devuelve siempre null porque en Web no hay ruta local.
 Future<String?> saveXlsx(String baseName, Uint8List bytes) async {
   final safeBase = _sanitizeBase(baseName);

@@ -5,8 +5,10 @@
 // ignore_for_file: avoid_web_libraries_in_flutter
 
 import 'dart:typed_data';
-import 'package:bitacora_web/web/html_compat.dart' as html;Future<void> saveXlsxBytes(Uint8List bytes, String fileName) async {
-  // Asegura extensión .xlsx
+import 'package:bitacora_web/web/html_compat.dart' as html;
+
+Future<void> saveXlsxBytes(Uint8List bytes, String fileName) async {
+  // Asegura extensiÃ³n .xlsx
   if (!fileName.toLowerCase().endsWith('.xlsx')) {
     fileName = '$fileName.xlsx';
   }

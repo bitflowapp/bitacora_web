@@ -1,5 +1,6 @@
 // Web: reproduce assets/sfx/type.wav usando <audio>.
-import 'package:bitacora_web/web/html_compat.dart' as html;import 'sound_bank.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'sound_bank.dart';
 
 class _SoundBankWeb implements SoundBank {
   final Map<String, html.AudioElement> _cache = {};

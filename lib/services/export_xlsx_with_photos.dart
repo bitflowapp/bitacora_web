@@ -667,7 +667,7 @@ void _buildCoverSheet(xlsio.Workbook wb) {
     cover.getRangeByIndex(i + 1, 2).setText('');
   }
   final title = cover.getRangeByIndex(1, 4);
-  title.setText('Bitacora PRO');
+  title.setText('Bit Flow');
   title.cellStyle.bold = true;
   try {
     cover.autoFitColumn(1);

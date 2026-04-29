@@ -2,7 +2,8 @@
 // Implementación Web usando dart:html, aislada por import condicional.
 // ignore_for_file: avoid_web_libraries_in_flutter
 
-import 'package:bitacora_web/web/html_compat.dart' as html;import 'platform_interop_interface.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'platform_interop_interface.dart';
 
 class _WebPlatformInterop implements PlatformInterop {
   html.EventListener? _speechListener;

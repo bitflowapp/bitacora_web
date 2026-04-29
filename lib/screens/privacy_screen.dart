@@ -1,4 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
+import '../ui/ui.dart';
 
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
@@ -7,40 +10,61 @@ class PrivacyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(routeTitle),
-      ),
+    final t = context.tokens;
+    return AppShell(
+      title: routeTitle,
+      subtitle: 'Datos locales, permisos claros y control del usuario.',
+      leading: const _BackControl(),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
-          Text(
-            'Resumen',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
+          AppCard(
+            padding: EdgeInsets.all(t.spacing.lg),
+            color: t.colors.surfaceElevated,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  color: t.colors.accent,
+                  size: 28,
+                ),
+                SizedBox(height: t.spacing.sm),
+                Text(
+                  'Bit Flow prioriza el uso local.',
+                  style: t.text.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                SizedBox(height: t.spacing.xs),
+                Text(
+                  'Los permisos se piden solo cuando usas camara, audio o ubicacion. Las planillas quedan en este dispositivo o navegador, segun plataforma.',
+                  style: t.text.bodyMedium?.copyWith(
+                    color: t.colors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'BitFlow prioriza el uso local y pide permisos solo cuando son necesarios para las funciones de cámara, audio o ubicación.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 18),
+          SizedBox(height: t.spacing.md),
           const _SectionBlock(
+            icon: Icons.folder_copy_outlined,
             title: 'Datos guardados',
             body:
-                'Las planillas y adjuntos se almacenan en el dispositivo o navegador, segun plataforma.',
+                'Las planillas y adjuntos se almacenan localmente. Puedes exportar respaldos cuando necesites mover o resguardar informacion.',
           ),
           const _SectionBlock(
+            icon: Icons.privacy_tip_outlined,
             title: 'Permisos',
             body:
-                'Cámara, micrófono y ubicación se solicitan al usar acciones que los requieren.',
+                'Camara, microfono y ubicacion se solicitan al usar acciones que los requieren. Si no los usas, no se piden.',
           ),
           const _SectionBlock(
+            icon: Icons.tune_rounded,
             title: 'Control del usuario',
             body:
-                'Puedes eliminar planillas, exportar respaldos y revocar permisos desde el sistema.',
+                'Puedes eliminar planillas, exportar respaldos y revocar permisos desde la configuracion del sistema.',
           ),
         ],
       ),
@@ -50,34 +74,71 @@ class PrivacyScreen extends StatelessWidget {
 
 class _SectionBlock extends StatelessWidget {
   const _SectionBlock({
+    required this.icon,
     required this.title,
     required this.body,
   });
 
+  final IconData icon;
   final String title;
   final String body;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(bottom: t.spacing.sm),
+      child: AppCard(
+        padding: EdgeInsets.all(t.spacing.md),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: t.colors.accentMuted,
+                borderRadius: BorderRadius.circular(t.radii.sm),
+              ),
+              child: Icon(icon, color: t.colors.accent, size: 19),
+            ),
+            SizedBox(width: t.spacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: t.text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: t.spacing.xs),
+                  Text(
+                    body,
+                    style: t.text.bodyMedium?.copyWith(
+                      color: t.colors.textSecondary,
+                      height: 1.32,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(body, style: theme.textTheme.bodyMedium),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _BackControl extends StatelessWidget {
+  const _BackControl();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Navigator.of(context).canPop()) return const SizedBox.shrink();
+    return CupertinoNavigationBarBackButton(
+      onPressed: () => Navigator.of(context).maybePop(),
     );
   }
 }

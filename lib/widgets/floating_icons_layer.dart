@@ -72,10 +72,12 @@ class _FloatingIconsLayerState extends State<FloatingIconsLayer>
   @override
   Widget build(BuildContext context) {
     final light = widget.isLight;
-    final glassColor =
-        light ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.18);
-    final borderColor =
-        light ? Colors.white.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.10);
+    final glassColor = light
+        ? Colors.white.withValues(alpha: 0.10)
+        : Colors.black.withValues(alpha: 0.18);
+    final borderColor = light
+        ? Colors.white.withValues(alpha: 0.35)
+        : Colors.white.withValues(alpha: 0.10);
     final glow = widget.seed.withValues(alpha: light ? 0.20 : 0.25);
 
     return IgnorePointer(

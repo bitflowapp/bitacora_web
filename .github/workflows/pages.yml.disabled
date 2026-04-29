@@ -70,6 +70,7 @@ jobs:
         run: |
           echo "Using BASE_HREF=${{ env.BASE_HREF }}"
           flutter build web --release \
+            --pwa-strategy=offline-first \
             --base-href "${{ env.BASE_HREF }}" \
             --dart-define=BITFLOW_AUTH=false \
             --dart-define=BUILD_ID=${{ github.run_id }}-${{ github.run_attempt }} \

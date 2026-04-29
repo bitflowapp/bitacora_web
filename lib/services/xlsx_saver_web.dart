@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:bitacora_web/web/html_compat.dart' as html;
+
 /// Devuelve el nombre lógico del archivo (para mostrar en la UI).
 Future<String?> saveXlsx(String baseName, Uint8List bytes) async {
   final safe = _sanitize(baseName);
