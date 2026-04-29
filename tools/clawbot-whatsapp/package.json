@@ -1,0 +1,17 @@
+{
+  "name": "clawbot-whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node whatsapp_web_qr_bot.mjs",
+    "test:allowlist": "node test_allowlist.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.7",
+    "openai": "^4.77.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}

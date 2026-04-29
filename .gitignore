@@ -97,6 +97,7 @@ Bitacora_Release_*.zip
 .env
 .env.*
 !.env.example
+!.env.clawbot.example
 
 # Logs
 *.log
@@ -138,6 +139,14 @@ dist/
 # Local agent/session workspace files
 .openclaw/
 logs/
+.clawbot-whatsapp-session/
+.wwebjs_cache/
+tools/clawbot-whatsapp/node_modules/
+tools/clawbot-whatsapp/.wwebjs_cache/
+tools/clawbot-whatsapp/.clawbot-whatsapp-session/
+auth.json
+config.toml
+*.zip
 AGENTS.md
 BOOTSTRAP.md
 HEARTBEAT.md
