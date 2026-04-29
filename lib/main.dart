@@ -4,7 +4,6 @@ import 'dart:ui' show PointerDeviceKind, PlatformDispatcher;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
@@ -16,7 +15,7 @@ import 'screens/legal_screen.dart';
 import 'start_page_v2.dart';
 import 'services/app_error_reporter.dart';
 import 'services/sheet_store.dart';
-import 'services/engine_math_client.dart'; // si lo seguÃ­s usando en otras partes
+import 'services/engine_math_client.dart'; // si lo seguis usando en otras partes
 import 'services/engine_client.dart'; // <-- NUEVO (EngineConfig / EngineClient)
 import 'services/engine_config.dart' as engine_cfg;
 import 'services/demo_templates.dart';
@@ -89,7 +88,7 @@ Future<void> main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      // UI controlada (en vez de pantalla roja en producciÃ³n web)
+      // UI controlada (en vez de pantalla roja en produccion web)
       return Material(
         color: const Color(0xFF0B0D1A),
         child: Center(
@@ -188,9 +187,7 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
 
-    final platformBrightness =
-        SchedulerBinding.instance.platformDispatcher.platformBrightness;
-    _isLight = platformBrightness != Brightness.dark;
+    _isLight = false;
 
     // No bloqueamos el primer frame: boot asincrono + watchdog.
     _startBoot();

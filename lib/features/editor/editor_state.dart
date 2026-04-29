@@ -415,7 +415,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _sheetName = (widget.initialName?.trim().isNotEmpty ?? false)
         ? widget.initialName!.trim()
-        : 'Sheet';
+        : 'Relevamiento';
     _nameEC.text = _sheetName;
 
     _isLight = widget.isLight ??
@@ -2719,7 +2719,7 @@ class _EditorScreenState extends State<EditorScreen>
           itemBuilder: (ctx, index) {
             final template = _columnTemplates[index];
             final subtitle =
-                '${template.prefsByLabel.length} columnas Ã‚Â· ${_formatDateTimeShort(template.savedAt.toLocal())}';
+                '${template.prefsByLabel.length} columnas · ${_formatDateTimeShort(template.savedAt.toLocal())}';
             return ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -2779,7 +2779,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
     if (parts.isEmpty) return 'Sin filtros';
-    return parts.join(' Ã‚Â· ');
+    return parts.join(' · ');
   }
 
   void _applySavedViewColumns(
@@ -2962,7 +2962,7 @@ class _EditorScreenState extends State<EditorScreen>
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Nombre',
-                  hintText: 'Ej: RevisiÃƒÂ³n urgente',
+                  hintText: 'Ej: Revisión urgente',
                 ),
               ),
               const SizedBox(height: 10),
@@ -3844,7 +3844,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == '1' ||
         value == 'true' ||
         value == 'si' ||
-        value == 'sÃƒÂ­' ||
+        value == 'sí' ||
         value == 'ok' ||
         value == 'x') {
       return true;
@@ -8919,7 +8919,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 child: _InlineMetaChip(
                                   palette: pal,
                                   icon: Icons.visibility_rounded,
-                                  label: 'Modo Zen activo Ã‚Â· Mostrar barra',
+                                  label: 'Modo Zen activo · Mostrar barra',
                                   onTap: () => unawaited(_setZenMode(false)),
                                 ),
                               ),
@@ -13580,7 +13580,7 @@ class _EditorScreenState extends State<EditorScreen>
               leading: const Icon(Icons.grid_view_rounded),
               title: Text(spec.name),
               subtitle: Text(
-                '${spec.headers.length} columnas Ã‚Â· ${spec.rows.length} filas demo',
+                '${spec.headers.length} columnas · ${spec.rows.length} filas demo',
               ),
               onTap: () => Navigator.of(context).pop(spec),
             ),
@@ -13957,13 +13957,13 @@ class _EditorScreenState extends State<EditorScreen>
     final lower = raw.trim().toLowerCase();
     if (lower.isEmpty) return '';
     final map = <String, String>{
-      'ÃƒÂ¡': 'a',
-      'ÃƒÂ©': 'e',
-      'ÃƒÂ­': 'i',
-      'ÃƒÂ³': 'o',
-      'ÃƒÂº': 'u',
-      'ÃƒÂ¼': 'u',
-      'ÃƒÂ±': 'n',
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
     };
     final sb = StringBuffer();
     for (final rune in lower.runes) {
@@ -14582,8 +14582,7 @@ class _EditorScreenState extends State<EditorScreen>
                                 ),
                                 child: Text(
                                   previewRows[i]
-                                      .map((cell) =>
-                                          cell.isEmpty ? 'Ã‚Â·' : cell)
+                                      .map((cell) => cell.isEmpty ? '·' : cell)
                                       .join(' | '),
                                   style: TextStyle(
                                     color: pal.fg,
@@ -15780,7 +15779,7 @@ class _EditorScreenState extends State<EditorScreen>
                               event.origin,
                               if (event.row != null && event.col != null)
                                 _cellLabelRc(event.row!, event.col!),
-                            ].join(' Ã‚Â· ');
+                            ].join(' · ');
                             return ListTile(
                               tileColor: _palette(ctx).hintBg,
                               shape: RoundedRectangleBorder(
@@ -15916,7 +15915,7 @@ class _EditorScreenState extends State<EditorScreen>
         primary.filename.trim().isEmpty ? 'Adjunto' : primary.filename.trim();
     final safeMime = primary.mime.trim().toLowerCase();
     final typeLabel = _inlineAttachmentTypeLabel(safeMime, safeName);
-    final subtitle = '$typeLabel Ã‚Â· ${_formatBytes(primary.size)}';
+    final subtitle = '$typeLabel · ${_formatBytes(primary.size)}';
 
     return _CellInlinePreviewData(
       title: safeName,
@@ -17897,7 +17896,7 @@ class _EditorScreenState extends State<EditorScreen>
             cell: cellLabel,
             kind: 'GPS',
             caption:
-                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' Ã‚Â· ${gps.source}' : ''}',
+                'Prec: ${gps.accuracyM.toStringAsFixed(1)}m${gps.source.trim().isNotEmpty ? ' · ${gps.source}' : ''}',
             date: _formatDateTimeShort(gps.timestamp.toLocal()),
             mapUrl: mapUrl,
             thumb: null,
@@ -18010,7 +18009,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             pw.SizedBox(height: 2),
             pw.Text(
-              'Version: $appVersion Ã‚Â· Build: $buildId',
+              'Version: $appVersion · Build: $buildId',
               style: const pw.TextStyle(fontSize: 9),
             ),
             pw.SizedBox(height: 8),
@@ -18125,7 +18124,7 @@ class _EditorScreenState extends State<EditorScreen>
                             crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
                               pw.Text(
-                                '${item.kind} Ã‚Â· ${item.cell}',
+                                '${item.kind} · ${item.cell}',
                                 style: pw.TextStyle(
                                   fontSize: 8.5,
                                   fontWeight: pw.FontWeight.bold,
@@ -19914,7 +19913,7 @@ Este paquete incluye:
     }
   }
 
-  String get _engineFallbackMessage => 'Local Â· Guardado en este dispositivo.';
+  String get _engineFallbackMessage => 'Local · Guardado en este dispositivo.';
 
   Future<void> _retryEngineConnection() async {
     await _initEngineConnection(manualRetry: true);

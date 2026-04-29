@@ -188,7 +188,7 @@ class _AppButtonState extends State<AppButton> {
       case AppButtonVariant.primary:
         return _ResolvedButtonColors(
           bg: t.colors.accent,
-          fg: t.colors.isLight ? Colors.white : const Color(0xFF0D0D0F),
+          fg: Colors.white,
           border: t.colors.accent,
         );
       case AppButtonVariant.secondary:
@@ -206,7 +206,7 @@ class _AppButtonState extends State<AppButton> {
       case AppButtonVariant.destructive:
         return _ResolvedButtonColors(
           bg: t.colors.dangerFg,
-          fg: t.colors.isLight ? Colors.white : const Color(0xFF0D0D0F),
+          fg: Colors.white,
           border: t.colors.dangerFg,
         );
     }

@@ -46,6 +46,7 @@ class SheetStore {
     final s = TableState.empty();
     final p = await SharedPreferences.getInstance();
     await p.setString('sheet:$id', s.toJsonString());
+    await p.setString('sheet:$id:title', 'Nuevo relevamiento');
     final ids = await _getIndex()
       ..insert(0, id);
     await _saveIndex(ids);

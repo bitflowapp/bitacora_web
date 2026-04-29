@@ -453,7 +453,7 @@ class SheetStore {
     );
 
     final model = <String, dynamic>{
-      'name': '',
+      'name': 'Nuevo relevamiento',
       'savedAt': DateTime.now().toIso8601String(),
       'headers': headers,
       'colIds': colIds,

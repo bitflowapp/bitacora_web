@@ -519,7 +519,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Acciones rapidas - $rowsLabel - $selectionLabel',
+              'Acciones de campo - $rowsLabel - $selectionLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -541,14 +541,14 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                   onPressed: onApplyValue,
                 ),
                 AppButton(
-                  label: 'Autocompletar',
+                  label: 'Completar',
                   icon: Icons.vertical_align_bottom_rounded,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.secondary,
                   onPressed: onFillDown,
                 ),
                 AppButton(
-                  label: 'Duplicar fila',
+                  label: 'Duplicar',
                   icon: Icons.copy_all_outlined,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.secondary,
@@ -569,7 +569,7 @@ class _SelectionQuickActionsBar extends StatelessWidget {
                   onPressed: onAttachGps,
                 ),
                 AppButton(
-                  label: 'Jump to...',
+                  label: 'Ir a celda',
                   icon: Icons.pin_drop_outlined,
                   size: AppButtonSize.sm,
                   variant: AppButtonVariant.ghost,

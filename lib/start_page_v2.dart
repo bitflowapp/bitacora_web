@@ -1056,7 +1056,7 @@ class _StartPageV2State extends State<StartPageV2> {
                   final quickActions = <_QuickActionData>[
                     _QuickActionData(
                       title: 'Nuevo relevamiento',
-                      subtitle: 'Planilla tecnica en blanco',
+                      subtitle: 'Crear una planilla de campo',
                       icon: Icons.add_box_rounded,
                       shortcut: 'Ctrl/Cmd + N',
                       onTap: _createBlankSheet,
@@ -1070,14 +1070,14 @@ class _StartPageV2State extends State<StartPageV2> {
                     ),
                     _QuickActionData(
                       title: 'Buscar archivos',
-                      subtitle: 'Quick Search global',
+                      subtitle: 'Encontrar trabajos al instante',
                       icon: Icons.search_rounded,
                       shortcut: 'Ctrl/Cmd + K',
                       onTap: _openQuickSearch,
                     ),
                     _QuickActionData(
-                      title: 'Usar plantilla tecnica',
-                      subtitle: 'Relevamientos y mediciones',
+                      title: 'Usar plantilla',
+                      subtitle: 'Arrancar con estructura lista',
                       icon: Icons.auto_fix_high_rounded,
                       shortcut: 'Smart',
                       onTap: _openAutomationSheet,
@@ -1103,7 +1103,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                   palette: palette,
                                   message: _contextMessage,
                                   subtitle:
-                                      'Planillas tecnicas con evidencias en campo.',
+                                      'Evidencia, exportacion y trabajo offline en una sola app.',
                                   onMore: _openMoreSheet,
                                   onThemeToggle: widget.onToggleTheme,
                                   isLight: widget.isLight,
@@ -1111,9 +1111,9 @@ class _StartPageV2State extends State<StartPageV2> {
                                 const SizedBox(height: 18),
                                 _SectionTitle(
                                   palette: palette,
-                                  title: 'Empezar',
+                                  title: 'Workspace',
                                   subtitle:
-                                      'Nuevo relevamiento, plantillas y trabajo reciente en segundos',
+                                      'Crear, retomar o buscar trabajos de campo en segundos',
                                 ),
                                 const SizedBox(height: 10),
                                 GridView.count(
@@ -1135,7 +1135,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                 const SizedBox(height: 18),
                                 _SectionTitle(
                                   palette: palette,
-                                  title: 'Continuar trabajo',
+                                  title: 'Seguir trabajando',
                                   subtitle: 'Recientes, favoritos y fijados',
                                 ),
                                 const SizedBox(height: 10),
@@ -1330,8 +1330,8 @@ class _StartPalette {
 
   Color get background => isLight ? AppColors.lightBg : AppColors.darkBg;
   Color get card =>
-      isLight ? AppColors.lightSecondaryBg : AppColors.darkSecondaryBg;
-  Color get sheetBg => isLight ? AppColors.lightBg : AppColors.darkSecondaryBg;
+      isLight ? AppColors.lightSecondaryBg : AppColors.darkTertiaryBg;
+  Color get sheetBg => isLight ? AppColors.lightBg : AppColors.darkTertiaryBg;
   Color get border => isLight ? AppColors.lightDivider : AppColors.darkDivider;
   Color get textPrimary => isLight ? AppColors.lightLabel : AppColors.darkLabel;
   Color get textSecondary =>
@@ -1362,9 +1362,32 @@ class _Header extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: palette.card,
+        gradient: palette.isLight
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.darkElevatedBg,
+                  AppColors.darkSecondaryBg,
+                  palette.accent.withValues(alpha: 0.16),
+                ],
+              ),
+        color: palette.isLight ? palette.card : null,
         borderRadius: BorderRadius.circular(AppSpacing.xl),
-        border: Border.all(color: palette.border),
+        border: Border.all(
+          color: palette.isLight
+              ? palette.border
+              : palette.accent.withValues(alpha: 0.24),
+        ),
+        boxShadow: [
+          if (!palette.isLight)
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.28),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+            ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1439,7 +1462,7 @@ class _Header extends StatelessWidget {
                   isLight ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
                   size: 18,
                 ),
-                label: const Text('Tema'),
+                label: Text(isLight ? 'Oscuro' : 'Claro'),
               ),
               FilledButton.icon(
                 onPressed: onMore,
@@ -1738,7 +1761,14 @@ class _SheetMiniRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: palette.accentSoft.withValues(alpha: 0.45),
+            color: palette.isLight
+                ? palette.accentSoft.withValues(alpha: 0.45)
+                : AppColors.darkElevatedBg.withValues(alpha: 0.72),
+            border: Border.all(
+              color: palette.isLight
+                  ? Colors.transparent
+                  : palette.accent.withValues(alpha: 0.16),
+            ),
           ),
           child: Row(
             children: [
