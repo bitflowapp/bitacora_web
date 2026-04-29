@@ -1834,6 +1834,15 @@ class _EditorScreenState extends State<EditorScreen>
     await Navigator.of(context).maybePop();
   }
 
+  // Vuelve al listado de planillas respetando el guard de cambios sin guardar.
+  // maybePop() dispara PopScope.onPopInvokedWithResult, que ejecuta el
+  // _handleEditorPopGuard cuando hay trabajo pendiente.
+  Future<void> _navigateBackToSheets() async {
+    if (!mounted) return;
+    if (!Navigator.of(context).canPop()) return;
+    await Navigator.of(context).maybePop();
+  }
+
   Future<void> _handleEditorPopGuard({
     required bool didPop,
   }) async {
@@ -9761,6 +9770,12 @@ class _EditorScreenState extends State<EditorScreen>
                                         _openMobileHeaderMenu(context, pal),
                                     onOpenOfflineQueue: _openOfflineQueueDialog,
                                     lastLocalSavedAt: _lastSavedAt,
+                                    onBackToSheets:
+                                        Navigator.of(context).canPop()
+                                            ? () => unawaited(
+                                                  _navigateBackToSheets(),
+                                                )
+                                            : null,
                                   ),
                                 ),
                                 secondChild: RepaintBoundary(
@@ -9771,6 +9786,12 @@ class _EditorScreenState extends State<EditorScreen>
                                     selectedCol: _selCol,
                                     onMenu: () =>
                                         _openMobileHeaderMenu(context, pal),
+                                    onBackToSheets:
+                                        Navigator.of(context).canPop()
+                                            ? () => unawaited(
+                                                  _navigateBackToSheets(),
+                                                )
+                                            : null,
                                   ),
                                 ),
                               ),
@@ -18311,7 +18332,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ListTile(
                   leading: Icon(Icons.photo_camera_outlined, color: pal.fg),
                   title: const Text('Tomar foto'),
-                  subtitle: const Text('Usar camara'),
+                  subtitle: const Text('Abre la cámara'),
                   onTap: () async {
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
@@ -18353,8 +18374,8 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
                 ListTile(
                   leading: Icon(Icons.photo_library_outlined, color: pal.fg),
-                  title: const Text('Elegir de galeria'),
-                  subtitle: const Text('Seleccionar archivo'),
+                  title: const Text('Elegir de galería'),
+                  subtitle: const Text('Foto guardada en el dispositivo'),
                   onTap: () async {
                     try {
                       final outcome =

@@ -3408,12 +3408,25 @@ extension _EditorAttachments on _EditorScreenState {
     BuildContext context,
     _SheetPalette pal,
   ) async {
+    final canGoBack = Navigator.of(context).canPop();
     await showAppModal<void>(
       context: context,
       title: 'Acciones',
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (canGoBack) ...[
+            AppButton(
+              label: 'Mis planillas',
+              icon: Icons.arrow_back_rounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () {
+                Navigator.of(context).pop();
+                unawaited(_navigateBackToSheets());
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
           AppButton(
             label: '+ Registro',
             icon: Icons.add_box_outlined,

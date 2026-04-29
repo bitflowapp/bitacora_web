@@ -747,6 +747,7 @@ class _MobileCompactHeader extends StatelessWidget {
     required this.onMenu,
     required this.onOpenOfflineQueue,
     required this.lastLocalSavedAt,
+    this.onBackToSheets,
   });
 
   final _SheetPalette palette;
@@ -763,6 +764,7 @@ class _MobileCompactHeader extends StatelessWidget {
   final VoidCallback onMenu;
   final VoidCallback onOpenOfflineQueue;
   final DateTime? lastLocalSavedAt;
+  final VoidCallback? onBackToSheets;
 
   String _formatLocalSaved(DateTime? value) {
     if (value == null) return 'Último guardado local: --:--';
@@ -860,6 +862,18 @@ class _MobileCompactHeader extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (onBackToSheets != null) ...[
+                          _MobilePanelIconButton(
+                            icon: Icons.arrow_back_rounded,
+                            tooltip: 'Mis planillas',
+                            onTap: onBackToSheets,
+                            palette: palette,
+                            iconSize: 20,
+                            splashRadius: 18,
+                            padding: const EdgeInsets.all(6),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         Expanded(
                           child: Text(
                             label,
@@ -1069,6 +1083,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
     required this.selectedRow,
     required this.selectedCol,
     required this.onMenu,
+    this.onBackToSheets,
   });
 
   final _SheetPalette palette;
@@ -1076,6 +1091,7 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
   final int selectedRow;
   final int selectedCol;
   final VoidCallback onMenu;
+  final VoidCallback? onBackToSheets;
 
   static String _columnLabel(int col) {
     var value = col + 1;
@@ -1114,15 +1130,28 @@ class _MobileHeaderCollapsedPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 16,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: palette.fgMuted.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(999),
+              if (onBackToSheets != null) ...[
+                _MobilePanelIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Mis planillas',
+                  onTap: onBackToSheets,
+                  palette: palette,
+                  iconSize: 16,
+                  splashRadius: 14,
+                  padding: const EdgeInsets.all(4),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 4),
+              ] else ...[
+                Container(
+                  width: 16,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: palette.fgMuted.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 220),
                 child: Text(
