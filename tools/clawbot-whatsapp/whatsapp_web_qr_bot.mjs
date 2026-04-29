@@ -9,6 +9,7 @@ import {
   appendSafeLog,
   createConfig,
   getBasicCommandResponse,
+  isBasicCommand,
   isAuthorizedChat,
   isGroupChatId,
   maskPhone,
@@ -118,6 +119,13 @@ client.on('message', async (message) => {
   try {
     const from = message.from;
     const isGroup = isGroupChatId(from);
+    logSafe(`received message: chat=${maskPhone(from)}; fromMe=${message.fromMe ? 'true' : 'false'}; group=${isGroup ? 'true' : 'false'}`);
+
+    if (message.fromMe) {
+      logSafe(`ignored fromMe on message event: chat=${maskPhone(from)}`);
+      return;
+    }
+
     const auth = isAuthorizedChat({ from, author: message.author, isGroup }, config);
 
     if (!auth.allowed) {
@@ -143,6 +151,46 @@ client.on('message', async (message) => {
     logSafe(`sent response: chat=${maskPhone(from)}; command=${commandResponse ? 'basic' : 'ai'}`);
   } catch (error) {
     logSafe(`message handling error: ${error?.message ?? error}`);
+  }
+});
+
+client.on('message_create', async (message) => {
+  try {
+    if (!message.fromMe) return;
+
+    const from = message.from;
+    const to = message.to;
+    const chatId = to || message.id?.remote || from;
+    const isGroup = isGroupChatId(chatId);
+    const text = String(message.body ?? '').trim();
+
+    logSafe(`received message_create: chat=${maskPhone(chatId)}; fromMe=true; group=${isGroup ? 'true' : 'false'}`);
+
+    if (!isBasicCommand(text, config)) {
+      logSafe(`ignored fromMe non-command: chat=${maskPhone(chatId)}`);
+      return;
+    }
+
+    const auth = isAuthorizedChat({ from: chatId, isGroup }, config);
+    if (!auth.allowed) {
+      logSafe(`ignored unauthorized chat: reason=self command not allowed; chat=${maskPhone(chatId)}`);
+      return;
+    }
+
+    const response = getBasicCommandResponse(text, config);
+    if (!response) return;
+
+    logSafe(`accepted self command: chat=${maskPhone(chatId)}`);
+
+    if (config.dryRun) {
+      logSafe(`dry-run self response skipped: chat=${maskPhone(chatId)}`);
+      return;
+    }
+
+    await message.reply(response);
+    logSafe(`sent response: chat=${maskPhone(chatId)}; command=self-basic`);
+  } catch (error) {
+    logSafe(`message_create handling error: ${error?.message ?? error}`);
   }
 });
 

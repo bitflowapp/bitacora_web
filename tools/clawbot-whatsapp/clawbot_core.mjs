@@ -144,6 +144,10 @@ export function getBasicCommandResponse(text, config) {
   }
 }
 
+export function isBasicCommand(text, config) {
+  return getBasicCommandResponse(text, config) != null;
+}
+
 export function appendSafeLog(repoRoot, line) {
   const logDir = path.join(repoRoot, 'logs');
   fs.mkdirSync(logDir, { recursive: true });
