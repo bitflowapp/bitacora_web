@@ -1,4 +1,4 @@
-package com.example.bitacora_web
+package com.bitflow.app
 
 import io.flutter.embedding.android.FlutterActivity
 
