@@ -9,7 +9,8 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:bitacora_web/web/html_compat.dart' as html;import 'web_file_bytes.dart';
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'web_file_bytes.dart';
 
 class AttachmentRecord {
   final String id;
@@ -132,6 +133,7 @@ class AttachmentsServiceWeb {
     final input = html.FileUploadInputElement()
       ..accept = 'image/*'
       ..multiple = false;
+    input.removeAttribute('capture');
     input.setAttribute('capture', 'environment');
     input.click();
 

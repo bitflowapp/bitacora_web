@@ -93,6 +93,9 @@ const String _kPrefFlowBotHistory = 'bitflow.editor.flowbot.history.v1';
 const String _kPrefFlowBotLastScope = 'bitflow.editor.flowbot.last_scope.v1';
 const String _kPrefFlowBotMacros = 'bitflow.editor.flowbot.macros.v1';
 const String _kPrefMobileCompactMode = 'bitflow.editor.mobile_compact_mode.v1';
+
+enum _PhotoSourceAction { camera, gallery, file }
+
 const String _kPrefZenMode = 'bitflow.editor.zen_mode.v1';
 const String _kPrefMobileFocusCellMode =
     'bitflow.editor.mobile_focus_cell_mode.v1';
@@ -8763,6 +8766,16 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted || picked == null) return;
 
     final outcome = picked.outcome;
+    if (outcome == null) {
+      if (picked.action == _PhotoSourceAction.file) {
+        _showActionSnack(
+          'Selecciona una celda para adjuntar archivos.',
+          isError: false,
+          icon: Icons.attach_file_rounded,
+        );
+      }
+      return;
+    }
     if (!outcome.ok) {
       if (outcome.cancelled) return;
       _showActionSnack(
@@ -10092,11 +10105,10 @@ class _EditorScreenState extends State<EditorScreen>
                                           ),
                                         ),
                                         onDuplicateRows: _duplicateSelectedRows,
-                                        onAttachPhoto: () => unawaited(
-                                          _startPhotoFlowForCell(
-                                            _selRow,
-                                            _selCol,
-                                          ),
+                                        onAttachPhoto: () =>
+                                            _openPhotosSheetForCell(
+                                          _selRow,
+                                          _selCol,
                                         ),
                                         onAttachGps: () => unawaited(
                                           _requestGpsForCell(
@@ -10503,7 +10515,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                         ),
                                                       ),
                                                       onPickPhoto: (r) =>
-                                                          _startPhotoFlowForCell(
+                                                          _openPhotosSheetForCell(
                                                         _actualRowFromDisplay(
                                                           r,
                                                           visibleRows,
@@ -10778,7 +10790,7 @@ class _EditorScreenState extends State<EditorScreen>
                                                     ),
                                                   ),
                                                   onPickPhoto: (r) =>
-                                                      _startPhotoFlowForCell(
+                                                      _openPhotosSheetForCell(
                                                     _actualRowFromDisplay(
                                                       r,
                                                       visibleRows,
@@ -11985,7 +11997,7 @@ class _EditorScreenState extends State<EditorScreen>
       _MobileAction(
         icon: Icons.photo_camera_outlined,
         label: 'Foto',
-        onTap: () => _startPhotoFlowForCell(r, c),
+        onTap: () => _openPhotosSheetForCell(r, c),
       ),
       _MobileAction(
         icon: Icons.videocam_outlined,
@@ -13965,7 +13977,7 @@ class _EditorScreenState extends State<EditorScreen>
         _CtxAction(
           'Adjuntar foto',
           Icons.add_photo_alternate_outlined,
-          () => unawaited(_startPhotoFlowForCell(r, c)),
+          () => _openPhotosSheetForCell(r, c),
           runOnTap: true,
         ),
       );
@@ -18287,11 +18299,19 @@ class _EditorScreenState extends State<EditorScreen>
     return picked;
   }
 
-  Future<({PhotoAcquireOutcome outcome, bool fromCamera})?>
-      _showPhotoSourcePicker() async {
+  Future<
+      ({
+        PhotoAcquireOutcome? outcome,
+        bool fromCamera,
+        _PhotoSourceAction action,
+      })?> _showPhotoSourcePicker() async {
     if (_rows.isEmpty || _headers.isEmpty) return null;
     return showModalBottomSheet<
-        ({PhotoAcquireOutcome outcome, bool fromCamera})?>(
+        ({
+          PhotoAcquireOutcome? outcome,
+          bool fromCamera,
+          _PhotoSourceAction action,
+        })?>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: false,
@@ -18315,7 +18335,7 @@ class _EditorScreenState extends State<EditorScreen>
                     Icon(Icons.photo_camera_outlined, color: pal.fg),
                     const SizedBox(width: 8),
                     Text(
-                      'Agregar foto',
+                      'Agregar evidencia',
                       style: TextStyle(
                         color: pal.fg,
                         fontWeight: FontWeight.w900,
@@ -18332,7 +18352,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ListTile(
                   leading: Icon(Icons.photo_camera_outlined, color: pal.fg),
                   title: const Text('Tomar foto'),
-                  subtitle: const Text('Abre la cámara'),
+                  subtitle: const Text('Abrir cámara'),
                   onTap: () async {
                     if (_guardInsecureContext(
                       DiagnosticActionType.photo,
@@ -18357,7 +18377,11 @@ class _EditorScreenState extends State<EditorScreen>
                       if (!ctx.mounted) return;
                       Navigator.of(
                         ctx,
-                      ).pop((outcome: outcome, fromCamera: true));
+                      ).pop((
+                        outcome: outcome,
+                        fromCamera: true,
+                        action: _PhotoSourceAction.camera,
+                      ));
                     } catch (e, st) {
                       DiagnosticsLog.I.updatePhotoAttempt(
                         stage: 'picker_error',
@@ -18368,6 +18392,7 @@ class _EditorScreenState extends State<EditorScreen>
                       Navigator.of(ctx).pop((
                         outcome: PhotoAcquireOutcome.error(e.toString()),
                         fromCamera: true,
+                        action: _PhotoSourceAction.camera,
                       ));
                     }
                   },
@@ -18375,7 +18400,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ListTile(
                   leading: Icon(Icons.photo_library_outlined, color: pal.fg),
                   title: const Text('Elegir de galería'),
-                  subtitle: const Text('Foto guardada en el dispositivo'),
+                  subtitle: const Text('Abrir fototeca'),
                   onTap: () async {
                     try {
                       final outcome =
@@ -18383,7 +18408,11 @@ class _EditorScreenState extends State<EditorScreen>
                       if (!ctx.mounted) return;
                       Navigator.of(
                         ctx,
-                      ).pop((outcome: outcome, fromCamera: false));
+                      ).pop((
+                        outcome: outcome,
+                        fromCamera: false,
+                        action: _PhotoSourceAction.gallery,
+                      ));
                     } catch (e, st) {
                       DiagnosticsLog.I.updatePhotoAttempt(
                         stage: 'picker_error',
@@ -18394,8 +18423,21 @@ class _EditorScreenState extends State<EditorScreen>
                       Navigator.of(ctx).pop((
                         outcome: PhotoAcquireOutcome.error(e.toString()),
                         fromCamera: false,
+                        action: _PhotoSourceAction.gallery,
                       ));
                     }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.attach_file_rounded, color: pal.fg),
+                  title: const Text('Adjuntar archivo'),
+                  subtitle: const Text('PDF, imagen u otro documento'),
+                  onTap: () {
+                    Navigator.of(ctx).pop((
+                      outcome: null,
+                      fromCamera: false,
+                      action: _PhotoSourceAction.file,
+                    ));
                   },
                 ),
               ],
@@ -18416,9 +18458,11 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _startCellPhotoPickFromSheet(int r, int c) async {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
-    await _startPhotoFlowForCell(r, c);
     if (!mounted) return;
     Navigator.of(context).maybePop();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    _openPhotosSheetForCell(r, c);
   }
 
   // ------------------------------ Export/Share -----------------------------

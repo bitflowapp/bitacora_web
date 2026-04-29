@@ -52,7 +52,7 @@ extension _EditorActions on _EditorScreenState {
     )) {
       return;
     }
-    await _startPhotoFlowForCell(_selRow, _selCol);
+    _openPhotosSheetForCell(_selRow, _selCol);
   }
 
   Future<void> _runGpsForSelection() async {

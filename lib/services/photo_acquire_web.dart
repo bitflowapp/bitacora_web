@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:bitacora_web/web/html_compat.dart' as html;import 'dart:typed_data';
+import 'package:bitacora_web/web/html_compat.dart' as html;
+import 'dart:typed_data';
 
 import 'web_file_bytes.dart';
 
@@ -20,6 +21,7 @@ Future<WebPhotoPickResult?> pickImageFromWeb({required bool capture}) async {
     ..accept = 'image/*'
     ..multiple = false;
 
+  input.removeAttribute('capture');
   if (capture) {
     input.setAttribute('capture', 'environment');
   }

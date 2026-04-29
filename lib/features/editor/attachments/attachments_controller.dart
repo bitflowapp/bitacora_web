@@ -170,8 +170,20 @@ extension _EditorAttachments on _EditorScreenState {
       return;
     }
 
+    if (picked.action == _PhotoSourceAction.file) {
+      _photoFlowActive = false;
+      await _attachDocumentForCell(target.row, target.col);
+      return;
+    }
+
+    final outcome = picked.outcome;
+    if (outcome == null) {
+      _photoFlowActive = false;
+      return;
+    }
+
     await _processPhotoOutcome(
-      picked.outcome,
+      outcome,
       ref,
       fromCamera: picked.fromCamera,
     );
@@ -1644,6 +1656,12 @@ extension _EditorAttachments on _EditorScreenState {
     final picked = await _showPhotoSourcePicker();
     if (!mounted) return;
     if (picked == null) return;
+    if (picked.action == _PhotoSourceAction.file) {
+      await _attachDocumentForCell(r, c);
+      return;
+    }
+    final outcome = picked.outcome;
+    if (outcome == null) return;
 
     _photoFlowActive = true;
     _updatePhotoFlowStatus(
@@ -1651,7 +1669,7 @@ extension _EditorAttachments on _EditorScreenState {
       target: ref,
     );
     await _processPhotoOutcome(
-      picked.outcome,
+      outcome,
       ref,
       fromCamera: picked.fromCamera,
       replaceIndex: 0,

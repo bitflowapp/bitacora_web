@@ -88,10 +88,9 @@ Future<WebImageCaptureResult> captureWebImage({
   // Note: la sola presencia del atributo `capture` (incluso vacío) hace que
   // mobile browsers (iOS Safari, Android Chrome) abran la cámara en lugar
   // de la galería, por eso debe removerse explícitamente cuando capture=false.
+  input.removeAttribute('capture');
   if (capture) {
     input.setAttribute('capture', 'environment');
-  } else {
-    input.removeAttribute('capture');
   }
   input.value = '';
 
