@@ -5430,7 +5430,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
         return 'Nuevo registro $count fila(s)';
       case FlowBotActionType.clearSelection:
-        return 'Limpiar seleccion';
+        return 'Limpiar selección';
       case FlowBotActionType.clearRow:
         return 'Limpiar fila activa';
       case FlowBotActionType.setColumnAlign:
@@ -5969,7 +5969,7 @@ class _EditorScreenState extends State<EditorScreen>
     return const _ActionResult(
       ok: false,
       message:
-          'FlowBot no aplico cambios. Revisa seleccion/comando y vuelve a analizar.',
+          'FlowBot no aplicó cambios. Revisa selección/comando y vuelve a analizar.',
       applied: 0,
     );
   }
@@ -6782,7 +6782,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _selectionLabelForQuickActions() {
-    if (_selRow < 0 || _selCol < 0) return 'Sin seleccion';
+    if (_selRow < 0 || _selCol < 0) return 'Sin selección';
     final col = _headerLabel(_selCol);
     return '$col | fila ${_selRow + 1}';
   }
@@ -7369,7 +7369,7 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Aplicar GPS a seleccion',
+            label: 'Aplicar GPS a selección',
             icon: Icons.my_location_rounded,
             variant: AppButtonVariant.secondary,
             fullWidth: true,
@@ -7456,7 +7456,7 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Auto-ID en seleccion',
+            label: 'Auto-ID en selección',
             icon: Icons.tag_rounded,
             variant: AppButtonVariant.secondary,
             fullWidth: true,
@@ -8955,7 +8955,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
@@ -8994,7 +8994,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: icon ?? Icons.error_outline_rounded,
       actionLabel: (diagnosticDetails ?? '').trim().isEmpty
           ? null
-          : 'Ver detalle tecnico',
+          : 'Ver detalle técnico',
       onAction: (diagnosticDetails ?? '').trim().isEmpty
           ? null
           : () => unawaited(_copyDiagnosticToClipboard(diagnosticDetails!)),
@@ -13919,7 +13919,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (_batchTargetRows().length > 1) {
         actions.add(
           _CtxAction(
-            'Aplicar valor a seleccion',
+            'Aplicar valor a selección',
             Icons.format_color_text_rounded,
             () => unawaited(_promptBatchApplyValue()),
           ),
@@ -13927,7 +13927,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       actions.add(
         _CtxAction(
-          'Fecha hoy en seleccion',
+          'Fecha hoy en selección',
           Icons.today_rounded,
           _applyDateTodayToSelection,
         ),
@@ -18324,7 +18324,7 @@ class _EditorScreenState extends State<EditorScreen>
                       permissionLabel: 'camara',
                       rationaleTitle: 'Permiso de camara',
                       rationaleMessage:
-                          'Usamos la camara para adjuntar evidencia a la celda seleccionada. '
+                          'Usamos la cámara para adjuntar evidencia a la celda seleccionada. '
                           'Las fotos quedan en tu almacenamiento local.',
                       permission: ph.Permission.camera,
                     );
@@ -18772,7 +18772,7 @@ class _EditorScreenState extends State<EditorScreen>
       _throwIfLongOperationCancelled();
       AppHaptics.success();
       _showActionSnack(
-        'Backup ZIP listo.',
+        'Copia previa lista.',
         isError: false,
         icon: Icons.backup_rounded,
       );

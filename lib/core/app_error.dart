@@ -234,7 +234,7 @@ class AppErrorMapper {
         case AppErrorKind.storage:
           return 'No se pudo exportar por un problema de almacenamiento local.';
         case AppErrorKind.timeout:
-          return 'La exportacion demoro demasiado. Intenta de nuevo.';
+          return 'La exportación demoró demasiado. Intenta de nuevo.';
         case AppErrorKind.unavailable:
           return 'No se pudo exportar en este entorno.';
         case AppErrorKind.cancelled:

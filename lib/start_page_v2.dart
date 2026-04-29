@@ -101,13 +101,14 @@ class _StartPageV2State extends State<StartPageV2> {
   bool debugBusyCancelRequested() => _busyCancelRequested;
 
   Future<void> _openBlankSheet() async {
-    final id = SheetStore.createNew();
+    final sheetName = SheetStore.defaultNewSheetName();
+    final id = SheetStore.createNew(nameOverride: sheetName);
     if (!mounted) return;
     await Navigator.of(context).push(
       CupertinoPageRoute<void>(
         builder: (_) => EditorScreen(
           sheetId: id,
-          initialName: 'Planilla',
+          initialName: sheetName,
           isLight: widget.isLight,
           onToggleTheme: widget.onToggleTheme,
         ),
@@ -127,13 +128,14 @@ class _StartPageV2State extends State<StartPageV2> {
               key: const ValueKey('create-sheet-choice-blank'),
               leading: const Icon(Icons.add_rounded),
               title: const Text('Planilla vacía'),
-              subtitle: const Text('Nuevo relevamiento en blanco'),
+              subtitle: const Text('Relevamiento con nombre automático'),
               onTap: () => Navigator.of(context).pop('blank'),
             ),
             ListTile(
               leading: const Icon(Icons.science_outlined),
-              title: const Text('Demo técnica'),
-              subtitle: const Text('Relevamiento técnico con evidencias'),
+              title: const Text('Plantilla técnica'),
+              subtitle:
+                  const Text('Relevamiento con evidencias listo para usar'),
               onTap: () => Navigator.of(context).pop('demo'),
             ),
           ],
@@ -448,7 +450,7 @@ class _StartPageV2State extends State<StartPageV2> {
                                 key: const ValueKey('start-primary-new'),
                                 icon: Icons.add_rounded,
                                 title: 'Nuevo relevamiento',
-                                subtitle: 'Crea una hoja en blanco',
+                                subtitle: 'Crea una hoja con nombre único',
                                 onTap: _openBlankSheet,
                               ),
                               _HomeActionButton(
@@ -471,7 +473,7 @@ class _StartPageV2State extends State<StartPageV2> {
                               _HomeActionButton(
                                 key: const ValueKey('start-primary-automate'),
                                 icon: Icons.auto_awesome_rounded,
-                                title: 'Demo técnica',
+                                title: 'Plantilla técnica',
                                 subtitle: 'Operadora Norte · evidencias',
                                 onTap: _openTechnicalDemo,
                               ),
@@ -787,7 +789,7 @@ class _AutomationPanel extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onDemo,
             icon: const Icon(Icons.science_outlined),
-            label: const Text('Demo técnica'),
+            label: const Text('Plantilla técnica'),
           ),
         ],
       ),

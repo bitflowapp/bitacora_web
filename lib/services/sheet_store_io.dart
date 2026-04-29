@@ -121,6 +121,16 @@ class SheetStore {
   static const String _photosColId = 'col_photos';
   static int _sheetIdSeed = 0;
 
+  static String defaultNewSheetName({DateTime? now}) {
+    final local = (now ?? DateTime.now()).toLocal();
+    final yyyy = local.year.toString().padLeft(4, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final dd = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return 'Relevamiento $yyyy-$mm-$dd $hh:$min';
+  }
+
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
   }
@@ -410,8 +420,10 @@ class SheetStore {
     return createFromModel(normalized);
   }
 
-  static String createNew() {
+  static String createNew({String? nameOverride}) {
     final id = _nextSheetId();
+    final now = DateTime.now();
+    final name = (nameOverride ?? '').trim();
     final headers = _defaultHeaders();
     final colIds = _defaultColIds(headers.length);
     final rows = _buildRowMaps(
@@ -419,8 +431,8 @@ class SheetStore {
     );
 
     final model = <String, dynamic>{
-      'name': '',
-      'savedAt': DateTime.now().toIso8601String(),
+      'name': name.isEmpty ? defaultNewSheetName(now: now) : name,
+      'savedAt': now.toIso8601String(),
       'headers': headers,
       'colIds': colIds,
       'rows': rows,
@@ -729,11 +741,11 @@ class SheetStore {
         );
       case TemplateKind.medicionesTecnicas:
         return const _TemplateDefinition(
-          name: 'Mediciones tecnicas',
+          name: 'Mediciones técnicas',
           columns: <_TemplateColumn>[
             _TemplateColumn(label: 'Fecha', type: 'date'),
             _TemplateColumn(label: 'Punto', type: 'text'),
-            _TemplateColumn(label: 'Parametro', type: 'text'),
+            _TemplateColumn(label: 'Parámetro', type: 'text'),
             _TemplateColumn(label: 'Lectura', type: 'number'),
             _TemplateColumn(label: 'Unidad', type: 'text'),
             _TemplateColumn(label: 'Tolerancia', type: 'number'),

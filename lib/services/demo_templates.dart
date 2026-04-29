@@ -229,12 +229,12 @@ const List<DemoTemplateSpec> kDemoTemplateSpecs = <DemoTemplateSpec>[
   ),
   DemoTemplateSpec(
     slug: 'mediciones',
-    name: 'Mediciones tecnicas',
-    sheetName: 'Mediciones Tecnicas',
+    name: 'Mediciones técnicas',
+    sheetName: 'Mediciones técnicas',
     headers: <String>[
       'Fecha',
       'Punto',
-      'Parametro',
+      'Parámetro',
       'Lectura',
       'Unidad',
       'Limite',

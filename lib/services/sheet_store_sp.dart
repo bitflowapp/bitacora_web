@@ -16,6 +16,17 @@ class SheetMeta {
 
 class SheetStore {
   static const _indexKey = 'sheets:index:sp'; // {"ids":[...]}
+
+  static String defaultNewSheetName({DateTime? now}) {
+    final local = (now ?? DateTime.now()).toLocal();
+    final yyyy = local.year.toString().padLeft(4, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final dd = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return 'Relevamiento $yyyy-$mm-$dd $hh:$min';
+  }
+
   static Future<String?> loadRaw(String id) async {
     final p = await SharedPreferences.getInstance();
     return p.getString('sheet:$id');
@@ -41,11 +52,16 @@ class SheetStore {
     return p.getString('sheet:$id:title');
   }
 
-  static Future<String> createNew() async {
+  static Future<String> createNew({String? nameOverride}) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     final s = TableState.empty();
+    final name = (nameOverride ?? '').trim();
     final p = await SharedPreferences.getInstance();
     await p.setString('sheet:$id', s.toJsonString());
+    await p.setString(
+      'sheet:$id:title',
+      name.isEmpty ? defaultNewSheetName() : name,
+    );
     final ids = await _getIndex()
       ..insert(0, id);
     await _saveIndex(ids);

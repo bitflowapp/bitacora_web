@@ -99,7 +99,7 @@ extension _EditorActions on _EditorScreenState {
     if (!mounted) return;
     final activeCell = (_selRow >= 0 && _selCol >= 0)
         ? 'Fila ${_selRow + 1}, Col ${_selCol + 1}'
-        : 'Sin seleccion';
+        : 'Sin selección';
     await showCommandPalette(
       context,
       title: 'Comandos',
@@ -215,7 +215,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'templates',
           label: 'Plantillas',
-          subtitle: 'Abrir galeria de plantillas profesionales',
+          subtitle: 'Abrir galería de plantillas profesionales',
           icon: Icons.grid_view_rounded,
           onSelected: () => unawaited(_openDemoTemplateSheet()),
         ),
@@ -237,7 +237,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'mark_reviewed',
           label: 'Marcar revisado',
-          subtitle: 'Workflow de revision para seleccion',
+          subtitle: 'Flujo de revisión para selección',
           icon: Icons.verified_rounded,
           onSelected: () => unawaited(_markSelectedRowsReviewed()),
         ),
@@ -265,7 +265,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'auto_id',
           label: 'Auto-ID',
-          subtitle: 'Completa IDs faltantes en seleccion',
+          subtitle: 'Completa IDs faltantes en selección',
           icon: Icons.tag_rounded,
           onSelected: _applyAutoIdQuick,
         ),
@@ -279,20 +279,20 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'batch_actions',
           label: 'Acciones por lote',
-          subtitle: 'Aplicar a seleccion actual',
+          subtitle: 'Aplicar a selección actual',
           icon: Icons.layers_outlined,
           onSelected: () => unawaited(_openBatchActionsSheet()),
         ),
         CommandAction(
           id: 'apply_value_to_selection',
-          label: 'Aplicar valor a seleccion',
+          label: 'Aplicar valor a selección',
           subtitle: 'Carga rapida por columna activa',
           icon: Icons.format_color_text_rounded,
           onSelected: () => unawaited(_promptBatchApplyValue()),
         ),
         CommandAction(
           id: 'today_selection',
-          label: 'Fecha hoy en seleccion',
+          label: 'Fecha hoy en selección',
           subtitle: 'Aplica YYYY-MM-DD en filas seleccionadas',
           icon: Icons.today_rounded,
           onSelected: _applyDateTodayToSelection,
@@ -453,7 +453,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'export_menu',
           label: 'Exportar',
-          subtitle: 'Abrir flujo de exportacion, compartir o imprimir',
+          subtitle: 'Abrir flujo de exportación, compartir o imprimir',
           icon: Icons.ios_share_rounded,
           onSelected: () => unawaited(_openExportMenu()),
         ),
@@ -465,7 +465,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'export_backup',
-          label: 'Backup ZIP',
+          label: 'Copia previa',
           icon: Icons.backup_rounded,
           onSelected: () => unawaited(_exportBackupZip()),
         ),

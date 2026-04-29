@@ -421,7 +421,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     ),
                     tile(
                       icon: Icons.straighten_rounded,
-                      title: 'Mediciones tecnicas',
+                      title: 'Mediciones técnicas',
                       subtitle: 'Punto, parametro, lectura, tolerancia y estado',
                       value: TemplateKind.medicionesTecnicas,
                     ),

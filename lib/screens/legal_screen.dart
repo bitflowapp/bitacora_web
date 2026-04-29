@@ -10,12 +10,12 @@ class LegalScreen extends StatelessWidget {
           LegalSection(
             title: 'Datos locales',
             body:
-                'La aplicacion funciona sin servidores. La informacion se guarda localmente en el navegador o equipo del usuario.',
+                'La aplicación funciona sin servidores. La información se guarda localmente en el navegador o equipo del usuario.',
           ),
           LegalSection(
             title: 'Control del usuario',
             body:
-                'Cada equipo decide que exporta, comparte o elimina. No recolectamos ni enviamos informacion automaticamente.',
+                'Cada equipo decide qué exporta, comparte o elimina. No recolectamos ni enviamos información automáticamente.',
           ),
           LegalSection(
             title: 'Respaldo',

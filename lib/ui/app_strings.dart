@@ -69,7 +69,7 @@ class AppStrings {
   static const progressImportingBackup = 'Importando backup...';
   static const progressImportingAssets = 'Importando adjuntos...';
   static const progressExportingSheet = 'Exportando planilla...';
-  static const progressPreparingExport = 'Preparando exportacion...';
+  static const progressPreparingExport = 'Preparando exportación...';
   static const progressGeneratingFile = 'Generando archivo...';
   static const progressPackagingAssets = 'Empaquetando adjuntos...';
   static const progressWritingFile = 'Guardando archivo...';

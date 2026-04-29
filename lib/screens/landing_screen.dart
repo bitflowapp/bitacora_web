@@ -132,7 +132,7 @@ class LandingScreen extends StatelessWidget {
                             _BenefitsGrid(),
                             const SizedBox(height: 48),
                             SectionHeader(
-                              title: 'Como funciona',
+                              title: 'Cómo funciona',
                               subtitle:
                                   'Tres pasos simples para empezar hoy mismo.',
                             ),
@@ -321,7 +321,7 @@ class _HeroSection extends StatelessWidget {
                     runSpacing: 10,
                     children: const [
                       _Tag('Sin conexión real'),
-                      _Tag('Backup ZIP'),
+                      _Tag('Copia exportable'),
                       _Tag('Reporte imprimible'),
                       _Tag('Sin servidores'),
                     ],
@@ -358,23 +358,89 @@ class _PreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vista rapida',
+            'Vista rápida',
             style: t.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           Container(
             height: 180,
             decoration: BoxDecoration(
-              color: t.colors.surfaceMuted,
+              color: t.colors.surface,
               borderRadius: BorderRadius.circular(t.radii.lg),
               border: Border.all(color: t.colors.border),
             ),
-            child: Center(
-              child: Text(
-                'Dashboard + grilla + evidencias',
-                style: t.text.bodyMedium?.copyWith(
-                  color: t.colors.textSecondary,
-                ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.table_chart_outlined,
+                        size: 18,
+                        color: t.colors.textPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Relevamiento en campo',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.text.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const _MiniStatusChip(
+                        label: 'Local',
+                        icon: Icons.lock_outline,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: const [
+                      Expanded(
+                        child: _PreviewMetric(
+                          label: 'Evidencias',
+                          value: '24',
+                          icon: Icons.photo_camera_outlined,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: _PreviewMetric(
+                          label: 'Pendientes',
+                          value: '3',
+                          icon: Icons.flag_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: t.colors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(t.radii.md),
+                        border: Border.all(color: t.colors.border),
+                      ),
+                      child: Column(
+                        children: const [
+                          _PreviewGridRow(
+                            cells: ['Activo', 'Estado', 'GPS'],
+                            header: true,
+                          ),
+                          _PreviewGridRow(cells: ['Bomba 2', 'OK', 'Listo']),
+                          _PreviewGridRow(
+                            cells: ['Tablero', 'Revisar', 'Foto'],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -385,6 +451,146 @@ class _PreviewCard extends StatelessWidget {
               color: t.colors.textSecondary,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStatusChip extends StatelessWidget {
+  const _MiniStatusChip({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: t.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: t.colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: t.colors.textSecondary),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: t.text.bodySmall?.copyWith(
+                color: t.colors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewMetric extends StatelessWidget {
+  const _PreviewMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: t.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(t.radii.md),
+        border: Border.all(color: t.colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: t.colors.textPrimary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: t.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.text.bodySmall?.copyWith(
+                      color: t.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewGridRow extends StatelessWidget {
+  const _PreviewGridRow({
+    required this.cells,
+    this.header = false,
+  });
+
+  final List<String> cells;
+  final bool header;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Expanded(
+      child: Row(
+        children: [
+          for (int i = 0; i < cells.length; i++) ...[
+            Expanded(
+              child: Container(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: t.colors.border),
+                    right: i == cells.length - 1
+                        ? BorderSide.none
+                        : BorderSide(color: t.colors.border),
+                  ),
+                ),
+                child: Text(
+                  cells[i],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.text.bodySmall?.copyWith(
+                    color:
+                        header ? t.colors.textPrimary : t.colors.textSecondary,
+                    fontWeight: header ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -502,7 +708,8 @@ class _HowItWorks extends StatelessWidget {
           _StepCard(
             index: '03',
             title: 'Exporta y entrega',
-            desc: 'Backup ZIP y reporte imprimible listo para auditorias.',
+            desc:
+                'Copia exportable y reporte imprimible listo para auditorías.',
           ),
         ];
         if (wide) {

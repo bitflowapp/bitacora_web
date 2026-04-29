@@ -130,7 +130,7 @@ class _PremiumAppleHeader extends StatelessWidget {
   }
 
   String _selectionLabel() {
-    if (selectedRow < 0 || selectedCol < 0) return 'Sin seleccion';
+    if (selectedRow < 0 || selectedCol < 0) return 'Sin selección';
     return 'Celda ${_columnLabel(selectedCol)}${selectedRow + 1}';
   }
 
@@ -810,14 +810,14 @@ class _MobileCompactHeader extends StatelessWidget {
             }
 
             final pendingLabel =
-                pendingRequired > 0 ? 'Errores: $pendingRequired' : null;
+                pendingRequired > 0 ? '$pendingRequired errores' : null;
             final queueLabel =
-                pendingOfflineCount > 0 ? 'Cola: $pendingOfflineCount' : null;
+                pendingOfflineCount > 0 ? 'Cola $pendingOfflineCount' : null;
             final outboxPendingLabel = outboxPendingCount > 0
-                ? 'Pendientes: $outboxPendingCount'
+                ? '$outboxPendingCount pendientes'
                 : null;
             final outboxErrorLabel =
-                outboxErrorCount > 0 ? 'Error: $outboxErrorCount' : null;
+                outboxErrorCount > 0 ? '$outboxErrorCount con error' : null;
             final offlineLabel = offline.message?.trim().isNotEmpty == true
                 ? offline.message!.trim()
                 : 'Sincronizado';
@@ -827,13 +827,19 @@ class _MobileCompactHeader extends StatelessWidget {
             final activeCell = (selectedRow >= 0 && selectedCol >= 0)
                 ? '${_columnLabel(selectedCol)}${selectedRow + 1}'
                 : '--';
-            final summaryParts = <String>[
-              saveLabel,
-              if (pendingLabel != null) pendingLabel,
-              if (queueLabel != null) queueLabel,
-              if (outboxPendingLabel != null) outboxPendingLabel,
-              if (outboxErrorLabel != null) outboxErrorLabel,
-            ];
+            final saveIcon = switch (snap.state) {
+              EditorSaveState.saving => Icons.sync_rounded,
+              EditorSaveState.dirty => Icons.edit_note_rounded,
+              EditorSaveState.saved => Icons.check_circle_rounded,
+              EditorSaveState.idle => Icons.task_alt_rounded,
+            };
+            final syncIcon = switch (offline.state) {
+              OfflineSyncState.offline => Icons.cloud_off_rounded,
+              OfflineSyncState.pending => Icons.schedule_send_rounded,
+              OfflineSyncState.syncing => Icons.sync_rounded,
+              OfflineSyncState.synced => Icons.cloud_done_rounded,
+              OfflineSyncState.failed => Icons.sync_problem_rounded,
+            };
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
@@ -884,27 +890,62 @@ class _MobileCompactHeader extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      summaryParts.join(' | '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.fgMuted,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.8,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Celda: $activeCell | $localLabel | $offlineLabel',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.fgMuted,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11.5,
-                      ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _MobileStatusPill(
+                          palette: palette,
+                          icon: saveIcon,
+                          label: saveLabel,
+                          emphasized: snap.state == EditorSaveState.saved,
+                        ),
+                        if (pendingLabel != null)
+                          _MobileStatusPill(
+                            palette: palette,
+                            icon: Icons.error_outline_rounded,
+                            label: pendingLabel,
+                            tone: _MobileStatusTone.danger,
+                          ),
+                        if (queueLabel != null)
+                          _MobileStatusPill(
+                            palette: palette,
+                            icon: Icons.outbox_rounded,
+                            label: queueLabel,
+                          ),
+                        if (outboxPendingLabel != null)
+                          _MobileStatusPill(
+                            palette: palette,
+                            icon: Icons.schedule_send_rounded,
+                            label: outboxPendingLabel,
+                          ),
+                        if (outboxErrorLabel != null)
+                          _MobileStatusPill(
+                            palette: palette,
+                            icon: Icons.sync_problem_rounded,
+                            label: outboxErrorLabel,
+                            tone: _MobileStatusTone.danger,
+                          ),
+                        _MobileStatusPill(
+                          palette: palette,
+                          icon: Icons.grid_on_rounded,
+                          label: activeCell,
+                        ),
+                        _MobileStatusPill(
+                          palette: palette,
+                          icon: Icons.access_time_rounded,
+                          label: localLabel,
+                        ),
+                        _MobileStatusPill(
+                          palette: palette,
+                          icon: syncIcon,
+                          label: offlineLabel,
+                          tone: offline.state == OfflineSyncState.failed
+                              ? _MobileStatusTone.danger
+                              : _MobileStatusTone.neutral,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -947,6 +988,76 @@ class _MobileCompactHeader extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+enum _MobileStatusTone { neutral, danger }
+
+class _MobileStatusPill extends StatelessWidget {
+  const _MobileStatusPill({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    this.tone = _MobileStatusTone.neutral,
+    this.emphasized = false,
+  });
+
+  final _SheetPalette palette;
+  final IconData icon;
+  final String label;
+  final _MobileStatusTone tone;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = tone == _MobileStatusTone.danger;
+    final bg = danger
+        ? palette.dangerBg.withValues(alpha: palette.isLight ? 0.82 : 0.5)
+        : emphasized
+            ? palette.statusBg.withValues(alpha: palette.isLight ? 0.92 : 0.62)
+            : palette.chipBg.withValues(alpha: palette.isLight ? 0.84 : 0.34);
+    final fg = danger
+        ? palette.dangerFg
+        : emphasized
+            ? palette.statusFg
+            : palette.fgMuted;
+    final border = danger
+        ? palette.dangerFg.withValues(alpha: 0.22)
+        : palette.chipBorder.withValues(alpha: palette.isLight ? 0.55 : 0.42);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 156),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: fg),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1311,4 +1422,3 @@ typedef _SelectCell = void Function(int r, int c);
 typedef _EditCell = void Function(int r, int c, double cellWidth);
 typedef _EditHeader = void Function(int c, double headerWidth);
 typedef _ContextMenu = void Function(Offset pos, int r, int c, bool isHeader);
-

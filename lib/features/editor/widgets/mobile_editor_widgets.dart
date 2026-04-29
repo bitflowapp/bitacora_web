@@ -754,7 +754,7 @@ class _SelectionQuickActionsBarState extends State<_SelectionQuickActionsBar> {
     if (label == AppStrings.quickActionAttachPhoto) return 'Foto';
     if (label == AppStrings.quickActionAttachGps) return 'GPS';
     if (label == AppStrings.quickActionGoTo) return 'Ir a';
-    if (label == AppStrings.more) return 'Mas';
+    if (label == AppStrings.more) return 'Más';
     return label;
   }
 

@@ -40,7 +40,7 @@ class TermsScreen extends StatelessWidget {
           const _TermItem(
             title: 'Contenido',
             body:
-                'El usuario es responsable de la informacion registrada y compartida desde BitFlow.',
+                'El usuario es responsable de la información registrada y compartida desde BitFlow.',
           ),
         ],
       ),

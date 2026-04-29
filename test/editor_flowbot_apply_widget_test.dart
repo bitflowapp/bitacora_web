@@ -34,7 +34,7 @@ void main() {
         await state.debugApplyFlowBotActionsResult(const <FlowBotAction>[]);
 
     expect(result['ok'], false);
-    expect((result['message'] as String), contains('no aplico cambios'));
+    expect((result['message'] as String), contains('no aplicó cambios'));
     expect(result['applied'], 0);
   });
 
