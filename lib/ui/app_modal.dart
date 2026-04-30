@@ -23,11 +23,12 @@ class AppModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final maxHeight = MediaQuery.sizeOf(context).height - 40;
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: AppCard(
           padding: const EdgeInsets.all(20),
           radius: t.radii.xl,
@@ -65,7 +66,9 @@ class AppModal extends StatelessWidget {
                   ],
                 ),
               if (title != null || showClose) const SizedBox(height: 12),
-              child,
+              Flexible(
+                child: SingleChildScrollView(child: child),
+              ),
               if (actions != null) ...[
                 const SizedBox(height: 16),
                 Wrap(

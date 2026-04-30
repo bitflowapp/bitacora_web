@@ -867,26 +867,32 @@ class _DemoPanel extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: border),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: WidgetStatePropertyAll(
-                accent.withValues(alpha: 0.08),
-              ),
-              columns: const [
-                DataColumn(label: Text('Cliente')),
-                DataColumn(label: Text('Activo')),
-                DataColumn(label: Text('Hallazgo')),
-                DataColumn(label: Text('Estado')),
-              ],
-              rows: [
-                for (final row in rows)
-                  DataRow(
-                    cells: [
-                      for (final cell in row) DataCell(Text(cell)),
-                    ],
+          Semantics(
+            label:
+                'Vista previa de relevamiento técnico con cliente, activo, hallazgo y estado.',
+            child: ExcludeSemantics(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStatePropertyAll(
+                    accent.withValues(alpha: 0.08),
                   ),
-              ],
+                  columns: const [
+                    DataColumn(label: Text('Cliente')),
+                    DataColumn(label: Text('Activo')),
+                    DataColumn(label: Text('Hallazgo')),
+                    DataColumn(label: Text('Estado')),
+                  ],
+                  rows: [
+                    for (final row in rows)
+                      DataRow(
+                        cells: [
+                          for (final cell in row) DataCell(Text(cell)),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
