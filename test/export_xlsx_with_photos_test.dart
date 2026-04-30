@@ -130,6 +130,34 @@ void main() {
     }
   }
 
+  String readArchiveText(Archive archive, String name) {
+    final normalized = name.replaceAll('\\', '/');
+    final file = archive.files.firstWhere(
+      (f) => f.name.replaceAll('\\', '/') == normalized,
+      orElse: () => throw StateError('Missing XLSX entry: $normalized'),
+    );
+    return utf8.decode(file.content as List<int>);
+  }
+
+  List<String> sharedStringValues(Archive archive) {
+    final names = archive.files
+        .map((f) => f.name.replaceAll('\\', '/'))
+        .toList(growable: false);
+    if (!names.contains('xl/sharedStrings.xml')) return const <String>[];
+    final xml = readArchiveText(archive, 'xl/sharedStrings.xml');
+    return RegExp(r'<t[^>]*>(.*?)</t>', dotAll: true)
+        .allMatches(xml)
+        .map((m) => m.group(1) ?? '')
+        .toList(growable: false);
+  }
+
+  String? styleIdForCell(String sheetXml, String cellRef) {
+    final match = RegExp(
+      '<c r="$cellRef"[^>]*\\bs="([^"]+)"',
+    ).firstMatch(sheetXml);
+    return match?.group(1);
+  }
+
   test('buildXlsxWithPhotos includes media + drawings and no names', () async {
     final png = makeTinyPng();
     final bytes = await buildXlsxWithPhotos(
@@ -198,6 +226,89 @@ void main() {
     );
 
     expectMediaAndDrawings(bytes);
+  });
+
+  test('buildXlsxWithPhotos applies visible business formatting', () async {
+    final bytes = await buildXlsxWithPhotos(
+      columns: const [
+        'Fecha',
+        'Estado',
+        'Foto / Evidencia',
+        'Observaciones',
+        'Descripcion',
+        'Col 12',
+        'Col 13',
+        'Col 14',
+      ],
+      rows: const [
+        [
+          '22/04/2026 00:00',
+          'OK',
+          'Sin evidencia',
+          'Observacion suficientemente larga para validar ajuste de ancho.',
+          'Texto comun',
+          '',
+          '',
+          '',
+        ],
+        [
+          '23/04/2026 00:00:00',
+          'Observado',
+          'sin evidencias',
+          'Otra observacion de campo.',
+          'Texto comun',
+          '',
+          '',
+          '',
+        ],
+        [
+          '2026-04-24T00:00:00.000',
+          'Crítico',
+          '',
+          'Requiere seguimiento.',
+          'Texto comun',
+          '',
+          '',
+          '',
+        ],
+      ],
+      includeIndexColumn: false,
+      includeSummarySheet: true,
+      sheetName: 'Demo - Proteccion catodica Loma',
+    );
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sharedValues = sharedStringValues(archive);
+    final sharedXml = readArchiveText(archive, 'xl/sharedStrings.xml');
+    final sheetXml = readArchiveText(archive, 'xl/worksheets/sheet1.xml');
+    final summaryXml = readArchiveText(archive, 'xl/worksheets/sheet2.xml');
+    final stylesXml = readArchiveText(archive, 'xl/styles.xml');
+
+    expect(sharedValues, isNot(contains('Sin evidencia')));
+    expect(sharedValues, contains('\u2014'));
+    expect(sharedValues, contains('Sin evidencia adjunta en esta exportación'));
+    expect(sharedXml.contains('Col 12'), isFalse);
+    expect(sharedXml.contains('Col 13'), isFalse);
+    expect(sharedXml.contains('Col 14'), isFalse);
+
+    expect(sheetXml.contains('<autoFilter'), isTrue);
+    expect(sheetXml.contains('ref="A1:E4"'), isTrue);
+    expect(summaryXml.contains('r="B8"'), isTrue);
+
+    expect(stylesXml.contains('formatCode="dd/mm/yyyy"'), isTrue);
+    expect(stylesXml.contains('formatCode="dd/mm/yyyy hh:mm"'), isFalse);
+
+    final okStyle = styleIdForCell(sheetXml, 'B2');
+    final observedStyle = styleIdForCell(sheetXml, 'B3');
+    final criticalStyle = styleIdForCell(sheetXml, 'B4');
+    final normalStyle = styleIdForCell(sheetXml, 'E3');
+    expect(okStyle, isNotNull);
+    expect(observedStyle, isNotNull);
+    expect(criticalStyle, isNotNull);
+    expect(okStyle, isNot(normalStyle));
+    expect(observedStyle, isNot(normalStyle));
+    expect(criticalStyle, isNot(normalStyle));
+    expect({okStyle, observedStyle, criticalStyle}.length, 3);
   });
 
   test('generate sample XLSX with photos for manual review', () async {
