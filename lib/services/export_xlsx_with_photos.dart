@@ -222,18 +222,18 @@ Future<Uint8List> buildXlsxWithPhotos({
     final styleName = 'HeaderStyle_${DateTime.now().microsecondsSinceEpoch}';
     final headerStyle = workbook.styles.add(styleName);
     headerStyle.bold = true;
-    headerStyle.fontColor = '#FF1D1D1F';
-    headerStyle.backColor = '#FFEAF3FF';
+    headerStyle.fontColor = '#1D1D1F';
+    headerStyle.backColor = '#EAF3FF';
     headerStyle.hAlign = xlsio.HAlignType.center;
     headerStyle.vAlign = xlsio.VAlignType.center;
     headerStyle.borders.top.lineStyle = xlsio.LineStyle.thin;
-    headerStyle.borders.top.color = '#FF4A90D9';
+    headerStyle.borders.top.color = '#4A90D9';
     headerStyle.borders.left.lineStyle = xlsio.LineStyle.thin;
-    headerStyle.borders.left.color = '#FF4A90D9';
+    headerStyle.borders.left.color = '#4A90D9';
     headerStyle.borders.right.lineStyle = xlsio.LineStyle.thin;
-    headerStyle.borders.right.color = '#FF4A90D9';
+    headerStyle.borders.right.color = '#4A90D9';
     headerStyle.borders.bottom.lineStyle = xlsio.LineStyle.medium;
-    headerStyle.borders.bottom.color = '#FF4A90D9';
+    headerStyle.borders.bottom.color = '#4A90D9';
 
     // --------------------------
     // 1) Encabezados
@@ -822,13 +822,13 @@ void _applyPlanSheetPresentation({
   final headerRange =
       sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
   headerRange.cellStyle.borders.top.lineStyle = xlsio.LineStyle.thin;
-  headerRange.cellStyle.borders.top.color = '#FF4A90D9';
+  headerRange.cellStyle.borders.top.color = '#4A90D9';
   headerRange.cellStyle.borders.left.lineStyle = xlsio.LineStyle.thin;
-  headerRange.cellStyle.borders.left.color = '#FF4A90D9';
+  headerRange.cellStyle.borders.left.color = '#4A90D9';
   headerRange.cellStyle.borders.right.lineStyle = xlsio.LineStyle.thin;
-  headerRange.cellStyle.borders.right.color = '#FF4A90D9';
+  headerRange.cellStyle.borders.right.color = '#4A90D9';
   headerRange.cellStyle.borders.bottom.lineStyle = xlsio.LineStyle.medium;
-  headerRange.cellStyle.borders.bottom.color = '#FF4A90D9';
+  headerRange.cellStyle.borders.bottom.color = '#4A90D9';
 
   if (lastRow >= firstDataRow) {
     final dataRange = sheet.getRangeByIndex(
@@ -838,14 +838,14 @@ void _applyPlanSheetPresentation({
       safeLastCol,
     );
     dataRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
-    dataRange.cellStyle.borders.all.color = '#FFE0E0E0';
+    dataRange.cellStyle.borders.all.color = '#E0E0E0';
 
     for (int excelRow = firstDataRow; excelRow <= lastRow; excelRow++) {
       if (excelRow.isEven) {
         sheet
             .getRangeByIndex(excelRow, 1, excelRow, safeLastCol)
             .cellStyle
-            .backColor = '#FFF8FAFC';
+            .backColor = '#F8FAFC';
       }
     }
 
@@ -864,6 +864,7 @@ void _applyPlanSheetPresentation({
             break;
           case _PlanColumnKind.evidence:
             if (_isEmptyEvidenceValue(value)) {
+              cell.setText('\u2014');
               _applyEmptyEvidenceStyle(cell);
             }
             break;
@@ -875,6 +876,9 @@ void _applyPlanSheetPresentation({
             cell.numberFormat = column.dateNumberFormat ?? 'dd/mm/yyyy';
             break;
           case _PlanColumnKind.observation:
+            cell.cellStyle.wrapText = true;
+            cell.cellStyle.vAlign = xlsio.VAlignType.top;
+            break;
           case _PlanColumnKind.text:
             break;
         }
@@ -985,7 +989,7 @@ double _minWidthForKind(_PlanColumnKind kind) {
     case _PlanColumnKind.evidence:
       return 16;
     case _PlanColumnKind.observation:
-      return 28;
+      return 36;
     case _PlanColumnKind.text:
       return 10;
   }
@@ -1065,10 +1069,13 @@ bool _isStatusHeader(String header) {
 
 bool _isEvidenceHeader(String header) {
   final normalized = _normalizeText(header);
+  final compact = normalized.replaceAll(RegExp(r'[\s/_-]+'), '');
   return normalized == 'foto' ||
       normalized == 'evidencia' ||
       normalized == 'fotos' ||
       normalized == 'adjuntos' ||
+      compact == 'fotoevidencia' ||
+      compact == 'fotoevidencias' ||
       normalized.contains('foto/evidencia') ||
       (normalized.contains('foto') && normalized.contains('evidencia'));
 }
@@ -1165,7 +1172,7 @@ DateTime? _parseDateValue(String value) {
   if (iso != null) return iso;
 
   final match = RegExp(
-    r'^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$',
+    r'^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?)?$',
   ).firstMatch(trimmed);
   if (match == null) return null;
 
@@ -1196,11 +1203,7 @@ String _dateNumberFormatForColumn({
     if (sourceIndex >= row.length) continue;
     final date = _parseDateValue(row[sourceIndex]);
     if (date == null) continue;
-    if (date.hour != 0 ||
-        date.minute != 0 ||
-        date.second != 0 ||
-        date.millisecond != 0 ||
-        date.microsecond != 0) {
+    if (_hasRealTime(date)) {
       hasTime = true;
       break;
     }
@@ -1208,17 +1211,28 @@ String _dateNumberFormatForColumn({
   return hasTime ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy';
 }
 
+bool _hasRealTime(DateTime date) {
+  return date.hour != 0 ||
+      date.minute != 0 ||
+      date.second != 0 ||
+      date.millisecond != 0 ||
+      date.microsecond != 0;
+}
+
 bool _isEmptyEvidenceValue(String value) {
   final normalized = _normalizeText(value);
   return normalized.isEmpty ||
       normalized == 'sin evidencia' ||
-      normalized == 'sin evidencias';
+      normalized == 'sin evidencias' ||
+      normalized == 'sin evidencia adjunta' ||
+      normalized == 'sin evidencias adjuntas';
 }
 
 void _applyEmptyEvidenceStyle(xlsio.Range cell) {
-  cell.cellStyle.fontColor = '#FFAAAAAA';
+  cell.cellStyle.fontColor = '#AAAAAA';
   cell.cellStyle.italic = true;
   cell.cellStyle.hAlign = xlsio.HAlignType.center;
+  cell.cellStyle.vAlign = xlsio.VAlignType.center;
 }
 
 void _applyStatusStyle(xlsio.Range cell, String value) {
@@ -1233,8 +1247,8 @@ void _applyStatusStyle(xlsio.Range cell, String value) {
   ])) {
     _applySemanticStatusStyle(
       cell,
-      backColor: '#FFFDECEA',
-      fontColor: '#FFC62828',
+      backColor: '#FDECEA',
+      fontColor: '#C62828',
     );
     return;
   }
@@ -1249,8 +1263,8 @@ void _applyStatusStyle(xlsio.Range cell, String value) {
   ])) {
     _applySemanticStatusStyle(
       cell,
-      backColor: '#FFFFF3E0',
-      fontColor: '#FFE65100',
+      backColor: '#FFF3E0',
+      fontColor: '#E65100',
     );
     return;
   }
@@ -1263,8 +1277,8 @@ void _applyStatusStyle(xlsio.Range cell, String value) {
   ])) {
     _applySemanticStatusStyle(
       cell,
-      backColor: '#FFE6F4EA',
-      fontColor: '#FF1E7E34',
+      backColor: '#E6F4EA',
+      fontColor: '#1E7E34',
     );
   }
 }
@@ -1327,7 +1341,7 @@ void _buildCoverSheet(xlsio.Workbook wb) {
     final valueCell = cover.getRangeByIndex(i + 1, 2);
     valueCell.setText('No especificado');
     valueCell.cellStyle.italic = true;
-    valueCell.cellStyle.fontColor = '#FF999999';
+    valueCell.cellStyle.fontColor = '#999999';
   }
   final title = cover.getRangeByIndex(1, 4);
   title.setText('Bitacora PRO');
@@ -1370,10 +1384,11 @@ void _buildSummarySheet(
       audiosCount == 0 &&
       filesCount == 0) {
     final row = data.length + 1;
+    summary.getRangeByIndex(row, 1).setText('');
     final cell = summary.getRangeByIndex(row, 2);
     cell.setText('Sin evidencia adjunta en esta exportaci\u00f3n');
     cell.cellStyle.italic = true;
-    cell.cellStyle.fontColor = '#FF999999';
+    cell.cellStyle.fontColor = '#999999';
   }
   try {
     summary.autoFitColumn(1);
