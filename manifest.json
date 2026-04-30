@@ -1,11 +1,11 @@
 {
-    "name": "Bit Flow",
+    "name": "BitFlow",
     "short_name": "BitFlow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FFFFFF",
-    "theme_color": "#007AFF",
-    "description": "Planillas dinámicas con GPS, fotos y export Excel/PDF. Para ingenieros en campo. Offline-first.",
+    "background_color": "#F7F1E6",
+    "theme_color": "#C9AB84",
+    "description": "BitFlow: bitácoras operativas con evidencias, respaldo local y exportación profesional.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

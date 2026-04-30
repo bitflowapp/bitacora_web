@@ -9,25 +9,41 @@
   <!-- iOS: viewport correcto -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <title>Bit Flow — Planillas para ingenieros en campo</title>
-  <meta name="description" content="Planillas dinámicas con GPS, fotos, audio y export Excel/PDF. Offline-first." />
+  <title>BitFlow | Bitácora operativa premium</title>
+  <meta name="description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
   <meta name="robots" content="index,follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="BitFlow | Bitácora operativa premium" />
+  <meta property="og:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
+  <meta property="og:image" content="icons/Icon-512.png" />
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:title" content="BitFlow | Bitácora operativa premium" />
+  <meta property="twitter:description" content="BitFlow centraliza relevamientos, evidencias y exportaciones en una experiencia web premium lista para clientes." />
+  <meta property="twitter:image" content="icons/Icon-512.png" />
 
   <!-- BUILD ID fallback (si version.json no está disponible) -->
   <meta name="bitflow-build" content="__BUILD_ID__" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Bit Flow" />
-  <meta name="application-name" content="Bit Flow" />
-  <meta name="theme-color" content="#007AFF" />
+  <meta name="apple-mobile-web-app-title" content="BitFlow" />
+  <meta name="application-name" content="BitFlow" />
+  <meta name="theme-color" content="#C9AB84" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="favicon.png" />
 
   <style>
-    :root { --app-h: 100vh; }
+    :root {
+      --app-h: 100vh;
+      --bg: #f2efe9;
+      --surface: #fffaf2;
+      --ink: #2c2721;
+      --muted: #7d6f5f;
+      --line: #dfd1bd;
+      --accent: #c9ab84;
+    }
 
     html, body {
       width: 100%;
@@ -36,7 +52,8 @@
       padding: 0;
       overflow: hidden;            /* clave: Safari no scrollea el documento */
       overscroll-behavior: none;
-      background: #FFFFFF;
+      background: #f2efe9 !important;
+      background-image: none !important;
       -webkit-text-size-adjust: 100%;
       touch-action: manipulation;
     }
@@ -45,7 +62,9 @@
       position: fixed;
       inset: 0;
       height: var(--app-h);
-      background: #FFFFFF;
+      background: #f2efe9 !important;
+      background-image: none !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     }
 
     * { -webkit-tap-highlight-color: transparent; }
@@ -53,22 +72,65 @@
     /* iOS Safari: evita zoom al enfocar input “invisible” de Flutter */
     input, textarea, select { font-size: 16px !important; }
 
-    #build-badge {
+    /* Build badge moved to Flutter widget (_BuildBadge). */
+
+    #boot-splash {
       position: fixed;
-      right: 10px;
-      bottom: 10px;
-      z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      font-size: 12px;
-      line-height: 1;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.72);
-      color: #fff;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      user-select: none;
+      inset: 0;
+      z-index: 2147483640;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--ink);
+      transition: opacity 220ms ease;
+    }
+
+    #boot-splash.hidden {
+      opacity: 0;
       pointer-events: none;
+    }
+
+    #boot-splash .shell {
+      width: min(460px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      box-shadow: 0 20px 44px rgba(103, 85, 64, 0.16);
+      padding: 20px;
+      text-align: center;
+    }
+
+    #boot-splash .logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      margin: 0 auto 14px;
+      border: 1px solid rgba(201, 171, 132, 0.5);
+      background: #e9d5b8;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 8px 20px rgba(102, 84, 59, 0.2);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: #3d3328;
+      font-size: 22px;
+    }
+
+    #boot-splash h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+
+    #boot-splash p {
+      margin: 8px 0 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.4;
+      font-weight: 600;
     }
 
     #boot-fallback {
@@ -79,18 +141,17 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
-      background: rgba(255, 255, 255, 0.94);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      color: #111;
+      background: rgba(247, 241, 230, 0.96);
+      color: var(--ink);
     }
 
     #boot-fallback .card {
       width: min(560px, 100%);
-      border: 1px solid rgba(0, 0, 0, 0.14);
+      border: 1px solid var(--line);
       border-radius: 18px;
       padding: 16px;
-      background: #fff;
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+      background: var(--surface);
+      box-shadow: 0 18px 40px rgba(93, 74, 48, 0.14);
     }
 
     #boot-fallback h2 {
@@ -102,7 +163,7 @@
     #boot-fallback p {
       margin: 0 0 12px;
       line-height: 1.35;
-      color: #444;
+      color: var(--muted);
     }
 
     #boot-fallback .row {
@@ -113,10 +174,10 @@
 
     #boot-fallback button,
     #boot-fallback a {
-      border: 1px solid rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--line);
       border-radius: 999px;
       background: #fff;
-      color: #111;
+      color: var(--ink);
       padding: 8px 12px;
       font-size: 14px;
       text-decoration: none;
@@ -124,9 +185,9 @@
     }
 
     #boot-fallback .primary {
-      background: #111;
+      background: var(--ink);
       color: #fff;
-      border-color: #111;
+      border-color: var(--ink);
     }
 
     #install-fab {
@@ -137,9 +198,9 @@
       display: none;
       align-items: center;
       gap: 8px;
-      border: 1px solid rgba(17, 17, 17, 0.2);
+      border: 1px solid rgba(44, 39, 33, 0.22);
       border-radius: 999px;
-      background: #111;
+      background: var(--ink);
       color: #fff;
       padding: 10px 14px;
       font-size: 14px;
@@ -161,6 +222,98 @@
       }
     }
   </style>
+
+  <script>
+    (function () {
+      var hardKey = 'bitflow_boot_build';
+      var sessionKey = 'bitflow_boot_hard_done';
+
+      function withTimeout(promise, timeoutMs) {
+        return Promise.race([
+          promise,
+          new Promise(function (resolve) {
+            setTimeout(function () {
+              resolve(null);
+            }, timeoutMs);
+          })
+        ]);
+      }
+
+      async function hardRefreshGuard() {
+        try {
+          var current = new URL(window.location.href);
+          var currentHard = current.searchParams.get('hard') || '';
+          var sessionBuild = '';
+          try {
+            sessionBuild = sessionStorage.getItem(sessionKey) || '';
+          } catch (_) {}
+
+          var response = await withTimeout(
+            fetch('/bitacora_web/version.json?ts=' + Date.now(), {
+              cache: 'no-store'
+            }),
+            1500,
+          );
+          if (!response || !response.ok) return;
+
+          var payload = await response.json();
+          var remoteBuild = '';
+          if (payload && typeof payload === 'object') {
+            remoteBuild = (payload.buildId || payload.gitSha || '').toString().trim();
+          }
+          if (!remoteBuild) return;
+
+          var lastBuild = '';
+          try {
+            lastBuild = localStorage.getItem(hardKey) || '';
+          } catch (_) {}
+
+          if (lastBuild === remoteBuild) return;
+
+          try {
+            localStorage.setItem(hardKey, remoteBuild);
+          } catch (_) {}
+
+          if (currentHard === remoteBuild || sessionBuild === remoteBuild) {
+            return;
+          }
+
+          try {
+            sessionStorage.setItem(sessionKey, remoteBuild);
+          } catch (_) {}
+
+          try {
+            if ('serviceWorker' in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              for (var i = 0; i < regs.length; i++) {
+                try {
+                  await regs[i].unregister();
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          try {
+            if (window.caches && caches.keys) {
+              var cacheKeys = await caches.keys();
+              for (var c = 0; c < cacheKeys.length; c++) {
+                try {
+                  await caches.delete(cacheKeys[c]);
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          current.searchParams.set('hard', remoteBuild);
+          window.location.replace(current.pathname + current.search + current.hash);
+        } catch (_) {
+          // Silencioso: si falla el guard, sigue boot normal.
+        }
+      }
+
+      hardRefreshGuard();
+    })();
+  </script>
 
   <script>
     (function () {
@@ -189,6 +342,17 @@
         } catch (_) {}
       }
 
+      function hideBootSplash() {
+        try {
+          var splash = document.getElementById('boot-splash');
+          if (!splash) return;
+          splash.classList.add('hidden');
+          setTimeout(function () {
+            splash.style.display = 'none';
+          }, 260);
+        } catch (_) {}
+      }
+
       function markBootReady() {
         if (bootReady) return;
         bootReady = true;
@@ -196,6 +360,7 @@
           clearTimeout(bootGuardTimer);
           bootGuardTimer = 0;
         }
+        hideBootSplash();
         hideBootFallback();
       }
 
@@ -222,6 +387,154 @@
           installPromptEvent = null;
           hideInstallFab();
         }
+      }
+
+      var swWaitingRegistration = null;
+      var swReloadOnControllerChange = false;
+
+      function isIosSafari() {
+        var ua = (navigator.userAgent || '').toLowerCase();
+        var isIos = /iphone|ipad|ipod/.test(ua);
+        if (!isIos) return false;
+        var isSafari = ua.indexOf('safari') >= 0;
+        var excluded = ua.indexOf('crios') >= 0 ||
+          ua.indexOf('fxios') >= 0 ||
+          ua.indexOf('edgios') >= 0 ||
+          ua.indexOf('opios') >= 0;
+        return isSafari && !excluded;
+      }
+
+      async function cleanupIosSafariServiceWorkersOncePerSession() {
+        if (!isIosSafari()) return;
+
+        var sessionKey = 'bitflow_ios_sw_cleanup_done_v1';
+        try {
+          if (window.sessionStorage && sessionStorage.getItem(sessionKey) === '1') {
+            return;
+          }
+        } catch (_) {}
+
+        try {
+          var existing = await navigator.serviceWorker.getRegistrations();
+          for (var i = 0; i < existing.length; i++) {
+            try { await existing[i].unregister(); } catch (_) {}
+          }
+        } catch (_) {}
+
+        try {
+          if (window.sessionStorage) {
+            sessionStorage.setItem(sessionKey, '1');
+          }
+        } catch (_) {}
+      }
+
+      async function clearCachesAndReload() {
+        try {
+          if ('serviceWorker' in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < regs.length; i++) {
+              try { await regs[i].unregister(); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        try {
+          if (window.caches && caches.keys) {
+            var keys = await caches.keys();
+            for (var j = 0; j < keys.length; j++) {
+              try { await caches.delete(keys[j]); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        try {
+          window.location.reload();
+        } catch (_) {}
+      }
+
+      async function applyWaitingServiceWorker() {
+        var reg = swWaitingRegistration;
+        if (!reg) {
+          await clearCachesAndReload();
+          return;
+        }
+        swReloadOnControllerChange = true;
+        try {
+          if (reg.waiting) {
+            reg.waiting.postMessage('skipWaiting');
+          } else {
+            await reg.update();
+          }
+        } catch (_) {
+          await clearCachesAndReload();
+          return;
+        }
+
+        setTimeout(function () {
+          if (!swReloadOnControllerChange) return;
+          clearCachesAndReload();
+        }, 1500);
+      }
+
+      function onServiceWorkerWaiting(reg) {
+        swWaitingRegistration = reg;
+        Promise.resolve().then(function () {
+          return applyWaitingServiceWorker();
+        }).catch(function () {});
+      }
+
+      function bindServiceWorkerRegistration(reg) {
+        if (!reg) return;
+
+        if (reg.waiting) {
+          onServiceWorkerWaiting(reg);
+        }
+
+        reg.addEventListener('updatefound', function () {
+          var worker = reg.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', function () {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              onServiceWorkerWaiting(reg);
+            }
+          });
+        });
+      }
+
+      async function hardenServiceWorkerUpdates(build) {
+        if (!('serviceWorker' in navigator)) return;
+
+        if (isIosSafari()) {
+          await cleanupIosSafariServiceWorkersOncePerSession();
+          return;
+        }
+
+        try {
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (!swReloadOnControllerChange) return;
+            swReloadOnControllerChange = false;
+            window.location.reload();
+          });
+        } catch (_) {}
+
+        try {
+          var swUrl = 'flutter_service_worker.js?v=' + encodeURIComponent(build);
+          var reg = await navigator.serviceWorker.register(swUrl, {
+            updateViaCache: 'none'
+          });
+          bindServiceWorkerRegistration(reg);
+        } catch (_) {
+          // fallback: registration handled by Flutter loader.
+        }
+
+        try {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          for (var i = 0; i < regs.length; i++) {
+            var r = regs[i];
+            bindServiceWorkerRegistration(r);
+            try { await r.update(); } catch (_) {}
+          }
+        } catch (_) {}
       }
 
       async function resolveBuildId() {
@@ -261,27 +574,10 @@
         }
       }
 
-      function mountBadge(build) {
-        try {
-          var params = new URLSearchParams(window.location.search || '');
-          var showBadge = params.get('debugBuild') === '1' ||
-            params.get('buildBadge') === '1';
-          if (!showBadge) return;
+      // Build badge moved to Flutter widget (_BuildBadge).
 
-          var el = document.getElementById('build-badge');
-          if (!el) {
-            el = document.createElement('div');
-            el.id = 'build-badge';
-            document.body.appendChild(el);
-          }
-          el.textContent = 'build ' + build;
-        } catch (_) {}
-      }
-
-      // Offline-first SW update: on build change, tell the active SW to skip
-      // waiting so the new version activates on the next navigation — without
-      // killing the SW or evicting all caches (which breaks offline use).
-      async function handleBuildChange(build) {
+      // Mata SW/caches cuando cambia BUILD (para que iOS deje de servir cosas viejas)
+      async function nukeCachesIfBuildChanged(build) {
         var key = 'bitflow_last_build';
         var last = null;
         try { last = localStorage.getItem(key); } catch (_) {}
@@ -291,13 +587,18 @@
 
         try {
           if ('serviceWorker' in navigator) {
-            var reg = await navigator.serviceWorker.getRegistration();
-            if (reg && reg.waiting) {
-              // New SW is already installed and waiting — activate it cleanly.
-              reg.waiting.postMessage('skipWaiting');
-            } else if (reg) {
-              // Trigger an update check so the browser fetches a fresh SW.
-              reg.update().catch(function () {});
+            var regs = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < regs.length; i++) {
+              try { await regs[i].unregister(); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        try {
+          if (window.caches && caches.keys) {
+            var names = await caches.keys();
+            for (var j = 0; j < names.length; j++) {
+              try { await caches.delete(names[j]); } catch (_) {}
             }
           }
         } catch (_) {}
@@ -412,17 +713,25 @@
         try {
           var build = await resolveBuildIdFast(1200);
           window.__BITFLOW_BUILD__ = build;
-          mountBadge(build);
           boot();
-          Promise.resolve().then(function () {
-            return handleBuildChange(build);
-          }).catch(function () {});
+          Promise.resolve()
+            .then(function () {
+              return nukeCachesIfBuildChanged(build);
+            })
+            .then(function () {
+              return hardenServiceWorkerUpdates(build);
+            })
+            .catch(function () {});
           loadFlutterBootstrapDeferred(build);
         } catch (_) {
           var fallback = 'dev-' + Date.now();
           window.__BITFLOW_BUILD__ = fallback;
-          mountBadge(fallback);
           boot();
+          Promise.resolve()
+            .then(function () {
+              return hardenServiceWorkerUpdates(fallback);
+            })
+            .catch(function () {});
           loadFlutterBootstrapDeferred(fallback);
         }
       }
@@ -446,19 +755,28 @@
 
       window.addEventListener('DOMContentLoaded', function () {
         var btn = document.getElementById('install-fab');
-        if (!btn) return;
-        btn.addEventListener('click', function () {
-          promptInstall();
-        });
+        if (btn) {
+          btn.addEventListener('click', function () {
+            promptInstall();
+          });
+        }
       });
     })();
   </script>
 </head>
 
 <body>
+  <div id="boot-splash" aria-live="polite">
+    <div class="shell">
+      <div class="logo">B</div>
+      <h1>BitFlow</h1>
+      <p>Preparando tu espacio de trabajo operativo...</p>
+    </div>
+  </div>
+
   <div id="boot-fallback" aria-live="polite">
     <div class="card">
-      <h2>Bit Flow — Inicio seguro</h2>
+      <h2>BitFlow inicio seguro</h2>
       <p data-role="message">La app tarda mas de lo normal en iniciar.</p>
       <div class="row">
         <button class="primary" type="button" onclick="window.location.reload()">Reintentar app</button>
@@ -466,7 +784,7 @@
       </div>
     </div>
   </div>
-  <button id="install-fab" type="button" aria-label="Instalar Bit Flow">Instalar Bit Flow</button>
+  <button id="install-fab" type="button" aria-label="Instalar BitFlow">Instalar BitFlow</button>
   <!-- flutter_bootstrap.js se inyecta dinámicamente con buildId -->
 </body>
 </html>
