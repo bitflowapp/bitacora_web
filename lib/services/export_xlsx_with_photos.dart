@@ -127,12 +127,38 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
     if (textCols < 0) textCols = 0;
 
+    // Indices de columnas con fotos embebidas: deben preservarse siempre
+    // aunque sus celdas de texto esten vacias.
+    final Set<int> photoColumnIndexes = <int>{};
+    if (embeddedPhotos != null) {
+      for (final p in embeddedPhotos) {
+        if (p.bytes.isEmpty) continue;
+        if (p.colIndex >= 0 && p.colIndex < textCols) {
+          photoColumnIndexes.add(p.colIndex);
+        }
+      }
+    }
+
+    // Analisis de columnas para tipos, anchos y deteccion de columnas vacias.
+    final allColumnInfos = _analyzeColumns(
+      columns: columns,
+      rows: rows,
+      textCols: textCols,
+      protectedIndexes: photoColumnIndexes,
+    );
+    final exportColumnInfos = _filterExportableColumns(allColumnInfos);
+    final exportTextCols = exportColumnInfos.length;
+    final keepIndexes = exportColumnInfos.map((c) => c.sourceIndex).toList();
+    final embeddedRemap = <int, int>{
+      for (int i = 0; i < keepIndexes.length; i++) keepIndexes[i]: i,
+    };
+
     final bool hasGps = _hasGps(gpsByRow);
     final int gpsCols = hasGps ? 5 : 0;
 
-    // Col 1 = "#" si se pide, luego textCols columnas de texto y gps.
+    // Col 1 = "#" si se pide, luego exportTextCols columnas de texto y gps.
     final int baseColumnsCount =
-        (includeIndexColumn ? 1 : 0) + textCols + gpsCols;
+        (includeIndexColumn ? 1 : 0) + exportTextCols + gpsCols;
 
     final bool useEmbedded =
         embeddedPhotos != null && embeddedPhotos.isNotEmpty;
@@ -155,15 +181,7 @@ Future<Uint8List> buildXlsxWithPhotos({
     final int safeLastCol = math.max(1, lastCol);
 
     final int textStartCol = includeIndexColumn ? 2 : 1;
-    final int gpsStartCol = textStartCol + textCols;
-
-    // Estilo header (nombre unico por seguridad).
-    final styleName = 'HeaderStyle_${DateTime.now().microsecondsSinceEpoch}';
-    final headerStyle = workbook.styles.add(styleName);
-    headerStyle.bold = true;
-    headerStyle.backColor = '#FFEFEFEF';
-    headerStyle.hAlign = xlsio.HAlignType.center;
-    headerStyle.vAlign = xlsio.VAlignType.center;
+    final int gpsStartCol = textStartCol + exportTextCols;
 
     // --------------------------
     // 1) Encabezados
@@ -172,10 +190,11 @@ Future<Uint8List> buildXlsxWithPhotos({
       sheet.getRangeByIndex(headerRow, 1).setText('#');
     }
 
-    // Headers de texto (si faltan, se completan con vacio).
-    for (int i = 0; i < textCols; i++) {
-      final title = (i < columns.length) ? columns[i] : '';
-      sheet.getRangeByIndex(headerRow, textStartCol + i).setText(title);
+    // Headers de texto (solo columnas exportables).
+    for (int i = 0; i < exportTextCols; i++) {
+      sheet
+          .getRangeByIndex(headerRow, textStartCol + i)
+          .setText(exportColumnInfos[i].header);
     }
 
     if (hasGps) {
@@ -200,10 +219,11 @@ Future<Uint8List> buildXlsxWithPhotos({
       }
     }
 
-    // Aplica estilo a toda la fila de encabezados.
+    // Aplica estilo profesional a toda la fila de encabezados.
     final headerRange =
         sheet.getRangeByIndex(headerRow, 1, headerRow, safeLastCol);
-    headerRange.cellStyle = headerStyle;
+    _applyHeaderStyle(headerRange);
+    sheet.setRowHeightInPixels(headerRow, 24);
 
     // --------------------------
     // 2) Datos + fotos
@@ -238,16 +258,42 @@ Future<Uint8List> buildXlsxWithPhotos({
     for (int r = 0; r < rows.length; r++) {
       final excelRow = firstDataRow + r;
       final rowValues = rows[r];
+      final isZebra = (r % 2) == 1;
 
       // Columna "#"
       if (includeIndexColumn) {
-        sheet.getRangeByIndex(excelRow, 1).setNumber((r + 1).toDouble());
+        final idxCell = sheet.getRangeByIndex(excelRow, 1);
+        idxCell.setNumber((r + 1).toDouble());
+        idxCell.cellStyle.hAlign = xlsio.HAlignType.right;
+        if (isZebra) _applyZebra(idxCell);
       }
 
-      // Texto: escribe hasta textCols, padding con ''.
-      for (int c = 0; c < textCols; c++) {
-        final v = (c < rowValues.length) ? rowValues[c] : '';
-        _setSheetValue(sheet, excelRow, textStartCol + c, v);
+      // Texto: solo columnas exportables.
+      for (int i = 0; i < exportTextCols; i++) {
+        final info = exportColumnInfos[i];
+        final src = info.sourceIndex;
+        final v = (src < rowValues.length) ? rowValues[src] : '';
+        final col = textStartCol + i;
+        final cell = sheet.getRangeByIndex(excelRow, col);
+
+        if (info.type == _XlsxColType.evidence && _looksLikeNoEvidence(v)) {
+          _applyEvidencePlaceholder(cell);
+        } else if (info.type == _XlsxColType.status) {
+          cell.setText(v);
+          final bucket = _statusBucket(v);
+          if (bucket.isNotEmpty) {
+            _applyStatusStyle(cell, bucket);
+          } else if (isZebra) {
+            _applyZebra(cell);
+          }
+        } else {
+          _writeTypedCell(sheet, excelRow, col, v, info);
+          if (info.type == _XlsxColType.observations) {
+            cell.cellStyle.wrapText = true;
+            cell.cellStyle.vAlign = xlsio.VAlignType.top;
+          }
+          if (isZebra) _applyZebra(cell);
+        }
       }
 
       // GPS
@@ -255,21 +301,28 @@ Future<Uint8List> buildXlsxWithPhotos({
         final gps =
             (gpsByRow != null && r < gpsByRow.length) ? gpsByRow[r] : null;
         if (gps != null && gps.hasFix) {
-          sheet.getRangeByIndex(excelRow, gpsStartCol).setNumber(gps.lat ?? 0);
-          sheet
-              .getRangeByIndex(excelRow, gpsStartCol + 1)
-              .setNumber(gps.lng ?? 0);
-          sheet
-              .getRangeByIndex(excelRow, gpsStartCol + 2)
-              .setNumber(gps.accuracy ?? 0);
+          final latCell = sheet.getRangeByIndex(excelRow, gpsStartCol);
+          latCell.setNumber(gps.lat ?? 0);
+          latCell.numberFormat = '0.000000';
+          final lngCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 1);
+          lngCell.setNumber(gps.lng ?? 0);
+          lngCell.numberFormat = '0.000000';
+          final accCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 2);
+          accCell.setNumber(gps.accuracy ?? 0);
+          accCell.numberFormat = '0.0';
           if (gps.ts != null) {
-            sheet
-                .getRangeByIndex(excelRow, gpsStartCol + 3)
-                .setDateTime(gps.ts!);
+            final tsCell = sheet.getRangeByIndex(excelRow, gpsStartCol + 3);
+            tsCell.setDateTime(gps.ts!);
+            tsCell.numberFormat = 'dd/mm/yyyy hh:mm';
           }
           sheet
               .getRangeByIndex(excelRow, gpsStartCol + 4)
               .setText(gps.isLastKnown ? 'lastKnown' : 'current');
+        }
+        if (isZebra) {
+          for (int g = 0; g < 5; g++) {
+            _applyZebra(sheet.getRangeByIndex(excelRow, gpsStartCol + g));
+          }
         }
       }
 
@@ -279,8 +332,9 @@ Future<Uint8List> buildXlsxWithPhotos({
         if (picsForRow != null && picsForRow.isNotEmpty) {
           sheet.setRowHeightInPixels(excelRow, photoRowHeightPx);
           for (final pic in picsForRow) {
-            if (pic.colIndex < 0 || pic.colIndex >= textCols) continue;
-            final col = textStartCol + pic.colIndex;
+            final mapped = embeddedRemap[pic.colIndex];
+            if (mapped == null) continue;
+            final col = textStartCol + mapped;
             try {
               final picture = sheet.pictures.addBase64(
                 excelRow,
@@ -333,37 +387,50 @@ Future<Uint8List> buildXlsxWithPhotos({
     }
 
     // --------------------------
-    // 3) Bordes finos para toda el area usada
+    // 3) Bordes diferenciados (body) y freeze + autofilter
     // --------------------------
     final int lastRow = rows.length + 1; // incluye headers
-    final tableRange = sheet.getRangeByIndex(1, 1, lastRow, safeLastCol);
-    tableRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+    if (rows.isNotEmpty) {
+      final bodyRange =
+          sheet.getRangeByIndex(firstDataRow, 1, lastRow, safeLastCol);
+      _applyDataBorders(bodyRange);
+    }
+
+    // Freeze panes en la fila debajo del header.
+    if (rows.isNotEmpty) {
+      sheet.getRangeByIndex(firstDataRow, 1).freezePanes();
+    }
+
+    // Autofiltro sobre el rango de la tabla.
+    final filterRange = sheet.getRangeByIndex(1, 1, lastRow, safeLastCol);
+    _applyAutoFilter(sheet, filterRange);
 
     // --------------------------
-    // 4) Anchos: autoFit con fallback seguro
+    // 4) Anchos calculados por tipo (clamp 10..50)
     // --------------------------
-    // Solo texto (incluye '#', GPS), fotos ya tienen ancho fijo.
-    final int lastTextCol = math.max(1, baseColumnsCount);
-    for (int col = 1; col <= lastTextCol; col++) {
-      try {
-        sheet.autoFitColumn(col);
-      } catch (_) {
-        // Fallback heuristico en px (evita romper la exportacion).
-        final maxLen = _maxTextLenForColumn(
-          headers: columns,
-          rows: rows,
-          excelCol: col,
-          includeIndexColumn: includeIndexColumn,
-        );
-        final px = _widthPxForLen(maxLen);
-        sheet.setColumnWidthInPixels(col, px);
+    if (includeIndexColumn) {
+      final idxLen = math.max(1, rows.length.toString().length);
+      sheet.getRangeByIndex(1, 1).columnWidth =
+          _xlsxColumnWidthClamp(_XlsxColType.number, idxLen).toDouble();
+    }
+    for (int i = 0; i < exportTextCols; i++) {
+      final info = exportColumnInfos[i];
+      final col = textStartCol + i;
+      final width = _xlsxColumnWidthClamp(info.type, info.maxContentLen);
+      sheet.getRangeByIndex(1, col).columnWidth = width.toDouble();
+    }
+    if (hasGps) {
+      const gpsWidths = [14.0, 14.0, 12.0, 18.0, 14.0];
+      for (int g = 0; g < gpsWidths.length; g++) {
+        sheet.getRangeByIndex(1, gpsStartCol + g).columnWidth = gpsWidths[g];
       }
     }
 
     if (useEmbedded && embeddedCols.isNotEmpty) {
       for (final idx in embeddedCols) {
-        if (idx < 0 || idx >= textCols) continue;
-        final col = textStartCol + idx;
+        final mapped = embeddedRemap[idx];
+        if (mapped == null) continue;
+        final col = textStartCol + mapped;
         sheet.setColumnWidthInPixels(col, photoColWidthPx);
       }
     }
@@ -398,6 +465,9 @@ Future<Uint8List> buildXlsxWithPhotos({
           photosByRow: photosByRow,
           attachments: attachments,
         ),
+        videosCount: _attachmentsCountByType(attachments, 'video'),
+        audiosCount: _attachmentsCountByType(attachments, 'audio'),
+        filesCount: _attachmentsCountByType(attachments, 'file'),
         gpsCount: _gpsCount(gpsByRow, attachments: attachments),
       );
     }
@@ -640,63 +710,115 @@ int _photosCount({
   return photosByRow.values.fold<int>(0, (prev, list) => prev + list.length);
 }
 
-void _setSheetValue(xlsio.Worksheet sheet, int r, int c, String v) {
-  final trimmed = v.trim();
-  if (FormulaEngine.isFormula(trimmed)) {
-    sheet.getRangeByIndex(r, c).setFormula(trimmed);
-    return;
-  }
-  final numVal = double.tryParse(trimmed);
-  if (numVal != null && RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(trimmed)) {
-    sheet.getRangeByIndex(r, c).setNumber(numVal);
-    return;
-  }
-  final dt = DateTime.tryParse(trimmed);
-  if (dt != null) {
-    sheet.getRangeByIndex(r, c).setDateTime(dt);
-    return;
-  }
-  sheet.getRangeByIndex(r, c).setText(v);
+int _attachmentsCountByType(List<AttachmentRow>? attachments, String type) {
+  if (attachments == null || attachments.isEmpty) return 0;
+  return attachments.where((a) => a.type == type).length;
 }
 
 void _buildCoverSheet(xlsio.Workbook wb) {
   final cover = wb.worksheets.addWithName('Caratula');
-  final labels = ['Obra', 'Cliente', 'Responsable', 'Fecha'];
-  for (int i = 0; i < labels.length; i++) {
-    cover.getRangeByIndex(i + 1, 1).setText(labels[i]);
-    cover.getRangeByIndex(i + 1, 2).setText('');
-  }
-  final title = cover.getRangeByIndex(1, 4);
-  title.setText('Bitacora PRO');
+  cover.showGridlines = false;
+
+  final title = cover.getRangeByIndex(1, 1, 1, 3);
+  title.merge();
+  title.setText('Bitácora PRO');
   title.cellStyle.bold = true;
-  try {
-    cover.autoFitColumn(1);
-    cover.autoFitColumn(2);
-  } catch (_) {}
+  title.cellStyle.fontSize = 18;
+  title.cellStyle.fontColor = _kColorHeaderFg;
+  title.cellStyle.hAlign = xlsio.HAlignType.left;
+  title.cellStyle.vAlign = xlsio.VAlignType.center;
+  cover.setRowHeightInPixels(1, 32);
+
+  final subtitle = cover.getRangeByIndex(2, 1, 2, 3);
+  subtitle.merge();
+  subtitle.setText('Reporte profesional de campo');
+  subtitle.cellStyle.italic = true;
+  subtitle.cellStyle.fontColor = _kColorPlaceholderFg;
+  subtitle.cellStyle.fontSize = 11;
+
+  final labels = <String>['Obra', 'Cliente', 'Responsable', 'Fecha'];
+  const startRow = 4;
+  for (int i = 0; i < labels.length; i++) {
+    final r = startRow + i;
+    final labelCell = cover.getRangeByIndex(r, 1);
+    labelCell.setText(labels[i]);
+    labelCell.cellStyle.bold = true;
+    labelCell.cellStyle.fontColor = _kColorHeaderFg;
+    labelCell.cellStyle.vAlign = xlsio.VAlignType.center;
+
+    final valueCell = cover.getRangeByIndex(r, 2);
+    valueCell.setText('No especificado');
+    _applyPlaceholderStyle(valueCell);
+    valueCell.cellStyle.vAlign = xlsio.VAlignType.center;
+    cover.setRowHeightInPixels(r, 22);
+  }
+
+  cover.getRangeByIndex(1, 1).columnWidth = 22;
+  cover.getRangeByIndex(1, 2).columnWidth = 38;
+  cover.getRangeByIndex(1, 3).columnWidth = 18;
 }
 
 void _buildSummarySheet(
   xlsio.Workbook wb, {
   required int rowsCount,
   required int photosCount,
+  required int videosCount,
+  required int audiosCount,
+  required int filesCount,
   required int gpsCount,
 }) {
   final summary = wb.worksheets.addWithName('Resumen');
-  final data = [
+  summary.showGridlines = false;
+
+  final title = summary.getRangeByIndex(1, 1, 1, 2);
+  title.merge();
+  title.setText('Resumen del reporte');
+  title.cellStyle.bold = true;
+  title.cellStyle.fontSize = 14;
+  title.cellStyle.fontColor = _kColorHeaderFg;
+  summary.setRowHeightInPixels(1, 26);
+
+  final evidencesTotal =
+      photosCount + videosCount + audiosCount + filesCount;
+
+  final entries = <List<dynamic>>[
     ['Filas', rowsCount],
+    ['Evidencias totales', evidencesTotal],
     ['Fotos', photosCount],
+    ['Videos', videosCount],
+    ['Audios', audiosCount],
+    ['Archivos', filesCount],
     ['Ubicaciones', gpsCount],
   ];
-  for (int i = 0; i < data.length; i++) {
-    summary.getRangeByIndex(i + 1, 1).setText(data[i][0].toString());
-    summary.getRangeByIndex(i + 1, 2).setNumber(
-          (data[i][1] is num) ? (data[i][1] as num).toDouble() : 0,
-        );
+
+  const startRow = 3;
+  for (int i = 0; i < entries.length; i++) {
+    final r = startRow + i;
+    final labelCell = summary.getRangeByIndex(r, 1);
+    labelCell.setText(entries[i][0].toString());
+    labelCell.cellStyle.bold = true;
+    labelCell.cellStyle.fontColor = _kColorHeaderFg;
+
+    final value = entries[i][1];
+    final valueCell = summary.getRangeByIndex(r, 2);
+    valueCell.setNumber((value is num) ? value.toDouble() : 0);
+    valueCell.numberFormat = '0';
+    valueCell.cellStyle.hAlign = xlsio.HAlignType.right;
   }
-  try {
-    summary.autoFitColumn(1);
-    summary.autoFitColumn(2);
-  } catch (_) {}
+
+  if (evidencesTotal == 0) {
+    final noteRow = startRow + entries.length + 1;
+    final note = summary.getRangeByIndex(noteRow, 1, noteRow, 2);
+    note.merge();
+    note.setText('No se registraron evidencias adjuntas en esta exportación.');
+    note.cellStyle.italic = true;
+    note.cellStyle.fontColor = _kColorPlaceholderFg;
+    note.cellStyle.wrapText = true;
+    summary.setRowHeightInPixels(noteRow, 22);
+  }
+
+  summary.getRangeByIndex(1, 1).columnWidth = 24;
+  summary.getRangeByIndex(1, 2).columnWidth = 16;
 }
 
 String _sanitizeWorksheetName(String name) {
@@ -710,36 +832,467 @@ String _sanitizeWorksheetName(String name) {
   return n.isEmpty ? 'PLANILLA' : n;
 }
 
-int _maxTextLenForColumn({
-  required List<String> headers,
+// ============================================================
+// Helpers de presentacion comercial (XLSX profesional)
+// ============================================================
+
+enum _XlsxColType { text, date, number, status, evidence, observations }
+
+class _XlsxColumnInfo {
+  _XlsxColumnInfo({
+    required this.sourceIndex,
+    required this.header,
+    required this.type,
+    required this.maxContentLen,
+    required this.dateHasTime,
+    required this.numberHasDecimals,
+  });
+
+  final int sourceIndex;
+  final String header;
+  _XlsxColType type;
+  int maxContentLen;
+  bool dateHasTime;
+  bool numberHasDecimals;
+}
+
+const String _kColorHeaderBg = '#FFEAF3FF';
+const String _kColorHeaderFg = '#FF1D1D1F';
+const String _kColorHeaderBorder = '#FF4A90D9';
+const String _kColorBodyBorder = '#FFE0E0E0';
+const String _kColorZebra = '#FFF8FAFC';
+const String _kColorEvidencePlaceholder = '#FFAAAAAA';
+const String _kColorOkBg = '#FFE6F4EA';
+const String _kColorOkFg = '#FF1E7E34';
+const String _kColorWarnBg = '#FFFFF3E0';
+const String _kColorWarnFg = '#FFE65100';
+const String _kColorCritBg = '#FFFDECEA';
+const String _kColorCritFg = '#FFC62828';
+const String _kColorPlaceholderFg = '#FF999999';
+
+final RegExp _kGenericHeaderRegExp =
+    RegExp(r'^col\s*\d+$', caseSensitive: false);
+
+String _stripDiacriticsLower(String s) {
+  const map = {
+    'á': 'a',
+    'à': 'a',
+    'ä': 'a',
+    'â': 'a',
+    'ã': 'a',
+    'å': 'a',
+    'é': 'e',
+    'è': 'e',
+    'ë': 'e',
+    'ê': 'e',
+    'í': 'i',
+    'ì': 'i',
+    'ï': 'i',
+    'î': 'i',
+    'ó': 'o',
+    'ò': 'o',
+    'ö': 'o',
+    'ô': 'o',
+    'õ': 'o',
+    'ú': 'u',
+    'ù': 'u',
+    'ü': 'u',
+    'û': 'u',
+    'ñ': 'n',
+    'ç': 'c',
+  };
+  final lower = s.toLowerCase();
+  final buf = StringBuffer();
+  for (int i = 0; i < lower.length; i++) {
+    final ch = lower[i];
+    buf.write(map[ch] ?? ch);
+  }
+  return buf.toString();
+}
+
+bool _isGenericHeader(String header) {
+  final t = header.trim();
+  if (t.isEmpty) return true;
+  return _kGenericHeaderRegExp.hasMatch(t);
+}
+
+bool _looksLikeNoEvidence(String value) {
+  final v = _stripDiacriticsLower(value.trim());
+  if (v.isEmpty) return false;
+  return v == 'sin evidencia' ||
+      v == 'sin evidencias' ||
+      v == 'no evidencia' ||
+      v == 'sin foto' ||
+      v == 'sin fotos' ||
+      v == 'no foto' ||
+      v == 'n/d' ||
+      v == 's/d' ||
+      v == 'na' ||
+      v == 'n/a';
+}
+
+bool _looksLikePlaceholder(String value) {
+  final v = _stripDiacriticsLower(value.trim());
+  if (v.isEmpty) return true;
+  return v == 'no especificado' ||
+      v == 'no especificada' ||
+      v == 'sin especificar' ||
+      v == 'no definido' ||
+      v == 'no definida' ||
+      v == 'pendiente';
+}
+
+DateTime? _parseDateLoose(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return null;
+  final iso = DateTime.tryParse(t);
+  if (iso != null) return iso;
+  final m = RegExp(
+    r'^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$',
+  ).firstMatch(t);
+  if (m == null) return null;
+  final day = int.tryParse(m.group(1) ?? '');
+  final month = int.tryParse(m.group(2) ?? '');
+  var year = int.tryParse(m.group(3) ?? '');
+  if (day == null || month == null || year == null) return null;
+  if (year < 100) year += 2000;
+  final hour = int.tryParse(m.group(4) ?? '0') ?? 0;
+  final minute = int.tryParse(m.group(5) ?? '0') ?? 0;
+  final second = int.tryParse(m.group(6) ?? '0') ?? 0;
+  try {
+    return DateTime(year, month, day, hour, minute, second);
+  } catch (_) {
+    return null;
+  }
+}
+
+double? _parseNumberLoose(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return null;
+  if (!RegExp(r'^-?\d+(?:[.,]\d+)?$').hasMatch(t)) return null;
+  return double.tryParse(t.replaceAll(',', '.'));
+}
+
+bool _isPureInteger(String raw) {
+  final t = raw.trim();
+  return RegExp(r'^-?\d+$').hasMatch(t);
+}
+
+_XlsxColType _classifyByName(String header) {
+  final h = _stripDiacriticsLower(header.trim());
+  if (h.isEmpty) return _XlsxColType.text;
+  if (h == 'estado' ||
+      h == 'status' ||
+      h.contains('condicion') ||
+      h.contains('resultado')) {
+    return _XlsxColType.status;
+  }
+  if (h.contains('observ') || h.contains('comentario') || h.contains('nota')) {
+    return _XlsxColType.observations;
+  }
+  if (h.contains('evidenc') ||
+      h.contains('foto') ||
+      h.contains('imagen') ||
+      h.contains('adjunto')) {
+    return _XlsxColType.evidence;
+  }
+  if (h == 'fecha' ||
+      h.contains('fecha') ||
+      h.contains('hora') ||
+      h.contains('timestamp')) {
+    return _XlsxColType.date;
+  }
+  if (h.contains('codigo') ||
+      h.contains('progresiva') ||
+      h.contains('id ') ||
+      h == 'id' ||
+      h == 'n°' ||
+      h == 'nro' ||
+      h == 'numero') {
+    return _XlsxColType.text; // tratar como texto para no deformar
+  }
+  if (h.contains('voltaj') ||
+      h.contains('tension') ||
+      h.contains('corriente') ||
+      h.contains('ampere') ||
+      h.contains('resist') ||
+      h.contains('ohm') ||
+      h.contains('porcent') ||
+      h.contains('%') ||
+      h.contains('medic') ||
+      h.contains('valor') ||
+      h.contains('cantidad') ||
+      h.contains('total') ||
+      h.contains('peso') ||
+      h.contains('temperatura')) {
+    return _XlsxColType.number;
+  }
+  return _XlsxColType.text;
+}
+
+int _xlsxColumnWidthClamp(_XlsxColType type, int contentLen) {
+  int min;
+  int max;
+  switch (type) {
+    case _XlsxColType.observations:
+      min = 28;
+      max = 50;
+      break;
+    case _XlsxColType.evidence:
+      min = 16;
+      max = 40;
+      break;
+    case _XlsxColType.date:
+      min = 14;
+      max = 22;
+      break;
+    case _XlsxColType.status:
+      min = 14;
+      max = 18;
+      break;
+    case _XlsxColType.number:
+      min = 12;
+      max = 22;
+      break;
+    case _XlsxColType.text:
+      min = 10;
+      max = 50;
+      break;
+  }
+  // +2 de padding para que no se corte el contenido.
+  final desired = contentLen + 2;
+  if (desired < min) return min;
+  if (desired > max) return max;
+  return desired;
+}
+
+String _statusBucket(String value) {
+  final v = _stripDiacriticsLower(value.trim());
+  if (v.isEmpty) return '';
+  const ok = {'ok', 'conforme', 'aprobado', 'bueno', 'apto'};
+  const warn = {
+    'obs',
+    'observado',
+    'atencion',
+    'revisar',
+    'pendiente',
+    'regular',
+    'a revisar',
+  };
+  const crit = {
+    'critico',
+    'error',
+    'no conforme',
+    'malo',
+    'rechazado',
+    'no apto',
+    'falla',
+  };
+  if (ok.contains(v)) return 'ok';
+  if (warn.contains(v)) return 'warn';
+  if (crit.contains(v)) return 'crit';
+  return '';
+}
+
+void _applyStatusStyle(xlsio.Range cell, String bucket) {
+  final style = cell.cellStyle;
+  switch (bucket) {
+    case 'ok':
+      style.backColor = _kColorOkBg;
+      style.fontColor = _kColorOkFg;
+      break;
+    case 'warn':
+      style.backColor = _kColorWarnBg;
+      style.fontColor = _kColorWarnFg;
+      break;
+    case 'crit':
+      style.backColor = _kColorCritBg;
+      style.fontColor = _kColorCritFg;
+      break;
+    default:
+      return;
+  }
+  style.bold = true;
+  style.hAlign = xlsio.HAlignType.center;
+  style.vAlign = xlsio.VAlignType.center;
+}
+
+void _applyEvidencePlaceholder(xlsio.Range cell) {
+  cell.setText('—');
+  final style = cell.cellStyle;
+  style.fontColor = _kColorEvidencePlaceholder;
+  style.hAlign = xlsio.HAlignType.center;
+  style.vAlign = xlsio.VAlignType.center;
+  try {
+    style.italic = true;
+  } catch (_) {}
+}
+
+void _applyZebra(xlsio.Range cell) {
+  cell.cellStyle.backColor = _kColorZebra;
+}
+
+void _applyDataBorders(xlsio.Range range) {
+  final borders = range.cellStyle.borders;
+  borders.all.lineStyle = xlsio.LineStyle.thin;
+  borders.all.color = _kColorBodyBorder;
+}
+
+void _applyHeaderStyle(xlsio.Range range) {
+  final style = range.cellStyle;
+  style.bold = true;
+  style.backColor = _kColorHeaderBg;
+  style.fontColor = _kColorHeaderFg;
+  style.hAlign = xlsio.HAlignType.center;
+  style.vAlign = xlsio.VAlignType.center;
+  style.fontSize = 11;
+  final borders = style.borders;
+  borders.all.lineStyle = xlsio.LineStyle.thin;
+  borders.all.color = _kColorHeaderBorder;
+  borders.bottom.lineStyle = xlsio.LineStyle.medium;
+  borders.bottom.color = _kColorHeaderBorder;
+}
+
+void _applyAutoFilter(xlsio.Worksheet sheet, xlsio.Range range) {
+  try {
+    sheet.autoFilters.filterRange = range;
+  } catch (_) {}
+}
+
+void _applyPlaceholderStyle(xlsio.Range cell) {
+  final style = cell.cellStyle;
+  style.fontColor = _kColorPlaceholderFg;
+  try {
+    style.italic = true;
+  } catch (_) {}
+}
+
+List<_XlsxColumnInfo> _analyzeColumns({
+  required List<String> columns,
   required List<List<String>> rows,
-  required int excelCol,
-  required bool includeIndexColumn,
+  required int textCols,
+  Set<int> protectedIndexes = const <int>{},
 }) {
-  // excelCol: 1 = "#" (si se incluye), 2 = headers[0], ...
-  int maxLen = 0;
+  final infos = <_XlsxColumnInfo>[];
+  for (int c = 0; c < textCols; c++) {
+    final header = (c < columns.length) ? columns[c] : '';
+    final nameType = _classifyByName(header);
+    int maxLen = header.length;
+    bool hasAnyValue = false;
+    bool allParsedAsDate = true;
+    bool sawAnyDate = false;
+    bool dateHasTime = false;
+    bool allParsedAsNumber = true;
+    bool sawAnyNumber = false;
+    bool numberHasDecimals = false;
 
-  if (includeIndexColumn && excelCol == 1) {
-    maxLen = math.max(maxLen, 1); // "#"
-    final n = rows.length.toString();
-    maxLen = math.max(maxLen, n.length);
-    return maxLen;
-  }
+    for (final r in rows) {
+      final v = (c < r.length) ? r[c] : '';
+      if (v.isNotEmpty) hasAnyValue = true;
+      if (v.length > maxLen) maxLen = v.length;
+      final tv = v.trim();
+      if (tv.isEmpty) continue;
+      final dt = _parseDateLoose(tv);
+      if (dt != null) {
+        sawAnyDate = true;
+        if (dt.hour != 0 || dt.minute != 0 || dt.second != 0) {
+          dateHasTime = true;
+        }
+      } else {
+        allParsedAsDate = false;
+      }
+      final num = _parseNumberLoose(tv);
+      if (num != null) {
+        sawAnyNumber = true;
+        if (!_isPureInteger(tv)) {
+          numberHasDecimals = true;
+        }
+      } else {
+        allParsedAsNumber = false;
+      }
+    }
 
-  final idx = includeIndexColumn ? (excelCol - 2) : (excelCol - 1);
-  if (idx >= 0 && idx < headers.length) {
-    maxLen = math.max(maxLen, headers[idx].length);
-  }
+    var type = nameType;
+    if (type == _XlsxColType.text) {
+      if (sawAnyDate && allParsedAsDate) {
+        type = _XlsxColType.date;
+      } else if (sawAnyNumber && allParsedAsNumber) {
+        type = _XlsxColType.number;
+      }
+    } else if (type == _XlsxColType.date) {
+      if (!sawAnyDate) type = _XlsxColType.text;
+    } else if (type == _XlsxColType.number) {
+      if (!sawAnyNumber || !allParsedAsNumber) type = _XlsxColType.text;
+    }
 
-  for (final r in rows) {
-    if (idx >= 0 && idx < r.length) {
-      maxLen = math.max(maxLen, r[idx].length);
+    infos.add(_XlsxColumnInfo(
+      sourceIndex: c,
+      header: header,
+      type: type,
+      maxContentLen: maxLen,
+      dateHasTime: dateHasTime,
+      numberHasDecimals: numberHasDecimals,
+    ));
+    // Marcar si la columna no tiene datos para decision posterior.
+    // Las columnas protegidas (con fotos embebidas) nunca se descartan.
+    if (!hasAnyValue &&
+        _isGenericHeader(header) &&
+        !protectedIndexes.contains(c)) {
+      // Lo marcamos rellenando type especial via maxContentLen=-1.
+      infos.last.maxContentLen = -1;
     }
   }
-  return maxLen;
+  return infos;
 }
 
-int _widthPxForLen(int len) {
-  final clamped = len.clamp(0, 60);
-  return (80 + (clamped * 7)).toInt();
+List<_XlsxColumnInfo> _filterExportableColumns(List<_XlsxColumnInfo> all) {
+  return all.where((c) => c.maxContentLen >= 0).toList(growable: false);
 }
+
+void _writeTypedCell(
+  xlsio.Worksheet sheet,
+  int row,
+  int col,
+  String raw,
+  _XlsxColumnInfo info,
+) {
+  final cell = sheet.getRangeByIndex(row, col);
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) {
+    cell.setText('');
+    return;
+  }
+  if (FormulaEngine.isFormula(trimmed)) {
+    cell.setFormula(trimmed);
+    return;
+  }
+  switch (info.type) {
+    case _XlsxColType.date:
+      final dt = _parseDateLoose(trimmed);
+      if (dt != null) {
+        cell.setDateTime(dt);
+        cell.numberFormat =
+            info.dateHasTime ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy';
+        return;
+      }
+      cell.setText(raw);
+      return;
+    case _XlsxColType.number:
+      final n = _parseNumberLoose(trimmed);
+      if (n != null) {
+        cell.setNumber(n);
+        cell.numberFormat = info.numberHasDecimals ? '0.00' : '0';
+        cell.cellStyle.hAlign = xlsio.HAlignType.right;
+        return;
+      }
+      cell.setText(raw);
+      return;
+    case _XlsxColType.status:
+    case _XlsxColType.evidence:
+    case _XlsxColType.observations:
+    case _XlsxColType.text:
+      cell.setText(raw);
+      return;
+  }
+}
+
