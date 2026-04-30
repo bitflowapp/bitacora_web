@@ -98,6 +98,131 @@ enum _PhotoSourceAction { camera, gallery, file }
 
 enum _ObservationQuickResult { save, saveNext }
 
+class _ObservationQuickSheetResult {
+  const _ObservationQuickSheetResult({
+    required this.action,
+    required this.text,
+  });
+
+  final _ObservationQuickResult action;
+  final String text;
+}
+
+class _QuickObservationSheet extends StatefulWidget {
+  const _QuickObservationSheet({
+    required this.initialText,
+    required this.subtitle,
+    required this.canSaveNext,
+  });
+
+  final String initialText;
+  final String subtitle;
+  final bool canSaveNext;
+
+  @override
+  State<_QuickObservationSheet> createState() => _QuickObservationSheetState();
+}
+
+class _QuickObservationSheetState extends State<_QuickObservationSheet> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialText);
+  late final FocusNode _focus = FocusNode(debugLabel: 'QuickObservationFocus');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _hideKeyboard() {
+    _focus.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    try {
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    } catch (_) {}
+  }
+
+  void _cancel() {
+    _hideKeyboard();
+    Navigator.of(context).pop();
+  }
+
+  void _save(_ObservationQuickResult action) {
+    final text = _controller.text.trim();
+    _hideKeyboard();
+    Navigator.of(context).pop(
+      _ObservationQuickSheetResult(action: action, text: text),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 16),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Agregar observación',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.subtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              focusNode: _focus,
+              autofocus: true,
+              minLines: 4,
+              maxLines: 8,
+              textInputAction: TextInputAction.newline,
+              decoration: const InputDecoration(
+                hintText: 'Escribí la observación del relevamiento...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                AppButton(
+                  label: AppStrings.cancel,
+                  variant: AppButtonVariant.ghost,
+                  onPressed: _cancel,
+                ),
+                AppButton(
+                  label: 'Guardar',
+                  icon: Icons.check_rounded,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => _save(_ObservationQuickResult.save),
+                ),
+                if (widget.canSaveNext)
+                  AppButton(
+                    label: 'Guardar y siguiente',
+                    icon: Icons.arrow_downward_rounded,
+                    variant: AppButtonVariant.primary,
+                    onPressed: () => _save(_ObservationQuickResult.saveNext),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 const List<String> _kFieldStatusValues = <String>[
   'OK',
   'Atención',
@@ -7033,6 +7158,23 @@ class _EditorScreenState extends State<EditorScreen>
     return _firstTextLikeColumn();
   }
 
+  void _dismissActiveTextInput() {
+    _cancelMobileEnsureTimers();
+    try {
+      _cellFocus.unfocus();
+      _mobileFocus.unfocus();
+      _inlineSearchFocus.unfocus();
+      _nameFocus.unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    } catch (_) {}
+  }
+
+  Future<void> _settleActiveTextInputForSheet() async {
+    _dismissActiveTextInput();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+  }
+
   Future<void> _openQuickObservationForSelection() async {
     final rows = _batchTargetRows();
     final col = _quickObservationColumn();
@@ -7045,87 +7187,25 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    final controller = TextEditingController(
-      text: rows.length == 1 ? _getCellText(rows.first, col) : '',
-    );
-    final focus = FocusNode(debugLabel: 'QuickObservationFocus');
-    final result = await showModalBottomSheet<_ObservationQuickResult>(
+    await _settleActiveTextInputForSheet();
+    if (!mounted) return;
+
+    final result = await showModalBottomSheet<_ObservationQuickSheetResult>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) {
-        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Agregar observación',
-                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                rows.length == 1
-                    ? 'Registro ${rows.first + 1} - ${_headerLabel(col)}'
-                    : '${rows.length} registros seleccionados',
-                style: Theme.of(sheetContext).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                focusNode: focus,
-                autofocus: true,
-                minLines: 4,
-                maxLines: 8,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: 'Escribí la observación del relevamiento...',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.end,
-                children: [
-                  AppButton(
-                    label: AppStrings.cancel,
-                    variant: AppButtonVariant.ghost,
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                  AppButton(
-                    label: 'Guardar',
-                    icon: Icons.check_rounded,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () => Navigator.of(sheetContext)
-                        .pop(_ObservationQuickResult.save),
-                  ),
-                  if (rows.length == 1 && rows.first < _rows.length - 1)
-                    AppButton(
-                      label: 'Guardar y siguiente',
-                      icon: Icons.arrow_downward_rounded,
-                      variant: AppButtonVariant.primary,
-                      onPressed: () => Navigator.of(sheetContext)
-                          .pop(_ObservationQuickResult.saveNext),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => _QuickObservationSheet(
+        initialText: rows.length == 1 ? _getCellText(rows.first, col) : '',
+        subtitle: rows.length == 1
+            ? 'Registro ${rows.first + 1} - ${_headerLabel(col)}'
+            : '${rows.length} registros seleccionados',
+        canSaveNext: rows.length == 1 && rows.first < _rows.length - 1,
+      ),
     );
 
-    final text = controller.text.trim();
-    controller.dispose();
-    focus.dispose();
     if (!mounted || result == null) return;
+    final text = result.text;
     if (text.isEmpty) {
       _showActionSnack(
         'Observación vacía. No se aplicaron cambios.',
@@ -7143,7 +7223,7 @@ class _EditorScreenState extends State<EditorScreen>
       icon: Icons.notes_rounded,
     );
     if (!mounted) return;
-    if (result == _ObservationQuickResult.saveNext && rows.length == 1) {
+    if (result.action == _ObservationQuickResult.saveNext && rows.length == 1) {
       final next = (rows.first + 1).clamp(0, _rows.length - 1);
       _setSelectionAndRefreshGrid(next, col, blink: true);
     }
@@ -18720,6 +18800,8 @@ class _EditorScreenState extends State<EditorScreen>
         _PhotoSourceAction action,
       })?> _showPhotoSourcePicker() async {
     if (_rows.isEmpty || _headers.isEmpty) return null;
+    await _settleActiveTextInputForSheet();
+    if (!mounted) return null;
     return showModalBottomSheet<
         ({
           PhotoAcquireOutcome? outcome,
@@ -18873,7 +18955,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    _dismissActiveTextInput();
+    await Navigator.of(context).maybePop();
     await Future<void>.delayed(const Duration(milliseconds: 120));
     if (!mounted) return;
     _openPhotosSheetForCell(r, c);

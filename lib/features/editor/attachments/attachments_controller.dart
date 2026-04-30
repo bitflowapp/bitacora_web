@@ -1328,6 +1328,7 @@ extension _EditorAttachments on _EditorScreenState {
   void _openPhotosSheetForCell(int r, int c) {
     if (r < 0 || r >= _rows.length) return;
     if (c < 0 || c >= _headers.length) return;
+    _dismissActiveTextInput();
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
