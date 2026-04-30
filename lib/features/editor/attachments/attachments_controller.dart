@@ -1358,9 +1358,9 @@ extension _EditorAttachments on _EditorScreenState {
                   child: SizedBox(
                     width: 360,
                     child: EmptyState(
-                      title: 'Sin adjuntos todavia',
+                      title: 'Sin evidencias todav\u00eda',
                       message:
-                          'Agrega evidencia para esta celda cuando sea necesario.',
+                          'Agreg\u00e1 una foto, archivo o ubicaci\u00f3n para documentar esta celda.',
                       icon: Icons.photo_outlined,
                       actionLabel: 'Agregar',
                       onAction: handleAdd,
@@ -1744,7 +1744,7 @@ extension _EditorAttachments on _EditorScreenState {
     final meta = _cellMetaAt(r, c);
     if (meta == null || meta.isEmpty) {
       _showActionSnack(
-        'Sin adjuntos en ${CellKey(r, c).a1}.',
+        'Sin evidencias en ${CellKey(r, c).a1}.',
         isError: true,
         icon: Icons.photo_outlined,
       );

@@ -457,17 +457,17 @@ class _StartPageV2State extends State<StartPageV2> {
                                 key:
                                     const ValueKey('start-primary-open-recent'),
                                 icon: Icons.history_rounded,
-                                title: 'Abrir reciente',
+                                title: 'Continuar \u00faltimo',
                                 subtitle: sheets.isEmpty
-                                    ? 'Aparecerá tu último trabajo'
+                                    ? 'Tu relevamiento reciente aparecer\u00e1 ac\u00e1'
                                     : _sheetTitle(sheets.first),
                                 onTap: _openMostRecentSheet,
                               ),
                               _HomeActionButton(
                                 key: const ValueKey('start-primary-search'),
                                 icon: Icons.search_rounded,
-                                title: 'Buscar archivos',
-                                subtitle: 'Quick Search',
+                                title: 'Buscar planillas',
+                                subtitle: 'Saltar r\u00e1pido a un trabajo',
                                 onTap: _openQuickSwitcher,
                               ),
                               _HomeActionButton(

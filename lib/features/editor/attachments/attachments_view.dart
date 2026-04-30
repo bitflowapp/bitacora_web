@@ -16,6 +16,12 @@ class _AttachmentsSheetHeader extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onClose;
 
+  String get _countLabel {
+    if (count == 0) return 'Sin evidencias';
+    if (count == 1) return '1 evidencia';
+    return '$count evidencias';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -33,7 +39,7 @@ class _AttachmentsSheetHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '$count item(s)',
+          _countLabel,
           style: TextStyle(
             color: palette.fgMuted,
             fontWeight: FontWeight.w700,

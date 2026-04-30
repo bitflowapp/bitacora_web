@@ -482,7 +482,7 @@ class LocationService {
 
       completer.complete(refined);
       return refined;
-    } on TimeoutException catch (e) {
+    } on TimeoutException catch (e, st) {
       final last = await getLastKnownFix(
         rejectMocked: rejectMocked,
         maxAccuracyMeters: maxAccuracyMeters,
@@ -496,9 +496,10 @@ class LocationService {
 
       _setStatus(LocationStatus.error(e, 'Timeout obteniendo ubicación.'));
       _emitEvent('fix_timeout', {'error': e.toString()});
-      completer.completeError(e);
+      completer.future.ignore();
+      completer.completeError(e, st);
       rethrow;
-    } catch (e) {
+    } catch (e, st) {
       final last = await getLastKnownFix(
         rejectMocked: rejectMocked,
         maxAccuracyMeters: maxAccuracyMeters,
@@ -512,7 +513,8 @@ class LocationService {
 
       _setStatus(LocationStatus.error(e, 'Error obteniendo ubicación.'));
       _emitEvent('fix_error', {'error': e.toString()});
-      completer.completeError(e);
+      completer.future.ignore();
+      completer.completeError(e, st);
       rethrow;
     } finally {
       _inflightFix = null;
