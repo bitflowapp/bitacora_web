@@ -54,9 +54,25 @@ extension _EditorExportDialogs on _EditorScreenState {
                 },
               ),
               const SizedBox(height: 6),
-              Text(
-                'Archivo: $fileName',
-                style: Theme.of(context).textTheme.bodySmall,
+              Row(
+                children: [
+                  Text(
+                    'Archivo:',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               AppButton(
