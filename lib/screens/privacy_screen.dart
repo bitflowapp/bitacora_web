@@ -30,7 +30,7 @@ class PrivacyScreen extends StatelessWidget {
           const _SectionBlock(
             title: 'Datos guardados',
             body:
-                'Las planillas y adjuntos se almacenan en el dispositivo o navegador, segun plataforma.',
+                'Las planillas y adjuntos se almacenan en el dispositivo o navegador, seg\u00fan plataforma.',
           ),
           const _SectionBlock(
             title: 'Permisos',

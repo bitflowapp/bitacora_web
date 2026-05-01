@@ -5,7 +5,7 @@ import '../ui/ui.dart';
 
 class LegalScreen extends StatelessWidget {
   const LegalScreen.privacy({super.key})
-      : title = 'Politica de privacidad',
+      : title = 'Pol\u00edtica de privacidad',
         sections = const [
           LegalSection(
             title: 'Datos locales',
@@ -20,17 +20,17 @@ class LegalScreen extends StatelessWidget {
           LegalSection(
             title: 'Respaldo',
             body:
-                'Se recomienda exportar respaldos ZIP de forma periodica para resguardar evidencias.',
+                'Se recomienda exportar respaldos ZIP de forma peri\u00f3dica para resguardar evidencias.',
           ),
         ];
 
   const LegalScreen.terms({super.key})
-      : title = 'Terminos de uso',
+      : title = 'T\u00e9rminos de uso',
         sections = const [
           LegalSection(
             title: 'Uso permitido',
             body:
-                'La licencia permite operar la aplicacion de manera local para registrar actividades y evidencias.',
+                'La licencia permite operar la aplicaci\u00f3n de manera local para registrar actividades y evidencias.',
           ),
           LegalSection(
             title: 'Responsabilidad',
@@ -40,7 +40,7 @@ class LegalScreen extends StatelessWidget {
           LegalSection(
             title: 'Soporte',
             body:
-                'El soporte se brinda segun el plan contratado. No incluye hosting ni almacenamiento remoto.',
+                'El soporte se brinda seg\u00fan el plan contratado. No incluye hosting ni almacenamiento remoto.',
           ),
         ];
 
@@ -69,7 +69,7 @@ class LegalScreen extends StatelessWidget {
                   children: [
                     SectionHeader(
                       title: title,
-                      subtitle: 'Documento breve para operacion local.',
+                      subtitle: 'Documento breve para operaci\u00f3n local.',
                       trailing: AppButton(
                         label: 'Ir al inicio',
                         variant: AppButtonVariant.ghost,

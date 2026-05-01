@@ -110,7 +110,7 @@ class LandingScreen extends StatelessWidget {
                                 title: 'Falta canal de contacto',
                                 message:
                                     'Configura email o WhatsApp para recibir consultas desde la landing.',
-                                actionLabel: 'Abrir aplicacion',
+                                actionLabel: 'Abrir aplicaci\u00f3n',
                                 onAction: () => context.go('/app'),
                                 icon: Icons.support_agent_outlined,
                               ),
@@ -1011,7 +1011,7 @@ class _CtaBand extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Listo para ordenar tu operacion?',
+                'Listo para ordenar tu operaci\u00f3n?',
                 style: t.text.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -1150,7 +1150,7 @@ class _Footer extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => context.go('/terms'),
-              child: const Text('Terminos'),
+              child: const Text('T\u00e9rminos'),
             ),
           ],
         ),

@@ -470,7 +470,7 @@ class _InlineSearchBar extends StatelessWidget {
                 ),
                 _MobilePanelIconButton(
                   icon: Icons.close_rounded,
-                  tooltip: 'Cerrar busqueda',
+                  tooltip: 'Cerrar b\u00fasqueda',
                   onTap: onClose,
                   palette: palette,
                   iconSize: 18,
@@ -1070,7 +1070,7 @@ class _EditorPremiumEmptyStatePanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Empieza en segundos: crea un registro, pega una tabla o importa cuando este habilitado.',
+            'Empieza en segundos: crea un registro, pega una tabla o importa cuando est\u00e9 habilitado.',
             style: TextStyle(
               color: palette.fgMuted,
               fontSize: 12,

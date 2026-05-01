@@ -71,7 +71,7 @@ extension _EditorAttachments on _EditorScreenState {
     switch (status) {
       case AttachmentStore.uploadStatusUploading:
         return (
-          label: 'Subiendoâ€¦',
+          label: 'Subiendo...',
           icon: Icons.cloud_upload_rounded,
           color: pal.accent,
           canRetry: false,
@@ -385,7 +385,7 @@ extension _EditorAttachments on _EditorScreenState {
       case AttachmentKind.doc:
         return 'No se pudo adjuntar el archivo. Causa: $reason.';
       case AttachmentKind.location:
-        return 'No se pudo guardar la ubicaciÃ³n. Causa: $reason.';
+        return 'No se pudo guardar la ubicaci\u00f3n. Causa: $reason.';
     }
   }
 
@@ -542,9 +542,9 @@ extension _EditorAttachments on _EditorScreenState {
         final pal = _palette(ctx);
         return AlertDialog(
           backgroundColor: pal.menuBg,
-          title: const Text('No se pudo abrir la cÃ¡mara'),
+          title: const Text('No se pudo abrir la c\u00e1mara'),
           content: const Text(
-            'No se pudo capturar desde cÃ¡mara. Â¿QuerÃ©s elegir desde galerÃ­a?',
+            'No se pudo capturar desde c\u00e1mara. \u00bfQuer\u00e9s elegir desde galer\u00eda?',
           ),
           actions: [
             TextButton(
@@ -662,7 +662,7 @@ extension _EditorAttachments on _EditorScreenState {
           flow: AppErrorFlow.attachmentPermission,
           operation: 'photo_blocked',
           fallbackMessage:
-              'No se pudo acceder a cÃ¡mara o galerÃ­a desde este navegador.',
+              'No se pudo acceder a c\u00e1mara o galer\u00eda desde este navegador.',
           icon: Icons.photo_outlined,
         );
         return;
@@ -674,8 +674,8 @@ extension _EditorAttachments on _EditorScreenState {
           final cancelled = classified == ExportFlowOutcome.cancelled;
           _updatePhotoFlowStatus(
             cancelled
-                ? 'Destino $label Â· cancelado'
-                : 'Destino $label Â· no disponible',
+                ? 'Destino $label - cancelado'
+                : 'Destino $label - no disponible',
             target: targetRef,
           );
           _clearPhotoFlowStatusSoon();
@@ -2599,7 +2599,7 @@ extension _EditorAttachments on _EditorScreenState {
                     );
                   }
                 },
-                child: const Text('Abrir configuraciÃ³n'),
+                child: const Text('Abrir configuraci\u00f3n'),
               ),
           ],
         );
@@ -3003,10 +3003,10 @@ extension _EditorAttachments on _EditorScreenState {
 
     final preflightOk = await _runPermissionPreflight(
       storageKey: _kPrefMicrophoneRationaleSeen,
-      permissionLabel: 'micrÃ³fono',
-      rationaleTitle: 'Permiso de micrÃ³fono',
+      permissionLabel: 'micr\u00f3fono',
+      rationaleTitle: 'Permiso de micr\u00f3fono',
       rationaleMessage:
-          'Usamos el micrÃ³fono para grabar notas de voz en la celda activa. '
+          'Usamos el micr\u00f3fono para grabar notas de voz en la celda activa. '
           'Los audios quedan en tu almacenamiento local.',
       permission: ph.Permission.microphone,
     );
@@ -3192,7 +3192,8 @@ extension _EditorAttachments on _EditorScreenState {
 
   Future<void> _playAudioAttachment(AudioAttachment audio) async {
     if (_audioRecording) {
-      _showSnack('DetÃ©n la grabaciÃ³n para reproducir.', isError: false);
+      _showSnack('Det\u00e9n la grabaci\u00f3n para reproducir.',
+          isError: false);
       return;
     }
 
@@ -3522,7 +3523,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Ver tour rapido',
+            label: 'Ver tour r\u00e1pido',
             icon: Icons.explore_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {
@@ -3542,7 +3543,7 @@ extension _EditorAttachments on _EditorScreenState {
           ),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Prueba rÃ¡pida (GPS/Foto/Audio)',
+            label: 'Prueba r\u00e1pida (GPS/Foto/Audio)',
             icon: Icons.science_outlined,
             variant: AppButtonVariant.secondary,
             onPressed: () {

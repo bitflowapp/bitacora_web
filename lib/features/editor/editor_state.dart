@@ -855,7 +855,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
     if (webCaps?.privateModeLikely == true) {
       _showActionSnack(
-        'Modo temporal detectado: al recargar o cerrar la pestaÃ±a podrÃ­as perder adjuntos. ExportÃ¡ ZIP para conservar.',
+        'Modo temporal detectado: al recargar o cerrar la pesta\u00f1a podr\u00edas perder adjuntos. Export\u00e1 ZIP para conservar.',
         isError: false,
         icon: Icons.info_outline_rounded,
       );
@@ -1888,7 +1888,7 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.save,
         operation: 'save_local',
         fallbackMessage:
-            'No pudimos guardar los cambios. RevisÃ¡ tu conexiÃ³n o almacenamiento local e intentÃ¡ otra vez.',
+            'No pudimos guardar los cambios. Revis\u00e1 tu conexi\u00f3n o almacenamiento local e intent\u00e1 otra vez.',
         stackTrace: st,
         icon: Icons.save_outlined,
       );
@@ -1942,8 +1942,8 @@ class _EditorScreenState extends State<EditorScreen>
           title: const Text('Cambios sin guardar'),
           content: Text(
             _saving
-                ? 'Hay un guardado en curso. Â¿QuÃ© querÃ©s hacer?'
-                : 'TenÃ©s cambios sin guardar. Â¿QuÃ© querÃ©s hacer antes de salir?',
+                ? 'Hay un guardado en curso. \u00bfQu\u00e9 quer\u00e9s hacer?'
+                : 'Ten\u00e9s cambios sin guardar. \u00bfQu\u00e9 quer\u00e9s hacer antes de salir?',
           ),
           actions: [
             TextButton(
@@ -2020,7 +2020,7 @@ class _EditorScreenState extends State<EditorScreen>
       final stillDirty = _hasUnsavedWork;
       if (stillDirty || !_lastSaveSucceeded) {
         _showActionSnack(
-          'No se pudo cerrar porque todavÃ­a hay cambios sin guardar.',
+          'No se pudo cerrar porque todav\u00eda hay cambios sin guardar.',
           isError: true,
           icon: Icons.warning_amber_rounded,
         );
@@ -3429,7 +3429,7 @@ class _EditorScreenState extends State<EditorScreen>
                 decoration: const InputDecoration(
                   isDense: true,
                   labelText: 'Nombre',
-                  hintText: 'Ej: RevisiÃ³n urgente',
+                  hintText: 'Ej: Revisi\u00f3n urgente',
                 ),
               ),
               const SizedBox(height: 10),
@@ -4333,7 +4333,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (value == '1' ||
         value == 'true' ||
         value == 'si' ||
-        value == 'sÃ­' ||
+        value == 's\u00ed' ||
         value == 'ok' ||
         value == 'x') {
       return true;
@@ -7584,7 +7584,7 @@ class _EditorScreenState extends State<EditorScreen>
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             return AlertDialog(
-              title: const Text('Ir aâ€¦'),
+              title: const Text('Ir a...'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -8846,7 +8846,7 @@ class _EditorScreenState extends State<EditorScreen>
       );
       if (!mounted) return;
       _showActionSnack(
-        'Diagnostico de cola exportado.',
+        'Diagn\u00f3stico de cola exportado.',
         isError: false,
         icon: Icons.bug_report_outlined,
       );
@@ -9211,7 +9211,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (inserted == null) return;
     _addHistoryEvent(
       type: 'quick_capture',
-      message: 'Captura rÃ¡pida en fila ${inserted.rowIndex + 1}',
+      message: 'Captura r\u00e1pida en fila ${inserted.rowIndex + 1}',
       origin: 'quick_capture',
       row: inserted.rowIndex,
     );
@@ -9278,7 +9278,7 @@ class _EditorScreenState extends State<EditorScreen>
     final current = _longOperation;
     if (current != null && !current.cancelRequested) {
       _showActionSnack(
-        'Ya hay una operaciÃ³n en curso. EsperÃ¡ a que termine o cancelala.',
+        'Ya hay una operaci\u00f3n en curso. Esper\u00e1 a que termine o cancelala.',
         isError: false,
         icon: Icons.hourglass_top_rounded,
       );
@@ -9438,7 +9438,7 @@ class _EditorScreenState extends State<EditorScreen>
       await Clipboard.setData(ClipboardData(text: text));
       if (!mounted) return;
       _showActionSnack(
-        'Diagnostico copiado.',
+        'Diagn\u00f3stico copiado.',
         isError: false,
         icon: Icons.content_copy_rounded,
       );
@@ -9649,20 +9649,20 @@ class _EditorScreenState extends State<EditorScreen>
     }
     final storageMessage = switch (mapping.storageVariant) {
       'quota_exceeded' => 'Espacio local del navegador agotado',
-      'storage_session_only' => 'Modo temporal/incÃ³gnito del navegador',
+      'storage_session_only' => 'Modo temporal/inc\u00f3gnito del navegador',
       'storage_blocked' => 'Guardado local bloqueado por el navegador',
       'unknown_storage_error' => 'Guardado local temporal',
       _ => 'Modo temporal del navegador',
     };
     final snackMessage = switch (mapping.snackVariant) {
       'quota_exceeded' =>
-        'Espacio local agotado para $kindLabel. ExportÃ¡ ZIP y liberÃ¡ almacenamiento del sitio antes de seguir.',
+        'Espacio local agotado para $kindLabel. Export\u00e1 ZIP y liber\u00e1 almacenamiento del sitio antes de seguir.',
       'storage_session_only' =>
-        'Guardado temporal para $kindLabel: el navegador estÃ¡ en modo temporal/incÃ³gnito. ExportÃ¡ ZIP antes de cerrar.',
+        'Guardado temporal para $kindLabel: el navegador est\u00e1 en modo temporal/inc\u00f3gnito. Export\u00e1 ZIP antes de cerrar.',
       'storage_blocked' =>
-        'Guardado local bloqueado para $kindLabel. RevisÃ¡ permisos del sitio o exportÃ¡ ZIP para conservar.',
+        'Guardado local bloqueado para $kindLabel. Revis\u00e1 permisos del sitio o export\u00e1 ZIP para conservar.',
       _ =>
-        'Guardado temporal para $kindLabel: si cerrÃ¡s o recargÃ¡s podrÃ­as perder adjuntos. ExportÃ¡ ZIP para conservar.',
+        'Guardado temporal para $kindLabel: si cerr\u00e1s o recarg\u00e1s podr\u00edas perder adjuntos. Export\u00e1 ZIP para conservar.',
     };
     if (mounted) {
       setState(() {
@@ -10248,7 +10248,7 @@ class _EditorScreenState extends State<EditorScreen>
                               _warningBanner(
                                 pal,
                                 text:
-                                    "Guardado temporal de adjuntos: ${_storageMessage ?? 'sin persistencia'}. ExportÃ¡ ZIP para no perder evidencias.",
+                                    "Guardado temporal de adjuntos: ${_storageMessage ?? 'sin persistencia'}. Export\u00e1 ZIP para no perder evidencias.",
                                 icon: Icons.warning_amber_rounded,
                                 actionLabel: 'Exportar ZIP',
                                 onAction: () =>
@@ -15642,13 +15642,13 @@ class _EditorScreenState extends State<EditorScreen>
     final lower = raw.trim().toLowerCase();
     if (lower.isEmpty) return '';
     final map = <String, String>{
-      'Ã¡': 'a',
-      'Ã©': 'e',
-      'Ã­': 'i',
-      'Ã³': 'o',
-      'Ãº': 'u',
-      'Ã¼': 'u',
-      'Ã±': 'n',
+      '\u00e1': 'a',
+      '\u00e9': 'e',
+      '\u00ed': 'i',
+      '\u00f3': 'o',
+      '\u00fa': 'u',
+      '\u00fc': 'u',
+      '\u00f1': 'n',
     };
     final sb = StringBuffer();
     for (final rune in lower.runes) {
@@ -16680,7 +16680,7 @@ class _EditorScreenState extends State<EditorScreen>
         cancellable: true,
       )) {
         return fail(
-          'Ya hay una operacion en curso. Espera a que termine y reintenta el pegado.',
+          'Ya hay una operaci\u00f3n en curso. Esper\u00e1 a que termine y reintenta el pegado.',
         );
       }
       try {
@@ -18640,7 +18640,7 @@ class _EditorScreenState extends State<EditorScreen>
       _emitActionResult(
         const _ActionResult(
           ok: false,
-          message: 'Selecciona una celda vÃ¡lida para abrir en mapa.',
+          message: 'Selecciona una celda v\u00e1lida para abrir en mapa.',
         ),
         failureIcon: Icons.map_outlined,
       );
@@ -19044,8 +19044,8 @@ class _EditorScreenState extends State<EditorScreen>
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_xlsx' : 'export_xlsx',
           fallbackMessage: share
-              ? 'Compartir XLSX no estÃ¡ disponible en este dispositivo. Exportalo y envialo manualmente.'
-              : 'Exportar XLSX no estÃ¡ disponible en este dispositivo.',
+              ? 'Compartir XLSX no est\u00e1 disponible en este dispositivo. Exportalo y envialo manualmente.'
+              : 'Exportar XLSX no est\u00e1 disponible en este dispositivo.',
           stackTrace: st,
           icon: Icons.table_view_rounded,
         );
@@ -19056,8 +19056,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_xlsx' : 'export_xlsx',
         fallbackMessage: share
-            ? 'No pudimos compartir el XLSX. PodÃ©s exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el XLSX. IntentÃ¡ nuevamente en unos segundos.',
+            ? 'No pudimos compartir el XLSX. Pod\u00e9s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el XLSX. Intent\u00e1 nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.table_view_rounded,
       );
@@ -19108,8 +19108,9 @@ class _EditorScreenState extends State<EditorScreen>
         bytes: pdfBytes,
         share: share,
         shouldCancel: _isLongOperationCancelled,
-        successMessage:
-            share ? 'PDF listo para compartir.' : 'PDF exportado con Ã©xito.',
+        successMessage: share
+            ? 'PDF listo para compartir.'
+            : 'PDF exportado con \u00e9xito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -19135,7 +19136,7 @@ class _EditorScreenState extends State<EditorScreen>
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_pdf' : 'export_pdf',
           fallbackMessage: share
-              ? 'Compartir PDF no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
+              ? 'Compartir PDF no est\u00e1 disponible en este dispositivo. Exportalo y envialo manualmente.'
               : 'Exportar PDF no esta disponible en este dispositivo.',
           stackTrace: st,
           icon: Icons.picture_as_pdf_outlined,
@@ -19147,8 +19148,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_pdf' : 'export_pdf',
         fallbackMessage: share
-            ? 'No pudimos compartir el PDF. PodÃ©s exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el PDF. IntentÃ¡ nuevamente en unos segundos.',
+            ? 'No pudimos compartir el PDF. Pod\u00e9s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el PDF. Intent\u00e1 nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.picture_as_pdf_outlined,
       );
@@ -19229,7 +19230,7 @@ class _EditorScreenState extends State<EditorScreen>
         shouldCancel: _isLongOperationCancelled,
         successMessage: share
             ? 'Paquete ZIP listo para compartir.'
-            : 'Paquete ZIP exportado con Ã©xito.',
+            : 'Paquete ZIP exportado con \u00e9xito.',
       );
       _throwIfLongOperationCancelled();
       AppHaptics.success();
@@ -19255,7 +19256,7 @@ class _EditorScreenState extends State<EditorScreen>
           flow: AppErrorFlow.exportData,
           operation: share ? 'share_zip' : 'export_zip',
           fallbackMessage: share
-              ? 'Compartir paquete ZIP no esta disponible en este dispositivo. Exportalo y envialo manualmente.'
+              ? 'Compartir paquete ZIP no est\u00e1 disponible en este dispositivo. Exportalo y envialo manualmente.'
               : 'Exportar paquete ZIP no esta disponible en este dispositivo.',
           stackTrace: st,
           icon: Icons.folder_zip_rounded,
@@ -19267,8 +19268,8 @@ class _EditorScreenState extends State<EditorScreen>
         flow: AppErrorFlow.exportData,
         operation: share ? 'share_zip' : 'export_zip',
         fallbackMessage: share
-            ? 'No pudimos compartir el paquete ZIP. PodÃ©s exportarlo y enviarlo manualmente.'
-            : 'No pudimos exportar el paquete ZIP. IntentÃ¡ nuevamente en unos segundos.',
+            ? 'No pudimos compartir el paquete ZIP. Pod\u00e9s exportarlo y enviarlo manualmente.'
+            : 'No pudimos exportar el paquete ZIP. Intent\u00e1 nuevamente en unos segundos.',
         stackTrace: st,
         icon: Icons.folder_zip_rounded,
       );
@@ -21571,7 +21572,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: [xf],
-            subject: 'ExportaciÃ³n de Bit Flow',
+            subject: 'Exportaci\u00f3n de Bit Flow',
           ),
         );
         if (share) {
@@ -21622,7 +21623,7 @@ class _EditorScreenState extends State<EditorScreen>
       await SharePlus.instance.share(
         ShareParams(
           files: [file],
-          subject: 'ExportaciÃ³n de Bit Flow',
+          subject: 'Exportaci\u00f3n de Bit Flow',
         ),
       );
       return true;
@@ -21649,7 +21650,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: <XFile>[XFile(path, mimeType: mime, name: name)],
-            subject: 'ExportaciÃ³n de Bit Flow',
+            subject: 'Exportaci\u00f3n de Bit Flow',
             text: shareText,
           ),
         );
@@ -21665,7 +21666,7 @@ class _EditorScreenState extends State<EditorScreen>
         await SharePlus.instance.share(
           ShareParams(
             files: <XFile>[XFile(path, name: name)],
-            subject: 'ExportaciÃ³n de Bit Flow',
+            subject: 'Exportaci\u00f3n de Bit Flow',
             text: shareText,
           ),
         );
@@ -21679,7 +21680,7 @@ class _EditorScreenState extends State<EditorScreen>
       try {
         _throwIfOperationCancelledBy(shouldCancel);
         final email = Email(
-          subject: 'ExportaciÃ³n de Bit Flow',
+          subject: 'Exportaci\u00f3n de Bit Flow',
           body: shareText,
           attachmentPaths: <String>[path],
           isHTML: false,
@@ -21693,7 +21694,7 @@ class _EditorScreenState extends State<EditorScreen>
         final mailto = Uri(
           scheme: 'mailto',
           queryParameters: <String, String>{
-            'subject': 'ExportaciÃ³n de Bit Flow',
+            'subject': 'Exportaci\u00f3n de Bit Flow',
             'body': '$shareText\n\nRuta local del archivo:\n$path',
           },
         );
@@ -21709,7 +21710,7 @@ class _EditorScreenState extends State<EditorScreen>
       await SharePlus.instance.share(
         ShareParams(
           files: <XFile>[XFile.fromData(bytes, name: name, mimeType: mime)],
-          subject: 'ExportaciÃ³n de Bit Flow',
+          subject: 'Exportaci\u00f3n de Bit Flow',
           text: shareText,
         ),
       );

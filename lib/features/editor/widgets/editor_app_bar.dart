@@ -408,7 +408,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.add_box_outlined,
                                 label: '+ Registro',
                                 semanticsLabel:
-                                    'Crear registro rapido de campo',
+                                    'Crear registro r\u00e1pido de campo',
                                 tooltip: 'Crear un registro en modo campo',
                                 onTap: onQuickCapture,
                               ),
@@ -446,7 +446,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 label: 'Buscar global',
                                 semanticsLabel:
                                     'Buscar en esta planilla o en todas',
-                                tooltip: 'Busqueda global (Ctrl/Cmd+Shift+F)',
+                                tooltip:
+                                    'B\u00fasqueda global (Ctrl/Cmd+Shift+F)',
                                 onTap: onSearchEverywhere,
                               ),
                             ),
@@ -457,8 +458,8 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 filled: false,
                                 icon: Icons.pin_drop_outlined,
                                 label: 'Ir a\u2026',
-                                semanticsLabel: 'Ir rapido por fila o ID',
-                                tooltip: 'Ir a fila o ID rapidamente',
+                                semanticsLabel: 'Ir r\u00e1pido por fila o ID',
+                                tooltip: 'Ir a fila o ID r\u00e1pidamente',
                                 onTap: onJumpTo,
                               ),
                             ),
@@ -470,7 +471,7 @@ class _PremiumAppleHeader extends StatelessWidget {
                                 icon: Icons.view_column_rounded,
                                 label: 'Columnas',
                                 semanticsLabel:
-                                    'Abrir panel de configuracion de columnas',
+                                    'Abrir panel de configuraci\u00f3n de columnas',
                                 tooltip: 'Tipos, orden, visibilidad y fijar',
                                 onTap: onColumns,
                               ),

@@ -30,9 +30,9 @@ class AppStrings {
   static const sheetsSearchHint = 'Buscar por nombre o ID... (Ctrl/Cmd+K o /)';
   static const newSheet = 'Crear planilla';
   static const templates = 'Plantillas';
-  static const openLast = 'Abrir ultima';
-  static const clearSearch = 'Limpiar busqueda';
-  static const emptySheetsTitle = 'Todavia no hay planillas';
+  static const openLast = 'Abrir \u00faltima';
+  static const clearSearch = 'Limpiar b\u00fasqueda';
+  static const emptySheetsTitle = 'Todav\u00eda no hay planillas';
   static const emptySheetsBody =
       'Crea tu primera planilla o arranca desde una plantilla para tus relevamientos.';
   static const noResultsTitle = 'Sin resultados';
@@ -43,7 +43,7 @@ class AppStrings {
   static const deleteSheetTitle = 'Eliminar planilla';
 
   static String deleteSheetMessage(String title) {
-    return 'Eliminar "$title"? Esta accion no se puede deshacer.';
+    return 'Eliminar "$title"? Esta acci\u00f3n no se puede deshacer.';
   }
 
   static String noResultsBody(String query) {
@@ -56,7 +56,7 @@ class AppStrings {
   static const editorSearch = 'Buscar';
   static const editorExport = 'Exportar';
   static const editorBatchActions = 'Acciones';
-  static const editorDiagnostics = 'Diagnostico';
+  static const editorDiagnostics = 'Diagn\u00f3stico';
   static const editorCompute = 'Calcular';
   static const editorOptions = 'Opciones';
   static const editorDensity = 'Densidad';
@@ -83,7 +83,7 @@ class AppStrings {
   static const infoImportCancelled = 'Importacion cancelada.';
 
   // Diagnostics / Support
-  static const diagnosticsTitle = 'Diagnostico / Soporte';
+  static const diagnosticsTitle = 'Diagn\u00f3stico / Soporte';
   static const diagnosticsSummary = 'Resumen';
   static const diagnosticsReport = 'Informe';
   static const diagnosticsRecentErrors = 'Errores recientes';
@@ -120,7 +120,7 @@ class AppStrings {
   // Accessibility labels
   static const semAddSheet = 'Crear nueva planilla';
   static const semTemplates = 'Abrir plantillas de planillas';
-  static const semOpenLastSheet = 'Abrir ultima planilla editada';
+  static const semOpenLastSheet = 'Abrir \u00faltima planilla editada';
   static const semToggleTheme = 'Cambiar tema';
   static const semOpenSheetActions = 'Abrir acciones de la planilla';
   static const semTogglePin = 'Fijar o desfijar planilla';

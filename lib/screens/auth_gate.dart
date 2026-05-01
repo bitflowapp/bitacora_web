@@ -171,7 +171,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Activar acceso rapido',
+                  'Activar acceso r\u00e1pido',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
@@ -209,7 +209,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Acceso rapido activado con bloqueo al abrir.'),
+        content: Text('Acceso r\u00e1pido activado con bloqueo al abrir.'),
         behavior: SnackBarBehavior.floating,
       ),
     );

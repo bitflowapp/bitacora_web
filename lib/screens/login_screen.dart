@@ -240,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Activar acceso rapido',
+                      'Activar acceso r\u00e1pido',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -248,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Usa $_bioLabel para entrar mas rapido y proteger la app.',
+                      'Usa $_bioLabel para entrar m\u00e1s r\u00e1pido y proteger la app.',
                       style: const TextStyle(fontSize: 16, height: 1.35),
                     ),
                     const SizedBox(height: 12),
@@ -301,8 +301,8 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Text(
           lockOnOpen
-              ? 'Acceso rapido activado con bloqueo al abrir.'
-              : 'Acceso rapido activado.',
+              ? 'Acceso r\u00e1pido activado con bloqueo al abrir.'
+              : 'Acceso r\u00e1pido activado.',
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -316,7 +316,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _busy = true);
     final ok = await BiometricAuthService.I.authenticate(
-      'Verifica tu identidad para acceso rapido',
+      'Verific\u00e1 tu identidad para acceso r\u00e1pido',
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -326,7 +326,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     messenger.showSnackBar(
       const SnackBar(
-        content: Text('Inicia sesion una vez para habilitar acceso rapido.'),
+        content: Text(
+            'Inici\u00e1 sesi\u00f3n una vez para habilitar acceso r\u00e1pido.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -620,7 +621,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         OutlinedButton.icon(
                           onPressed: _busy ? null : _quickAccess,
                           icon: const Icon(Icons.fingerprint_rounded),
-                          label: Text('Acceso rapido ($_bioLabel)'),
+                          label: Text('Acceso r\u00e1pido ($_bioLabel)'),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(48),
                             shape: shape,

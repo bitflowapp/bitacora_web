@@ -115,14 +115,14 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'search',
           label: 'Buscar',
-          subtitle: 'Busqueda inline con resaltado',
+          subtitle: 'B\u00fasqueda inline con resaltado',
           shortcut: 'Ctrl/Cmd+F',
           icon: Icons.search_rounded,
           onSelected: () => unawaited(_openSearchDialog()),
         ),
         CommandAction(
           id: 'search_everywhere',
-          label: 'Busqueda global',
+          label: 'B\u00fasqueda global',
           subtitle: 'Buscar en esta planilla o en todas',
           shortcut: 'Ctrl/Cmd+Shift+F',
           icon: Icons.travel_explore_rounded,
@@ -131,7 +131,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'jump_to',
           label: 'Ir a…',
-          subtitle: 'Ir rapido por fila o ID',
+          subtitle: 'Ir r\u00e1pido por fila o ID',
           shortcut: 'Ctrl/Cmd+J',
           icon: Icons.pin_drop_outlined,
           onSelected: () => unawaited(_openJumpToDialog()),
@@ -153,14 +153,14 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'history_log',
           label: 'Historial',
-          subtitle: 'Auditoria de cambios por planilla',
+          subtitle: 'Auditor\u00eda de cambios por planilla',
           icon: Icons.history_rounded,
           onSelected: () => unawaited(_openHistoryPanel()),
         ),
         CommandAction(
           id: 'quick_capture',
           label: 'Modo campo (+Registro)',
-          subtitle: 'Alta rapida para relevamiento',
+          subtitle: 'Alta r\u00e1pida para relevamiento',
           icon: Icons.add_box_outlined,
           onSelected: () => unawaited(_startQuickCaptureFlow()),
         ),
@@ -174,7 +174,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'flowbot_save_macro',
           label: 'Guardar macro FlowBot',
-          subtitle: 'Guarda el ultimo comando FlowBot valido',
+          subtitle: 'Guarda el \u00faltimo comando FlowBot v\u00e1lido',
           icon: Icons.bookmark_add_rounded,
           onSelected: () => unawaited(_saveCurrentFlowBotMacro()),
         ),
@@ -229,7 +229,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'duplicate_last_row',
-          label: 'Duplicar ultima fila',
+          label: 'Duplicar \u00faltima fila',
           subtitle: 'Replica la fila final en un toque',
           icon: Icons.copy_all_rounded,
           onSelected: _duplicateLastRowQuick,
@@ -257,7 +257,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'pending_review',
-          label: 'Pendientes de revision',
+          label: 'Pendientes de revisi\u00f3n',
           subtitle: 'Filtrar filas no revisadas',
           icon: Icons.pending_actions_rounded,
           onSelected: _togglePendingReviewView,
@@ -271,7 +271,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'last_value',
-          label: 'Usar ultimo valor',
+          label: 'Usar \u00faltimo valor',
           subtitle: 'Aplica sugerencia reciente de la columna',
           icon: Icons.history_rounded,
           onSelected: _useLastValueForSelectedCell,
@@ -286,7 +286,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'apply_value_to_selection',
           label: 'Aplicar valor a selección',
-          subtitle: 'Carga rapida por columna activa',
+          subtitle: 'Carga r\u00e1pida por columna activa',
           icon: Icons.format_color_text_rounded,
           onSelected: () => unawaited(_promptBatchApplyValue()),
         ),
@@ -331,7 +331,7 @@ extension _EditorActions on _EditorScreenState {
         CommandAction(
           id: 'suggest_formulas',
           label: 'Sugerir funciones',
-          subtitle: 'SUM, AVERAGE, IF, ROUND, NOW segun contexto',
+          subtitle: 'SUM, AVERAGE, IF, ROUND, NOW seg\u00fan contexto',
           icon: Icons.lightbulb_outline_rounded,
           onSelected: () => unawaited(_suggestFormulaForSelection()),
         ),
@@ -491,7 +491,7 @@ extension _EditorActions on _EditorScreenState {
         ),
         CommandAction(
           id: 'tour',
-          label: 'Ver tour rapido',
+          label: 'Ver tour r\u00e1pido',
           icon: Icons.explore_outlined,
           onSelected: _reopenEditorTour,
         ),

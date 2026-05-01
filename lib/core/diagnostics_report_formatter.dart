@@ -115,7 +115,7 @@ class DiagnosticsReportFormatter {
     final sortedReasons = attachmentReasonCounts.entries.toList(growable: false)
       ..sort((a, b) => a.key.compareTo(b.key));
     final buffer = StringBuffer()
-      ..writeln('BitFlow - Diagnostico / Soporte')
+      ..writeln('BitFlow - Diagn\u00f3stico / Soporte')
       ..writeln('Generado: ${metadata.generatedAt.toIso8601String()}')
       ..writeln('Version/Build: ${metadata.buildStamp}')
       ..writeln('Version: ${metadata.appInfo.versionLabel}')

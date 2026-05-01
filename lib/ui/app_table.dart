@@ -51,7 +51,7 @@ class AppTable<T> extends StatelessWidget {
     required this.rows,
     this.caption,
     this.emptyTitle = 'Sin datos',
-    this.emptyMessage = 'Todavia no hay elementos para mostrar.',
+    this.emptyMessage = 'Todav\u00eda no hay elementos para mostrar.',
     this.emptyActionLabel,
     this.onEmptyAction,
     this.maxHeight,
