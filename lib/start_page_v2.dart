@@ -11,8 +11,7 @@ import 'screens/terms_screen.dart';
 import 'services/build_info.dart';
 import 'services/demo_templates.dart';
 import 'services/sheet_store.dart';
-import 'ui/app_strings.dart';
-import 'ui/loading_state.dart';
+import 'ui/ui.dart';
 
 class StartPageV2 extends StatefulWidget {
   const StartPageV2({
@@ -221,7 +220,7 @@ class _StartPageV2State extends State<StartPageV2> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(
                           sheet.title.trim().isEmpty
-                              ? 'Planilla sin titulo'
+                              ? 'Planilla sin título'
                               : sheet.title,
                         ),
                         subtitle: Text('${sheet.rows} filas'),
@@ -331,218 +330,136 @@ class _StartPageV2State extends State<StartPageV2> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = widget.isLight ? Brightness.light : Brightness.dark;
-    final bg =
-        widget.isLight ? const Color(0xFFF6F4EF) : const Color(0xFF111316);
-    final panel = widget.isLight ? Colors.white : const Color(0xFF1A1D22);
-    final ink =
-        widget.isLight ? const Color(0xFF121418) : const Color(0xFFF4F7FB);
-    final muted =
-        widget.isLight ? const Color(0xFF5D6470) : const Color(0xFFAEB7C4);
-    final accent =
-        widget.isLight ? const Color(0xFF1455D9) : const Color(0xFF7FB4FF);
-    final border =
-        widget.isLight ? const Color(0xFFE2E6EE) : const Color(0xFF303743);
+    final tokens = context.tokens;
     final sheets = SheetStore.list();
+    final width = MediaQuery.sizeOf(context).width;
+    final wide = width >= 720;
 
-    return Theme(
-      data: ThemeData(
-        brightness: brightness,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: accent,
-          brightness: brightness,
-        ),
-        useMaterial3: true,
-      ),
-      child: Focus(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _onKeyEvent,
-        child: Material(
-          color: bg,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: ColoredBox(
-                    key: const ValueKey('start-base-fill'),
-                    color: bg,
-                  ),
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Material(
+        color: tokens.colors.bg,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(
+                  key: const ValueKey('start-base-fill'),
+                  color: tokens.colors.bg,
                 ),
               ),
-              SafeArea(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Bit Flow',
-                            style: TextStyle(
-                              color: ink,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          key: const ValueKey('start-more-button'),
-                          onPressed: _openMoreMenu,
-                          icon: Icon(CupertinoIcons.ellipsis, color: ink),
-                        ),
-                        IconButton(
-                          onPressed: widget.onToggleTheme,
-                          icon: Icon(
-                            widget.isLight
-                                ? CupertinoIcons.moon
-                                : CupertinoIcons.sun_max,
-                            color: ink,
-                          ),
-                        ),
-                      ],
+            ),
+            SafeArea(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                  wide ? 28 : 18,
+                  wide ? 28 : 22,
+                  wide ? 28 : 18,
+                  32,
+                ),
+                children: [
+                  _BrandRow(
+                    onMore: _openMoreMenu,
+                    onToggleTheme: widget.onToggleTheme,
+                    isLight: widget.isLight,
+                  ),
+                  const SizedBox(height: 22),
+                  if (_loadedPrefs && !_onboardingDone) ...[
+                    _OnboardingCard(
+                      hideNextTime: _hideOnboardingNextTime,
+                      onHideNextTimeChanged: (value) {
+                        setState(() => _hideOnboardingNextTime = value);
+                      },
+                      onNext: _completeOnboarding,
+                      onDismiss: _dismissOnboarding,
+                      onCreate: _showCreateSheetChoices,
                     ),
-                    const SizedBox(height: 18),
-                    if (_loadedPrefs && !_onboardingDone)
-                      _OnboardingCard(
-                        panel: panel,
-                        border: border,
-                        ink: ink,
-                        muted: muted,
-                        hideNextTime: _hideOnboardingNextTime,
-                        onHideNextTimeChanged: (value) {
-                          setState(() => _hideOnboardingNextTime = value);
-                        },
-                        onNext: _completeOnboarding,
-                        onDismiss: _dismissOnboarding,
-                        onCreate: _showCreateSheetChoices,
-                      ),
-                    ConstrainedBox(
+                    const SizedBox(height: 22),
+                  ],
+                  Center(
+                    child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 980),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Planillas técnicas con evidencias en campo.',
-                            style: TextStyle(
-                              color: ink,
-                              fontSize: 38,
-                              height: 1.02,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          _Hero(wide: wide),
+                          const SizedBox(height: 24),
+                          _ActionGrid(
+                            sheets: sheets,
+                            wide: wide,
+                            onNew: _openBlankSheet,
+                            onRecent: _openMostRecentSheet,
+                            onSearch: _openQuickSwitcher,
+                            onTemplate: _openTechnicalDemo,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Bit Flow organiza relevamientos, registros técnicos y adjuntos en una tabla rápida, local y lista para exportar.',
-                            style: TextStyle(
-                              color: muted,
-                              fontSize: 16,
-                              height: 1.35,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              _HomeActionButton(
-                                key: const ValueKey('start-primary-new'),
-                                icon: Icons.add_rounded,
-                                title: 'Nuevo relevamiento',
-                                subtitle: 'Crea una hoja con nombre único',
-                                onTap: _openBlankSheet,
-                              ),
-                              _HomeActionButton(
-                                key:
-                                    const ValueKey('start-primary-open-recent'),
-                                icon: Icons.history_rounded,
-                                title: 'Continuar \u00faltimo',
-                                subtitle: sheets.isEmpty
-                                    ? 'Tu relevamiento reciente aparecer\u00e1 ac\u00e1'
-                                    : _sheetTitle(sheets.first),
-                                onTap: _openMostRecentSheet,
-                              ),
-                              _HomeActionButton(
-                                key: const ValueKey('start-primary-search'),
-                                icon: Icons.search_rounded,
-                                title: 'Buscar planillas',
-                                subtitle: 'Saltar r\u00e1pido a un trabajo',
-                                onTap: _openQuickSwitcher,
-                              ),
-                              _HomeActionButton(
-                                key: const ValueKey('start-primary-automate'),
-                                icon: Icons.auto_awesome_rounded,
-                                title: 'Plantilla técnica',
-                                subtitle: 'Operadora Norte · evidencias',
-                                onTap: _openTechnicalDemo,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           TextButton.icon(
                             onPressed: _showCreateSheetChoices,
                             icon: const Icon(Icons.add_rounded),
                             label: const Text('Crear hoja'),
                           ),
-                          const SizedBox(height: 28),
-                          _DemoPanel(
-                            panel: panel,
-                            border: border,
-                            ink: ink,
-                            muted: muted,
-                            accent: accent,
-                          ),
-                          const SizedBox(height: 28),
-                          Text(
-                            'Continuar trabajo',
-                            style: TextStyle(
-                              color: ink,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          const SizedBox(height: 32),
+                          _DemoPanel(),
+                          const SizedBox(height: 32),
+                          SectionHeader(
+                            title: 'Continuar trabajo',
+                            subtitle: sheets.isEmpty
+                                ? 'Tus relevamientos recientes aparecerán acá.'
+                                : '${sheets.length} planillas guardadas en este dispositivo.',
                           ),
                           const SizedBox(height: 12),
                           _RecentSheetsPanel(
-                            panel: panel,
-                            border: border,
-                            muted: muted,
                             sheets: sheets,
+                            onOpen: (id) async {
+                              if (!mounted) return;
+                              final meta = sheets.firstWhere(
+                                (s) => s.id == id,
+                                orElse: () => sheets.first,
+                              );
+                              await Navigator.of(context).push(
+                                CupertinoPageRoute<void>(
+                                  builder: (_) => EditorScreen(
+                                    sheetId: meta.id,
+                                    initialName: meta.title,
+                                    isLight: widget.isLight,
+                                    onToggleTheme: widget.onToggleTheme,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 32),
                           _AutomationPanel(
                             key: const ValueKey('start-automation-zone'),
-                            panel: panel,
-                            border: border,
-                            ink: ink,
-                            muted: muted,
                             onDemo: _openTechnicalDemo,
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              if (_busy)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    child: Center(
-                      child: LoadingState(
-                        message: _busyMessage,
-                        onCancel: _busyCanCancel
-                            ? () {
-                                setState(() => _busyCancelRequested = true);
-                              }
-                            : null,
-                        cancelLabel: AppStrings.cancel,
-                      ),
+            ),
+            if (_busy)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  child: Center(
+                    child: LoadingState(
+                      message: _busyMessage,
+                      onCancel: _busyCanCancel
+                          ? () {
+                              setState(() => _busyCancelRequested = true);
+                            }
+                          : null,
+                      cancelLabel: AppStrings.cancel,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -550,7 +467,289 @@ class _StartPageV2State extends State<StartPageV2> {
 
   static String _sheetTitle(SheetMeta sheet) {
     final title = sheet.title.trim();
-    return title.isEmpty ? 'Planilla sin titulo' : title;
+    return title.isEmpty ? 'Planilla sin título' : title;
+  }
+}
+
+class _BrandRow extends StatelessWidget {
+  const _BrandRow({
+    required this.onMore,
+    required this.onToggleTheme,
+    required this.isLight,
+  });
+
+  final VoidCallback onMore;
+  final VoidCallback onToggleTheme;
+  final bool isLight;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: t.colors.surfaceMuted,
+            borderRadius: BorderRadius.circular(t.radii.sm),
+            border: Border.all(color: t.colors.border),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.grid_view_rounded,
+            size: 18,
+            color: t.colors.textPrimary,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Bit Flow',
+            style: t.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+        IconButton(
+          key: const ValueKey('start-more-button'),
+          onPressed: onMore,
+          icon: const Icon(CupertinoIcons.ellipsis),
+          color: t.colors.textPrimary,
+          tooltip: 'Más opciones',
+        ),
+        IconButton(
+          onPressed: onToggleTheme,
+          icon: Icon(
+            isLight ? CupertinoIcons.moon : CupertinoIcons.sun_max,
+          ),
+          color: t.colors.textPrimary,
+          tooltip: isLight ? 'Modo oscuro' : 'Modo claro',
+        ),
+      ],
+    );
+  }
+}
+
+class _Hero extends StatelessWidget {
+  const _Hero({required this.wide});
+
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final titleStyle =
+        (wide ? t.text.displaySmall : t.text.headlineMedium)?.copyWith(
+      color: t.colors.textPrimary,
+      fontWeight: FontWeight.w900,
+      letterSpacing: -0.6,
+      height: 1.05,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: t.colors.surfaceMuted,
+            borderRadius: BorderRadius.circular(t.radii.pill),
+            border: Border.all(color: t.colors.border),
+          ),
+          child: Text(
+            'Local · Sin servidores · Listo para campo',
+            style: t.text.labelSmall?.copyWith(
+              color: t.colors.textSecondary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Planillas técnicas con\nevidencias en campo.',
+          style: titleStyle,
+        ),
+        const SizedBox(height: 12),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Text(
+            'Bit Flow organiza relevamientos, registros técnicos y adjuntos en una tabla rápida, local y lista para exportar.',
+            style: t.text.bodyLarge?.copyWith(
+              color: t.colors.textSecondary,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({
+    required this.sheets,
+    required this.wide,
+    required this.onNew,
+    required this.onRecent,
+    required this.onSearch,
+    required this.onTemplate,
+  });
+
+  final List<SheetMeta> sheets;
+  final bool wide;
+  final VoidCallback onNew;
+  final VoidCallback onRecent;
+  final VoidCallback onSearch;
+  final VoidCallback onTemplate;
+
+  @override
+  Widget build(BuildContext context) {
+    final recentTitle = sheets.isEmpty
+        ? 'Tu relevamiento reciente aparecerá acá'
+        : _StartPageV2State._sheetTitle(sheets.first);
+    final tiles = <Widget>[
+      _ActionTile(
+        valueKey: const ValueKey('start-primary-new'),
+        icon: Icons.add_rounded,
+        title: 'Nuevo relevamiento',
+        subtitle: 'Crea una hoja con nombre único',
+        accent: true,
+        onTap: onNew,
+      ),
+      _ActionTile(
+        valueKey: const ValueKey('start-primary-open-recent'),
+        icon: Icons.history_rounded,
+        title: 'Continuar último',
+        subtitle: recentTitle,
+        onTap: onRecent,
+      ),
+      _ActionTile(
+        valueKey: const ValueKey('start-primary-search'),
+        icon: Icons.search_rounded,
+        title: 'Buscar planillas',
+        subtitle: 'Saltar rápido a un trabajo',
+        onTap: onSearch,
+      ),
+      _ActionTile(
+        valueKey: const ValueKey('start-primary-automate'),
+        icon: Icons.auto_awesome_rounded,
+        title: 'Plantilla técnica',
+        subtitle: 'Operadora Norte · evidencias',
+        onTap: onTemplate,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final cols = wide && constraints.maxWidth > 720 ? 2 : 1;
+        final spacing = 14.0;
+        final tileWidth = cols == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - spacing) / 2;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final tile in tiles) SizedBox(width: tileWidth, child: tile),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.valueKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final ValueKey<String> valueKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return KeyedSubtree(
+      key: valueKey,
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        borderColor: accent ? t.colors.borderStrong : t.colors.border,
+        shadows: accent ? t.shadows.card : t.shadows.soft,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent ? t.colors.accent : t.colors.surfaceMuted,
+                borderRadius: BorderRadius.circular(t.radii.md),
+                border: Border.all(
+                  color: accent ? t.colors.accent : t.colors.border,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                icon,
+                size: 20,
+                color: accent
+                    ? (t.colors.isLight
+                        ? Colors.white
+                        : const Color(0xFF0D0D0F))
+                    : t.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.text.bodySmall?.copyWith(
+                      color: t.colors.textSecondary,
+                      height: 1.3,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: t.colors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -575,51 +774,8 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
-class _HomeActionButton extends StatelessWidget {
-  const _HomeActionButton({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 210,
-      child: FilledButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon),
-        label: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _OnboardingCard extends StatelessWidget {
   const _OnboardingCard({
-    required this.panel,
-    required this.border,
-    required this.ink,
-    required this.muted,
     required this.hideNextTime,
     required this.onHideNextTimeChanged,
     required this.onNext,
@@ -627,10 +783,6 @@ class _OnboardingCard extends StatelessWidget {
     required this.onCreate,
   });
 
-  final Color panel;
-  final Color border;
-  final Color ink;
-  final Color muted;
   final bool hideNextTime;
   final ValueChanged<bool> onHideNextTimeChanged;
   final VoidCallback onNext;
@@ -639,56 +791,86 @@ class _OnboardingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
-      ),
+    final t = context.tokens;
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      shadows: t.shadows.soft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Primeros pasos',
-            style: TextStyle(
-              color: ink,
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Crea una planilla, carga evidencias y exporta cuando termines.',
-            style: TextStyle(color: muted, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
             children: [
-              Switch(
-                value: hideNextTime,
-                onChanged: onHideNextTimeChanged,
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: t.colors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(t.radii.sm),
+                  border: Border.all(color: t.colors.border),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.flag_outlined,
+                  size: 18,
+                  color: t.colors.textPrimary,
+                ),
               ),
-              Text(
-                'No volver a mostrar',
-                style: TextStyle(color: muted, fontWeight: FontWeight.w600),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Primeros pasos',
+                  style: t.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.1,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
+          Text(
+            'Crea una planilla, carga evidencias y exporta cuando termines.',
+            style: t.text.bodyMedium?.copyWith(
+              color: t.colors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Switch.adaptive(
+                value: hideNextTime,
+                onChanged: onHideNextTimeChanged,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'No volver a mostrar',
+                  style: t.text.bodySmall?.copyWith(
+                    color: t.colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              OutlinedButton(onPressed: onNext, child: const Text('Siguiente')),
-              TextButton(onPressed: onDismiss, child: const Text('Ahora no')),
-              FilledButton(
+              OutlinedButton(
+                onPressed: onNext,
+                child: const Text('Siguiente'),
+              ),
+              TextButton(
+                onPressed: onDismiss,
+                child: const Text('Ahora no'),
+              ),
+              FilledButton.icon(
                 onPressed: onCreate,
-                child: const Text('Crear hoja'),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Crear hoja'),
               ),
             ],
           ),
@@ -700,45 +882,130 @@ class _OnboardingCard extends StatelessWidget {
 
 class _RecentSheetsPanel extends StatelessWidget {
   const _RecentSheetsPanel({
-    required this.panel,
-    required this.border,
-    required this.muted,
     required this.sheets,
+    required this.onOpen,
   });
 
-  final Color panel;
-  final Color border;
-  final Color muted;
   final List<SheetMeta> sheets;
+  final Future<void> Function(String) onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (sheets.isEmpty)
-            Text(
-              'Abre una planilla para verla aqui.',
-              style: TextStyle(color: muted),
-            )
-          else
-            for (final sheet in sheets.take(4))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  _StartPageV2State._sheetTitle(sheet),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    final t = context.tokens;
+    if (sheets.isEmpty) {
+      return AppCard(
+        padding: const EdgeInsets.all(22),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: t.colors.surfaceMuted,
+                borderRadius: BorderRadius.circular(t.radii.md),
+                border: Border.all(color: t.colors.border),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.history_rounded,
+                size: 20,
+                color: t.colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Cuando abras una planilla, aparecerá acá para retomarla rápido.',
+                style: t.text.bodyMedium?.copyWith(
+                  color: t.colors.textSecondary,
+                  height: 1.35,
                 ),
               ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var i = 0; i < sheets.take(4).length; i++) ...[
+            _RecentRow(
+              meta: sheets[i],
+              onTap: () => onOpen(sheets[i].id),
+            ),
+            if (i < sheets.take(4).length - 1)
+              Divider(height: 1, color: t.colors.border),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _RecentRow extends StatelessWidget {
+  const _RecentRow({required this.meta, required this.onTap});
+
+  final SheetMeta meta;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final title = _StartPageV2State._sheetTitle(meta);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: t.colors.surfaceMuted,
+                borderRadius: BorderRadius.circular(t.radii.sm),
+                border: Border.all(color: t.colors.border),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.table_chart_outlined,
+                size: 18,
+                color: t.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${meta.rows} filas',
+                    style: t.text.bodySmall?.copyWith(
+                      color: t.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: t.colors.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -747,49 +1014,62 @@ class _RecentSheetsPanel extends StatelessWidget {
 class _AutomationPanel extends StatelessWidget {
   const _AutomationPanel({
     super.key,
-    required this.panel,
-    required this.border,
-    required this.ink,
-    required this.muted,
     required this.onDemo,
   });
 
-  final Color panel;
-  final Color border;
-  final Color ink;
-  final Color muted;
   final VoidCallback onDemo;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
-      ),
+    final t = context.tokens;
+    return AppCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Automatizaciones',
-            style: TextStyle(
-              color: ink,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: t.colors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(t.radii.sm),
+                  border: Border.all(color: t.colors.border),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 18,
+                  color: t.colors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Automatizaciones',
+                  style: t.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             'Acciones listas para relevamientos técnicos.',
-            style: TextStyle(color: muted, fontWeight: FontWeight.w600),
+            style: t.text.bodyMedium?.copyWith(
+              color: t.colors.textSecondary,
+              height: 1.35,
+            ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
+          const SizedBox(height: 14),
+          AppButton(
+            label: 'Plantilla técnica',
+            icon: Icons.science_outlined,
+            variant: AppButtonVariant.secondary,
             onPressed: onDemo,
-            icon: const Icon(Icons.science_outlined),
-            label: const Text('Plantilla técnica'),
           ),
         ],
       ),
@@ -798,75 +1078,69 @@ class _AutomationPanel extends StatelessWidget {
 }
 
 class _DemoPanel extends StatelessWidget {
-  const _DemoPanel({
-    required this.panel,
-    required this.border,
-    required this.ink,
-    required this.muted,
-    required this.accent,
-  });
-
-  final Color panel;
-  final Color border;
-  final Color ink;
-  final Color muted;
-  final Color accent;
+  const _DemoPanel();
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final rows = const [
       ['Operadora Norte', 'Manifold 3', 'Inspección visual', 'OK'],
       ['Operadora Norte', 'Línea 6"', 'Vibración en soporte', 'Revisar'],
       ['Operadora Norte', 'Caseta RTU', 'Foto y GPS cargados', 'Completo'],
     ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: panel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      shadows: t.shadows.card,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            child: Row(
               children: [
-                Icon(Icons.table_chart_outlined, color: accent),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Text(
-                    'Relevamiento técnico con evidencias',
-                    style: TextStyle(
-                      color: ink,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: t.colors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(t.radii.sm),
+                    border: Border.all(color: t.colors.border),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.table_chart_outlined,
+                    size: 18,
+                    color: t.colors.textPrimary,
                   ),
                 ),
-                Text(
-                  'Local · Guardado en este dispositivo',
-                  style: TextStyle(
-                    color: muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Relevamiento técnico con evidencias',
+                        style: t.text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Local · Guardado en este dispositivo',
+                        style: t.text.bodySmall?.copyWith(
+                          color: t.colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          Divider(height: 1, color: border),
+          Divider(height: 1, color: t.colors.border),
           Semantics(
             label:
                 'Vista previa de relevamiento técnico con cliente, activo, hallazgo y estado.',
@@ -875,8 +1149,9 @@ class _DemoPanel extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
                   headingRowColor: WidgetStatePropertyAll(
-                    accent.withValues(alpha: 0.08),
+                    t.colors.surfaceMuted,
                   ),
+                  dividerThickness: 0,
                   columns: const [
                     DataColumn(label: Text('Cliente')),
                     DataColumn(label: Text('Activo')),

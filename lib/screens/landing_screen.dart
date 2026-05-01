@@ -89,7 +89,7 @@ class LandingScreen extends StatelessWidget {
                           children: [
                             _TopNav(
                               brand: config.brandName.isEmpty
-                                  ? 'Bitacora'
+                                  ? 'Bitácora'
                                   : config.brandName,
                               onToggleTheme: onToggleTheme,
                             ),
@@ -97,7 +97,7 @@ class LandingScreen extends StatelessWidget {
                               const SizedBox(height: 16),
                               AppErrorState(
                                 compact: true,
-                                title: 'Configuracion comercial incompleta',
+                                title: 'Configuración comercial incompleta',
                                 message:
                                     'Se cargaron valores por defecto para no frenar la demo.',
                                 actionLabel: 'Ir a la app',
@@ -109,7 +109,7 @@ class LandingScreen extends StatelessWidget {
                               EmptyState(
                                 title: 'Falta canal de contacto',
                                 message:
-                                    'Configura email o WhatsApp para recibir consultas desde la landing.',
+                                    'Configur\u00e1 email o WhatsApp para recibir consultas desde la landing.',
                                 actionLabel: 'Abrir aplicaci\u00f3n',
                                 onAction: () => context.go('/app'),
                                 icon: Icons.support_agent_outlined,
@@ -126,7 +126,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'Beneficios claros y medibles',
                               subtitle:
-                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin friccion.',
+                                  'Operaciones con evidencia en un solo lugar, sin servidores y sin fricción.',
                             ),
                             const SizedBox(height: 18),
                             _BenefitsGrid(),
@@ -142,7 +142,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'Casos de uso',
                               subtitle:
-                                  'Pensado para equipos operativos, auditorias y seguimiento diario.',
+                                  'Pensado para equipos operativos, auditorías y seguimiento diario.',
                             ),
                             const SizedBox(height: 18),
                             _UseCases(),
@@ -150,7 +150,7 @@ class LandingScreen extends StatelessWidget {
                             SectionHeader(
                               title: 'Planes claros, sin servidor',
                               subtitle:
-                                  'Licencia local + soporte. No depende de internet para operar.',
+                                  'Licencia local + soporte. No dependés de internet para operar.',
                             ),
                             const SizedBox(height: 18),
                             _Pricing(
@@ -206,7 +206,7 @@ class LandingScreen extends StatelessWidget {
       scheme: 'mailto',
       path: mail,
       queryParameters: const <String, String>{
-        'subject': 'Consulta Bitacora',
+        'subject': 'Consulta Bitácora',
       },
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -616,12 +616,12 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Reporte listo',
-            desc: 'HTML imprimible con evidencias para auditorias.',
+            desc: 'HTML imprimible con evidencias para auditorías.',
             icon: Icons.picture_as_pdf_outlined,
           ),
           const _BenefitCard(
-            title: 'Estandar operativo',
-            desc: 'Procesos claros, menos errores y mas trazabilidad.',
+            title: 'Estándar operativo',
+            desc: 'Procesos claros, menos errores y más trazabilidad.',
             icon: Icons.rule_folder_outlined,
           ),
           const _BenefitCard(
@@ -631,7 +631,7 @@ class _BenefitsGrid extends StatelessWidget {
           ),
           const _BenefitCard(
             title: 'Escala local',
-            desc: 'Multiples proyectos, carpetas y backups confiables.',
+            desc: 'Múltiples proyectos, carpetas y backups confiables.',
             icon: Icons.grid_view_rounded,
           ),
         ];
@@ -786,7 +786,7 @@ class _UseCases extends StatelessWidget {
         desc: 'Rutinas, checklists y anexos fotografiados.',
       ),
       _UseCaseCard(
-        title: 'Logistica y flota',
+        title: 'Logística y flota',
         desc: 'Control de entregas, incidencias y trazas.',
       ),
       _UseCaseCard(
@@ -885,7 +885,7 @@ class _Pricing extends StatelessWidget {
             title: 'Enterprise',
             price: _pick(config.pricingEnterprise, 'A medida'),
             features: const [
-              'Capacitacion in-company',
+              'Capacitación in-company',
               'Branding y templates',
               'Soporte dedicado',
               'SLA y actualizaciones',
@@ -897,8 +897,8 @@ class _Pricing extends StatelessWidget {
             features: [
               'Mesa de ayuda dedicada',
               'Actualizaciones planificadas',
-              'Buenas practicas operativas',
-              'Acompanamiento continuo',
+              'Buenas prácticas operativas',
+              'Acompañamiento continuo',
             ],
           ),
         ];
@@ -931,7 +931,7 @@ class _Pricing extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             AppButton(
-              label: 'Probar Bitacora',
+              label: 'Probar Bitácora',
               variant: AppButtonVariant.primary,
               onPressed: onPrimary,
             ),
@@ -1011,14 +1011,14 @@ class _CtaBand extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Listo para ordenar tu operaci\u00f3n?',
+                '\u00bfListo para ordenar tu operaci\u00f3n?',
                 style: t.text.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Instalacion local en minutos. Sin servidores, sin friccion.',
+                'Instalaci\u00f3n local en minutos. Sin servidores, sin fricci\u00f3n.',
                 style: t.text.bodyMedium?.copyWith(
                   color: t.colors.textSecondary,
                 ),
@@ -1064,17 +1064,17 @@ class _FaqList extends StatelessWidget {
     return Column(
       children: const [
         _FaqItem(
-          q: 'Necesito servidor o internet?',
-          a: 'No. Funciona local. Solo necesitas internet para enviar o imprimir.',
+          q: '\u00bfNecesito servidor o internet?',
+          a: 'No. Funciona local. Solo necesit\u00e1s internet para enviar o imprimir.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Se puede migrar desde Excel?',
-          a: 'Si. Copias y pegas columnas o importas planillas existentes.',
+          q: '\u00bfSe puede migrar desde Excel?',
+          a: 'S\u00ed. Copi\u00e1s y peg\u00e1s columnas o import\u00e1s planillas existentes.',
         ),
         SizedBox(height: 12),
         _FaqItem(
-          q: 'Que pasa si se llena el almacenamiento?',
+          q: '\u00bfQu\u00e9 pasa si se llena el almacenamiento?',
           a: 'La app avisa y recomienda exportar backup y limpiar adjuntos.',
         ),
       ],
@@ -1131,7 +1131,7 @@ class _Footer extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              config.brandName.isEmpty ? 'Bitacora' : config.brandName,
+              config.brandName.isEmpty ? 'Bitácora' : config.brandName,
               style: t.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
