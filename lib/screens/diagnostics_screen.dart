@@ -611,7 +611,12 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       padding: const EdgeInsets.only(left: 4, bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          color: CupertinoColors.label,
+          decoration: TextDecoration.none,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -624,9 +629,16 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         border: Border.all(color: CupertinoColors.systemGrey4),
       ),
       padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      child: DefaultTextStyle(
+        style: TextStyle(
+          color: CupertinoColors.label.resolveFrom(context),
+          decoration: TextDecoration.none,
+          fontSize: 14,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
     );
   }

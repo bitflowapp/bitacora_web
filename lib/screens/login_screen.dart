@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/biometric_auth_service.dart';
 import '../services/runtime_flags.dart';
 import '../services/secure_kv.dart';
+import '../ui/ui.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _biometricAvailable = false;
   bool _bioEnabled = false;
   bool _hasLoggedOnceOnDevice = false;
-  String _bioLabel = 'Biometria';
+  String _bioLabel = 'Biometría';
 
   @override
   void initState() {
@@ -122,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_isValidEmail(email) || pass.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Ingresa un email valido y una contrasena.'),
+          content: Text('Ingresa un email válido y una contraseña.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -155,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('No se pudo iniciar sesion: $e'),
+          content: Text('No se pudo iniciar sesión: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -204,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return AlertDialog(
           title: const Text('Cuenta no encontrada'),
           content: Text(
-            'No existe una cuenta para $email. Queres crearla ahora con esta contrasena?',
+            'No existe una cuenta para $email. ¿Querés crearla ahora con esta contraseña?',
           ),
           actions: [
             TextButton(
@@ -344,7 +345,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'popup-closed-by-user':
         return 'Cerraste la ventana de Google antes de completar el login.';
       case 'popup-blocked':
-        return 'El navegador bloqueo la ventana emergente. Habilitala e intenta de nuevo.';
+        return 'El navegador bloqueó la ventana emergente. Habilitala e intentá de nuevo.';
       default:
         return 'No se pudo iniciar con Google (${e.code}).';
     }
@@ -353,27 +354,24 @@ class _LoginScreenState extends State<LoginScreen> {
   String _emailPasswordErrorMessage(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
-        return 'El email no tiene un formato valido.';
+        return 'El email no tiene un formato válido.';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Email o contrasena incorrectos.';
+        return 'Email o contraseña incorrectos.';
       case 'too-many-requests':
-        return 'Demasiados intentos. Proba de nuevo en unos minutos.';
+        return 'Demasiados intentos. Probá de nuevo en unos minutos.';
       case 'weak-password':
-        return 'La contrasena es demasiado debil.';
+        return 'La contraseña es demasiado débil.';
       case 'email-already-in-use':
-        return 'Ese email ya esta registrado.';
+        return 'Ese email ya está registrado.';
       default:
-        return 'Error de autenticacion (${e.code}).';
+        return 'Error de autenticación (${e.code}).';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cardBg = theme.brightness == Brightness.dark
-        ? const Color(0xFF0B0D1A)
-        : const Color(0xFFFFFFFF);
+    final tokens = context.tokens;
     final authEnabled = RuntimeFlags.isAuthRequired;
     final showQuickAccess = authEnabled &&
         _bioEnabled &&
@@ -381,68 +379,86 @@ class _LoginScreenState extends State<LoginScreen> {
         _hasLoggedOnceOnDevice;
 
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(tokens.radii.pill),
     );
+
+    Widget brand() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: tokens.colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(tokens.radii.lg),
+              border: Border.all(color: tokens.colors.border),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.grid_view_rounded,
+              size: 26,
+              color: tokens.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'BitFlow',
+            style: tokens.text.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Bitácora operativa local-first',
+            style: tokens.text.bodyMedium?.copyWith(
+              color: tokens.colors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    }
 
     if (!kAuthEnabled) {
       return Scaffold(
+        backgroundColor: tokens.colors.bg,
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
-                child: Card(
-                  elevation: 10,
-                  color: cardBg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Icon(
-                          Icons.workspace_premium_rounded,
-                          size: 42,
-                          color: theme.colorScheme.primary,
+                child: AppCard(
+                  padding: const EdgeInsets.all(24),
+                  shadows: tokens.shadows.card,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      brand(),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Modo local-first activo.',
+                        style: tokens.text.bodyLarge?.copyWith(
+                          color: tokens.colors.textSecondary,
+                          height: 1.4,
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Bitacora Web',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Modo local-first activo.',
-                          style:
-                              theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: () => context.go('/app'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          child: const Text('Empezar'),
-                        ),
-                      ],
-                    ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 18),
+                      AppButton(
+                        label: 'Empezar',
+                        icon: Icons.arrow_forward_rounded,
+                        variant: AppButtonVariant.primary,
+                        size: AppButtonSize.lg,
+                        fullWidth: true,
+                        onPressed: () => context.go('/app'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -453,184 +469,166 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     return Scaffold(
+      backgroundColor: tokens.colors.bg,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
-              child: Card(
-                elevation: 10,
-                color: cardBg,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(
-                        Icons.workspace_premium_rounded,
-                        size: 42,
-                        color: theme.colorScheme.primary,
+              child: AppCard(
+                padding: const EdgeInsets.all(24),
+                shadows: tokens.shadows.card,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    brand(),
+                    const SizedBox(height: 14),
+                    Text(
+                      authEnabled
+                          ? 'Continuá con Google o usá correo y contraseña.'
+                          : 'Modo demo activo: el login está deshabilitado temporalmente.',
+                      style: tokens.text.bodyLarge?.copyWith(
+                        color: tokens.colors.textSecondary,
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (authEnabled) ...[
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        key: const Key('login-google'),
+                        onPressed: _busy ? null : _continueWithGoogle,
+                        icon: const _GoogleMark(),
+                        label: Text(
+                          _busy ? 'Procesando...' : 'Continuar con Google',
+                        ),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          shape: shape,
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        'Bitacora Web',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
+                      OutlinedButton(
+                        key: const Key('login-email'),
+                        onPressed: _busy
+                            ? null
+                            : () {
+                                setState(
+                                    () => _showEmailForm = !_showEmailForm);
+                              },
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          shape: shape,
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
+                        child: Text(
+                          _showEmailForm
+                              ? 'Ocultar correo'
+                              : 'Continuar con correo',
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        authEnabled
-                            ? 'Continua con Google o usa correo y contrasena.'
-                            : 'Modo demo activo: el login está deshabilitado temporalmente.',
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(fontSize: 16),
-                        textAlign: TextAlign.center,
+                    ] else ...[
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: tokens.colors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(tokens.radii.md),
+                          border: Border.all(color: tokens.colors.border),
+                        ),
+                        child: Text(
+                          'Accedé desde la portada o /app. Google y correo están ocultos en demo.',
+                          textAlign: TextAlign.center,
+                          style: tokens.text.bodySmall?.copyWith(
+                            color: tokens.colors.textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
                       ),
-                      if (authEnabled) ...[
-                        const SizedBox(height: 18),
-                        FilledButton.icon(
-                          key: const Key('login-google'),
-                          onPressed: _busy ? null : _continueWithGoogle,
-                          icon: const _GoogleMark(),
-                          label: Text(
-                            _busy ? 'Procesando...' : 'Continuar con Google',
-                          ),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                    ],
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(height: 0),
+                      secondChild: Column(
+                        children: [
+                          const SizedBox(height: 14),
+                          TextField(
+                            key: const Key('login-email-input'),
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.username],
+                            enabled: !_busy,
+                            style: const TextStyle(fontSize: 16),
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                              hintText: 'nombre@empresa.com',
+                              border: OutlineInputBorder(),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton(
-                          key: const Key('login-email'),
-                          onPressed: _busy
-                              ? null
-                              : () {
-                                  setState(
-                                      () => _showEmailForm = !_showEmailForm);
-                                },
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                            shape: shape,
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(height: 12),
+                          TextField(
+                            key: const Key('login-password-input'),
+                            controller: _passCtrl,
+                            enabled: !_busy,
+                            obscureText: true,
+                            autofillHints: const [AutofillHints.password],
+                            style: const TextStyle(fontSize: 16),
+                            decoration: const InputDecoration(
+                              labelText: 'Contraseña',
+                              border: OutlineInputBorder(),
                             ),
                           ),
-                          child: Text(
-                            _showEmailForm
-                                ? 'Ocultar correo'
-                                : 'Continuar con correo',
-                          ),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 18),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: theme.dividerColor.withValues(alpha: 0.5),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            key: const Key('login-submit'),
+                            onPressed: _busy ? null : _submitEmailPassword,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              shape: shape,
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
+                            child: const Text('Entrar con correo'),
                           ),
-                          child: const Text(
-                            'Accedé desde la portada o /app. Google y correo están ocultos en demo.',
+                          const SizedBox(height: 6),
+                          Text(
+                            'Si la cuenta no existe, te ofrecemos crearla en el momento.',
+                            style: tokens.text.bodySmall?.copyWith(
+                              color: tokens.colors.textSecondary,
+                            ),
                             textAlign: TextAlign.center,
                           ),
-                        ),
-                      ],
-                      AnimatedCrossFade(
-                        firstChild: const SizedBox(height: 0),
-                        secondChild: Column(
-                          children: [
-                            const SizedBox(height: 14),
-                            TextField(
-                              key: const Key('login-email-input'),
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              autofillHints: const [AutofillHints.username],
-                              enabled: !_busy,
-                              style: const TextStyle(fontSize: 16),
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
-                                hintText: 'nombre@empresa.com',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              key: const Key('login-password-input'),
-                              controller: _passCtrl,
-                              enabled: !_busy,
-                              obscureText: true,
-                              autofillHints: const [AutofillHints.password],
-                              style: const TextStyle(fontSize: 16),
-                              decoration: const InputDecoration(
-                                labelText: 'Contrasena',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              key: const Key('login-submit'),
-                              onPressed: _busy ? null : _submitEmailPassword,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(48),
-                                shape: shape,
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              child: const Text('Entrar con correo'),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Si la cuenta no existe, te ofrecemos crearla en el momento.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.72,
-                                ),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                        crossFadeState: authEnabled && _showEmailForm
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 180),
+                        ],
                       ),
-                      if (showQuickAccess) ...[
-                        const SizedBox(height: 14),
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _quickAccess,
-                          icon: const Icon(Icons.fingerprint_rounded),
-                          label: Text('Acceso r\u00e1pido ($_bioLabel)'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                            shape: shape,
-                            textStyle: const TextStyle(fontSize: 16),
-                          ),
+                      crossFadeState: authEnabled && _showEmailForm
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 180),
+                    ),
+                    if (showQuickAccess) ...[
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _quickAccess,
+                        icon: const Icon(Icons.fingerprint_rounded),
+                        label: Text('Acceso r\u00e1pido ($_bioLabel)'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          shape: shape,
+                          textStyle: const TextStyle(fontSize: 16),
                         ),
-                      ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),

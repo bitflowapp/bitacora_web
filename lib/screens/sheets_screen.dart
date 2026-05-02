@@ -1,4 +1,4 @@
-﻿// lib/screens/sheets_screen.dart
+// lib/screens/sheets_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,13 +145,13 @@ class _SheetsScreenState extends State<SheetsScreen> {
   void _loadSheets() {
     final list = List<SheetMeta>.from(SheetStore.list());
     list.sort(
-        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // mÃ¡s reciente arriba
+        (a, b) => b.updatedAt.compareTo(a.updatedAt)); // más reciente arriba
     setState(() {
       _items = list;
       _loading = false;
     });
 
-    // Limpieza: si borraron planillas, eliminamos pins huÃ©rfanos.
+    // Limpieza: si borraron planillas, eliminamos pins huérfanos.
     if (_pinsLoaded) {
       final ids = list.map((e) => e.id).toSet();
       final orphan = _pinnedIds.where((id) => !ids.contains(id)).toList();
@@ -240,12 +240,12 @@ class _SheetsScreenState extends State<SheetsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_rounded),
-                title: const Text('Terminos'),
+                title: const Text('Términos'),
                 onTap: () => Navigator.of(ctx).pop('terms'),
               ),
               ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('DiagnÃ³stico / Soporte'),
+                title: const Text('Diagnóstico / Soporte'),
                 onTap: () => Navigator.of(ctx).pop('diagnostics'),
               ),
               ListTile(
@@ -277,7 +277,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
         await Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
             builder: (context) => LicensePage(
-              applicationName: 'BitFlow',
+              applicationName: 'Bit Flow',
               applicationVersion: BuildInfo.stamp,
             ),
           ),
@@ -366,7 +366,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'Galeria de templates',
+                        'Galer\u00eda de plantillas',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -386,7 +386,8 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     tile(
                       icon: Icons.auto_awesome_outlined,
                       title: 'Plantilla base',
-                      subtitle: 'Actividad, Detalle, Estado, Responsable, Fecha',
+                      subtitle:
+                          'Actividad, Detalle, Estado, Responsable, Fecha',
                       value: TemplateKind.plantilla,
                     ),
                     tile(
@@ -398,7 +399,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     tile(
                       icon: Icons.inventory_2_outlined,
                       title: 'Inventario simple',
-                      subtitle: 'Item, Cantidad, Unidad, Ubicacion, Nota',
+                      subtitle: 'Item, Cantidad, Unidad, Ubicaci\u00f3n, Nota',
                       value: TemplateKind.inventario,
                     ),
                     tile(
@@ -410,19 +411,22 @@ class _SheetsScreenState extends State<SheetsScreen> {
                     tile(
                       icon: Icons.payments_outlined,
                       title: 'Control de gastos',
-                      subtitle: 'Fecha, Categoria, Descripcion, Monto, Metodo',
+                      subtitle:
+                          'Fecha, Categor\u00eda, Descripci\u00f3n, Monto, M\u00e9todo',
                       value: TemplateKind.controlGastos,
                     ),
                     tile(
                       icon: Icons.account_tree_outlined,
                       title: 'Seguimiento de proyectos',
-                      subtitle: 'Proyecto, Responsable, inicio/fin, avance y estado',
+                      subtitle:
+                          'Proyecto, Responsable, inicio/fin, avance y estado',
                       value: TemplateKind.seguimientoProyectos,
                     ),
                     tile(
                       icon: Icons.straighten_rounded,
                       title: 'Mediciones técnicas',
-                      subtitle: 'Punto, parametro, lectura, tolerancia y estado',
+                      subtitle:
+                          'Punto, par\u00e1metro, lectura, tolerancia y estado',
                       value: TemplateKind.medicionesTecnicas,
                     ),
                   ],
@@ -669,17 +673,17 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
   String get _subtitleText {
     if (_loading) return 'Cargando planillas...';
-    if (_items.isEmpty) return 'Sin planillas guardadas todavia';
+    if (_items.isEmpty) return 'Sin planillas guardadas todavía';
 
     final last = _lastUpdatedSheet;
-    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : 'â€”';
+    final lastLabel = last != null ? _formatUpdatedAt(last.updatedAt) : '—';
     final pins = _pinnedIds.length;
 
     // Apple-like: informativo pero sin ruido.
     if (pins > 0) {
-      return '${_items.length} planillas | $pins fijadas | Ãšltima: $lastLabel';
+      return '${_items.length} planillas · $pins fijadas · Última: $lastLabel';
     }
-    return '${_items.length} planillas | Ãšltima: $lastLabel';
+    return '${_items.length} planillas · Última: $lastLabel';
   }
 
   @override
@@ -755,7 +759,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
 
     SliverToBoxAdapter sectionHeader(String label, {int? count}) {
       final t = Theme.of(context);
-      final text = count == null ? label : '$label | $count';
+      final text = count == null ? label : '$label · $count';
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
@@ -1007,7 +1011,7 @@ class _AppleLargeTitleAppBar extends StatelessWidget {
                   },
                 ),
                 AppButton(
-                  label: isLight ? 'Noche' : 'DÃ­a',
+                  label: isLight ? 'Noche' : 'Día',
                   icon: isLight
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined,
@@ -1364,8 +1368,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bg = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-      theme.brightness == Brightness.dark ? 0.55 : 0.70,
+    final bg = theme.colorScheme.surfaceContainerHighest.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
     );
 
     return AnimatedScale(
@@ -1415,8 +1419,8 @@ class _PillIcon extends StatelessWidget {
 
     final bg = filled
         ? c.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14)
-        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-            theme.brightness == Brightness.dark ? 0.55 : 0.70,
+        : theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.55 : 0.70,
           );
 
     return Container(
@@ -1519,4 +1523,3 @@ class _NoResults extends StatelessWidget {
     );
   }
 }
-

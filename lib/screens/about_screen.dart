@@ -157,7 +157,7 @@ class _AboutScreenState extends State<AboutScreen> {
       scheme: 'mailto',
       path: 'soporte@bitflow.app',
       queryParameters: const <String, String>{
-        'subject': 'Feedback BitFlow',
+        'subject': 'Feedback Bit Flow',
       },
     );
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -209,7 +209,7 @@ class _AboutScreenState extends State<AboutScreen> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
           Text(
-            'BitFlow',
+            'Bit Flow',
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
@@ -262,12 +262,13 @@ class _AboutScreenState extends State<AboutScreen> {
                   columns: [
                     AppTableColumn.text(
                       label: 'Dato',
-                      minWidth: 180,
+                      minWidth: 150,
                       value: (row) => row.label,
                     ),
                     AppTableColumn.text(
                       label: 'Valor',
-                      minWidth: 280,
+                      minWidth: 360,
+                      maxLines: 3,
                       value: (row) => row.value,
                     ),
                   ],
@@ -360,7 +361,7 @@ class _AboutScreenState extends State<AboutScreen> {
             onTap: () {
               showLicensePage(
                 context: context,
-                applicationName: 'BitFlow',
+                applicationName: 'Bit Flow',
                 applicationVersion: BuildInfo.stamp,
               );
             },
