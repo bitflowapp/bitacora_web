@@ -19180,6 +19180,7 @@ class _EditorScreenState extends State<EditorScreen>
       final xlsxBytes = await _buildXlsxBytesForExport(
         embeddedPhotos: prep.embeddedPhotos,
         attachments: prep.attachments,
+        inZip: true,
         shouldCancel: _isLongOperationCancelled,
       );
       if (!mounted) return;
@@ -19763,6 +19764,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<Uint8List?> _buildXlsxBytesForExport({
     required List<EmbeddedPhoto> embeddedPhotos,
     required List<AttachmentRow> attachments,
+    bool inZip = false,
     bool Function()? shouldCancel,
   }) async {
     _throwIfOperationCancelledBy(shouldCancel);
@@ -19778,6 +19780,19 @@ class _EditorScreenState extends State<EditorScreen>
       rows.add(values);
     }
 
+    final appVersion = await _readAppVersionForExport();
+    final exportedAt = DateTime.now();
+    final projectMeta = ExportProjectMeta(
+      title: _sheetName.trim().isEmpty ? null : _sheetName.trim(),
+      subtitle: 'Reporte profesional generado por Bit Flow',
+      exportedAt: exportedAt,
+      appVersion: appVersion.isEmpty ? null : appVersion,
+      sheetId: widget.sheetId,
+      bundleNote: inZip
+          ? 'Las evidencias viajan junto al XLSX dentro del paquete .zip, en la carpeta attachments/.'
+          : null,
+    );
+
     return buildXlsxWithPhotos(
       columns: columns,
       rows: rows,
@@ -19787,6 +19802,8 @@ class _EditorScreenState extends State<EditorScreen>
       includeIndexColumn: false,
       includeCoverSheet: true,
       includeSummarySheet: true,
+      projectMeta: projectMeta,
+      inZip: inZip,
     );
   }
 
