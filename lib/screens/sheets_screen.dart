@@ -277,7 +277,7 @@ class _SheetsScreenState extends State<SheetsScreen> {
         await Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
             builder: (context) => LicensePage(
-              applicationName: 'BitFlow',
+              applicationName: 'Bit Flow',
               applicationVersion: BuildInfo.stamp,
             ),
           ),

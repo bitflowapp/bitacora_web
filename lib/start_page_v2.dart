@@ -248,7 +248,7 @@ class _StartPageV2State extends State<StartPageV2> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LicensePage(
-          applicationName: 'BitFlow',
+          applicationName: 'Bit Flow',
           applicationVersion: BuildInfo.stamp,
         ),
       ),
@@ -265,7 +265,7 @@ class _StartPageV2State extends State<StartPageV2> {
           children: [
             _MenuTile(
               icon: Icons.info_outline_rounded,
-              title: 'Acerca de BitFlow',
+              title: 'Acerca de Bit Flow',
               onTap: () {
                 Navigator.of(context).pop();
                 _openStaticPage(const AboutScreen());

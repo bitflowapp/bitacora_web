@@ -45,7 +45,7 @@ class TermsScreen extends StatelessWidget {
             icon: Icons.assignment_outlined,
             title: 'Contenido',
             body:
-                'El usuario es responsable de la información registrada y compartida desde BitFlow.',
+                'El usuario es responsable de la información registrada y compartida desde Bit Flow.',
           ),
         ],
       ),

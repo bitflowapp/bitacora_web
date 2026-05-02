@@ -96,7 +96,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                         ),
-                        child: const Text('Usar contrasena'),
+                        child: const Text('Usar contraseña'),
                       ),
                     ],
                   ),

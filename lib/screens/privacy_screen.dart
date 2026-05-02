@@ -24,7 +24,7 @@ class PrivacyScreen extends StatelessWidget {
           SectionHeader(
             title: 'Resumen',
             subtitle:
-                'BitFlow prioriza el uso local y pide permisos sólo cuando son necesarios.',
+                'Bit Flow prioriza el uso local y pide permisos sólo cuando son necesarios.',
           ),
           const SizedBox(height: 18),
           const _Block(
