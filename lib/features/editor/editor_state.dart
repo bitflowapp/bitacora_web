@@ -6154,12 +6154,19 @@ class _EditorScreenState extends State<EditorScreen>
         var chosenScope = _flowBotLastScope;
         var activeEngine = _flowBotUseLocalLlm ? 'local_llm' : 'rule_based';
         var localModelReady = _flowBotLocalModelPath.trim().isNotEmpty;
+        var closing = false;
 
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
             Future<void> parseNow() async {
               final text = transcriptEC.text.trim();
-              if (text.isEmpty) return;
+              if (text.isEmpty) {
+                setModalState(() {
+                  warning =
+                      'Escribe un comando para analizar antes de aplicar cambios.';
+                });
+                return;
+              }
 
               if (_isFlowBotApplyIntent(text)) {
                 final scopedPreview = _applyScopeToFlowBotActions(
@@ -6297,8 +6304,12 @@ class _EditorScreenState extends State<EditorScreen>
                       controller: transcriptEC,
                       minLines: 1,
                       maxLines: 3,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => unawaited(parseNow()),
                       decoration: InputDecoration(
                         hintText: 'Ej: poner OK en B2; rellenar listo x 3',
+                        helperText:
+                            'Tip: Enter analiza. Escribe "aplicar" para confirmar rápido.',
                         filled: true,
                         fillColor: pal.mobileInputBg,
                       ),
@@ -6328,7 +6339,8 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         const SizedBox(width: 8),
                         AppleButton(
-                          label: parsing ? 'Analizando...' : 'Analizar',
+                          label:
+                              parsing ? 'Analizando...' : 'Analizar comando',
                           icon: Icons.play_arrow_rounded,
                           dense: true,
                           variant: AppleButtonVariant.tonal,
@@ -6608,23 +6620,28 @@ class _EditorScreenState extends State<EditorScreen>
                           label: 'Cancelar',
                           dense: true,
                           variant: AppleButtonVariant.ghost,
-                          onPressed: () => Navigator.of(modalCtx).pop(),
+                          onPressed: closing
+                              ? null
+                              : () => Navigator.of(modalCtx).pop(),
                         ),
                         const SizedBox(width: 8),
                         AppleButton(
-                          label: 'Aplicar',
+                          label: closing ? 'Aplicando...' : 'Aplicar cambios',
                           icon: Icons.check_rounded,
                           dense: true,
                           variant: AppleButtonVariant.filled,
-                          onPressed: canApply
-                              ? () => Navigator.of(modalCtx).pop(
+                          onPressed: canApply && !closing
+                              ? () {
+                                  setModalState(() => closing = true);
+                                  Navigator.of(modalCtx).pop(
                                     List<FlowBotAction>.from(scopedPreview),
-                                  )
+                                  );
+                                }
                               : null,
                         ),
                       ],
                     ),
-                    if (!canApply) ...[
+                    if (!canApply || closing) ...[
                       const SizedBox(height: 6),
                       Text(
                         _flowBotApplyDisabledReason(

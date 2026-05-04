@@ -7,6 +7,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  Future<void> _openFlowBotSheet(WidgetTester tester) async {
+    final mainFab = find.byKey(const ValueKey('mobile-fab-main'));
+    expect(mainFab, findsOneWidget);
+    await tester.tap(mainFab);
+    await tester.pumpAndSettle();
+
+    final flowBotAction = find.byKey(const ValueKey('mobile-fab-action-flowbot'));
+    expect(flowBotAction, findsOneWidget);
+    await tester.tap(flowBotAction);
+    await tester.pumpAndSettle();
+    expect(find.text('FlowBot'), findsOneWidget);
+  }
+
   testWidgets('FlowBot apply result explains no-op when there are no actions',
       (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -134,5 +147,52 @@ void main() {
     await tester.pump();
     expect(clearApplied, greaterThan(0));
     expect(state.debugCellText(beforeRows, 1), '');
+  });
+
+  testWidgets(
+      'FlowBot sheet supports keyboard submit and analyze button in compact viewport',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    tester.view.physicalSize = const Size(390, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EditorScreen(
+          sheetId: 'flowbot-compact-sheet-test',
+          initialHeaders: <String>['Notas', 'Fotos'],
+          initialRows: <List<String>>[
+            <String>['', ''],
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openFlowBotSheet(tester);
+    expect(find.text('Aplicar cambios'), findsOneWidget);
+
+    final flowbotField = find.byType(TextField).last;
+    await tester.enterText(flowbotField, 'poner OK en A1');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Analiza un comando para ver preview de celdas.'),
+      findsNothing,
+    );
+
+    await tester.enterText(flowbotField, 'poner listo en A1');
+    await tester.tap(find.text('Analizar comando'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('celdas /'), findsOneWidget);
+
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.pumpAndSettle();
+    expect(find.text('FlowBot'), findsNothing);
   });
 }
